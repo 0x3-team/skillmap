@@ -48,7 +48,9 @@ function printHuman(output: unknown) {
     else if (typeof record.markdown === 'string') console.log(record.markdown);
     else if (typeof record.trace === 'string') console.log(record.trace);
     else if (typeof record.mermaid === 'string') console.log(record.mermaid);
-    else if (typeof record.hookText === 'string') console.log(record.hookText);
+    else if (typeof record.hookText === 'string') {
+      if (record.hookText.length > 0) console.log(record.hookText);
+    }
     else console.log(JSON.stringify(output, null, 2));
   } else {
     console.log(String(output));
@@ -56,7 +58,7 @@ function printHuman(output: unknown) {
 }
 
 function printHelp() {
-  console.log(`SkillMap CLI\n\nCommands:\n  init [--dry-run] [--json]\n  scan [--root PATH] [--fixtures PATH] [--json]\n  list [--json]\n  doctor [--fixtures PATH] [--json]\n  doctor-pack [--fixtures PATH] [--json]\n  ingest-agent-review FILE [--json]\n  apply-policy [--policy FILE] [--dry-run] [--json]\n  graph [--raw|--effective] [--json]\n  route <prompt> [--trace] [--json]\n  eval [--file FILE] [--json]\n  hook dry-run codex <prompt> [--json]\n\nSlice 1 intentionally does not install hooks or mutate global skill roots.`);
+  console.log(`SkillMap CLI\n\nCommands:\n  init [--dry-run] [--json]\n  scan [--root PATH] [--fixtures PATH] [--json]\n  list [--json]\n  doctor [--fixtures PATH] [--json]\n  doctor-pack [--fixtures PATH] [--summary] [--max-skills N] [--json]\n  ingest-agent-review FILE [--json]\n  apply-policy [--policy FILE] [--dry-run] [--json]\n  graph [--raw|--effective] [--json]\n  route <prompt> [--trace] [--json]\n  route --hook [--prompt TEXT] [--max N] [--json]\n  eval [--file FILE] [--json]\n  hook dry-run codex <prompt> [--json]\n  hook install codex --passive [--dry-run] [--global] [--config PATH] [--json]\n  hook uninstall codex [--dry-run] [--global] [--config PATH] [--json]\n\nSafety defaults: no cloud calls, no skill script execution, no hook install unless explicitly requested.`);
 }
 
 main().catch((error: unknown) => {

@@ -7,20 +7,50 @@ import type { EffectiveRegistry } from '../schemas/types.js';
 import { loadOrBuildInventory, outDir, fileExists } from './common.js';
 
 export async function routeCommand(cwd: string, positionals: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
-  const prompt = flagString(flags, 'prompt') ?? positionals.join(' ');
+  const hookMode = hasFlag(flags, 'hook');
+  const prompt = await resolvePrompt(positionals, flags, hookMode);
   if (!prompt.trim()) throw new Error('route requires a prompt.');
-  const effectivePath = path.join(outDir(cwd), 'effective.json');
-  let effective: EffectiveRegistry;
-  if (await fileExists(effectivePath)) {
-    effective = await readJson<EffectiveRegistry>(effectivePath);
-  } else {
-    const inventory = await loadOrBuildInventory(cwd, [], undefined);
-    const policy = await readPolicy((await fileExists(path.join(outDir(cwd), 'policy.yml'))) ? path.join(outDir(cwd), 'policy.yml') : undefined);
-    effective = buildEffectiveRegistry(inventory, policy);
-  }
+  const effective = await loadEffective(cwd);
   const result = routePrompt(effective, prompt, Number(flagString(flags, 'max') ?? '3'));
+  if (hookMode) {
+    const hookText = result.recommendations.length === 0 ? '' : result.hookText;
+    if (hasFlag(flags, 'json')) return { hookText, result };
+    return { hookText };
+  }
   if (hasFlag(flags, 'trace')) return { result, trace: renderTrace(result) };
   return result;
+}
+
+export async function loadEffective(cwd: string): Promise<EffectiveRegistry> {
+  const effectivePath = path.join(outDir(cwd), 'effective.json');
+  if (await fileExists(effectivePath)) return readJson<EffectiveRegistry>(effectivePath);
+  const inventory = await loadOrBuildInventory(cwd, [], undefined);
+  const policy = await readPolicy((await fileExists(path.join(outDir(cwd), 'policy.yml'))) ? path.join(outDir(cwd), 'policy.yml') : undefined);
+  return buildEffectiveRegistry(inventory, policy);
+}
+
+async function resolvePrompt(positionals: string[], flags: Record<string, string | boolean | string[]>, hookMode: boolean): Promise<string> {
+  const explicit = flagString(flags, 'prompt') ?? positionals.join(' ');
+  if (explicit.trim() || !hookMode) return explicit;
+  const stdin = await readStdinIfAvailable();
+  if (!stdin.trim()) return '';
+  try {
+    const input = JSON.parse(stdin) as { prompt?: unknown };
+    return typeof input.prompt === 'string' ? input.prompt : '';
+  } catch {
+    return stdin;
+  }
+}
+
+async function readStdinIfAvailable(): Promise<string> {
+  if (process.stdin.isTTY) return '';
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => { data += chunk; });
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', reject);
+  });
 }
 
 function renderTrace(result: ReturnType<typeof routePrompt>): string {

@@ -22,7 +22,21 @@ export async function evalCommand(cwd: string, flags: Record<string, string | bo
     if (expectedHit) top3 += 1;
     const bad = (item.avoid ?? []).filter((name) => names.includes(name));
     avoidHits += bad.length;
-    return { prompt: item.prompt, expected: item.expected, recommended: names, avoidedButRecommended: bad };
+    return { prompt: item.prompt, expected: item.expected, recommended: names, avoidedButRecommended: bad, hookText: result.hookText };
   });
-  return { count: data.evals.length, top1, top3, avoidHits, rows };
+  const count = data.evals.length;
+  const top1Rate = count === 0 ? 0 : top1 / count;
+  const top3Rate = count === 0 ? 0 : top3 / count;
+  const pass = count > 0 && top1Rate >= 0.75 && top3Rate >= 0.9 && avoidHits === 0;
+  return {
+    count,
+    top1,
+    top3,
+    avoidHits,
+    top1Rate,
+    top3Rate,
+    pass,
+    summary: `SkillMap eval: top1 ${top1}/${count} (${Math.round(top1Rate * 100)}%), top3 ${top3}/${count} (${Math.round(top3Rate * 100)}%), avoid hits ${avoidHits}, pass=${pass}.`,
+    rows
+  };
 }

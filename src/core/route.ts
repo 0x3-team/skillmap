@@ -73,7 +73,7 @@ function phraseMatches(phrase: string, lowerPrompt: string, tokens: Set<string>)
 function renderHookText(recommendations: RouteCandidate[], exclusions: RouteExclusion[]): string {
   if (recommendations.length === 0) return 'SkillMap: no confident skill recommendation.';
   const rec = recommendations.map((item) => `${item.name}${item.family ? ` (${item.family})` : ''}`).join(', ');
-  const avoid = exclusions.filter((item) => item.reason.includes('superseded') || item.reason.includes('explicit-only')).slice(0, 2);
+  const avoid = exclusions.filter((item) => item.reason.includes('superseded')).slice(0, 2);
   const suffix = avoid.length ? ` Avoid: ${avoid.map((item) => `${item.name}: ${item.reason}`).join('; ')}.` : '';
   return `SkillMap: prefer ${rec}.${suffix}`.slice(0, 500);
 }
