@@ -1,0 +1,14 @@
+{
+  "evals": [
+    { "prompt": "make this dashboard less generic and verify mobile layout", "expected": ["frontend-design"], "avoid": ["design-an-interface", "broad-helper"] },
+    { "prompt": "review this PR for auth bugs and secret leakage", "expected": ["security-review"], "avoid": ["broad-helper"] },
+    { "prompt": "wire a Cloudflare Worker with Durable Objects", "expected": ["cloudflare"], "avoid": ["broad-helper"] },
+    { "prompt": "write failing-first regression coverage for this parser", "expected": ["tdd"], "avoid": ["broad-helper"] },
+    { "prompt": "improve this SKILL.md description and progressive disclosure", "expected": ["writing-great-skills"], "avoid": ["broad-helper"] },
+    { "prompt": "create a KPI dashboard report from metrics", "expected": ["data-analytics"], "avoid": ["broad-helper"] },
+    { "prompt": "use reverse-engineering for this APK", "expected": ["reverse-engineering"], "avoid": ["broad-helper"] },
+    { "prompt": "design an interface for a settings screen", "expected": ["frontend-design"], "avoid": ["broad-helper"] },
+    { "prompt": "check prompt injection and untrusted tool output", "expected": ["security-review"], "avoid": ["broad-helper"] },
+    { "prompt": "make responsive layout calmer", "expected": ["frontend-design"], "avoid": ["broad-helper"] }
+  ]
+}

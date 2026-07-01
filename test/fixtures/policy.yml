@@ -1,0 +1,63 @@
+version: 1
+skills:
+  frontend-design:
+    tier: active-default
+    family: frontend
+    aliases:
+      - UI polish
+      - UX review
+      - responsive layout
+      - less generic
+      - interface design
+    preferred_for:
+      - visual product polish
+      - responsive layout review
+    supersedes:
+      - design-an-interface
+    notes: Preferred UI and UX skill for app polish.
+  design-an-interface:
+    tier: specialist
+    family: frontend
+    overlaps:
+      - frontend-design
+  security-review:
+    tier: active-default
+    family: security
+    aliases:
+      - auth bugs
+      - authorization review
+      - prompt injection
+    preferred_for:
+      - security code review
+  cloudflare:
+    tier: active-default
+    family: cloudflare
+    aliases:
+      - durable objects
+      - workers
+      - wrangler
+  tdd:
+    tier: specialist
+    family: testing
+    aliases:
+      - test first
+      - regression coverage
+  writing-great-skills:
+    tier: specialist
+    family: skills
+    aliases:
+      - skill description
+      - SKILL.md
+      - progressive disclosure
+  data-analytics:
+    tier: specialist
+    family: data
+    aliases:
+      - KPI
+      - dashboard
+      - metrics
+  reverse-engineering:
+    tier: explicit-only
+    family: reverse
+  broad-helper:
+    tier: archived

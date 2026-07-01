@@ -1,0 +1,52 @@
+{
+  "name": "skillmap",
+  "version": "0.1.0",
+  "description": "Local-first SkillOps CLI for scanning, doctoring, mapping, and routing agent skills across coding assistants.",
+  "type": "module",
+  "bin": {
+    "skillmap": "dist/cli.js"
+  },
+  "scripts": {
+    "prepack": "npm run build",
+    "prepublishOnly": "npm test",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.mjs",
+    "lint": "npm run typecheck"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "agent-skills",
+    "skillmap",
+    "skillops",
+    "codex",
+    "claude-code",
+    "ai-agents",
+    "cli"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.0.7",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
+  },
+  "author": "Masih Hedayati",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Masihhedayati/skillmap.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Masihhedayati/skillmap/issues"
+  },
+  "homepage": "https://github.com/Masihhedayati/skillmap#readme"
+}
