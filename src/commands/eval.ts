@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { flagString } from '../core/args.js';
-import { readJson } from '../core/fs.js';
+import { flagString, hasFlag } from '../core/args.js';
+import { readJson, writeJson } from '../core/fs.js';
 import { routePrompt } from '../core/route.js';
+import { evalConfidence, inventoryHasFixtureRoots, validatePolicyForInventory } from '../core/status.js';
 import type { EffectiveRegistry } from '../schemas/types.js';
 import { outDir } from './common.js';
 
@@ -27,8 +28,18 @@ export async function evalCommand(cwd: string, flags: Record<string, string | bo
   const count = data.evals.length;
   const top1Rate = count === 0 ? 0 : top1 / count;
   const top3Rate = count === 0 ? 0 : top3 / count;
-  const pass = count > 0 && top1Rate >= 0.75 && top3Rate >= 0.9 && avoidHits === 0;
-  return {
+  const minCount = Number(flagString(flags, 'min-count') ?? '0');
+  if (!Number.isFinite(minCount) || minCount < 0) throw new Error('--min-count must be a non-negative number.');
+  const confidence = evalConfidence(count);
+  const warnings = [...validatePolicyForInventory(effective.inventory, effective.policy).warnings];
+  if (inventoryHasFixtureRoots(effective.inventory)) warnings.push('Current effective registry was built from test fixture roots.');
+  if (confidence.warning) warnings.push(confidence.warning);
+  const meetsMinCount = minCount === 0 || count >= minCount;
+  if (!meetsMinCount) warnings.push(`Eval file has ${count} cases, below --min-count ${minCount}.`);
+  const pass = count > 0 && top1Rate >= 0.75 && top3Rate >= 0.9 && avoidHits === 0 && meetsMinCount;
+  const output = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
     count,
     top1,
     top3,
@@ -36,7 +47,11 @@ export async function evalCommand(cwd: string, flags: Record<string, string | bo
     top1Rate,
     top3Rate,
     pass,
-    summary: `SkillMap eval: top1 ${top1}/${count} (${Math.round(top1Rate * 100)}%), top3 ${top3}/${count} (${Math.round(top3Rate * 100)}%), avoid hits ${avoidHits}, pass=${pass}.`,
+    confidence,
+    warnings,
+    summary: `SkillMap eval: top1 ${top1}/${count} (${Math.round(top1Rate * 100)}%), top3 ${top3}/${count} (${Math.round(top3Rate * 100)}%), avoid hits ${avoidHits}, confidence=${confidence.level}, pass=${pass}.`,
     rows
   };
+  if (hasFlag(flags, 'save-report')) await writeJson(path.join(outDir(cwd), 'eval-report.json'), output);
+  return output;
 }

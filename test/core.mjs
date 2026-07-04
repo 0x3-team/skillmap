@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -43,6 +43,49 @@ test('doctor-pack summary includes curation prompt and omits full catalog', () =
   assert.match(output.markdown, /Recommended Native-Agent Prompt/);
   assert.match(output.markdown, /Policy Proposal Skeleton/);
   assert.doesNotMatch(output.markdown, /\| Skill \| Description \|/);
+});
+
+
+
+test('status flags fixture inventories and unmatched policy entries', () => {
+  const cwd = tempProject();
+  run(['scan', '--fixtures', 'test/fixtures/basic'], cwd);
+  mkdirSync(path.join(cwd, '.skillmap'), { recursive: true });
+  writeFileSync(path.join(cwd, '.skillmap/policy.yml'), 'version: 1\nskills:\n  frontend-design:\n    tier: active-default\n  ghost-skill:\n    tier: specialist\n');
+  const output = JSON.parse(run(['status', '--json'], cwd));
+  assert.equal(output.status.verdict, 'attention required');
+  assert.equal(output.status.inventory.hasFixtureRoots, true);
+  assert.equal(output.status.policy.unmatchedEntries, 1);
+  assert.match(output.summary, /Current inventory includes test fixture roots/);
+});
+
+test('apply-policy warns by default and strict blocks mismatched fixture state', () => {
+  const cwd = tempProject();
+  run(['scan', '--fixtures', 'test/fixtures/basic'], cwd);
+  mkdirSync(path.join(cwd, '.skillmap'), { recursive: true });
+  writeFileSync(path.join(cwd, '.skillmap/policy.yml'), 'version: 1\nskills:\n  frontend-design:\n    tier: active-default\n  ghost-skill:\n    tier: specialist\n');
+  const dryRun = JSON.parse(run(['apply-policy', '--policy', '.skillmap/policy.yml', '--dry-run', '--json'], cwd));
+  assert.equal(dryRun.policyValidation.unmatchedEntries.length, 1);
+  assert.match(dryRun.warnings.join('\n'), /fixture/);
+  assert.throws(() => run(['apply-policy', '--policy', '.skillmap/policy.yml', '--dry-run', '--strict'], cwd), /Strict policy validation failed/);
+});
+
+test('curate prepare and ingest record user-reported Codex provenance', () => {
+  const cwd = tempProject();
+  run(['scan', '--fixtures', 'test/fixtures/basic'], cwd);
+  run(['doctor'], cwd);
+  run(['doctor-pack', '--summary'], cwd);
+  const prepared = JSON.parse(run(['curate', 'codex', '--prepare', '--json'], cwd));
+  assert.equal(existsSync(prepared.promptFile), true);
+  mkdirSync(path.join(cwd, '.skillmap/proposals'), { recursive: true });
+  cpSync(path.join(cwd, 'test/fixtures/policy.yml'), path.join(cwd, '.skillmap/proposals/policy.yml'));
+  writeFileSync(path.join(cwd, '.skillmap/proposals/policy-rationale.md'), '# Rationale\n\nCodex reviewed the fixture library.\n');
+  const preview = JSON.parse(run(['curate', 'codex', '--ingest', '.skillmap/proposals/policy.yml', '--rationale', '.skillmap/proposals/policy-rationale.md', '--model', 'codex-sota', '--dry-run', '--json'], cwd));
+  assert.equal(preview.dryRun, true);
+  const ingested = JSON.parse(run(['curate', 'codex', '--ingest', '.skillmap/proposals/policy.yml', '--rationale', '.skillmap/proposals/policy-rationale.md', '--model', 'codex-sota', '--confirm', '--json'], cwd));
+  assert.equal(ingested.receipt.agent.model, 'codex-sota');
+  assert.equal(ingested.receipt.agent.modelVerification, 'user-reported');
+  assert.equal(existsSync(path.join(cwd, '.skillmap/curation/receipt.json')), true);
 });
 
 test('policy changes effective routing and excludes archived skills', () => {
@@ -97,5 +140,6 @@ test('eval reports expected hits and pass metrics', () => {
   assert.ok(output.top3 >= 8);
   assert.equal(output.avoidHits, 0);
   assert.equal(typeof output.pass, 'boolean');
+  assert.equal(output.confidence.level, 'weak');
   assert.match(output.summary, /SkillMap eval:/);
 });

@@ -11,6 +11,8 @@ import { evalCommand } from './commands/eval.js';
 import { listCommand } from './commands/list.js';
 import { ingestAgentReviewCommand } from './commands/ingest-agent-review.js';
 import { hookCommand } from './commands/hook.js';
+import { statusCommand } from './commands/status.js';
+import { curateCommand } from './commands/curate.js';
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -26,6 +28,8 @@ async function main() {
     case 'list': output = await listCommand(cwd); break;
     case 'doctor': output = await doctorCommand(cwd, parsed.flags); break;
     case 'doctor-pack': output = await doctorPackCommand(cwd, parsed.flags); break;
+    case 'status': output = await statusCommand(cwd); break;
+    case 'curate': output = await curateCommand(cwd, parsed.positionals, parsed.flags); break;
     case 'ingest-agent-review': output = await ingestAgentReviewCommand(cwd, parsed.positionals); break;
     case 'apply-policy': output = await applyPolicyCommand(cwd, parsed.flags); break;
     case 'graph': output = await graphCommand(cwd, parsed.flags); break;
@@ -58,7 +62,7 @@ function printHuman(output: unknown) {
 }
 
 function printHelp() {
-  console.log(`SkillMap CLI\n\nCommands:\n  init [--dry-run] [--json]\n  scan [--root PATH] [--fixtures PATH] [--json]\n  list [--json]\n  doctor [--fixtures PATH] [--json]\n  doctor-pack [--fixtures PATH] [--summary] [--max-skills N] [--json]\n  ingest-agent-review FILE [--json]\n  apply-policy [--policy FILE] [--dry-run] [--json]\n  graph [--raw|--effective] [--json]\n  route <prompt> [--trace] [--json]\n  route --hook [--prompt TEXT] [--max N] [--json]\n  eval [--file FILE] [--json]\n  hook dry-run codex <prompt> [--json]\n  hook install codex --passive [--dry-run] [--global] [--config PATH] [--json]\n  hook uninstall codex [--dry-run] [--global] [--config PATH] [--json]\n\nSafety defaults: no cloud calls, no skill script execution, no hook install unless explicitly requested.`);
+  console.log(`SkillMap CLI\n\nCommands:\n  init [--dry-run] [--json]\n  scan [--root PATH] [--fixtures PATH] [--json]\n  list [--json]\n  doctor [--fixtures PATH] [--json]\n  doctor-pack [--fixtures PATH] [--summary] [--max-skills N] [--json]\n  status [--json]\n  curate codex --prepare [--json]\n  curate codex --ingest FILE --rationale FILE --model MODEL (--dry-run|--confirm) [--json]\n  ingest-agent-review FILE [--json]\n  apply-policy [--policy FILE] [--dry-run] [--strict] [--allow-fixtures] [--json]\n  graph [--raw|--effective] [--json]\n  route <prompt> [--trace] [--json]\n  route --hook [--prompt TEXT] [--max N] [--json]\n  eval [--file FILE] [--min-count N] [--save-report] [--json]\n  hook dry-run codex <prompt> [--json]\n  hook install codex --passive [--dry-run] [--global] [--config PATH] [--json]\n  hook uninstall codex [--dry-run] [--global] [--config PATH] [--json]\n\nSafety defaults: no cloud calls, no skill script execution, no hook install unless explicitly requested.`);
 }
 
 main().catch((error: unknown) => {

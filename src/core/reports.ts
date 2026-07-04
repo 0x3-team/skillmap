@@ -42,7 +42,7 @@ export function renderDoctorPack(inventory: Inventory, report: DoctorReport, opt
   const lines = [
     '# SkillMap Doctor Pack',
     '',
-    'Use this pack in a native Codex/Claude chat to create a reviewed policy proposal. Propose policy only; do not delete or mutate source skills.',
+    'Use this pack in a native Codex/Claude chat to create a reviewed policy proposal. Prefer `skillmap curate codex --prepare` first so SkillMap records curation provenance. Propose policy only; do not delete or mutate source skills.',
     '',
     '## Recommended Native-Agent Prompt',
     '',

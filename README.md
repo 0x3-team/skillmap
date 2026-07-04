@@ -35,19 +35,47 @@ node dist/cli.js --help
 ```bash
 skillmap init --dry-run
 skillmap scan
+skillmap status
 skillmap doctor
 skillmap doctor-pack --summary
-skillmap doctor-pack --max-skills 120
+skillmap curate codex --prepare
 ```
 
-Then open `.skillmap/doctor-pack.md` or `.skillmap/doctor-pack.summary.md` in Codex or Claude and ask the native agent to propose a policy. Apply that policy only after review:
+Open `.skillmap/curation/codex-prompt.md` and `.skillmap/doctor-pack.summary.md` in Codex. Ask Codex to produce:
+
+```text
+.skillmap/proposals/policy.yml
+.skillmap/proposals/policy-rationale.md
+```
+
+Then ingest and verify the policy:
 
 ```bash
-skillmap apply-policy --policy .skillmap/proposals/policy.yml --dry-run
-skillmap apply-policy --policy .skillmap/proposals/policy.yml
-skillmap route "make this dashboard less generic and verify mobile" --trace
-skillmap eval --file .skillmap/real-evals.json
+skillmap curate codex --ingest .skillmap/proposals/policy.yml --rationale .skillmap/proposals/policy-rationale.md --model "codex-sota" --dry-run
+skillmap curate codex --ingest .skillmap/proposals/policy.yml --rationale .skillmap/proposals/policy-rationale.md --model "codex-sota" --confirm
+skillmap apply-policy --policy .skillmap/policy.yml --dry-run
+skillmap apply-policy --policy .skillmap/policy.yml
+skillmap status
 ```
+
+Route and evaluate only after `status` shows the inventory and policy match the intended skill roots:
+
+```bash
+skillmap route "make this dashboard less generic and verify mobile" --trace
+skillmap eval --file .skillmap/real-evals.json --save-report
+```
+
+## State clarity
+
+`skillmap status` is the safety dashboard. It warns when:
+
+- the active inventory is from `test/fixtures`
+- policy entries do not match the current inventory
+- effective registry artifacts are stale
+- SOTA/native-agent curation provenance is missing
+- eval suites are too small to be release evidence
+
+A passing eval is meaningful only for the active inventory shown by `skillmap status`.
 
 ## Optional Codex hook
 
@@ -71,12 +99,14 @@ By default, hook install targets the current project at `.codex/hooks.json`. Use
 ## Core flow
 
 ```text
-scan -> doctor -> doctor-pack -> policy -> effective graph -> route/eval -> optional passive hook
+scan -> status -> doctor -> doctor-pack -> curate codex -> apply-policy -> status -> route/eval -> optional passive hook
 ```
 
 - `scan` records raw filesystem truth in `.skillmap/inventory.json`.
+- `status` explains whether the current artifacts are safe to trust.
 - `doctor` reports duplicates, missing descriptions, scripts, broad triggers, and other hygiene issues.
 - `doctor-pack` creates a bounded Markdown packet for Codex/Claude to curate.
+- `curate codex` prepares and records manual SOTA/native-agent curation provenance.
 - `apply-policy` builds `.skillmap/effective.json` without editing source skills.
 - `route` recommends skills from the effective graph with traceable reasons.
 - `eval` measures route quality against prompt-to-skill cases.
@@ -85,6 +115,7 @@ scan -> doctor -> doctor-pack -> policy -> effective graph -> route/eval -> opti
 ## Safety defaults
 
 - No cloud dependency.
+- No runtime LLM call in routing or hooks.
 - No hook install unless explicitly requested.
 - No deletion of skill files.
 - No broad home-folder scan outside configured skill roots.
