@@ -3,7 +3,7 @@
 ## Project Identity
 
 - Local path: /Users/stevmq/Documents/Codex/2026-07-01/wha/work/skillmap
-- Intended GitHub repo: https://github.com/Masihhedayati/skillmap
+- Intended GitHub repo: https://github.com/Masih-0x3/skillmap
 - Production or live URL: UNKNOWN - local tool/repo scope, no deployed URL confirmed
 - Owner/account: Masihhedayati
 - Priority: P2
@@ -31,7 +31,7 @@
 
 ## External Services
 
-- GitHub: https://github.com/Masihhedayati/skillmap
+- GitHub: https://github.com/Masih-0x3/skillmap
 - Cloudflare: UNKNOWN
 - Vercel: UNKNOWN
 - Supabase: UNKNOWN
