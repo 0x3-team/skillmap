@@ -86,7 +86,7 @@ export interface GraphEdge {
   from: string;
   to: string;
   type: string;
-  source: 'scan' | 'policy' | 'doctor';
+  source: 'scan' | 'policy' | 'doctor' | 'source' | 'curation' | 'eval';
   confidence: number;
 }
 

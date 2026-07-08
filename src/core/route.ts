@@ -51,13 +51,13 @@ function scoreSkill(skill: EffectiveSkill, tokens: Set<string>, prompt: string):
   };
   const lowerPrompt = prompt.toLowerCase();
   if (lowerPrompt.includes(skill.name.toLowerCase())) add(10, 'skill name explicitly mentioned');
-  for (const token of tokenizeToArray(skill.name)) if (tokens.has(token)) add(2, `name token:${token}`);
-  for (const token of tokenizeToArray(skill.description)) if (tokens.has(token)) add(1, `description token:${token}`);
+  for (const token of uniqueTokens(skill.name)) if (tokens.has(token)) add(2, `name token:${token}`);
+  for (const token of uniqueTokens(skill.description)) if (tokens.has(token)) add(1, `description token:${token}`);
   for (const alias of skill.aliases) if (phraseMatches(alias, lowerPrompt, tokens)) add(5, `alias:${alias}`);
   for (const intent of skill.preferredFor) if (phraseMatches(intent, lowerPrompt, tokens)) add(6, `preferred_for:${intent}`);
   for (const avoid of skill.avoidFor) if (phraseMatches(avoid, lowerPrompt, tokens)) add(-8, `avoid_for:${avoid}`);
   if (skill.family && tokens.has(skill.family.toLowerCase())) add(4, `family:${skill.family}`);
-  if (score > 0 && skill.tier === 'active-default') add(3, 'active-default tier boost');
+  if (score > 0 && skill.tier === 'active-default') add(5, 'active-default tier boost');
   if (score > 0 && skill.tier === 'specialist') add(1, 'specialist tier');
   if (score > 0 && skill.hasScripts) add(-1, 'script-bearing caution');
   return { name: skill.name, score, tier: skill.tier, family: skill.family, path: skill.path, reasons };
@@ -86,4 +86,8 @@ function tokenizeToArray(value: string): string[] {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter((token) => token.length > 2 && !STOP.has(token));
 }
 
-const STOP = new Set(['the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'use', 'using', 'when', 'you', 'your', 'our', 'are', 'was', 'were', 'task', 'skill']);
+function uniqueTokens(value: string): Set<string> {
+  return new Set(tokenizeToArray(value));
+}
+
+const STOP = new Set(['the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'use', 'using', 'when', 'you', 'your', 'our', 'are', 'was', 'were', 'task', 'skill', 'app', 'make', 'less', 'more', 'verify']);

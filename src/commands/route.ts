@@ -3,6 +3,7 @@ import { flagString, hasFlag } from '../core/args.js';
 import { readJson } from '../core/fs.js';
 import { routePrompt } from '../core/route.js';
 import { buildEffectiveRegistry, readPolicy } from '../core/policy.js';
+import { buildSkillMapStatus } from '../core/status.js';
 import type { EffectiveRegistry } from '../schemas/types.js';
 import { loadOrBuildInventory, outDir, fileExists } from './common.js';
 
@@ -17,7 +18,10 @@ export async function routeCommand(cwd: string, positionals: string[], flags: Re
     if (hasFlag(flags, 'json')) return { hookText, result };
     return { hookText };
   }
-  if (hasFlag(flags, 'trace')) return { result, trace: renderTrace(result) };
+  if (hasFlag(flags, 'trace')) {
+    const status = await buildSkillMapStatus(cwd);
+    return { result, statusWarnings: status.warnings, trace: renderTrace(result, status.warnings) };
+  }
   return result;
 }
 
@@ -53,7 +57,7 @@ async function readStdinIfAvailable(): Promise<string> {
   });
 }
 
-function renderTrace(result: ReturnType<typeof routePrompt>): string {
+function renderTrace(result: ReturnType<typeof routePrompt>, statusWarnings: string[]): string {
   const lines = [`SkillMap route trace for: ${result.prompt}`, '', 'Recommendations:'];
   for (const rec of result.recommendations) {
     lines.push(`- ${rec.name} [score=${rec.score}, tier=${rec.tier}${rec.family ? `, family=${rec.family}` : ''}]`);
@@ -62,6 +66,10 @@ function renderTrace(result: ReturnType<typeof routePrompt>): string {
   if (result.exclusions.length) {
     lines.push('', 'Exclusions:');
     for (const exclusion of result.exclusions.slice(0, 8)) lines.push(`- ${exclusion.name}: ${exclusion.reason}`);
+  }
+  if (statusWarnings.length) {
+    lines.push('', 'State warnings:');
+    for (const warning of statusWarnings.slice(0, 6)) lines.push(`- ${warning}`);
   }
   lines.push('', result.hookText);
   return lines.join('\n');
