@@ -136,6 +136,7 @@ This repository is private while the tool is being dogfooded. Treat the package 
 
 ## V1 operator docs
 
+- [Project handoff](HANDOFF.md)
 - [First-run tutorial](docs/first-run.md)
 - [Command reference](docs/commands.md)
 - [Curation workflow](docs/curation.md)
