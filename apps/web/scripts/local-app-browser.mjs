@@ -390,7 +390,7 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
       && event.method === "GET"
       && event.status === 409
       && event.errorCode === "REVISION_CHANGED_RETRY"
-      && ["/api/v1/jobs", "/api/v1/routes"].includes(new URL(event.url).pathname)) return true;
+      && isActivityReadPath(new URL(event.url).pathname)) return true;
     if (event.kind === "response"
       && event.method === "GET"
       && event.status === 409
@@ -420,10 +420,10 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
       && new URL(event.url).pathname === "/api/v1/policy/preview") return true;
     if (event.kind === "console"
       && /status of 409|conflict/i.test(event.message)
-      && [
-        "/api/v1/bootstrap", "/api/v1/workspace", "/api/v1/dashboard", "/api/v1/skills", "/api/v1/jobs", "/api/v1/routes", "/api/v1/evals", "/api/v1/state/revisions", "/api/v1/policy/reviews",
+      && (isActivityReadPath(new URL(event.url).pathname) || [
+        "/api/v1/bootstrap", "/api/v1/workspace", "/api/v1/dashboard", "/api/v1/skills", "/api/v1/evals", "/api/v1/state/revisions", "/api/v1/policy/reviews",
         "/api/v1/policy/proposals", "/api/v1/policy/decisions", "/api/v1/workspaces/select"
-      ].includes(new URL(event.url).pathname)) return true;
+      ].includes(new URL(event.url).pathname))) return true;
     if (phase.workflowRevisionSettle
       && event.kind === "console"
       && /status of 409|conflict/i.test(event.message)
@@ -739,7 +739,8 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   const policyMutationConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && ["/api/v1/policy/proposals", "/api/v1/policy/decisions"].includes(new URL(event.url).pathname));
   const revisionHistoryConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/state/revisions");
   const skillReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/skills");
-  const activityReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && ["/api/v1/jobs", "/api/v1/routes"].includes(new URL(event.url).pathname));
+  const activityReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && isActivityReadPath(new URL(event.url).pathname));
+  const routeDetailConflicts = activityReadConflicts.filter(event => isRouteDetailPath(new URL(event.url).pathname));
   const evalReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/evals");
   const policyReviewConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/policy/reviews");
   const sourceReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/sources");
@@ -797,6 +798,9 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
     const conflicts = activityReadConflicts.filter(event => new URL(event.url).pathname === pathname);
     assert.ok(conflicts.length <= 1, `too many controlled ${pathname} conflicts during workspace transition: ${conflicts.length}`);
   }
+  const minRouteDetailConflicts = visualGate ? 1 : 0;
+  const maxRouteDetailConflicts = visualGate ? 6 : 3;
+  assert.ok(routeDetailConflicts.length >= minRouteDetailConflicts && routeDetailConflicts.length <= maxRouteDetailConflicts, `expected ${minRouteDetailConflicts}-${maxRouteDetailConflicts} controlled route-detail conflicts, got ${routeDetailConflicts.length}`);
   assert.equal(activityReadConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "activity-read conflict did not use the exact retryable revision-change receipt");
   assert.ok(evalReadConflicts.length <= 1, `too many controlled eval-read conflicts: ${evalReadConflicts.length}`);
   assert.equal(evalReadConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "eval-read conflict did not use the exact retryable revision-change receipt");
@@ -1916,9 +1920,61 @@ async function assertRedactedPersistence(cwd, prompts, firstRouteId) {
 }
 
 async function assertTracePermalink(page, { workspaceId, routeId, forbidden, visualGate, visuals }) {
-  const detailResponsePromise = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/routes/${routeId}` && response.request().method() === 'GET');
-  await page.getByRole('button', { name: 'Open redacted trace', exact: true }).click();
-  const detailResponse = await detailResponsePromise;
+  const detailPathname = `/api/v1/routes/${routeId}`;
+  const detailUrlPattern = `**${detailPathname}`;
+  let detailAttempts = 0;
+  const detailHandler = async route => {
+    detailAttempts += 1;
+    if (detailAttempts === 1) {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json; charset=utf-8",
+        body: apiErrorBody("REVISION_CHANGED_RETRY", "The workspace changed while this view was being composed.", true)
+      });
+      return;
+    }
+    await route.continue();
+  };
+  if (visualGate) await page.route(detailUrlPattern, detailHandler);
+  const detailResponses = [];
+  let detailResponseWaiter;
+  const captureDetailResponse = response => {
+    if (new URL(response.url()).pathname !== detailPathname || response.request().method() !== "GET") return;
+    detailResponses.push(response);
+    detailResponseWaiter?.();
+  };
+  const nextDetailResponse = async index => {
+    if (detailResponses[index]) return detailResponses[index];
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        detailResponseWaiter = undefined;
+        reject(new Error(`route detail response ${index + 1} did not arrive within 15 seconds`));
+      }, 15_000);
+      detailResponseWaiter = () => {
+        clearTimeout(timeout);
+        detailResponseWaiter = undefined;
+        resolve();
+      };
+    });
+    return detailResponses[index];
+  };
+  page.on("response", captureDetailResponse);
+  let detailResponse;
+  try {
+    await page.getByRole('button', { name: 'Open redacted trace', exact: true }).click();
+    detailResponse = await nextDetailResponse(0);
+    if (detailResponse.status() === 409) {
+      const conflict = await detailResponse.json();
+      assert.equal(conflict?.ok, false);
+      assert.equal(conflict?.error?.code, "REVISION_CHANGED_RETRY");
+      assert.equal(conflict?.error?.retryable, true);
+      detailResponse = await nextDetailResponse(1);
+    }
+  } finally {
+    page.off("response", captureDetailResponse);
+    if (visualGate) await page.unroute(detailUrlPattern, detailHandler);
+  }
+  if (visualGate) assert.equal(detailAttempts, 2, `route detail used ${detailAttempts} attempts instead of one bounded revision retry`);
   assert.equal(detailResponse.status(), 200, `route detail failed: ${await detailResponse.text()}`);
   const detailRaw = await detailResponse.text();
   for (const value of forbidden) assert.equal(detailRaw.includes(value), false, 'route detail response exposed private prompt or workspace text');
@@ -1949,7 +2005,7 @@ async function assertTracePermalink(page, { workspaceId, routeId, forbidden, vis
   await page.goForward();
   await heading(page, 'Route Lab');
   assert.equal(new URL(page.url()).pathname, `/app/${workspaceId}/route`);
-  console.log('routes: stable redacted trace permalink survived click, reload, back, and forward navigation');
+  console.log(`routes: stable redacted trace permalink survived click, reload, back, and forward navigation${visualGate ? " after one bounded revision retry" : ""}`);
 }
 
 async function jsonFiles(root) {
@@ -2043,6 +2099,14 @@ function captureDiagnostics(page, label, expected) {
     }
   });
   return result;
+}
+
+function isRouteDetailPath(pathname) {
+  return /^\/api\/v1\/routes\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname);
+}
+
+function isActivityReadPath(pathname) {
+  return pathname === "/api/v1/jobs" || pathname === "/api/v1/routes" || isRouteDetailPath(pathname);
 }
 
 function isNavigationAbort(event) {
