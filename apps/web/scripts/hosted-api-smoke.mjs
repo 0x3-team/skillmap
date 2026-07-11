@@ -39,7 +39,7 @@ assert.equal(detail.body.data.evidence.provenance, "unverified");
 assert.equal(detail.body.data.evidence.audit, "not-run");
 assert.equal(detail.body.data.compatibility.state, "not-tested");
 assert.equal(detail.body.data.currentVersion.grade.state, "ungraded");
-assert.equal(detail.body.data.source.commit, "5bcee4b7d0e8c8c2723e34f79a0ebe67c039e418");
+assert.equal(detail.body.data.source.commit, "6e80296e4680c9f469a30e85af39549726573e3d");
 
 for (const result of [first, second, search, badLimit, badCursor, hidden, missing, detail]) {
   const serialized = JSON.stringify(result.body);
