@@ -352,7 +352,7 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   const context = await browser.newContext(qaContextOptions({ width: 1280, height: 900 }));
   if (modes.has("visual")) await installFixedClock(context);
   const page = await context.newPage();
-  const phase = { offline: false, revisionRetry: false, revisionSettle: false, workflowRevisionSettle: false, workspaceConflict: false, workspaceOutcomeUnknown: false, workspaceTransition: false };
+  const phase = { offline: false, revisionRetry: false, revisionSettle: false, workflowRevisionSettle: false, policyPreview: false, workspaceConflict: false, workspaceOutcomeUnknown: false, workspaceTransition: false };
   let revisionSettleConflicts = 0;
   const diagnostics = captureDiagnostics(page, "main", event => {
     if (phase.revisionSettle
@@ -401,17 +401,37 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
       && event.status === 409
       && event.errorCode === "REVISION_CHANGED_RETRY"
       && new URL(event.url).pathname === "/api/v1/policy/reviews") return true;
+    if (phase.workflowRevisionSettle
+      && event.kind === "response"
+      && event.method === "GET"
+      && event.status === 409
+      && event.errorCode === "REVISION_CHANGED_RETRY"
+      && new URL(event.url).pathname === "/api/v1/sources") return true;
     if (event.kind === "response"
       && event.method === "POST"
       && event.status === 409
       && event.errorCode === "REVISION_CHANGED_RETRY"
       && ["/api/v1/policy/proposals", "/api/v1/policy/decisions"].includes(new URL(event.url).pathname)) return true;
+    if (phase.policyPreview
+      && event.kind === "response"
+      && event.method === "POST"
+      && event.status === 409
+      && event.errorCode === "REVISION_CHANGED_RETRY"
+      && new URL(event.url).pathname === "/api/v1/policy/preview") return true;
     if (event.kind === "console"
       && /status of 409|conflict/i.test(event.message)
       && [
         "/api/v1/bootstrap", "/api/v1/workspace", "/api/v1/dashboard", "/api/v1/skills", "/api/v1/jobs", "/api/v1/routes", "/api/v1/evals", "/api/v1/state/revisions", "/api/v1/policy/reviews",
         "/api/v1/policy/proposals", "/api/v1/policy/decisions", "/api/v1/workspaces/select"
       ].includes(new URL(event.url).pathname)) return true;
+    if (phase.workflowRevisionSettle
+      && event.kind === "console"
+      && /status of 409|conflict/i.test(event.message)
+      && new URL(event.url).pathname === "/api/v1/sources") return true;
+    if (phase.policyPreview
+      && event.kind === "console"
+      && /status of 409|conflict/i.test(event.message)
+      && new URL(event.url).pathname === "/api/v1/policy/preview") return true;
     if ((phase.workflowRevisionSettle || phase.workspaceTransition)
       && ["/api/v1/bootstrap", "/api/v1/workspace", "/api/v1/dashboard"].includes(new URL(event.url).pathname)
       && (event.kind === "response" && event.status === 409
@@ -592,7 +612,12 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   const policyView = await page.locator("#view-root").textContent();
   assert.match(policyView, /Uncovered\s*1\s*Missing exact policy/);
   assert.match(policyView, /security-review\s*Uncovered\s*Needs Review\s*Blocks policy readiness until accepted remediation/);
-  await exercisePolicyPreview(page, setup, { visualGate, visuals });
+  phase.policyPreview = true;
+  try { await exercisePolicyPreview(page, setup, { visualGate, visuals }); }
+  finally {
+    await diagnostics.flush();
+    phase.policyPreview = false;
+  }
   phase.workflowRevisionSettle = true;
   try { await exercisePolicyProposalHold(page, { skillId: setup.skillId, skillCount: setup.skillCount, visualGate, visuals }); }
   finally { phase.workflowRevisionSettle = false; }
@@ -655,7 +680,10 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
     await page.goto(`${dashboard.origin}/app/${setup.workspaceId}/overview`, { waitUntil: "networkidle" });
     await heading(page, "Overview");
     assert.equal(await page.locator(".metric").first().isVisible(), true);
-  } finally { phase.workflowRevisionSettle = false; }
+  } finally {
+    await diagnostics.flush();
+    phase.workflowRevisionSettle = false;
+  }
 
   await assertRevisionRetryIsBounded(page, phase);
   await assertOtherConflictIsNotRetried(page, phase);
@@ -714,6 +742,8 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   const activityReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && ["/api/v1/jobs", "/api/v1/routes"].includes(new URL(event.url).pathname));
   const evalReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/evals");
   const policyReviewConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/policy/reviews");
+  const sourceReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/sources");
+  const policyPreviewConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/policy/preview");
   const retryChangeResponses = revisionRetryResponses.filter(event => event.errorCode === "REVISION_CHANGED_RETRY");
   const allExpected409Responses = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409);
   const expected409Console = diagnostics.expected.filter(event => event.kind === "console" && /status of 409|conflict/i.test(event.message));
@@ -724,13 +754,14 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   assert.ok(bootstrapAborts.length <= 6, `too many controlled bootstrap navigation aborts: ${bootstrapAborts.length}`);
   const maxSkillAborts = Math.ceil(setup.skillCount / 100);
   assert.ok(transitionAborts.length <= maxSkillAborts, `too many route-transition request aborts: ${transitionAborts.length} (max ${maxSkillAborts} for ${setup.skillCount} skills); ${formatDiagnostics(transitionAborts)}`);
-  // These six explicit flows can each supersede at most one in-flight
-  // workspace + dashboard read pair. Policy hold and reviewed-policy apply
-  // publish separate revisions, so they are separate navigation races.
+  // These seven explicit flows can each supersede at most one in-flight
+  // workspace + dashboard read pair. The harness and UI observe the terminal
+  // doctor job independently, so its one refresh pair is a separate race.
   const intentionalNavigationSupersessions = Object.freeze({
     activityDeepLink: 1,
     policyHold: 1,
     reviewedPolicyApply: 1,
+    doctorPublication: 1,
     evalImport: 1,
     sourceAdoption: 1,
     workspaceSwitch: 1
@@ -771,13 +802,18 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   assert.equal(evalReadConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "eval-read conflict did not use the exact retryable revision-change receipt");
   assert.ok(policyReviewConflicts.length <= 1, `too many controlled policy-review conflicts: ${policyReviewConflicts.length}`);
   assert.equal(policyReviewConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "policy-review conflict did not use the exact retryable revision-change receipt");
-  assert.equal(allExpected409Responses.length, revisionRetryResponses.length + workspaceConflicts.length + workflowRevisionConflicts.length + policyMutationConflicts.length + revisionHistoryConflicts.length + skillReadConflicts.length + activityReadConflicts.length + evalReadConflicts.length + policyReviewConflicts.length, "an uncategorized expected 409 response was allowlisted");
+  const sourceReadOperationCount = 2;
+  assert.ok(sourceReadConflicts.length <= sourceReadOperationCount, `too many controlled source-read conflicts: ${sourceReadConflicts.length} > ${sourceReadOperationCount}`);
+  assert.equal(sourceReadConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "source-read conflict did not use the exact retryable revision-change receipt");
+  assert.ok(policyPreviewConflicts.length <= 1, `too many controlled policy-preview conflicts: ${policyPreviewConflicts.length}`);
+  assert.equal(policyPreviewConflicts.every(event => event.method === "POST" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "policy-preview conflict did not use the exact retryable revision-change receipt");
+  assert.equal(allExpected409Responses.length, revisionRetryResponses.length + workspaceConflicts.length + workflowRevisionConflicts.length + policyMutationConflicts.length + revisionHistoryConflicts.length + skillReadConflicts.length + activityReadConflicts.length + evalReadConflicts.length + policyReviewConflicts.length + sourceReadConflicts.length + policyPreviewConflicts.length, "an uncategorized expected 409 response was allowlisted");
   for (const pathname of new Set(expected409Console.map(event => new URL(event.url).pathname))) {
     const consoleCount = expected409Console.filter(event => new URL(event.url).pathname === pathname).length;
     const responseCount = allExpected409Responses.filter(event => new URL(event.url).pathname === pathname).length;
     assert.ok(consoleCount <= responseCount, `expected 409 console diagnostics for ${pathname} exceeded their exact response receipts: ${consoleCount} > ${responseCount}`);
   }
-  console.log(`diagnostics: ${revisionRetryResponses.length} controlled bootstrap revision conflicts (${revisionSettleConflicts} during job settle), ${workflowRevisionConflicts.length} controlled post-workflow read conflict(s), ${policyMutationConflicts.length} controlled policy mutation conflict(s), ${policyReviewConflicts.length} controlled policy-review conflict(s), ${revisionHistoryConflicts.length} controlled workspace-transition history conflict(s), ${skillReadConflicts.length} controlled workspace-transition skill conflict(s), ${activityReadConflicts.length} controlled workspace-transition activity conflict(s), ${evalReadConflicts.length} controlled eval-read conflict(s), ${workspaceConflicts.length} controlled workspace conflicts, ${workspaceUnknownOutcomes.length} controlled outcome-unknown workspace response, ${offlineFailures.length} expected offline failure(s), ${bootstrapAborts.length} bounded bootstrap abort(s), ${transitionAborts.length} bounded route-transition abort(s), ${workspaceTransitionAborts.length} guarded workspace-transition abort(s), 0 unexpected console/page/request failures`);
+  console.log(`diagnostics: ${revisionRetryResponses.length} controlled bootstrap revision conflicts (${revisionSettleConflicts} during job settle), ${workflowRevisionConflicts.length} controlled post-workflow read conflict(s), ${policyMutationConflicts.length} controlled policy mutation conflict(s), ${policyPreviewConflicts.length} controlled policy-preview conflict(s), ${policyReviewConflicts.length} controlled policy-review conflict(s), ${sourceReadConflicts.length} controlled source-read conflict(s), ${revisionHistoryConflicts.length} controlled workspace-transition history conflict(s), ${skillReadConflicts.length} controlled workspace-transition skill conflict(s), ${activityReadConflicts.length} controlled workspace-transition activity conflict(s), ${evalReadConflicts.length} controlled eval-read conflict(s), ${workspaceConflicts.length} controlled workspace conflicts, ${workspaceUnknownOutcomes.length} controlled outcome-unknown workspace response, ${offlineFailures.length} expected offline failure(s), ${bootstrapAborts.length} bounded bootstrap abort(s), ${transitionAborts.length} bounded route-transition abort(s), ${workspaceTransitionAborts.length} guarded workspace-transition abort(s), 0 unexpected console/page/request failures`);
   await context.close();
 }
 
@@ -785,9 +821,43 @@ async function exercisePolicyPreview(page, setup, { visualGate, visuals }) {
   const before = await readCurrentBootstrap(page);
   const expectedRevision = before.currentRevision?.revisionId;
   assert.ok(expectedRevision, "policy preview preflight did not expose a current revision");
-  const responsePromise = page.waitForResponse(response => new URL(response.url()).pathname === "/api/v1/policy/preview" && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Run policy dry-run", exact: true }).click();
-  const response = await responsePromise;
+  const responses = [];
+  let responseWaiter;
+  const captureResponse = response => {
+    if (new URL(response.url()).pathname !== "/api/v1/policy/preview" || response.request().method() !== "POST") return;
+    responses.push(response);
+    responseWaiter?.();
+  };
+  const nextResponse = async index => {
+    if (responses[index]) return responses[index];
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        responseWaiter = undefined;
+        reject(new Error(`policy preview response ${index + 1} did not arrive within 15 seconds`));
+      }, 15_000);
+      responseWaiter = () => {
+        clearTimeout(timeout);
+        responseWaiter = undefined;
+        resolve();
+      };
+    });
+    return responses[index];
+  };
+  page.on("response", captureResponse);
+  let response;
+  try {
+    await page.getByRole("button", { name: "Run policy dry-run", exact: true }).click();
+    response = await nextResponse(0);
+    if (response.status() === 409) {
+      const conflict = await response.json();
+      assert.equal(conflict?.ok, false);
+      assert.equal(conflict?.error?.code, "REVISION_CHANGED_RETRY");
+      assert.equal(conflict?.error?.retryable, true);
+      response = await nextResponse(1);
+    }
+  } finally {
+    page.off("response", captureResponse);
+  }
   assert.equal(response.status(), 200, `policy preview failed: ${await response.text()}`);
   const envelope = await response.json();
   assert.equal(envelope.data.state, "previewed");
@@ -1148,13 +1218,25 @@ async function exerciseSourceAdoptionAndDiff(page, { origin, workspaceId, worksp
 
   let diffRequestBody;
   let sourceGetCalls = 0;
+  let sourceRevisionConflicts = 0;
   const sourceGetHandler = async route => {
     sourceGetCalls += 1;
     const headers = { ...route.request().headers() };
     delete headers["if-none-match"];
     const upstream = await route.fetch({ headers });
-    assert.equal(upstream.status(), 200);
     const body = await upstream.json();
+    if (upstream.status() === 409) {
+      assert.equal(body?.ok, false);
+      assert.equal(body?.error?.code, "REVISION_CHANGED_RETRY");
+      assert.equal(body?.error?.retryable, true);
+      sourceRevisionConflicts += 1;
+      assert.ok(sourceRevisionConflicts <= 1, "source fixture exceeded the product's single revision-conflict retry");
+      // Preserve the real transient response so the browser client exercises
+      // its bounded revision retry before this fixture adapts the stable read.
+      await route.fulfill({ response: upstream, contentType: "application/json; charset=utf-8", body: JSON.stringify(body) });
+      return;
+    }
+    assert.equal(upstream.status(), 200);
     body.data = {
       ...body.data,
       items: [{ skillId, displayName, contentRevision: record.contentRevision, sourceType: "github", checked: true, reviewable: true, state: "external-risky-update", risk: "high", upstreamCommit: "b".repeat(40) }]

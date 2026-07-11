@@ -429,7 +429,11 @@ test('GitHub source transport receives connector cancellation without waiting fo
   await assert.rejects(running, (error) => error?.code === 'REQUEST_ABORTED');
 });
 
-test('recovery processes every anchored nonterminal job beyond the first 100', { timeout: 30_000 }, async (t) => {
+test('recovery processes every anchored nonterminal job beyond the first 100', {
+  // Windows hosted filesystems need more wall-clock headroom for the same 101
+  // durable create/transition/recovery corpus; POSIX keeps the tighter guard.
+  timeout: process.platform === 'win32' ? 60_000 : 30_000
+}, async (t) => {
   const cwd = workspace(t);
   for (let index = 0; index < 101; index += 1) {
     const created = await createJob(cwd, request(`recovery-${String(index).padStart(3, '0')}`));

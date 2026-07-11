@@ -152,6 +152,7 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
   private readonly activeJobs = new Map<string, Promise<void>>();
   private readonly activeJobControllers = new Map<string, AbortController>();
   private jobTail: Promise<void> = Promise.resolve();
+  private cancellationTail: Promise<void> = Promise.resolve();
   private acceptingJobs = true;
   private started = false;
   private closed = false;
@@ -1105,12 +1106,19 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
   }
 
   async cancelJob(jobId: string, input: { idempotencyKey: string }): Promise<unknown> {
-    const store = WorkspaceStateStore.open(this.cwd);
+    if (this.closed) throw new WorkspaceStateError('CONNECTOR_CLOSED', 'The local backend is closed.');
+    if (this.workspaceSwitching) throw new WorkspaceStateConflictError('A foreground workspace switch is already in progress.');
+    const cwd = this.cwd;
+    const workspaceGeneration = this.workspaceGeneration;
+    const store = WorkspaceStateStore.open(cwd);
     let cancellation: { record: JobCancellationRecord; created: boolean };
     let stateBefore: 'queued' | 'running' | 'cancelled';
     try {
       const prepared = await this.withCancellationMutationLock(store, async () => {
-        const stored = await readJob(this.cwd, jobId);
+        if (this.workspaceGeneration !== workspaceGeneration || this.cwd !== cwd) {
+          throw new WorkspaceStateConflictError('The foreground workspace changed before cancellation could be recorded.');
+        }
+        const stored = await readJob(cwd, jobId);
         if (stored.job.state === 'succeeded' || stored.job.state === 'failed') {
           throw new WorkspaceStateError('JOB_NOT_CANCELLABLE', 'Only queued or running jobs can be cancelled.');
         }
@@ -1118,7 +1126,7 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
           const published = await store.findPublishedMutation({ actor: jobActor(jobId), parentRevisionId: stored.job.expectedRevision });
           if (published) throw new WorkspaceStateError('JOB_PUBLICATION_COMMITTED', 'The job already published its workspace revision and cannot be cancelled.');
         }
-        const request = await requestJobCancellation(this.cwd, jobId, input.idempotencyKey);
+        const request = await requestJobCancellation(cwd, jobId, input.idempotencyKey);
         return { request, state: stored.job.state as 'queued' | 'running' | 'cancelled' };
       });
       cancellation = prepared.request;
@@ -1132,21 +1140,21 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
 
     this.activeJobControllers.get(jobId)?.abort();
     if (stateBefore !== 'cancelled') {
-      const claim = await claimJobExecution(this.cwd, jobId);
+      const claim = await claimJobExecution(cwd, jobId);
       if (claim) {
         try {
-          const refreshed = await readJob(this.cwd, jobId);
+          const refreshed = await readJob(cwd, jobId);
           if (refreshed.job.state === 'queued' || refreshed.job.state === 'running') {
-            await transitionJob(this.cwd, jobId, 'cancelled', { claim, resultReceipt: cancellationReceipt(cancellation.record, refreshed.job.state) });
+            await transitionJob(cwd, jobId, 'cancelled', { claim, resultReceipt: cancellationReceipt(cancellation.record, refreshed.job.state) });
           }
         } finally {
           await claim.release().catch(() => undefined);
         }
       } else {
-        await this.waitForJobTerminal(jobId, 2_000);
+        await this.waitForJobTerminal(cwd, jobId, 2_000);
       }
     }
-    const stored = await readJob(this.cwd, jobId);
+    const stored = await readJob(cwd, jobId);
     if (stored.job.state === 'succeeded') throw new WorkspaceStateError('JOB_PUBLICATION_COMMITTED', 'The job published before cancellation could take effect.');
     if (stored.job.state === 'failed') throw new WorkspaceStateError('JOB_NOT_CANCELLABLE', 'The job failed before cancellation could take effect.');
     return {
@@ -1215,19 +1223,26 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
   }
 
   private async withCancellationMutationLock<T>(store: WorkspaceStateStore, operation: () => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-      try { return await store.withMutationLock('api:cancel-job', operation); } catch (error) {
-        if (!(error instanceof WorkspaceStateConflictError) || attempt === 199) throw error;
-        await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    // One connector can receive many cancellations at once. Queue its own
+    // writers before entering the cross-process filesystem lock so Windows
+    // does not spend the entire bounded retry window contending with itself.
+    const queued = this.cancellationTail.then(async () => {
+      for (let attempt = 0; attempt < 200; attempt += 1) {
+        try { return await store.withMutationLock('api:cancel-job', operation); } catch (error) {
+          if (!(error instanceof WorkspaceStateConflictError) || attempt === 199) throw error;
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        }
       }
-    }
-    throw new WorkspaceStateConflictError('The workspace remained busy while cancellation was being recorded.');
+      throw new WorkspaceStateConflictError('The workspace remained busy while cancellation was being recorded.');
+    });
+    this.cancellationTail = queued.then(() => undefined, () => undefined);
+    return queued;
   }
 
-  private async waitForJobTerminal(jobId: string, timeoutMs: number): Promise<void> {
+  private async waitForJobTerminal(cwd: string, jobId: string, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const state = (await readJob(this.cwd, jobId)).job.state;
+      const state = (await readJob(cwd, jobId)).job.state;
       if (state === 'succeeded' || state === 'failed' || state === 'cancelled') return;
       await new Promise<void>((resolve) => setTimeout(resolve, 20));
     }
