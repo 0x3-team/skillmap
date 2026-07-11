@@ -36,14 +36,18 @@ test('approved-root watcher marks a changed skill dirty, full verification suppl
   assert.equal(monitor.snapshot().filesystemDirty, false);
   assert.equal(monitor.snapshot().observedDigest, monitor.snapshot().expectedDigest);
 
+  const installedWatcherEntry = [...monitor.watchers.entries()][0];
+  assert.ok(installedWatcherEntry, 'clean verification must install watcher coverage before changes are observed');
+  const [watchedDirectory, installedWatcher] = installedWatcherEntry;
+  installedWatcher.watcher.close();
+  monitor.watchers.delete(watchedDirectory);
   const changed = skillText('alpha', 'Use for changed alpha work with different behavior.');
   await writeFile(fixture.skillFile, changed);
-  const installedWatcher = [...monitor.watchers.values()][0]?.watcher;
-  assert.ok(installedWatcher, 'clean verification must install watcher coverage before changes are observed');
   // Native fs.watch delivery is intentionally only a hint and varies across
-  // macOS FSEvents, kqueue, and loaded CI hosts. Exercise the installed
-  // callback deterministically, then prove the full verification result.
-  installedWatcher.emit('change', 'change', 'SKILL.md');
+  // macOS FSEvents, kqueue, and loaded CI hosts. Close its native delivery
+  // before the fixture write, exercise its registered callback deterministically,
+  // then let the full verification install fresh watcher coverage.
+  installedWatcher.watcher.emit('change', 'change', 'SKILL.md');
   assert.equal(monitor.snapshot().reasonCode, 'watch-event');
   await monitor.verifyNow();
   assert.equal(monitor.snapshot().reasonCode, 'manifest-mismatch');
