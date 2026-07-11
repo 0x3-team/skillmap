@@ -33,6 +33,10 @@ test('external source state keeps local drift separate from upstream staleness a
   assert.equal(classifyExternalSourceState({ ...baseline, currentManifestDigest: `sha256:${'3'.repeat(64)}`, risky: true }), 'external-risky-update');
   assert.equal(classifyExternalSourceState({ ...baseline, localModified: true }), 'external-modified');
   assert.equal(classifyExternalSourceState({ ...baseline, adoptedContentRevision: `sha256:${'4'.repeat(64)}` }), 'external-modified');
+  assert.equal(classifyExternalSourceState({ ...baseline, installedManifestDigest: undefined }), 'external-clean');
+  assert.equal(classifyExternalSourceState({ ...baseline, installedManifestDigest: undefined, adoptedContentRevision: `sha256:${'4'.repeat(64)}` }), 'external-modified');
+  assert.equal(classifyExternalSourceState({ ...baseline, installedManifestDigest: undefined, adoptedUpstreamContentRevision: undefined }), 'unknown');
+  assert.equal(classifyExternalSourceState({ ...baseline, adoptedUpstreamContentRevision: undefined, currentManifestDigest: `sha256:${'3'.repeat(64)}` }), 'external-stale');
 });
 
 async function approvedWorkspace(t, options = {}) {
@@ -273,6 +277,108 @@ test('source adoption is deferred for GitHub, revisioned but unapproved, immedia
   await assert.rejects(
     fixture.backend.adoptSource({ skillId: fixture.skillId, sourceType: 'github', repository: 'owner/repo', sourcePath: '../escape', ref: 'main', expectedRevision: github.revision.revisionId, confirm: true }),
     (error) => error?.code === 'INVALID_SUBTREE'
+  );
+});
+
+test('a deferred GitHub adoption is non-clean until its immutable tree matches the adopted skill', async (t) => {
+  const transport = githubFixtureTransport({
+    'SKILL.md': '---\nname: another-skill\ndescription: A different upstream skill.\n---\n# Another skill\n'
+  });
+  const fixture = await approvedWorkspace(t);
+  const adopted = await fixture.backend.adoptSource({
+    skillId: fixture.skillId,
+    sourceType: 'github',
+    repository: 'owner/repo',
+    sourcePath: 'skills/demo',
+    ref: 'main',
+    expectedRevision: fixture.revisionId,
+    confirm: true
+  });
+
+  const checked = await sourcesCommand(fixture.cwd, ['check'], {}, {
+    fetcherOptions: { transport: transport.transport, maxRetries: 0 }
+  });
+  assert.equal(checked.report.records[0].state, 'external-modified');
+  assert.equal(checked.report.records[0].source.installedManifestDigest, undefined);
+  assert.equal(checked.report.records[0].upstreamCommit, COMMIT);
+  const repeated = await sourcesCommand(fixture.cwd, ['check'], {}, {
+    fetcherOptions: { transport: transport.transport, maxRetries: 0 }
+  });
+  assert.equal(repeated.report.records[0].state, 'external-modified');
+  assert.equal(repeated.report.records[0].source.installedManifestDigest, undefined);
+
+  await WorkspaceStateStore.open(fixture.cwd).publishLegacySnapshot({
+    expectedRevisionId: adopted.revision.revisionId,
+    actor: 'test-deferred-source-check',
+    reason: 'Published the first immutable comparison for a deferred source adoption.'
+  });
+  const visible = await fixture.backend.sources();
+  assert.deepEqual(
+    { state: visible.items[0].state, checked: visible.items[0].checked, reviewable: visible.items[0].reviewable },
+    { state: 'external-modified', checked: true, reviewable: true }
+  );
+  const { status } = await buildApprovedStatus(fixture.cwd);
+  assert.equal(status.sources.modified, 1);
+  assert.equal(status.sources.unreviewedNonClean > 0, true);
+});
+
+test('modified source status remains attached to its exact adoption after the local tree revision changes', async (t) => {
+  const fixture = await approvedWorkspace(t);
+  const adopted = await fixture.backend.adoptSource({
+    skillId: fixture.skillId,
+    sourceType: 'local',
+    reason: 'Reviewed local authorship before the tree changed.',
+    expectedRevision: fixture.revisionId,
+    confirm: true
+  });
+  const registryPath = path.join(fixture.cwd, '.skillmap', 'sources.json');
+  const adoptedRegistry = JSON.parse(readFileSync(registryPath, 'utf8'));
+
+  const scripts = path.join(fixture.root, 'alpha', 'scripts');
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, 'check.sh'), '#!/bin/sh\necho changed\n');
+  await scanCommand(fixture.cwd, {});
+  await applyPolicyCommand(fixture.cwd, {});
+  const checked = await sourcesCommand(fixture.cwd, ['check'], {});
+  assert.equal(checked.report.records[0].state, 'local-modified');
+  assert.notEqual(checked.report.records[0].contentRevision, adoptedRegistry.records[0].contentRevision);
+  const refreshedRegistry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  assert.equal(refreshedRegistry.records[0].contentRevision, adoptedRegistry.records[0].contentRevision);
+  assert.equal(refreshedRegistry.records[0].installedAt, adoptedRegistry.records[0].installedAt);
+
+  const modifiedPublication = await WorkspaceStateStore.open(fixture.cwd).publishLegacySnapshot({
+    expectedRevisionId: adopted.revision.revisionId,
+    approveForRouting: true,
+    actor: 'test-modified-source-status',
+    reason: 'Published a modified local source state against its adopted baseline.'
+  });
+  const visible = await fixture.backend.sources();
+  assert.deepEqual(
+    { state: visible.items[0].state, checked: visible.items[0].checked, reviewable: visible.items[0].reviewable },
+    { state: 'local-modified', checked: true, reviewable: true }
+  );
+  const detail = await fixture.backend.showSkill(fixture.skillId);
+  assert.deepEqual(
+    { state: detail.sourceContext.state, checked: detail.sourceContext.checked, reviewable: detail.sourceContext.reviewable },
+    { state: 'local-modified', checked: true, reviewable: true }
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  const readopted = await fixture.backend.adoptSource({
+    skillId: fixture.skillId,
+    sourceType: 'local',
+    reason: 'Re-adopted the current local tree as the new baseline.',
+    expectedRevision: modifiedPublication.pointer.revisionId,
+    confirm: true
+  });
+  const readoptedRegistry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  assert.equal(readoptedRegistry.records[0].contentRevision, checked.report.records[0].contentRevision);
+  assert.notEqual(readoptedRegistry.records[0].installedAt, checked.report.records[0].installedAt);
+  assert.equal(readopted.state, 'adopted');
+  const afterReadoption = await fixture.backend.sources();
+  assert.deepEqual(
+    { state: afterReadoption.items[0].state, checked: afterReadoption.items[0].checked, reviewable: afterReadoption.items[0].reviewable },
+    { state: 'local-authored', checked: false, reviewable: false }
   );
 });
 

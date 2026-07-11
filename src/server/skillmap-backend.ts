@@ -2446,8 +2446,12 @@ function freezeEvalExecutionContext(context: EvalRunV3ExecutionContext): EvalRun
   });
 }
 function sourceStatusMatchesRegistry(status: Record<string, unknown>, registry: Record<string, unknown>): boolean {
+  const state = safeSourceState(status.state);
+  const sameAdoption = typeof status.installedAt === 'string' && status.installedAt === registry.installedAt;
+  const revisionMatches = status.contentRevision === registry.contentRevision
+    || state === 'external-modified' || state === 'local-modified';
   if (status.skillId !== registry.skillId || status.localPath !== registry.localPath
-    || status.contentRevision !== registry.contentRevision || status.installedHash !== registry.installedHash) return false;
+    || !sameAdoption || !revisionMatches || status.installedHash !== registry.installedHash) return false;
   const left = objectRecord(status.source);
   const right = objectRecord(registry.source);
   if (left.type !== right.type) return false;

@@ -122,11 +122,12 @@ export function classifyExternalSourceState(input: {
   currentManifestDigest: string;
   risky: boolean;
 }): SourceStatusRecord['state'] {
-  const divergedAtAdoption = Boolean(input.adoptedContentRevision
-    && input.adoptedUpstreamContentRevision
-    && input.adoptedContentRevision !== input.adoptedUpstreamContentRevision);
+  const adoptionRevisionVerified = Boolean(input.adoptedContentRevision && input.adoptedUpstreamContentRevision);
+  const divergedAtAdoption = adoptionRevisionVerified
+    && input.adoptedContentRevision !== input.adoptedUpstreamContentRevision;
   if (input.localModified || divergedAtAdoption) return 'external-modified';
-  if (!input.installedManifestDigest || input.currentManifestDigest === input.installedManifestDigest) return 'external-clean';
+  if (!input.installedManifestDigest) return adoptionRevisionVerified ? 'external-clean' : 'unknown';
+  if (input.currentManifestDigest === input.installedManifestDigest) return 'external-clean';
   return input.risky ? 'external-risky-update' : 'external-stale';
 }
 
@@ -405,7 +406,11 @@ async function checkRecord(
     const state = classifyExternalSourceState({
       localModified,
       adoptedContentRevision: record.contentRevision,
-      adoptedUpstreamContentRevision: record.source.upstreamContentRevision,
+      // A deferred adoption has no immutable upstream baseline yet. Its first
+      // resolved snapshot must match the adopted local tree before it can be
+      // classified as clean.
+      adoptedUpstreamContentRevision: record.source.upstreamContentRevision
+        ?? (record.source.installedManifestDigest ? undefined : upstreamContentRevision),
       installedManifestDigest: record.source.installedManifestDigest,
       currentManifestDigest: snapshot.manifestDigest,
       risky
