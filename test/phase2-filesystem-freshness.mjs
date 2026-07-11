@@ -71,13 +71,22 @@ test('periodic-grade full manifest verification detects added skills and fails c
   assert.equal(clean.changedRootIds.length, 0);
 
   let periodicLoads = 0;
+  let periodicClockTick = 0;
   const periodic = new ApprovedRootFreshnessMonitor(fixture.cwd, {
     verificationIntervalMs: 30,
-    loadBaseline: async () => { periodicLoads += 1; return baseline; }
+    loadBaseline: async () => { periodicLoads += 1; return baseline; },
+    now: () => new Date(Date.UTC(2026, 0, 1) + periodicClockTick++)
   });
   t.after(() => periodic.close());
   await periodic.start();
-  await waitFor(() => periodicLoads >= 2);
+  const initialVerifiedAt = periodic.snapshot().lastVerifiedAt;
+  // macOS may emit a conservative watch hint while the periodic verification
+  // is still in flight. Prove that the next full verification finished before
+  // asserting the state it is responsible for restoring.
+  await waitFor(() => {
+    const snapshot = periodic.snapshot();
+    return periodicLoads >= 2 && snapshot.lastVerifiedAt !== initialVerifiedAt && snapshot.state === 'clean';
+  });
   assert.equal(periodic.snapshot().state, 'clean');
   await periodic.close();
 
