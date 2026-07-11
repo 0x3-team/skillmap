@@ -22,6 +22,7 @@ import { isFixturePath } from '../dist/contracts/fixture-path.js';
 import { CONTRACT_SCHEMAS } from '../dist/contracts/generated/schema-bundle.js';
 import { apiError, apiSuccess } from '../dist/core/api-envelope.js';
 import { computeEffectiveRevisionDigest } from '../dist/core/effective-state.js';
+import { parseFrontmatter } from '../dist/core/frontmatter.js';
 import { createJob, transitionJob } from '../dist/core/jobs.js';
 import { buildEffectiveRegistry } from '../dist/core/policy.js';
 import { createAndRecordFeedback, createRouteEvent, recordRouteEvent } from '../dist/core/route-events.js';
@@ -754,6 +755,16 @@ const validVectors = new Map([
   [IDS['sync-envelope-v1'], syncEnvelope()],
   [IDS['api-envelope-v1'], apiEnvelope()]
 ]);
+
+test('frontmatter parsing accepts LF and CRLF delimiters without rewriting body bytes', () => {
+  const lf = parseFrontmatter('---\nname: portable-skill\ndescription: Use for portable skill parsing.\n---\n# Body\n');
+  const crlf = parseFrontmatter('---\r\nname: portable-skill\r\ndescription: Use for portable skill parsing.\r\n---\r\n# Body\r\n');
+  assert.equal(lf.valid, true);
+  assert.equal(crlf.valid, true);
+  assert.deepEqual(crlf.data, lf.data);
+  assert.equal(lf.body, '# Body\n');
+  assert.equal(crlf.body, '# Body\r\n');
+});
 
 test('canonical schema manifest compiles under Draft 2020-12 and matches the embedded bundle', () => {
   const ajv = new Ajv2020({

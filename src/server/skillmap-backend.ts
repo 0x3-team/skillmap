@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { constants, type Stats } from 'node:fs';
+import { constants, type BigIntStats } from 'node:fs';
 import { access, copyFile, cp, lstat, mkdir, mkdtemp, open, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -94,8 +94,8 @@ interface WorkspaceValidation {
   targetRealPath: string;
   parentPath?: string;
   parentRealPath?: string;
-  device: number;
-  inode: number;
+  device: string;
+  inode: string;
   createdAt: number;
   workspaceGeneration: number;
 }
@@ -2586,17 +2586,21 @@ async function normalizeStagedPolicyBinding(stage: string, realWorkspace: string
   await writeJson(effectivePath, effective);
 }
 async function fileExists(file: string): Promise<boolean> { try { await access(file); return true; } catch { return false; } }
-async function workspaceLstat(file: string, code: string, message: string): Promise<Stats> {
-  try { return await lstat(file); } catch (error) { throw new WorkspaceStateError(code, message, { cause: error }); }
+async function workspaceLstat(file: string, code: string, message: string): Promise<BigIntStats> {
+  try { return await lstat(file, { bigint: true }); } catch (error) { throw new WorkspaceStateError(code, message, { cause: error }); }
 }
 async function workspaceRealpath(file: string, code: string, message: string): Promise<string> {
   try { return await realpath(file); } catch (error) { throw new WorkspaceStateError(code, message, { cause: error }); }
 }
-function workspaceFilesystemIdentity(stats: Stats, code: string, message: string): { device: number; inode: number } {
-  if (!Number.isSafeInteger(stats.dev) || stats.dev < 0 || !Number.isSafeInteger(stats.ino) || stats.ino < 0) {
+export function workspaceFilesystemIdentity(
+  stats: Pick<BigIntStats, 'dev' | 'ino'>,
+  code: string,
+  message: string
+): { device: string; inode: string } {
+  if (stats.dev < 0n || stats.ino < 0n) {
     throw new WorkspaceStateError(code, message);
   }
-  return { device: stats.dev, inode: stats.ino };
+  return { device: stats.dev.toString(10), inode: stats.ino.toString(10) };
 }
 async function assertWorkspacePathAbsent(file: string, code: string, message: string): Promise<void> {
   try {

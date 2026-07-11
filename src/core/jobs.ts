@@ -163,6 +163,14 @@ async function findIdempotentJobHeld(cwd: string, request: JobRequestV1): Promis
 
 export async function readJob(cwd: string, jobId: string): Promise<StoredJob> {
   if (!UUID.test(jobId)) throw new Error('Job id is invalid.');
+  if (!(await safeJobLedgerRootExists(cwd))) throw new Error('Job was not found.');
+  // Lifecycle updates replace records by atomic rename. Serialize every
+  // product reader with those trusted replacements so readOptional can remain
+  // fail-closed when it observes an uncoordinated path or inode change.
+  return withJobLedgerLock(cwd, () => readJobHeld(cwd, jobId));
+}
+
+async function readJobHeld(cwd: string, jobId: string): Promise<StoredJob> {
   const records = await safeJobOperationalDirectoryExists(path.join(jobsRoot(cwd), 'records'));
   if (!records) throw new Error('Job was not found.');
   const parsed = await readOptional<unknown>(path.join(records, `${jobId}.json`));
@@ -180,21 +188,25 @@ export async function transitionJob(
   if (!claim) throw new Error('Job is already claimed by another live executor.');
   try {
     await assertClaimOwned(cwd, claim);
-    const stored = await readJob(cwd, jobId);
-    if (!legalTransition(stored.job.state, nextState)) throw new Error(`Illegal job transition: ${stored.job.state} -> ${nextState}.`);
-    const now = new Date().toISOString();
-    const job: JobV1 = {
-      ...stored.job,
-      state: nextState,
-      ...(nextState === 'running' ? { startedAt: stored.job.startedAt ?? now } : {}),
-      ...(['succeeded', 'failed', 'cancelled'].includes(nextState) ? { completedAt: now } : {}),
-      ...((nextState === 'succeeded' || nextState === 'cancelled') && options.resultReceipt ? { resultReceipt: privacyCleanReceipt(options.resultReceipt) } : {}),
-      ...(nextState === 'failed' && options.error ? { error: safeJobError(options.error) } : {})
-    };
-    assertJob(job);
-    const next = { ...stored, job };
-    await atomicReplace(path.join(jobsRoot(cwd), 'records', `${jobId}.json`), next);
-    return next;
+    // The execution claim serializes lifecycle writers for one job; the ledger
+    // lock additionally serializes the atomic rename with readers of all jobs.
+    return await withJobLedgerLock(cwd, async () => {
+      const stored = await readJobHeld(cwd, jobId);
+      if (!legalTransition(stored.job.state, nextState)) throw new Error(`Illegal job transition: ${stored.job.state} -> ${nextState}.`);
+      const now = new Date().toISOString();
+      const job: JobV1 = {
+        ...stored.job,
+        state: nextState,
+        ...(nextState === 'running' ? { startedAt: stored.job.startedAt ?? now } : {}),
+        ...(['succeeded', 'failed', 'cancelled'].includes(nextState) ? { completedAt: now } : {}),
+        ...((nextState === 'succeeded' || nextState === 'cancelled') && options.resultReceipt ? { resultReceipt: privacyCleanReceipt(options.resultReceipt) } : {}),
+        ...(nextState === 'failed' && options.error ? { error: safeJobError(options.error) } : {})
+      };
+      assertJob(job);
+      const next = { ...stored, job };
+      await atomicReplace(path.join(jobsRoot(cwd), 'records', `${jobId}.json`), next);
+      return next;
+    });
   } finally {
     if (!options.claim) await claim.release();
   }
@@ -207,7 +219,7 @@ export async function requestJobCancellation(cwd: string, jobId: string, idempot
 }
 
 async function requestJobCancellationHeld(cwd: string, jobId: string, idempotencyKey: string): Promise<{ record: JobCancellationRecord; created: boolean }> {
-  await readJob(cwd, jobId);
+  await readJobHeld(cwd, jobId);
   const anchors = await readIdempotencyAnchors(cwd);
   await cleanupJobSideDirectories(cwd, anchors);
   if (!anchors.has(jobId)) throw new Error('Job cancellation requires an anchored job.');
@@ -241,10 +253,13 @@ async function requestJobCancellationHeld(cwd: string, jobId: string, idempotenc
 
 export async function readJobCancellation(cwd: string, jobId: string): Promise<JobCancellationRecord | undefined> {
   if (!UUID.test(jobId)) throw new Error('Job id is invalid.');
-  const cancellations = await safeJobOperationalDirectoryExists(path.join(jobsRoot(cwd), 'cancellations'));
-  if (!cancellations) return undefined;
-  const value = await readOptional<unknown>(path.join(cancellations, `${jobId}.json`));
-  return value === undefined ? undefined : validateJobCancellation(value);
+  if (!(await safeJobLedgerRootExists(cwd))) return undefined;
+  return withJobLedgerLock(cwd, async () => {
+    const cancellations = await safeJobOperationalDirectoryExists(path.join(jobsRoot(cwd), 'cancellations'));
+    if (!cancellations) return undefined;
+    const value = await readOptional<unknown>(path.join(cancellations, `${jobId}.json`));
+    return value === undefined ? undefined : validateJobCancellation(value);
+  });
 }
 
 export async function listJobs(cwd: string, limit = 50): Promise<StoredJob[]> {
@@ -443,7 +458,7 @@ async function listAllJobsHeld(cwd: string, maximum: number): Promise<StoredJob[
   if (anchoredNames.length > maximum) throw new Error(`Anchored job count exceeds the explicit recovery maximum of ${maximum}.`);
   const jobs: StoredJob[] = [];
   for (const name of anchoredNames) {
-    const stored = await readJob(cwd, name.slice(0, -5));
+    const stored = await readJobHeld(cwd, name.slice(0, -5));
     if (anchors.get(stored.job.jobId)?.entry.requestDigest !== stored.job.requestDigest) {
       throw new Error('Job record conflicts with its durable idempotency anchor.');
     }
@@ -479,7 +494,7 @@ async function admitJobLedgerEntry(cwd: string): Promise<void> {
 async function readAnchoredJobs(cwd: string, anchors: Map<string, JobAnchor>): Promise<StoredJob[]> {
   const jobs: StoredJob[] = [];
   for (const [jobId, anchor] of anchors) {
-    const stored = await readJob(cwd, jobId);
+    const stored = await readJobHeld(cwd, jobId);
     if (stored.job.requestDigest !== anchor.entry.requestDigest) throw new Error('Job record conflicts with its durable idempotency anchor.');
     jobs.push(stored);
   }
@@ -720,6 +735,9 @@ async function atomicReplace(file: string, value: unknown): Promise<void> {
 async function syncDir(dir: string): Promise<void> {
   const stats = await lstat(dir);
   if (stats.isSymbolicLink() || !stats.isDirectory()) throw new Error('Job ledger directory must be a non-symlink directory.');
+  // Windows does not expose POSIX directory fsync. File handles are synced
+  // before publication; keep directory validation while avoiding EPERM.
+  if (process.platform === 'win32') return;
   const handle = await open(dir, 'r');
   try { await handle.sync(); } finally { await handle.close(); }
 }

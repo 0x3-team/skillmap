@@ -1071,6 +1071,11 @@ async function atomicReplaceJson(file: string, value: unknown): Promise<void> {
 }
 
 async function syncDirectory(dir: string): Promise<void> {
+  const stats = await lstat(dir);
+  if (stats.isSymbolicLink() || !stats.isDirectory()) throw new Error('Operational event directory must be a non-symlink directory.');
+  // Windows does not expose POSIX directory fsync. Event files are synced
+  // before publication; keep directory validation while avoiding EPERM.
+  if (process.platform === 'win32') return;
   const handle = await open(dir, 'r');
   try { await handle.sync(); } finally { await handle.close(); }
 }

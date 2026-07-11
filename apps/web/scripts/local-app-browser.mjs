@@ -397,6 +397,11 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
       && event.errorCode === "REVISION_CHANGED_RETRY"
       && new URL(event.url).pathname === "/api/v1/evals") return true;
     if (event.kind === "response"
+      && event.method === "GET"
+      && event.status === 409
+      && event.errorCode === "REVISION_CHANGED_RETRY"
+      && new URL(event.url).pathname === "/api/v1/policy/reviews") return true;
+    if (event.kind === "response"
       && event.method === "POST"
       && event.status === 409
       && event.errorCode === "REVISION_CHANGED_RETRY"
@@ -404,7 +409,7 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
     if (event.kind === "console"
       && /status of 409|conflict/i.test(event.message)
       && [
-        "/api/v1/bootstrap", "/api/v1/workspace", "/api/v1/dashboard", "/api/v1/skills", "/api/v1/jobs", "/api/v1/routes", "/api/v1/evals", "/api/v1/state/revisions",
+        "/api/v1/bootstrap", "/api/v1/workspace", "/api/v1/dashboard", "/api/v1/skills", "/api/v1/jobs", "/api/v1/routes", "/api/v1/evals", "/api/v1/state/revisions", "/api/v1/policy/reviews",
         "/api/v1/policy/proposals", "/api/v1/policy/decisions", "/api/v1/workspaces/select"
       ].includes(new URL(event.url).pathname)) return true;
     if ((phase.workflowRevisionSettle || phase.workspaceTransition)
@@ -708,6 +713,7 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   const skillReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/skills");
   const activityReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && ["/api/v1/jobs", "/api/v1/routes"].includes(new URL(event.url).pathname));
   const evalReadConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/evals");
+  const policyReviewConflicts = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409 && new URL(event.url).pathname === "/api/v1/policy/reviews");
   const retryChangeResponses = revisionRetryResponses.filter(event => event.errorCode === "REVISION_CHANGED_RETRY");
   const allExpected409Responses = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409);
   const expected409Console = diagnostics.expected.filter(event => event.kind === "console" && /status of 409|conflict/i.test(event.message));
@@ -718,16 +724,25 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   assert.ok(bootstrapAborts.length <= 6, `too many controlled bootstrap navigation aborts: ${bootstrapAborts.length}`);
   const maxSkillAborts = Math.ceil(setup.skillCount / 100);
   assert.ok(transitionAborts.length <= maxSkillAborts, `too many route-transition request aborts: ${transitionAborts.length} (max ${maxSkillAborts} for ${setup.skillCount} skills); ${formatDiagnostics(transitionAborts)}`);
-  // The measured Activity deep link, policy/eval/source publication, and the
-  // explicit workspace switch can each supersede at most one in-flight
-  // workspace + dashboard read pair.
-  const intentionalNavigationPairCount = 5;
+  // These six explicit flows can each supersede at most one in-flight
+  // workspace + dashboard read pair. Policy hold and reviewed-policy apply
+  // publish separate revisions, so they are separate navigation races.
+  const intentionalNavigationSupersessions = Object.freeze({
+    activityDeepLink: 1,
+    policyHold: 1,
+    reviewedPolicyApply: 1,
+    evalImport: 1,
+    sourceAdoption: 1,
+    workspaceSwitch: 1
+  });
+  const intentionalNavigationPairCount = Object.values(intentionalNavigationSupersessions).reduce((total, count) => total + count, 0);
+  const intentionalNavigationReceipt = Object.entries(intentionalNavigationSupersessions).map(([category, count]) => `${category}=${count}`).join(", ");
   const workspaceTransitionAbortCap = intentionalNavigationPairCount * 2;
-  assert.ok(workspaceTransitionAborts.length <= workspaceTransitionAbortCap, `too many guarded workspace-transition request aborts: ${workspaceTransitionAborts.length} > ${workspaceTransitionAbortCap}; ${formatDiagnostics(workspaceTransitionAborts)}`);
+  assert.ok(workspaceTransitionAborts.length <= workspaceTransitionAbortCap, `too many guarded workspace-transition request aborts: ${workspaceTransitionAborts.length} > ${workspaceTransitionAbortCap} (${intentionalNavigationReceipt}); ${formatDiagnostics(workspaceTransitionAborts)}`);
   assert.equal(workspaceTransitionAborts.every(isNavigationAbort), true, "workspace transition allowlist contained a non-navigation failure");
   for (const pathname of ["/api/v1/workspace", "/api/v1/dashboard"]) {
     const aborts = workspaceTransitionAborts.filter(event => new URL(event.url).pathname === pathname);
-    assert.ok(aborts.length <= intentionalNavigationPairCount, `too many guarded ${pathname} navigation aborts during workspace transition: ${aborts.length} > ${intentionalNavigationPairCount}`);
+    assert.ok(aborts.length <= intentionalNavigationPairCount, `too many guarded ${pathname} navigation aborts during workspace transition: ${aborts.length} > ${intentionalNavigationPairCount} (${intentionalNavigationReceipt})`);
   }
   assert.equal(workspaceConflicts.length, 2, `expected two controlled workspace conflict responses, got ${workspaceConflicts.length}`);
   assert.deepEqual(workspaceConflicts.map(event => event.errorCode).sort(), ["WORKSPACE_SWITCH_JOBS_ACTIVE", "WORKSPACE_VALIDATION_INVALID"]);
@@ -754,13 +769,15 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   assert.equal(activityReadConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "activity-read conflict did not use the exact retryable revision-change receipt");
   assert.ok(evalReadConflicts.length <= 1, `too many controlled eval-read conflicts: ${evalReadConflicts.length}`);
   assert.equal(evalReadConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "eval-read conflict did not use the exact retryable revision-change receipt");
-  assert.equal(allExpected409Responses.length, revisionRetryResponses.length + workspaceConflicts.length + workflowRevisionConflicts.length + policyMutationConflicts.length + revisionHistoryConflicts.length + skillReadConflicts.length + activityReadConflicts.length + evalReadConflicts.length, "an uncategorized expected 409 response was allowlisted");
+  assert.ok(policyReviewConflicts.length <= 1, `too many controlled policy-review conflicts: ${policyReviewConflicts.length}`);
+  assert.equal(policyReviewConflicts.every(event => event.method === "GET" && event.errorCode === "REVISION_CHANGED_RETRY"), true, "policy-review conflict did not use the exact retryable revision-change receipt");
+  assert.equal(allExpected409Responses.length, revisionRetryResponses.length + workspaceConflicts.length + workflowRevisionConflicts.length + policyMutationConflicts.length + revisionHistoryConflicts.length + skillReadConflicts.length + activityReadConflicts.length + evalReadConflicts.length + policyReviewConflicts.length, "an uncategorized expected 409 response was allowlisted");
   for (const pathname of new Set(expected409Console.map(event => new URL(event.url).pathname))) {
     const consoleCount = expected409Console.filter(event => new URL(event.url).pathname === pathname).length;
     const responseCount = allExpected409Responses.filter(event => new URL(event.url).pathname === pathname).length;
     assert.ok(consoleCount <= responseCount, `expected 409 console diagnostics for ${pathname} exceeded their exact response receipts: ${consoleCount} > ${responseCount}`);
   }
-  console.log(`diagnostics: ${revisionRetryResponses.length} controlled bootstrap revision conflicts (${revisionSettleConflicts} during job settle), ${workflowRevisionConflicts.length} controlled post-workflow read conflict(s), ${policyMutationConflicts.length} controlled policy mutation conflict(s), ${revisionHistoryConflicts.length} controlled workspace-transition history conflict(s), ${skillReadConflicts.length} controlled workspace-transition skill conflict(s), ${activityReadConflicts.length} controlled workspace-transition activity conflict(s), ${evalReadConflicts.length} controlled eval-read conflict(s), ${workspaceConflicts.length} controlled workspace conflicts, ${workspaceUnknownOutcomes.length} controlled outcome-unknown workspace response, ${offlineFailures.length} expected offline failure(s), ${bootstrapAborts.length} bounded bootstrap abort(s), ${transitionAborts.length} bounded route-transition abort(s), ${workspaceTransitionAborts.length} guarded workspace-transition abort(s), 0 unexpected console/page/request failures`);
+  console.log(`diagnostics: ${revisionRetryResponses.length} controlled bootstrap revision conflicts (${revisionSettleConflicts} during job settle), ${workflowRevisionConflicts.length} controlled post-workflow read conflict(s), ${policyMutationConflicts.length} controlled policy mutation conflict(s), ${policyReviewConflicts.length} controlled policy-review conflict(s), ${revisionHistoryConflicts.length} controlled workspace-transition history conflict(s), ${skillReadConflicts.length} controlled workspace-transition skill conflict(s), ${activityReadConflicts.length} controlled workspace-transition activity conflict(s), ${evalReadConflicts.length} controlled eval-read conflict(s), ${workspaceConflicts.length} controlled workspace conflicts, ${workspaceUnknownOutcomes.length} controlled outcome-unknown workspace response, ${offlineFailures.length} expected offline failure(s), ${bootstrapAborts.length} bounded bootstrap abort(s), ${transitionAborts.length} bounded route-transition abort(s), ${workspaceTransitionAborts.length} guarded workspace-transition abort(s), 0 unexpected console/page/request failures`);
   await context.close();
 }
 

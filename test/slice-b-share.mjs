@@ -315,7 +315,9 @@ test('local-sensitive export refuses symlinked artifact files', {
   assert.equal(existsSync(firstTarget), false);
 });
 
-test('local-sensitive export refuses symlinked policy-state roots', (t) => {
+test('local-sensitive export refuses symlinked policy-state roots', {
+  skip: process.platform === 'win32' ? 'Local-sensitive export fails closed before source traversal on Windows.' : false
+}, (t) => {
   const second = privateCanaryProject(t);
   const outsidePolicies = path.join(second.cwd, 'outside-policies');
   mkdirSync(outsidePolicies);

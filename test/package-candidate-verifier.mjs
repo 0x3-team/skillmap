@@ -320,11 +320,44 @@ function createCandidate(scratch, options = {}) {
   }
   mkdirSync(candidate, { recursive: true });
   const manifest = JSON.parse(runNpm(['pack', '--json', '--silent', '--ignore-scripts', '--pack-destination', candidate], source));
+  normalizeSyntheticCliMode(candidate, manifest);
   writeManifest(candidate, manifest);
   if (archivedPrepare !== undefined) injectArchivedPackageScripts(candidate, { prepare: archivedPrepare });
   const result = runVerifier(candidate, ['--write']);
   if (options.label === undefined) assert.equal(result.status, 0, verifierOutput(result));
   return candidate;
+}
+
+function normalizeSyntheticCliMode(candidate, manifest) {
+  const cli = manifest[0].files.find((entry) => entry.path === 'dist/cli.js');
+  assert.ok(cli, 'fixture pack manifest has no dist/cli.js entry');
+  if ((cli.mode & 0o777) === 0o755) return;
+  const tarball = path.join(candidate, manifest[0].filename);
+  const tar = gunzipSync(readFileSync(tarball));
+  let offset = 0;
+  let found = false;
+  while (offset + 512 <= tar.length) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every(value => value === 0)) break;
+    const name = tarField(header.subarray(0, 100));
+    const prefix = tarField(header.subarray(345, 500));
+    const archivePath = prefix ? `${prefix}/${name}` : name;
+    const size = Number.parseInt(tarField(header.subarray(124, 136)).trim(), 8);
+    if (archivePath === 'package/dist/cli.js') {
+      writeTarOctal(header, 100, 8, 0o755);
+      writeTarChecksum(header);
+      found = true;
+      break;
+    }
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  assert.equal(found, true, 'fixture archive has no package/dist/cli.js');
+  cli.mode = (cli.mode & ~0o777) | 0o755;
+  const compressed = gzipSync(tar, { level: 9 });
+  writeFileSync(tarball, compressed);
+  manifest[0].size = compressed.length;
+  manifest[0].shasum = digest(compressed, 'sha1', 'hex');
+  manifest[0].integrity = `sha512-${digest(compressed, 'sha512', 'base64')}`;
 }
 
 function injectArchivedPackageScripts(candidate, scripts) {

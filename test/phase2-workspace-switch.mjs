@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createJob, transitionJob } from '../dist/core/jobs.js';
-import { SkillMapLocalBackend } from '../dist/server/skillmap-backend.js';
+import { SkillMapLocalBackend, workspaceFilesystemIdentity } from '../dist/server/skillmap-backend.js';
 
 function sandbox(t, prefix) {
   const cwd = mkdtempSync(path.join(tmpdir(), prefix));
@@ -84,15 +84,29 @@ test('new workspace creation does not write before explicit confirmation and cre
   assert.equal(existsSync(created), true);
   assert.equal(lstatSync(created).isDirectory(), true);
   assert.equal(lstatSync(created).isSymbolicLink(), false);
-  assert.equal(lstatSync(created).mode & 0o777, 0o700);
+  if (process.platform !== 'win32') assert.equal(lstatSync(created).mode & 0o777, 0o700);
   assert.equal((await backend.bootstrap()).state, 'uninitialized');
   assert.equal(JSON.stringify(receipt).includes(created), false);
 });
 
-test('steady workspace and dashboard names redact secret and control-bearing directory basenames', async (t) => {
+test('workspace identity preserves device and inode values beyond the safe-number boundary', () => {
+  const device = BigInt(Number.MAX_SAFE_INTEGER) + 17n;
+  const inode = device + 1n;
+  assert.deepEqual(
+    workspaceFilesystemIdentity({ dev: device, ino: inode }, 'WORKSPACE_CANDIDATE_INVALID', 'invalid identity'),
+    { device: device.toString(10), inode: inode.toString(10) }
+  );
+  assert.throws(
+    () => workspaceFilesystemIdentity({ dev: -1n, ino: 1n }, 'WORKSPACE_CANDIDATE_INVALID', 'invalid identity'),
+    (error) => error.code === 'WORKSPACE_CANDIDATE_INVALID'
+  );
+});
+
+test('steady workspace and dashboard names redact secret-bearing and supported control-bearing directory basenames', async (t) => {
   const parent = sandbox(t, 'skillmap-workspace-label-');
   const secretCanary = 'Bearer token WORKSPACE_LABEL_CANARY';
-  const cwd = path.join(parent, `${secretCanary}\nCONTROL_CANARY`);
+  const controlCanary = process.platform === 'win32' ? '' : '\nCONTROL_CANARY';
+  const cwd = path.join(parent, `${secretCanary}${controlCanary}`);
   const root = path.join(cwd, 'skills');
   mkdirSync(path.join(root, 'alpha'), { recursive: true });
   writeFileSync(path.join(root, 'alpha', 'SKILL.md'), '---\nname: alpha\ndescription: Use for alpha work.\n---\n# Alpha\n');
@@ -106,7 +120,7 @@ test('steady workspace and dashboard names redact secret and control-bearing dir
   for (const value of [workspace, dashboard]) {
     const text = JSON.stringify(value);
     assert.equal(text.includes('WORKSPACE_LABEL_CANARY'), false);
-    assert.equal(text.includes('CONTROL_CANARY'), false);
+    if (controlCanary) assert.equal(text.includes('CONTROL_CANARY'), false);
   }
 });
 

@@ -543,13 +543,18 @@ test('restart reconciliation turns durable queued and running cancellation reque
 
 test('concurrent cancellation requests converge for one key and reject a different key', async (t) => {
   const fixture = await approvedWorkspace(t);
-  const same = await createJob(fixture.cwd, request('concurrent-cancel-same-job-1', { expectedRevision: fixture.revisionId }));
-  const sameResults = await Promise.all([
-    fixture.backend.cancelJob(same.stored.job.jobId, { idempotencyKey: 'concurrent-cancel-same-key' }),
-    fixture.backend.cancelJob(same.stored.job.jobId, { idempotencyKey: 'concurrent-cancel-same-key' })
-  ]);
-  assert.equal(sameResults.every((item) => ['cancelled', 'cancellation-requested'].includes(item.state)), true);
-  assert.equal((await readJob(fixture.cwd, same.stored.job.jobId)).job.state, 'cancelled');
+  const sameJobs = [];
+  for (let index = 0; index < 12; index += 1) {
+    sameJobs.push(await createJob(fixture.cwd, request(`concurrent-cancel-same-job-${index}`, { expectedRevision: fixture.revisionId })));
+  }
+  const sameResults = await Promise.all(sameJobs.map((same, index) => Promise.all([
+    fixture.backend.cancelJob(same.stored.job.jobId, { idempotencyKey: `concurrent-cancel-same-key-${index}` }),
+    fixture.backend.cancelJob(same.stored.job.jobId, { idempotencyKey: `concurrent-cancel-same-key-${index}` })
+  ])));
+  assert.equal(sameResults.flat().every((item) => ['cancelled', 'cancellation-requested'].includes(item.state)), true);
+  for (const same of sameJobs) {
+    assert.equal((await readJob(fixture.cwd, same.stored.job.jobId)).job.state, 'cancelled');
+  }
 
   const different = await createJob(fixture.cwd, request('concurrent-cancel-different-job-1', { expectedRevision: fixture.revisionId }));
   const differentResults = await Promise.allSettled([

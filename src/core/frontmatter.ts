@@ -10,15 +10,17 @@ export interface ParsedFrontmatter {
 
 export function parseFrontmatter(content: string): ParsedFrontmatter {
   const errors: string[] = [];
-  if (!content.startsWith('---\n')) {
+  const opening = content.match(/^---\r?\n/);
+  if (!opening) {
     return { data: {}, body: content, valid: false, errors: ['missing YAML frontmatter opening delimiter'] };
   }
-  const end = content.indexOf('\n---', 4);
-  if (end < 0) {
+  const remainder = content.slice(opening[0].length);
+  const closing = /\r?\n---(?:\r?\n|$)/.exec(remainder);
+  if (!closing) {
     return { data: {}, body: content, valid: false, errors: ['missing YAML frontmatter closing delimiter'] };
   }
-  const raw = content.slice(4, end).trim();
-  const body = content.slice(content.indexOf('\n', end + 1) + 1);
+  const raw = remainder.slice(0, closing.index).trim();
+  const body = remainder.slice(closing.index + closing[0].length);
   let data: Record<string, unknown> = {};
   let recoveredFromYamlError = false;
   try {
