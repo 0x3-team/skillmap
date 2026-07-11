@@ -151,6 +151,7 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
   private readonly evalCommandRunner: typeof evalCommand;
   private readonly activeJobs = new Map<string, Promise<void>>();
   private readonly activeJobControllers = new Map<string, AbortController>();
+  private readonly cancellationFinalizerTails = new Map<string, Promise<void>>();
   private jobTail: Promise<void> = Promise.resolve();
   private cancellationTail: Promise<void> = Promise.resolve();
   private acceptingJobs = true;
@@ -1138,33 +1139,35 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
       throw error;
     }
 
-    this.activeJobControllers.get(jobId)?.abort();
-    if (stateBefore !== 'cancelled') {
-      const claim = await claimJobExecution(cwd, jobId);
-      if (claim) {
-        try {
-          const refreshed = await readJob(cwd, jobId);
-          if (refreshed.job.state === 'queued' || refreshed.job.state === 'running') {
-            await transitionJob(cwd, jobId, 'cancelled', { claim, resultReceipt: cancellationReceipt(cancellation.record, refreshed.job.state) });
+    return this.withCancellationFinalizer(cwd, jobId, async () => {
+      this.activeJobControllers.get(jobId)?.abort();
+      if (stateBefore !== 'cancelled') {
+        const claim = await claimJobExecution(cwd, jobId);
+        if (claim) {
+          try {
+            const refreshed = await readJob(cwd, jobId);
+            if (refreshed.job.state === 'queued' || refreshed.job.state === 'running') {
+              await transitionJob(cwd, jobId, 'cancelled', { claim, resultReceipt: cancellationReceipt(cancellation.record, refreshed.job.state) });
+            }
+          } finally {
+            await claim.release().catch(() => undefined);
           }
-        } finally {
-          await claim.release().catch(() => undefined);
+        } else {
+          await this.waitForJobTerminal(cwd, jobId, 2_000);
         }
-      } else {
-        await this.waitForJobTerminal(cwd, jobId, 2_000);
       }
-    }
-    const stored = await readJob(cwd, jobId);
-    if (stored.job.state === 'succeeded') throw new WorkspaceStateError('JOB_PUBLICATION_COMMITTED', 'The job published before cancellation could take effect.');
-    if (stored.job.state === 'failed') throw new WorkspaceStateError('JOB_NOT_CANCELLABLE', 'The job failed before cancellation could take effect.');
-    return {
-      state: stored.job.state === 'cancelled' ? 'cancelled' : 'cancellation-requested',
-      jobId,
-      jobState: stored.job.state,
-      cancellationDigest: cancellation.record.idempotencyDigest,
-      idempotent: !cancellation.created,
-      publicationPrevented: true
-    };
+      const stored = await readJob(cwd, jobId);
+      if (stored.job.state === 'succeeded') throw new WorkspaceStateError('JOB_PUBLICATION_COMMITTED', 'The job published before cancellation could take effect.');
+      if (stored.job.state === 'failed') throw new WorkspaceStateError('JOB_NOT_CANCELLABLE', 'The job failed before cancellation could take effect.');
+      return {
+        state: stored.job.state === 'cancelled' ? 'cancelled' : 'cancellation-requested',
+        jobId,
+        jobState: stored.job.state,
+        cancellationDigest: cancellation.record.idempotencyDigest,
+        idempotent: !cancellation.created,
+        publicationPrevented: true
+      };
+    });
   }
 
   async resumeInterruptedJobs(): Promise<void> {
@@ -1237,6 +1240,19 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
     });
     this.cancellationTail = queued.then(() => undefined, () => undefined);
     return queued;
+  }
+
+  private async withCancellationFinalizer<T>(cwd: string, jobId: string, operation: () => Promise<T>): Promise<T> {
+    const key = `${cwd}\0${jobId}`;
+    const previous = this.cancellationFinalizerTails.get(key) ?? Promise.resolve();
+    const queued = previous.then(operation);
+    const tail = queued.then(() => undefined, () => undefined);
+    this.cancellationFinalizerTails.set(key, tail);
+    try {
+      return await queued;
+    } finally {
+      if (this.cancellationFinalizerTails.get(key) === tail) this.cancellationFinalizerTails.delete(key);
+    }
   }
 
   private async waitForJobTerminal(cwd: string, jobId: string, timeoutMs: number): Promise<void> {

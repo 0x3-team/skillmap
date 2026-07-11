@@ -418,14 +418,19 @@ export async function claimJobExecution(cwd: string, jobId: string): Promise<Job
         // A live owner can release the atomically-published claim between the
         // directory check and owner-file open. Retry only that disappearance;
         // every other inspection failure remains fail-closed.
-        if ((inspectionError as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        if ((inspectionError as NodeJS.ErrnoException).code === 'ENOENT') {
+          if (windowsRenameCollision && attempt + 1 >= 3) throw error;
+          continue;
+        }
         throw inspectionError;
       }
       // Windows can report an existing non-empty rename target as EPERM. Only
       // classify that code as a claim collision after proving the target is a
-      // safe, real directory; otherwise preserve the original failure.
+      // safe, real directory. The winning owner can also release between the
+      // failed rename and inspection, so retry that disappearance within the
+      // existing attempt cap while preserving the final unexplained EPERM.
       if (!safeTarget) {
-        if (windowsRenameCollision) throw error;
+        if (windowsRenameCollision && attempt + 1 >= 3) throw error;
         continue;
       }
       if (!current) {

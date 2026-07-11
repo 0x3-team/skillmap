@@ -28,6 +28,8 @@ const MAX_MAINTENANCE_DELETES = 512;
 const MAX_MAINTENANCE_ROOT_ENTRIES = 512;
 const MAX_LEDGER_LOCK_ATTEMPTS = 200;
 const LEDGER_LOCK_LEASE_MS = 30_000;
+const MAX_LEDGER_QUEUE_DEPTH = 64;
+const routeLedgerQueues = new Map<string, { tail: Promise<void>; pending: number }>();
 const MAX_EVENT_CLOCK_SKEW_MS = 5 * 60_000;
 const FEEDBACK_OUTCOMES = ['correct', 'wrong', 'missing', 'unsafe'] as const;
 const EVENT_SCHEMA = 'https://skillmap.dev/contracts/event/v1.schema.json';
@@ -923,11 +925,24 @@ function assertEventWithinRetention(event: RouteEventV1, limits: ResolvedRouteEv
 
 async function withRouteLedgerLock<T>(cwd: string, operation: () => Promise<T>): Promise<T> {
   const eventsRoot = await ensureSafeEventsRoot(cwd);
-  const held = await acquireRouteLedgerLock(eventsRoot);
+  const queue = routeLedgerQueues.get(eventsRoot) ?? { tail: Promise.resolve(), pending: 0 };
+  if (queue.pending >= MAX_LEDGER_QUEUE_DEPTH) throw new Error('Route event ledger is busy. Retry the bounded operation.');
+  queue.pending += 1;
+  const queued = queue.tail.then(async () => {
+    const held = await acquireRouteLedgerLock(eventsRoot);
+    try {
+      return await operation();
+    } finally {
+      await held.release();
+    }
+  });
+  queue.tail = queued.then(() => undefined, () => undefined);
+  routeLedgerQueues.set(eventsRoot, queue);
   try {
-    return await operation();
+    return await queued;
   } finally {
-    await held.release();
+    queue.pending -= 1;
+    if (queue.pending === 0 && routeLedgerQueues.get(eventsRoot) === queue) routeLedgerQueues.delete(eventsRoot);
   }
 }
 
@@ -948,14 +963,24 @@ async function acquireRouteLedgerLock(eventsRoot: string): Promise<{ release(): 
           expiresAt: new Date(Date.now() + LEDGER_LOCK_LEASE_MS).toISOString()
         });
       } catch (error) {
-        await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+        await rm(lockDir, {
+          recursive: true,
+          force: true,
+          maxRetries: process.platform === 'win32' ? 3 : 0,
+          retryDelay: 10
+        }).catch(() => undefined);
         throw error;
       }
       return {
         async release() {
           const owner = object(await readBoundedJson(ownerFile, 8 * 1024), 'route ledger lock owner');
           if (owner.token !== token) throw new Error('Route event ledger lock ownership changed before release.');
-          await rm(lockDir, { recursive: true, force: false });
+          await rm(lockDir, {
+            recursive: true,
+            force: false,
+            maxRetries: process.platform === 'win32' ? 3 : 0,
+            retryDelay: 10
+          });
           await syncDirectory(eventsRoot);
         }
       };
@@ -984,7 +1009,12 @@ async function reclaimStaleRouteLedgerLock(eventsRoot: string, lockDir: string, 
   const quarantine = path.join(eventsRoot, `.ledger-lock-stale-${randomUUID()}`);
   try {
     await rename(lockDir, quarantine);
-    await rm(quarantine, { recursive: true, force: true });
+    await rm(quarantine, {
+      recursive: true,
+      force: true,
+      maxRetries: process.platform === 'win32' ? 3 : 0,
+      retryDelay: 10
+    });
     await syncDirectory(eventsRoot);
     return true;
   } catch (error) {
