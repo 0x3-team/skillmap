@@ -1,0 +1,10 @@
+# Default product ownership.
+* @0x3-team/core
+
+# Security-sensitive policy, runtime, and delivery surfaces.
+/.github/ @0x3-team/core @0x3-team/security
+/contracts/ @0x3-team/core @0x3-team/security
+/src/core/ @0x3-team/core @0x3-team/security
+/src/contracts/ @0x3-team/core @0x3-team/security
+/src/server/ @0x3-team/core @0x3-team/security
+/scripts/ @0x3-team/core @0x3-team/security
