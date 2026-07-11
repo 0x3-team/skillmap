@@ -6,4 +6,5 @@
 /contracts/ @0x3-team/core @0x3-team/security
 /src/core/ @0x3-team/core @0x3-team/security
 /src/contracts/ @0x3-team/core @0x3-team/security
-/scripts/release-* @0x3-team/core @0x3-team/security
+/src/server/ @0x3-team/core @0x3-team/security
+/scripts/ @0x3-team/core @0x3-team/security
