@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -253,11 +253,21 @@ test('safe import rejects semantic tamper and unknown fields before any archive 
   assert.equal(existsSync(path.join(cwd, '.skillmap/imports')), false);
 });
 
-test('local-sensitive export is confined, mode 0600, and import requires acknowledgement', (t) => {
+test('local-sensitive export is confined, uses POSIX mode 0600, and import requires acknowledgement', (t) => {
   const { cwd, canaries } = privateCanaryProject(t);
   mkdirSync(path.join(cwd, '.skillmap/policies'), { recursive: true });
   writeFileSync(path.join(cwd, '.skillmap/policies/active.json'), '{"version":1}\n');
   const outside = path.join(cwd, 'private-outside.json');
+  if (process.platform === 'win32') {
+    const target = path.join(cwd, '.skillmap/private-exports/private.json');
+    assert.match(
+      runFailure(['export', '--include-sensitive-local', '--output', target], cwd),
+      /unavailable on Windows because POSIX mode 0600 does not enforce a private Windows ACL/
+    );
+    assert.equal(existsSync(path.join(cwd, '.skillmap/private-exports')), false);
+    assert.equal(existsSync(target), false);
+    return;
+  }
   assert.match(runFailure(['export', '--include-sensitive-local', '--output', outside], cwd), /inside \.skillmap\/private-exports/);
   assert.equal(existsSync(outside), false);
 
@@ -274,6 +284,22 @@ test('local-sensitive export is confined, mode 0600, and import requires acknowl
   assert.equal(acknowledged.verified, true);
   assert.equal(acknowledged.report.format, 'private-v2');
   assert.equal(acknowledged.report.activation, 'none');
+});
+
+test('local-sensitive export accepts an ancestor alias that resolves to the same private-export root', {
+  skip: process.platform === 'win32' ? 'Directory aliases require symbolic-link support.' : false
+}, (t) => {
+  const { cwd, canaries } = privateCanaryProject(t);
+  const alias = `${cwd}-alias`;
+  symlinkSync(cwd, alias, 'dir');
+  t.after(() => rmSync(alias, { force: true }));
+
+  const requested = path.join(alias, '.skillmap/private-exports/alias.json');
+  const result = JSON.parse(run(['export', '--include-sensitive-local', '--output', requested, '--json'], cwd));
+  const canonical = path.join(realpathSync(cwd), '.skillmap/private-exports/alias.json');
+  assert.equal(result.file, canonical);
+  assert.equal(readFileSync(requested, 'utf8'), readFileSync(canonical, 'utf8'));
+  assert.ok(Object.values(canaries).some((value) => readFileSync(canonical, 'utf8').includes(value)));
 });
 
 test('local-sensitive export refuses symlinked artifact files', {

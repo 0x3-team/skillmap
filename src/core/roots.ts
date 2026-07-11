@@ -45,10 +45,16 @@ export async function resolveRoots(cwd: string, explicitRoots: string[], fixture
 
 export function inferScope(root: string, cwd: string): 'user' | 'project' | 'plugin' | 'fixture' | 'unknown' {
   if (isFixturePath(root)) return 'fixture';
-  if (root.includes('/.codex/plugins/')) return 'plugin';
-  if (root.startsWith(cwd)) return 'project';
-  if (root.includes('/.agents/') || root.includes('/.codex/') || root.includes('/.claude/')) return 'user';
+  const portableRoot = root.split(path.sep).join('/');
+  if (portableRoot.includes('/.codex/plugins/')) return 'plugin';
+  if (isContainedPath(cwd, root)) return 'project';
+  if (portableRoot.includes('/.agents/') || portableRoot.includes('/.codex/') || portableRoot.includes('/.claude/')) return 'user';
   return 'unknown';
+}
+
+function isContainedPath(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
 export function inferClientHints(root: string): string[] {

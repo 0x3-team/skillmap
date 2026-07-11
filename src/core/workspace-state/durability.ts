@@ -185,6 +185,10 @@ export async function atomicReplaceSynced(
 
 export async function syncDirectory(target: string): Promise<void> {
   await assertDirectory(target);
+  // Windows does not expose POSIX-style directory fsync. File contents are
+  // still synced before each atomic rename; POSIX directory failures remain
+  // fail-closed below.
+  if (process.platform === 'win32') return;
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(target, 'r');

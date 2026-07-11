@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -189,9 +189,10 @@ async function createFixture(t, prefix) {
 async function createBaseline(root, skillDirectory) {
   const relativePath = 'alpha';
   const tree = await hashSkillTree(skillDirectory);
+  const rootRealPath = await realpath(root);
   return {
     revision: REVISION,
-    roots: [{ rootId: ROOT_ID, configuredPath: root, realPath: root, approvedAt: '2026-07-10T00:00:00.000Z' }],
+    roots: [{ rootId: ROOT_ID, configuredPath: root, realPath: rootRealPath, approvedAt: '2026-07-10T00:00:00.000Z' }],
     skills: [{ rootId: ROOT_ID, relativePath, skillId: deriveSkillId(ROOT_ID, relativePath), contentRevision: tree.contentRevision }]
   };
 }

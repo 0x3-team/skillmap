@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -85,9 +85,10 @@ test('freshness recomputes contentRevision through the same bounded streaming ha
   await mkdir(path.join(value.skill, 'references', 'nested'), { recursive: true });
   await writeFile(path.join(value.skill, 'references', 'nested', 'guide.txt'), 'bounded guide');
   const tree = await hashSkillTree(value.skill);
+  const rootRealPath = await realpath(value.root);
   const baseline = {
     revision: REVISION,
-    roots: [{ rootId: ROOT_ID, configuredPath: value.root, realPath: value.root, approvedAt: '2026-07-10T00:00:00.000Z' }],
+    roots: [{ rootId: ROOT_ID, configuredPath: value.root, realPath: rootRealPath, approvedAt: '2026-07-10T00:00:00.000Z' }],
     skills: [{ rootId: ROOT_ID, relativePath: 'alpha', skillId: deriveSkillId(ROOT_ID, 'alpha'), contentRevision: tree.contentRevision }]
   };
   const verified = await verifyApprovedRootManifest(baseline);
@@ -96,4 +97,20 @@ test('freshness recomputes contentRevision through the same bounded streaming ha
     verifyApprovedRootManifest(baseline, { maxTreeDepth: 1 }),
     error => error?.reasonCode === 'verification-limit'
   );
+});
+
+test('inventory scope compares canonical workspace and root paths across ancestor aliases', {
+  skip: process.platform === 'win32' ? 'Directory aliases require symbolic-link support.' : false
+}, async (t) => {
+  const value = await fixture(t, 'skillmap-scope-alias-');
+  const alias = `${value.cwd}-alias`;
+  await symlink(value.cwd, alias, 'dir');
+  t.after(() => rm(alias, { force: true }));
+
+  const inventory = await buildInventory(value.cwd, [value.root], [], {
+    persistIdentity: false,
+    logicalCwd: alias
+  });
+  assert.equal(inventory.skills[0].scope, 'project');
+  assert.equal(inventory.cwd, alias);
 });

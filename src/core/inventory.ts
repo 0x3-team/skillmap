@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Dirent, Stats } from 'node:fs';
-import { lstat, open, opendir } from 'node:fs/promises';
+import { lstat, open, opendir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parseFrontmatter } from './frontmatter.js';
 import { inferClientHints, inferScope } from './roots.js';
@@ -124,6 +124,7 @@ export async function buildInventory(
   options: { persistIdentity?: boolean; logicalCwd?: string; limits?: Partial<SkillFilesystemLimits> } = {}
 ): Promise<Inventory> {
   const logicalCwd = path.resolve(options.logicalCwd ?? cwd);
+  const scopeCwd = await realpath(logicalCwd);
   const limits = resolveSkillFilesystemLimits(options.limits);
   if (roots.length > limits.maxRoots) throw new SkillFilesystemLimitError('maxRoots');
   const skills: SkillRecord[] = [];
@@ -161,7 +162,7 @@ export async function buildInventory(
         description,
         path: skillPath,
         root: rootRecord.realPath,
-        scope: skillIsFixture ? 'fixture' : inferScope(rootRecord.realPath, logicalCwd),
+        scope: skillIsFixture ? 'fixture' : inferScope(rootRecord.realPath, scopeCwd),
         clientHints: skillIsFixture
           ? [...new Set([...inferClientHints(rootRecord.realPath), 'fixture'])]
           : inferClientHints(rootRecord.realPath),

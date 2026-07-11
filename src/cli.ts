@@ -168,7 +168,7 @@ Commands:
   state repair-projections --confirm [--json]
   dashboard [--port N] [--static-root PATH] [--json]
   export [--output PATH] [--redact-paths] [--json]
-  export --include-sensitive-local --output .skillmap/private-exports/FILE [--json]
+  export --include-sensitive-local --output .skillmap/private-exports/FILE [--json]  (POSIX only; fails closed on Windows)
   export --dashboard-snapshot --redact-paths [--output PATH] [--json]
   import FILE [--dry-run|--confirm] [--acknowledge-sensitive-local] [--json]
   curate codex --prepare [--json]

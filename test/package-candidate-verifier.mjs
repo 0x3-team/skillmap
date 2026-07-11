@@ -287,6 +287,9 @@ function createCandidate(scratch, options = {}) {
   const label = options.label ?? 'valid';
   const source = path.join(scratch, `source-${label}`);
   const candidate = path.join(scratch, `candidate-${label}`);
+  const packageScripts = options.packageScripts ? { ...options.packageScripts } : undefined;
+  const archivedPrepare = packageScripts?.prepare;
+  if (packageScripts) delete packageScripts.prepare;
   mkdirSync(path.join(source, 'dist'), { recursive: true });
   mkdirSync(path.join(source, 'contracts'), { recursive: true });
   mkdirSync(path.join(source, 'assets', 'local-app', 'v1'), { recursive: true });
@@ -302,7 +305,7 @@ function createCandidate(scratch, options = {}) {
     private: false,
     files: packageFiles,
     bin: { skillmap: 'dist/cli.js' },
-    ...(options.packageScripts ? { scripts: options.packageScripts } : {})
+    ...(packageScripts && Object.keys(packageScripts).length > 0 ? { scripts: packageScripts } : {})
   }, null, 2)}\n`);
   write(path.join(source, 'dist', 'cli.js'), '#!/usr/bin/env node\nprocess.stdout.write("fixture\\n");\n', 0o755);
   write(path.join(source, 'contracts', 'manifest.json'), '{"version":1}\n');
@@ -318,9 +321,58 @@ function createCandidate(scratch, options = {}) {
   mkdirSync(candidate, { recursive: true });
   const manifest = JSON.parse(runNpm(['pack', '--json', '--silent', '--ignore-scripts', '--pack-destination', candidate], source));
   writeManifest(candidate, manifest);
+  if (archivedPrepare !== undefined) injectArchivedPackageScripts(candidate, { prepare: archivedPrepare });
   const result = runVerifier(candidate, ['--write']);
   if (options.label === undefined) assert.equal(result.status, 0, verifierOutput(result));
   return candidate;
+}
+
+function injectArchivedPackageScripts(candidate, scripts) {
+  const manifest = readManifest(candidate);
+  const tarball = path.join(candidate, manifest[0].filename);
+  const tar = gunzipSync(readFileSync(tarball));
+  let offset = 0;
+  let updatedTar;
+  let previousSize;
+  let nextSize;
+  while (offset + 512 <= tar.length) {
+    const sourceHeader = tar.subarray(offset, offset + 512);
+    if (sourceHeader.every(value => value === 0)) break;
+    const name = tarField(sourceHeader.subarray(0, 100));
+    const prefix = tarField(sourceHeader.subarray(345, 500));
+    const archivePath = prefix ? `${prefix}/${name}` : name;
+    const size = Number.parseInt(tarField(sourceHeader.subarray(124, 136)).trim(), 8);
+    const dataStart = offset + 512;
+    const nextOffset = dataStart + Math.ceil(size / 512) * 512;
+    if (archivePath === 'package/package.json') {
+      const packageJson = JSON.parse(tar.subarray(dataStart, dataStart + size).toString('utf8'));
+      const replacement = Buffer.from(`${JSON.stringify({
+        ...packageJson,
+        scripts: { ...(packageJson.scripts ?? {}), ...scripts }
+      }, null, 2)}\n`);
+      const header = Buffer.from(sourceHeader);
+      writeTarOctal(header, 124, 12, replacement.length);
+      writeTarChecksum(header);
+      const padding = Buffer.alloc(Math.ceil(replacement.length / 512) * 512 - replacement.length);
+      updatedTar = Buffer.concat([tar.subarray(0, offset), header, replacement, padding, tar.subarray(nextOffset)]);
+      previousSize = size;
+      nextSize = replacement.length;
+      break;
+    }
+    offset = nextOffset;
+  }
+  assert.ok(updatedTar, 'fixture archive has no package/package.json');
+  const packageEntry = manifest[0].files.find((entry) => entry.path === 'package.json');
+  assert.ok(packageEntry, 'fixture pack manifest has no package.json entry');
+  packageEntry.size = nextSize;
+  manifest[0].unpackedSize += nextSize - previousSize;
+  const compressed = gzipSync(updatedTar, { level: 9 });
+  writeFileSync(tarball, compressed);
+  manifest[0].size = compressed.length;
+  manifest[0].shasum = digest(compressed, 'sha1', 'hex');
+  manifest[0].integrity = `sha512-${digest(compressed, 'sha512', 'base64')}`;
+  writeManifest(candidate, manifest);
+  writeSha256(candidate, manifest[0].filename, compressed);
 }
 
 function copyCandidate(source, destination) {

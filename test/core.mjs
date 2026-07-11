@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, cpSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, cpSync, readFileSync, realpathSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { SkillMapLocalBackend } from '../dist/server/skillmap-backend.js';
@@ -109,7 +109,7 @@ test('scan and status classify a test/fixtures child beneath a non-fixture confi
 
   run(['init', '--root', root], cwd);
   const scan = JSON.parse(run(['scan', '--json'], cwd));
-  assert.deepEqual(scan.inventory.roots, [root]);
+  assert.deepEqual(scan.inventory.roots, [realpathSync(root)]);
   assert.equal(scan.inventory.skills.length, 1);
   assert.equal(scan.inventory.skills[0].relativePath, 'fixtures');
   assert.equal(scan.inventory.skills[0].scope, 'fixture');
@@ -131,7 +131,9 @@ test('config roots preserve yaml special characters', () => {
   const output = JSON.parse(run(['scan', '--json'], cwd));
   assert.equal(output.inventory.skills.length, 1);
   assert.equal(output.inventory.skills[0].name, 'hash-safe');
-  assert.equal(output.inventory.roots[0], root);
+  assert.equal(output.inventory.roots[0], realpathSync(root));
+  const identity = JSON.parse(readFileSync(path.join(cwd, '.skillmap/identity.json'), 'utf8'));
+  assert.equal(identity.roots[0].configuredPath, root);
 });
 
 test('status without inventory is blocked with ordered first-run actions only', () => {

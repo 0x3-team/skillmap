@@ -207,6 +207,12 @@ async function exportSafeSnapshot(cwd: string, flags: Record<string, string | bo
 }
 
 async function exportPrivateSnapshot(cwd: string, flags: Record<string, string | boolean | string[]>): Promise<unknown> {
+  if (process.platform === 'win32') {
+    throw new Error(
+      '--include-sensitive-local is unavailable on Windows because POSIX mode 0600 does not enforce a private Windows ACL. '
+      + 'Use the default redacted export, or create the local-sensitive archive from a protected Linux/macOS workspace.'
+    );
+  }
   const requestedTarget = flagString(flags, 'output');
   if (!requestedTarget) throw new Error('--include-sensitive-local requires --output inside .skillmap/private-exports/.');
   const target = await preparePrivateTarget(cwd, requestedTarget);
@@ -299,11 +305,7 @@ async function readPrivateArtifact(base: string, file: string, mode: 'json' | 't
 
 async function preparePrivateTarget(cwd: string, requested: string): Promise<string> {
   const privateRoot = path.resolve(outDir(cwd), 'private-exports');
-  const target = path.resolve(cwd, requested);
-  const relative = path.relative(privateRoot, target);
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('--include-sensitive-local output must be a file inside .skillmap/private-exports/.');
-  }
+  const requestedTarget = path.resolve(cwd, requested);
   const workspaceReal = await realpath(cwd);
   const skillmapPath = outDir(cwd);
   const skillmapInfo = await lstat(skillmapPath);
@@ -315,7 +317,9 @@ async function preparePrivateTarget(cwd: string, requested: string): Promise<str
   if (rootInfo.isSymbolicLink()) throw new Error('.skillmap/private-exports must not be a symbolic link.');
   await chmod(privateRoot, 0o700);
   const privateRootReal = await realpath(privateRoot);
-  let current = privateRoot;
+  const target = await canonicalPrivateTarget(privateRootReal, requestedTarget);
+  const relative = path.relative(privateRootReal, target);
+  let current = privateRootReal;
   const parentParts = path.dirname(relative).split(path.sep).filter((part) => part && part !== '.');
   for (const part of parentParts) {
     current = path.join(current, part);
@@ -335,6 +339,43 @@ async function preparePrivateTarget(cwd: string, requested: string): Promise<str
     throw new Error('Private export target already exists; choose a new file to avoid overwriting sensitive data.');
   } catch (error) {
     if (!isMissingFile(error)) throw error;
+  }
+  return target;
+}
+
+async function canonicalPrivateTarget(privateRootReal: string, requestedTarget: string): Promise<string> {
+  const filename = path.basename(requestedTarget);
+  if (!filename || filename === '.' || filename === '..') {
+    throw new Error('--include-sensitive-local output must be a file inside .skillmap/private-exports/.');
+  }
+
+  const missing: string[] = [];
+  let cursor = path.dirname(requestedTarget);
+  while (true) {
+    try {
+      const info = await lstat(cursor);
+      if (info.isSymbolicLink()) throw new Error(`Private export parent must not contain symbolic links: ${cursor}`);
+      if (!info.isDirectory()) throw new Error(`Private export parent is not a directory: ${cursor}`);
+      const cursorReal = await realpath(cursor);
+      if (!inside(privateRootReal, cursorReal)) {
+        throw new Error('--include-sensitive-local output must be a file inside .skillmap/private-exports/.');
+      }
+      cursor = cursorReal;
+      break;
+    } catch (error) {
+      if (!isMissingFile(error)) throw error;
+      missing.unshift(path.basename(cursor));
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      throw new Error('--include-sensitive-local output must be a file inside .skillmap/private-exports/.');
+    }
+    cursor = parent;
+  }
+
+  const target = path.join(cursor, ...missing, filename);
+  if (!inside(privateRootReal, target) || path.relative(privateRootReal, target) === '') {
+    throw new Error('--include-sensitive-local output must be a file inside .skillmap/private-exports/.');
   }
   return target;
 }
