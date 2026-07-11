@@ -36,11 +36,13 @@ test('approved-root watcher marks a changed skill dirty, full verification suppl
   assert.equal(monitor.snapshot().filesystemDirty, false);
   assert.equal(monitor.snapshot().observedDigest, monitor.snapshot().expectedDigest);
 
-  const installedWatcherEntry = [...monitor.watchers.entries()][0];
-  assert.ok(installedWatcherEntry, 'clean verification must install watcher coverage before changes are observed');
-  const [watchedDirectory, installedWatcher] = installedWatcherEntry;
-  installedWatcher.watcher.close();
-  monitor.watchers.delete(watchedDirectory);
+  const installedWatcherEntries = [...monitor.watchers.entries()];
+  assert.ok(installedWatcherEntries.length > 0, 'clean verification must install watcher coverage before changes are observed');
+  const installedWatcher = installedWatcherEntries[0][1];
+  for (const [watchedDirectory, watched] of installedWatcherEntries) {
+    watched.watcher.close();
+    monitor.watchers.delete(watchedDirectory);
+  }
   const changed = skillText('alpha', 'Use for changed alpha work with different behavior.');
   await writeFile(fixture.skillFile, changed);
   // Native fs.watch delivery is intentionally only a hint and varies across
@@ -51,6 +53,11 @@ test('approved-root watcher marks a changed skill dirty, full verification suppl
   assert.equal(monitor.snapshot().reasonCode, 'watch-event');
   await monitor.verifyNow();
   assert.equal(monitor.snapshot().reasonCode, 'manifest-mismatch');
+  assert.deepEqual(
+    [...monitor.watchers.keys()].sort(),
+    installedWatcherEntries.map(([directory]) => directory).sort(),
+    'full verification must restore complete watcher coverage'
+  );
   const dirty = monitor.snapshot();
   assert.equal(dirty.filesystemDirty, true);
   assert.equal(dirty.suggestedJobType, 'scan');
