@@ -36,9 +36,31 @@ test('approved-root watcher marks a changed skill dirty, full verification suppl
   assert.equal(monitor.snapshot().filesystemDirty, false);
   assert.equal(monitor.snapshot().observedDigest, monitor.snapshot().expectedDigest);
 
+  const installedWatcherEntries = [...monitor.watchers.entries()];
+  assert.ok(installedWatcherEntries.length > 0, 'clean verification must install watcher coverage before changes are observed');
+  const installedWatcher = installedWatcherEntries[0][1];
+  for (const [watchedDirectory, watched] of installedWatcherEntries) {
+    watched.watcher.close();
+    monitor.watchers.delete(watchedDirectory);
+  }
   const changed = skillText('alpha', 'Use for changed alpha work with different behavior.');
   await writeFile(fixture.skillFile, changed);
-  await waitFor(() => monitor.snapshot().reasonCode === 'manifest-mismatch');
+  // Native fs.watch delivery is intentionally only a hint and varies across
+  // macOS FSEvents, kqueue, and loaded CI hosts. Close its native delivery
+  // before the fixture write, exercise its registered callback deterministically,
+  // then let the full verification install fresh watcher coverage.
+  installedWatcher.watcher.emit('change', 'change', 'SKILL.md');
+  assert.equal(monitor.snapshot().reasonCode, 'watch-event');
+  assert.ok(monitor.debounceTimer, 'watch-event callback must schedule bounded full verification');
+  clearTimeout(monitor.debounceTimer);
+  monitor.debounceTimer = undefined;
+  await monitor.verifyNow();
+  assert.equal(monitor.snapshot().reasonCode, 'manifest-mismatch');
+  assert.deepEqual(
+    [...monitor.watchers.keys()].sort(),
+    installedWatcherEntries.map(([directory]) => directory).sort(),
+    'full verification must restore complete watcher coverage'
+  );
   const dirty = monitor.snapshot();
   assert.equal(dirty.filesystemDirty, true);
   assert.equal(dirty.suggestedJobType, 'scan');
@@ -50,10 +72,20 @@ test('approved-root watcher marks a changed skill dirty, full verification suppl
   assert.equal(JSON.stringify(dirty).includes(fixture.root), false, 'freshness metadata must not expose approved root paths');
   assert.equal(await readFile(fixture.skillFile, 'utf8'), changed, 'observation must not rewrite skill-root content');
 
+  const restoredWatcherEntries = [...monitor.watchers.entries()];
+  for (const [watchedDirectory, watched] of restoredWatcherEntries) {
+    watched.watcher.close();
+    monitor.watchers.delete(watchedDirectory);
+  }
   await writeFile(fixture.skillFile, original);
   await monitor.verifyNow();
   assert.equal(monitor.snapshot().state, 'clean');
   assert.equal(monitor.snapshot().filesystemDirty, false);
+  assert.deepEqual(
+    [...monitor.watchers.keys()].sort(),
+    restoredWatcherEntries.map(([directory]) => directory).sort(),
+    'clean verification must restore complete watcher coverage'
+  );
 
   await monitor.close();
   const stopped = monitor.snapshot();

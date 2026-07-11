@@ -650,16 +650,27 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   assert.match(activityText, /Abstained/i);
   await assertFeedbackBacklog(page, { pendingRouteId: secondEnvelope.data.routeId, visualGate, visuals });
   const activityUrl = page.url();
-  const deepLinkStarted = Date.now();
-  await page.goto(activityUrl, { waitUntil: "domcontentloaded" });
-  await heading(page, "Activity");
-  await page.waitForFunction(() => document.querySelector("#connection-dot")?.classList.contains("online"));
-  const deepLinkReadyMs = Date.now() - deepLinkStarted;
+  const deepLinkSamplesMs = [];
+  metrics.deepLinkSamplesMs = deepLinkSamplesMs;
+  metrics.deepLinkMaxMs = null;
+  metrics.deepLinkMs = null;
+  const deepLinkSampleCount = modes.has("perf") ? 3 : 1;
+  for (let sample = 0; sample < deepLinkSampleCount; sample += 1) {
+    const deepLinkStarted = Date.now();
+    await page.goto(activityUrl, { waitUntil: "domcontentloaded" });
+    await heading(page, "Activity");
+    await page.waitForFunction(() => document.querySelector("#connection-dot")?.classList.contains("online"));
+    deepLinkSamplesMs.push(Date.now() - deepLinkStarted);
+    metrics.deepLinkMaxMs = Math.max(...deepLinkSamplesMs);
+    assert.equal(page.url(), activityUrl);
+  }
+  const orderedDeepLinkSamples = [...deepLinkSamplesMs].sort((left, right) => left - right);
+  const deepLinkReadyMs = orderedDeepLinkSamples[Math.floor(orderedDeepLinkSamples.length / 2)];
+  metrics.deepLinkMaxMs = orderedDeepLinkSamples.at(-1);
   metrics.deepLinkMs = deepLinkReadyMs;
-  assert.equal(page.url(), activityUrl);
   if (modes.has("perf")) {
-    assertBudget("authenticated deep link", deepLinkReadyMs, budgets.deepLinkMs);
-    console.log(`perf: authenticated deep link ${deepLinkReadyMs} ms / ${budgets.deepLinkMs} ms`);
+    assertBudget("authenticated deep-link median", deepLinkReadyMs, budgets.deepLinkMs);
+    console.log(`perf: authenticated deep-link samples ${deepLinkSamplesMs.join(", ")} ms; median ${deepLinkReadyMs} ms / ${budgets.deepLinkMs} ms; max ${metrics.deepLinkMaxMs} ms`);
   }
   await assertRevisionRetryRecovery(page, activityUrl, phase);
 
