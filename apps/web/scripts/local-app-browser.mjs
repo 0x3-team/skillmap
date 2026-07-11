@@ -651,6 +651,9 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   await assertFeedbackBacklog(page, { pendingRouteId: secondEnvelope.data.routeId, visualGate, visuals });
   const activityUrl = page.url();
   const deepLinkSamplesMs = [];
+  metrics.deepLinkSamplesMs = deepLinkSamplesMs;
+  metrics.deepLinkMaxMs = null;
+  metrics.deepLinkMs = null;
   const deepLinkSampleCount = modes.has("perf") ? 3 : 1;
   for (let sample = 0; sample < deepLinkSampleCount; sample += 1) {
     const deepLinkStarted = Date.now();
@@ -658,11 +661,11 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
     await heading(page, "Activity");
     await page.waitForFunction(() => document.querySelector("#connection-dot")?.classList.contains("online"));
     deepLinkSamplesMs.push(Date.now() - deepLinkStarted);
+    metrics.deepLinkMaxMs = Math.max(...deepLinkSamplesMs);
     assert.equal(page.url(), activityUrl);
   }
   const orderedDeepLinkSamples = [...deepLinkSamplesMs].sort((left, right) => left - right);
   const deepLinkReadyMs = orderedDeepLinkSamples[Math.floor(orderedDeepLinkSamples.length / 2)];
-  metrics.deepLinkSamplesMs = deepLinkSamplesMs;
   metrics.deepLinkMaxMs = orderedDeepLinkSamples.at(-1);
   metrics.deepLinkMs = deepLinkReadyMs;
   if (modes.has("perf")) {

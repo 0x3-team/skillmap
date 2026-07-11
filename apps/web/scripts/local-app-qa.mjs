@@ -212,6 +212,7 @@ function performanceEvidence(metrics, budgets, modes) {
   const coldGate = finiteOrNull(budgets?.coldStartupMs);
   const warmGate = finiteOrNull(budgets?.warmStartupMs);
   const deepLinkGate = finiteOrNull(budgets?.deepLinkMs);
+  const deepLinkGateEnforced = performanceGateEnforced && deepLinkSamples.length === 3;
   return {
     gateKind: performanceGateEnforced ? "provisional-regression-gate" : "not-enforced",
     startup: {
@@ -233,12 +234,12 @@ function performanceEvidence(metrics, budgets, modes) {
     },
     deepLink: {
       run: "authenticated Activity reload through its data-ready state",
-      aggregation: performanceGateEnforced && deepLinkSamples.length === 3 ? "median-of-three" : deepLinkSamples.length === 1 ? "single-sample-not-enforced" : "not-measured",
+      aggregation: deepLinkGateEnforced ? "median-of-three" : deepLinkSamples.length === 1 ? "single-sample-not-enforced" : "not-measured",
       samplesMs: deepLinkSamples,
       measurementMs: deepLinkMeasurement,
       maximumMs: deepLinkMaximum,
-      enforcedGateMs: performanceGateEnforced ? deepLinkGate : null,
-      gateStatus: performanceGateEnforced ? gateStatus(deepLinkMeasurement, deepLinkGate) : "not-enforced"
+      enforcedGateMs: deepLinkGateEnforced ? deepLinkGate : null,
+      gateStatus: deepLinkGateEnforced ? gateStatus(deepLinkMeasurement, deepLinkGate) : "not-enforced"
     },
     enforcedBudgets: performanceGateEnforced ? budgets ?? null : null
   };
