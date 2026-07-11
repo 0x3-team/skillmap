@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { flagString, hasFlag } from '../core/args.js';
 import { buildGraph, renderMermaid } from '../core/graph.js';
-import { readJson, writeJson, writeText } from '../core/fs.js';
-import type { EffectiveRegistry, Inventory, SkillGraph } from '../schemas/types.js';
+import { writeJson, writeText } from '../core/fs.js';
+import type { Inventory, SkillGraph } from '../schemas/types.js';
 import { loadOrBuildInventory, outDir } from './common.js';
+import { openApprovedRoutingState } from '../services/workspace-read-model.js';
 
 export async function graphCommand(cwd: string, positionals: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
   const action = positionals[0] ?? (hasFlag(flags, 'effective') ? 'effective' : 'build');
@@ -19,7 +20,7 @@ export async function graphCommand(cwd: string, positionals: string[], flags: Re
 }
 
 async function effectiveGraph(cwd: string): Promise<unknown> {
-  const effective = await readJson<EffectiveRegistry>(path.join(outDir(cwd), 'effective.json'));
+  const effective = (await openApprovedRoutingState(cwd)).effective;
   return { graph: effective.graph, mermaid: renderMermaid(effective.graph) };
 }
 
@@ -33,7 +34,7 @@ async function rawGraph(cwd: string): Promise<unknown> {
 
 async function buildSkillGraph(cwd: string, flags: Record<string, string | boolean | string[]>): Promise<unknown> {
   if (hasFlag(flags, 'raw')) return rawGraph(cwd);
-  const effective = await readJson<EffectiveRegistry>(path.join(outDir(cwd), 'effective.json'));
+  const effective = (await openApprovedRoutingState(cwd)).effective;
   await writeJson(path.join(outDir(cwd), 'skillgraph.json'), effective.graph);
   await writeText(path.join(outDir(cwd), 'skillgraph.mmd'), renderMermaid(effective.graph));
   return { graph: effective.graph, mermaid: renderMermaid(effective.graph), summary: `SkillMap graph build: ${effective.graph.nodes.length} nodes, ${effective.graph.edges.length} edges.` };
@@ -62,9 +63,12 @@ async function explainGraph(cwd: string, query: string): Promise<unknown> {
 
 async function duplicateGraph(cwd: string): Promise<unknown> {
   const inventory = await loadOrBuildInventory(cwd, [], undefined);
-  const groups = new Map<string, string[]>();
-  for (const skill of inventory.skills) groups.set(skill.name, [...(groups.get(skill.name) ?? []), skill.path]);
-  const duplicates = [...groups.entries()].filter(([, paths]) => paths.length > 1).map(([name, paths]) => ({ name, paths }));
+  const groups = new Map<string, Inventory['skills']>();
+  for (const skill of inventory.skills) groups.set(skill.name, [...(groups.get(skill.name) ?? []), skill]);
+  const duplicates = [...groups.entries()].filter(([, skills]) => skills.length > 1).map(([name, skills]) => ({
+    name,
+    variants: skills.map((skill) => ({ skillId: skill.skillId, contentRevision: skill.contentRevision, path: skill.path }))
+  }));
   return { duplicates, summary: `SkillMap graph duplicates: ${duplicates.length} duplicate name group(s).` };
 }
 
@@ -81,11 +85,5 @@ async function exportGraph(cwd: string, format: string): Promise<unknown> {
 }
 
 async function loadGraph(cwd: string): Promise<SkillGraph> {
-  const skillGraphPath = path.join(outDir(cwd), 'skillgraph.json');
-  try {
-    return await readJson<SkillGraph>(skillGraphPath);
-  } catch {
-    const effective = await readJson<EffectiveRegistry>(path.join(outDir(cwd), 'effective.json'));
-    return effective.graph;
-  }
+  return (await openApprovedRoutingState(cwd)).effective.graph;
 }

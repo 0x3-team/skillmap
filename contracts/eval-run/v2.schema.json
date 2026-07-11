@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/eval-run/v2.schema.json",
+  "title": "SkillMap Eval Run Report v2",
+  "description": "Strict local-sensitive representation of the current eval v2 run report.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "generatedAt", "evalFile", "fixture", "evidenceLevel", "releaseEvidenceEligible", "thresholdPass", "pass", "datasetDigest", "effectiveRevisionDigest", "composition", "holdout", "leakage", "provenance", "baselineComparison", "count", "top1", "top3", "avoidHits", "top1Rate", "top3Rate", "abstentionRate", "meanAdvisoryBytes", "regression", "invalidCaseCount", "validationErrors", "confidence", "minCount", "minTop1", "minTop3", "maxAvoidHits", "summary", "rows"],
+  "properties": {
+    "version": { "const": 2 },
+    "generatedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "evalFile": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "fixture": { "type": "boolean" },
+    "evidenceLevel": { "enum": ["demo", "smoke", "candidate", "release"] },
+    "releaseEvidenceEligible": { "type": "boolean" },
+    "thresholdPass": { "type": "boolean" },
+    "pass": { "type": "boolean" },
+    "datasetDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "effectiveRevisionDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "composition": { "$ref": "#/$defs/Composition" },
+    "holdout": { "$ref": "#/$defs/Holdout" },
+    "leakage": { "$ref": "#/$defs/Leakage" },
+    "provenance": { "$ref": "#/$defs/ProvenanceResult" },
+    "baselineComparison": { "$ref": "#/$defs/BaselineComparison" },
+    "count": { "$ref": "#/$defs/Count" },
+    "top1": { "$ref": "#/$defs/Count" },
+    "top3": { "$ref": "#/$defs/Count" },
+    "avoidHits": { "$ref": "#/$defs/Count" },
+    "top1Rate": { "$ref": "#/$defs/Rate" },
+    "top3Rate": { "$ref": "#/$defs/Rate" },
+    "abstentionRate": { "$ref": "#/$defs/Rate" },
+    "meanAdvisoryBytes": { "type": "number", "minimum": 0, "maximum": 1048576 },
+    "regression": { "$ref": "#/$defs/Regression" },
+    "invalidCaseCount": { "$ref": "#/$defs/Count" },
+    "validationErrors": { "$ref": "#/$defs/StringList" },
+    "confidence": { "$ref": "#/$defs/Confidence" },
+    "minCount": { "$ref": "#/$defs/Count" },
+    "minTop1": { "$ref": "#/$defs/Rate" },
+    "minTop3": { "$ref": "#/$defs/Rate" },
+    "maxAvoidHits": { "$ref": "#/$defs/Count" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "rows": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/RunRow" }
+    }
+  },
+  "$defs": {
+    "Count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "Rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "StringList": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "type": "string", "minLength": 1, "maxLength": 4000 }
+    },
+    "NameList": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "Composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "explicit", "implicitNatural", "multiSkill", "negativeNearMiss", "untyped", "releaseCounted", "releaseScored"],
+      "properties": {
+        "total": { "$ref": "#/$defs/Count" },
+        "explicit": { "$ref": "#/$defs/Count" },
+        "implicitNatural": { "$ref": "#/$defs/Count" },
+        "multiSkill": { "$ref": "#/$defs/Count" },
+        "negativeNearMiss": { "$ref": "#/$defs/Count" },
+        "untyped": { "$ref": "#/$defs/Count" },
+        "releaseCounted": { "$ref": "#/$defs/Count" },
+        "releaseScored": { "$ref": "#/$defs/Count" }
+      }
+    },
+    "Holdout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "requiredCount", "ratio", "pass"],
+      "properties": {
+        "count": { "$ref": "#/$defs/Count" },
+        "requiredCount": { "$ref": "#/$defs/Count" },
+        "ratio": { "$ref": "#/$defs/Rate" },
+        "pass": { "type": "boolean" }
+      }
+    },
+    "LeakageCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "expectedNames", "matchedDisplayNames", "matchedAliases", "copiedDescriptions"],
+      "properties": {
+        "index": { "$ref": "#/$defs/Count" },
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "expectedNames": { "$ref": "#/$defs/NameList" },
+        "matchedDisplayNames": { "$ref": "#/$defs/NameList" },
+        "matchedAliases": { "$ref": "#/$defs/NameList" },
+        "copiedDescriptions": { "$ref": "#/$defs/NameList" }
+      }
+    },
+    "Leakage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "count", "cases"],
+      "properties": {
+        "pass": { "type": "boolean" },
+        "count": { "$ref": "#/$defs/Count" },
+        "cases": { "type": "array", "maxItems": 100000, "items": { "$ref": "#/$defs/LeakageCase" } }
+      }
+    },
+    "ProvenanceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provided", "complete", "issues"],
+      "properties": {
+        "provided": { "type": "boolean" },
+        "complete": { "type": "boolean" },
+        "issues": { "$ref": "#/$defs/StringList" },
+        "labelAuthor": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "sourceClass": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "reviewedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "deduplicationResult": { "enum": ["passed", "failed", "not-run"] },
+        "holdoutFrozen": { "type": "boolean" },
+        "declaredDatasetDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "datasetDigestMatches": { "type": "boolean" }
+      }
+    },
+    "BaselineComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provided", "nonRegression", "improvement", "perfectBaseline", "pass", "improvements", "regressions"],
+      "properties": {
+        "provided": { "type": "boolean" },
+        "nonRegression": { "type": "boolean" },
+        "improvement": { "type": "boolean" },
+        "perfectBaseline": { "type": "boolean" },
+        "pass": { "type": "boolean" },
+        "improvements": { "$ref": "#/$defs/StringList" },
+        "regressions": { "$ref": "#/$defs/StringList" }
+      }
+    },
+    "Regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scoredCount", "top1", "top3", "top1Rate", "top3Rate"],
+      "properties": {
+        "scoredCount": { "$ref": "#/$defs/Count" },
+        "top1": { "$ref": "#/$defs/Count" },
+        "top3": { "$ref": "#/$defs/Count" },
+        "top1Rate": { "$ref": "#/$defs/Rate" },
+        "top3Rate": { "$ref": "#/$defs/Rate" }
+      }
+    },
+    "Confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "count", "releaseReady", "message"],
+      "properties": {
+        "level": { "enum": ["none", "demo", "weak", "alpha", "release"] },
+        "count": { "$ref": "#/$defs/Count" },
+        "releaseReady": { "type": "boolean" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    },
+    "RunRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt", "expected", "avoid", "releaseCounted", "releaseScored", "recommended", "avoidedButRecommended", "validationErrors", "leakage", "hookText"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 32768 },
+        "expected": { "$ref": "#/$defs/NameList" },
+        "avoid": { "$ref": "#/$defs/NameList" },
+        "primaryCaseType": { "enum": ["explicit", "implicit-natural", "multi-skill", "negative-near-miss"] },
+        "membership": { "enum": ["train", "holdout"] },
+        "releaseCounted": { "type": "boolean" },
+        "releaseScored": { "type": "boolean" },
+        "recommended": { "$ref": "#/$defs/NameList" },
+        "avoidedButRecommended": { "$ref": "#/$defs/NameList" },
+        "validationErrors": { "$ref": "#/$defs/StringList" },
+        "leakage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["matchedDisplayNames", "matchedAliases", "copiedDescriptions", "hasLeakage"],
+          "properties": {
+            "matchedDisplayNames": { "$ref": "#/$defs/NameList" },
+            "matchedAliases": { "$ref": "#/$defs/NameList" },
+            "copiedDescriptions": { "$ref": "#/$defs/NameList" },
+            "hasLeakage": { "type": "boolean" }
+          }
+        },
+        "hookText": { "type": "string", "maxLength": 500 }
+      }
+    }
+  }
+}

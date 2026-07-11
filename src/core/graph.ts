@@ -8,7 +8,7 @@ export function buildGraph(inventory: Inventory, mode: 'raw' | 'effective', poli
   const addEdge = (from: string, to: string, type: string, source: GraphEdge['source'], confidence = 1) => edges.push({ from, to, type, source, confidence });
 
   for (const skill of skills) {
-    const skillId = `skill:${skill.name}`;
+    const skillId = `skill:${skill.skillId}`;
     addNode(skillId, 'skill', skill.name);
     addNode(`root:${skill.root}`, 'root', skill.root);
     addEdge(skillId, `root:${skill.root}`, 'installed_at', 'scan');
@@ -28,11 +28,18 @@ export function buildGraph(inventory: Inventory, mode: 'raw' | 'effective', poli
   }
 
   if (policy) {
-    for (const [name, entry] of Object.entries(policy.skills)) {
-      const skillId = `skill:${name}`;
+    const entries = policy.version === 1
+      ? Object.entries(policy.skills).map(([name, entry]) => {
+        const matches = inventory.skills.filter((skill) => skill.name === name);
+        return { name, qualifiedId: matches.length === 1 ? matches[0].skillId : undefined, entry };
+      })
+      : Object.entries(policy.skillsById).map(([qualifiedId, entry]) => ({ name: inventory.skills.find((skill) => skill.skillId === qualifiedId)?.name ?? qualifiedId, qualifiedId, entry }));
+    for (const { name, qualifiedId, entry } of entries) {
+      if (mode === 'effective' && !qualifiedId) continue;
+      const skillId = `skill:${qualifiedId ?? name}`;
       if (!nodes.has(skillId) && mode === 'raw') addNode(skillId, 'policy-skill', name);
-      if (entry.supersedes) for (const target of entry.supersedes) addEdge(skillId, `skill:${target}`, 'supersedes', 'policy');
-      if (entry.overlaps) for (const target of entry.overlaps) addEdge(skillId, `skill:${target}`, 'overlaps', 'policy', 0.8);
+      if (entry.supersedes) for (const target of entry.supersedes) addEdge(skillId, targetNodeId(inventory, target), 'supersedes', 'policy');
+      if (entry.overlaps) for (const target of entry.overlaps) addEdge(skillId, targetNodeId(inventory, target), 'overlaps', 'policy', 0.8);
       if (entry.preferred_for) for (const intent of entry.preferred_for) {
         addNode(`intent:${intent}`, 'intent', intent);
         addEdge(skillId, `intent:${intent}`, 'preferred_for', 'policy');
@@ -45,6 +52,11 @@ export function buildGraph(inventory: Inventory, mode: 'raw' | 'effective', poli
   }
 
   return { version: 1, generatedAt: new Date().toISOString(), mode, nodes: [...nodes.values()], edges };
+}
+
+function targetNodeId(inventory: Inventory, displayName: string): string {
+  const matches = inventory.skills.filter((skill) => skill.name === displayName);
+  return matches.length === 1 ? `skill:${matches[0].skillId}` : `display-name:${displayName}`;
 }
 
 export function renderMermaid(graph: SkillGraph): string {

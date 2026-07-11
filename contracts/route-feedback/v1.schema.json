@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/route-feedback/v1.schema.json",
+  "title": "SkillMap Redacted Route Feedback v1",
+  "description": "The persisted route-feedback receipt. It binds to a recorded route and stores only qualified skill IDs and bounded machine codes, never prompt text or comments.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "feedbackId", "routeId", "createdAt", "revision", "outcome", "selectedSkillIds", "expectedSkillIds", "unsafeSkillIds", "reasonCode", "idempotencyKeyHash", "promptStored", "commentStored", "payloadDigest"],
+  "properties": {
+    "kind": { "const": "skillmap.route-feedback" },
+    "schemaVersion": { "const": 1 },
+    "feedbackId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/FeedbackId" },
+    "routeId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RouteId" },
+    "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+    "outcome": { "enum": ["correct", "wrong", "missing", "unsafe"] },
+    "selectedSkillIds": { "$ref": "#/$defs/SkillIds" },
+    "expectedSkillIds": { "$ref": "#/$defs/SkillIds" },
+    "unsafeSkillIds": { "$ref": "#/$defs/SkillIds" },
+    "reasonCode": { "enum": ["operator-correct", "operator-wrong", "operator-missing", "operator-unsafe"] },
+    "idempotencyKeyHash": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "promptStored": { "const": false },
+    "commentStored": { "const": false },
+    "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+  },
+  "$defs": {
+    "SkillIds": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/SkillId" }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "redacted": true,
+  "pathExamples": ["$PROJECT/.skillmap/effective.json", "$HOME/.agents/skills/frontend-design/SKILL.md"],
+  "promptStorage": {
+    "rawPromptStored": false,
+    "promptPreview": "Short preview only, bounded to a small phrase."
+  },
+  "skillBodyStorage": {
+    "rawSkillBodiesStored": false,
+    "metadataOnly": true
+  }
+}

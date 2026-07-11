@@ -1,4 +1,5 @@
 import { parse } from 'yaml';
+import { isSafeDisplayName, MAX_DISPLAY_NAME_LENGTH } from './display-name.js';
 
 export interface ParsedFrontmatter {
   data: Record<string, unknown>;
@@ -9,15 +10,17 @@ export interface ParsedFrontmatter {
 
 export function parseFrontmatter(content: string): ParsedFrontmatter {
   const errors: string[] = [];
-  if (!content.startsWith('---\n')) {
+  const opening = content.match(/^---\r?\n/);
+  if (!opening) {
     return { data: {}, body: content, valid: false, errors: ['missing YAML frontmatter opening delimiter'] };
   }
-  const end = content.indexOf('\n---', 4);
-  if (end < 0) {
+  const remainder = content.slice(opening[0].length);
+  const closing = /\r?\n---(?:\r?\n|$)/.exec(remainder);
+  if (!closing) {
     return { data: {}, body: content, valid: false, errors: ['missing YAML frontmatter closing delimiter'] };
   }
-  const raw = content.slice(4, end).trim();
-  const body = content.slice(content.indexOf('\n', end + 1) + 1);
+  const raw = remainder.slice(0, closing.index).trim();
+  const body = remainder.slice(closing.index + closing[0].length);
   let data: Record<string, unknown> = {};
   let recoveredFromYamlError = false;
   try {
@@ -33,6 +36,11 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
     errors.push(error instanceof Error ? `YAML parse warning recovered by fallback: ${error.message}` : 'YAML parse warning recovered by fallback');
   }
   if (typeof data.name !== 'string' || !data.name.trim()) errors.push('missing required string field: name');
+  else {
+    const name = data.name.trim();
+    if (name.length > MAX_DISPLAY_NAME_LENGTH) errors.push(`name must be at most ${MAX_DISPLAY_NAME_LENGTH} characters`);
+    if (!isSafeDisplayName(name)) errors.push('name must be a bounded single-line label without control characters');
+  }
   if (data.description !== undefined && typeof data.description !== 'string') errors.push('description must be a string when present');
   const blockingErrors = errors.filter((error) => !error.startsWith('YAML parse warning recovered by fallback'));
   return { data, body, valid: blockingErrors.length === 0 && (errors.length === 0 || recoveredFromYamlError), errors };

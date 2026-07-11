@@ -16,13 +16,14 @@ npm install /path/to/skillmap-0.1.0.tgz
 ## Real-root scan
 
 ```bash
+./node_modules/.bin/skillmap init --root ~/.agents/skills --root ~/.codex/skills --json
 ./node_modules/.bin/skillmap scan --json
 ./node_modules/.bin/skillmap status --json
 ./node_modules/.bin/skillmap doctor --json
 ./node_modules/.bin/skillmap doctor-pack --summary --json
 ```
 
-Record roots scanned, total skills, invalid frontmatter, script-bearing skills, duplicate-name groups, doctor findings, status warnings, and doctor-pack byte size.
+Record configured roots, roots scanned, readiness phase, total skills, invalid frontmatter, script-bearing skills, duplicate-name groups, doctor findings, status warnings, and doctor-pack byte size.
 
 ## Native-agent curation
 
@@ -57,6 +58,7 @@ skillmap graph conflicts
 ```bash
 skillmap sources list
 skillmap sources adopt writing-great-skills --repo mattpocock/skills --path skills/writing-great-skills
+skillmap sources adopt my-local-skill --local --reason "Authored and maintained in this workspace."
 skillmap sources check
 skillmap status
 ```
@@ -65,21 +67,68 @@ Do not apply external updates during dogfood unless a dedicated update-safety pa
 
 ## Route evals
 
-Create `.skillmap/real-evals.json` with at least 25 real prompts for alpha and at least 150 for v1 release. Then run:
+Create an `eval-suite/v3` `.skillmap/real-evals.json` with qualified skill IDs, complete dataset and per-case provenance, canonical digests, and an approval-recorded historical baseline `RevisionRef`. Every case must have one `primaryCaseType` and a `train` or frozen `holdout` membership. Review/import it in the local app or with the CLI, explicitly approve the intended current routing revision, then run:
 
 ```bash
-skillmap eval --file .skillmap/real-evals.json --save-report
+skillmap eval --file .skillmap/real-evals.json --min-count 150 --min-top1 0.80 --min-top3 0.92 --max-avoid-hits 0 --save-report
 ```
 
-Stable-alpha thresholds:
+Release-counted composition and evidence:
 
-- top-1 expected hit rate at least 75%
-- top-3 expected hit rate at least 90%
-- avoid hits equal 0
+- at least 100 implicit-natural cases
+- at least 25 multi-skill cases, each with two or more expected skills
+- at least 25 negative/near-miss cases with explicit expected/avoid semantics
+- at least 20% and never fewer than 30 frozen holdout cases
+- no expected display-name, exact-alias, or copied-description leakage in implicit/multi prompts
+- complete author/reviewer/source/time/deduplication/holdout provenance, including per-case label receipts
+- canonical frozen-case, dataset, payload, exact-effective, and semantic-effective digests still match
+- the selected historical baseline has a durable routing-approval receipt and predates the current approved revision
+- deterministic replay of the same frozen cases against both immutable effective registries proves non-regression and an approved improvement; a perfect baseline requires advisory-size improvement without a safety regression
+- top-1 expected hit rate at least 80%, top-3 at least 92%, and avoid hits equal 0 on credible release-counted evidence
 
-V1 target:
+Explicit cases remain useful regressions but are excluded from release top-1/top-3 scoring. Eval v2, fixture, untyped, self-labeling, synthetic-provenance, or description-copy suites remain candidate/demo evidence even at 150 cases and 100% apparent accuracy. Import success alone never approves routing or release evidence.
 
-- at least 150 evals
-- top-1 expected hit rate at least 80%
-- top-3 expected hit rate at least 92%
-- avoid hits equal 0 for blocked/high-risk skills
+## Evidence packet
+
+For personal V1, save a human-readable evidence index under:
+
+```text
+.skillmap/reports/personal-v1/evidence-index.md
+```
+
+Use the evidence states from [Personal V1 Runbook](personal-v1-runbook.md):
+
+- `validated locally`
+- `browser verified`
+- `package dry-run only`
+- `not published`
+- `not globally hooked`
+- `blocked`
+
+The evidence packet must distinguish package dry-run from publication. A passing
+`npm pack --dry-run` or `npm publish --dry-run` is not an npm publish, GitHub
+tag, or GitHub release.
+
+## Hook and MCP smoke
+
+Hook evidence must use a temporary or project-local hooks file. Do not use
+`--global` for personal V1 evidence.
+
+```bash
+printf '%s\n' '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"printf existing-hook","timeout":1}]}]}}' > /tmp/skillmap-hooks.json
+skillmap hook install codex --passive --config /tmp/skillmap-hooks.json --dry-run --json
+skillmap hook install codex --passive --config /tmp/skillmap-hooks.json --json
+skillmap hook uninstall codex --config /tmp/skillmap-hooks.json --json
+```
+
+MCP evidence must show read-only tools:
+
+```bash
+skillmap mcp manifest --json
+skillmap mcp call route_prompt --prompt "make this dashboard less generic" --json
+skillmap mcp call search_skills --query frontend --json
+skillmap mcp call show_skill --name frontend-design --json
+skillmap mcp call doctor_summary --json
+skillmap mcp call source_status --json
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_skills","arguments":{"query":"frontend"}}}' | skillmap mcp serve
+```

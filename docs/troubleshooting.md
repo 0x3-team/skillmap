@@ -5,7 +5,7 @@
 You scanned test fixtures. Re-run scan against real roots only:
 
 ```bash
-skillmap scan
+skillmap scan --root ~/.agents/skills --root ~/.codex/skills
 ```
 
 Use `--fixtures` only for tests.
@@ -43,9 +43,20 @@ Use diff first:
 ```bash
 skillmap sources diff <skill>
 skillmap sources update <skill> --dry-run
+skillmap sources review <skill> --decision hold --reason "Reviewed current upstream state."
 ```
 
-Risky updates require `--allow-risky` after manual review. Local modifications are not overwritten automatically.
+`sources update` is preview-only in personal V1. It cannot overwrite a skill, even with `--confirm`. Use `diff` and `review` to record a manual decision.
+
+## Hook install is blocked
+
+Run:
+
+```bash
+skillmap status
+```
+
+Hook install requires status `ok` and readiness phase `ready`. For a controlled temporary hook test, `--force` can acknowledge later evidence warnings after review, but it still requires an exact approved routing revision and cannot turn stale or unapproved state into routing authority.
 
 ## GitHub source checks return 429
 

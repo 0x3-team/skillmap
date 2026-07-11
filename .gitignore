@@ -1,8 +1,13 @@
 node_modules/
 dist/
+.next/
+*.tsbuildinfo
 .skillmap/
 .implementation/
 *.tgz
+playwright-report/
+test-results/
+apps/web/artifacts/
 .DS_Store
 .env
 .env.*

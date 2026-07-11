@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/dashboard/v2.schema.json",
+  "title": "SkillMap Dashboard Snapshot v2",
+  "description": "Canonical strict contract for the current verified, shareable-redacted dashboard snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "kind", "schemaVersion", "workspaceId", "workspaceRevision", "workspaceName", "generatedAt", "producer", "compatibility", "inputDigests", "payloadDigest", "redactionClassification", "redacted", "mode", "source", "status", "tokenMetrics", "productivity", "connector", "skills", "recentRouteTraces", "policyReviews", "sources"],
+  "properties": {
+    "version": { "const": 2 },
+    "kind": { "const": "skillmap.dashboard-snapshot" },
+    "schemaVersion": { "const": 2 },
+    "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+    "workspaceRevision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "workspaceName": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+    "generatedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "producer": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Producer" },
+    "compatibility": { "$ref": "#/$defs/CompatibilityV2" },
+    "inputDigests": { "$ref": "#/$defs/InputDigests" },
+    "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "redactionClassification": { "const": "shareable-redacted" },
+    "redacted": { "const": true },
+    "mode": { "enum": ["release-ready", "attention-required"] },
+    "source": { "const": "local-snapshot" },
+    "status": { "$ref": "#/$defs/StatusSummary" },
+    "tokenMetrics": { "$ref": "#/$defs/TokenMetrics" },
+    "productivity": { "$ref": "#/$defs/Productivity" },
+    "connector": { "$ref": "#/$defs/Connector" },
+    "curationReceipt": { "$ref": "#/$defs/CurationReceipt" },
+    "skills": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/SkillRow" }
+    },
+    "recentRouteTraces": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/RouteTrace" }
+    },
+    "policyReviews": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "#/$defs/PolicyReview" }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/SourceRow" }
+    }
+  },
+  "$defs": {
+    "Count": { "type": "number", "minimum": 0, "maximum": 1000000000000 },
+    "Rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "StringList": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "type": "string", "minLength": 1, "maxLength": 4000 }
+    },
+    "CompatibilityV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minReaderSchemaVersion", "maxReaderSchemaVersion"],
+      "properties": {
+        "minReaderSchemaVersion": { "const": 2 },
+        "maxReaderSchemaVersion": { "const": 2 }
+      }
+    },
+    "InputDigests": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 100,
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+      "additionalProperties": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+    },
+    "StatusSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "label", "summary", "warnings", "nextActions"],
+      "properties": {
+        "verdict": { "enum": ["ok", "attention-required", "blocked"] },
+        "label": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+        "summary": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedMessage" },
+        "warnings": { "$ref": "#/$defs/StringList" },
+        "nextActions": { "$ref": "#/$defs/StringList" }
+      }
+    },
+    "TokenMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleSize", "method", "computedAt"],
+      "properties": {
+        "fullBodyTokens": { "$ref": "#/$defs/Count" },
+        "catalogTokens": { "$ref": "#/$defs/Count" },
+        "hookTokensMean": { "$ref": "#/$defs/Count" },
+        "tokensAvoidedVsBodies": { "$ref": "#/$defs/Count" },
+        "tokensAvoidedVsCatalog": { "$ref": "#/$defs/Count" },
+        "sampleSize": { "$ref": "#/$defs/Count" },
+        "method": { "enum": ["workspace-estimate", "eval-report", "unknown"] },
+        "computedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" }
+      }
+    },
+    "Productivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["routeCount", "evalConfidence", "releaseReady"],
+      "properties": {
+        "routeCount": { "$ref": "#/$defs/Count" },
+        "top1Rate": { "$ref": "#/$defs/Rate" },
+        "top3Rate": { "$ref": "#/$defs/Rate" },
+        "avoidHits": { "$ref": "#/$defs/Count" },
+        "evalConfidence": { "enum": ["none", "demo", "weak", "alpha", "release"] },
+        "releaseReady": { "type": "boolean" },
+        "avgRecommendations": { "$ref": "#/$defs/Count" },
+        "avgHookChars": { "$ref": "#/$defs/Count" }
+      }
+    },
+    "Connector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "redactionEnabled", "readOnlyMode", "allowedCommands", "message"],
+      "properties": {
+        "state": { "enum": ["online", "offline", "blocked", "unauthorized"] },
+        "cliVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "cwdAlias": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "lastSeenAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "lastSnapshotHash": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "redactionEnabled": { "const": true },
+        "readOnlyMode": { "const": true },
+        "allowedCommands": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        },
+        "nextCommand": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "message": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedMessage" }
+      }
+    },
+    "CurationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modelLabel", "curator", "recordedAt", "policyHash"],
+      "properties": {
+        "modelLabel": { "enum": ["provider-verified", "user-reported", "unverified-user-reported"] },
+        "curator": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "recordedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "policyHash": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "SkillRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "tier", "routeEligible", "hasScripts", "sourceState", "reviewStatus", "bodyBytes", "descriptionBytes", "routeCount", "lastHash", "trustLabel", "reasonHints"],
+      "properties": {
+        "id": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/SkillId" },
+        "name": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+        "tier": { "enum": ["core", "preferred", "optional", "fallback", "blocked"] },
+        "family": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "routeEligible": { "type": "boolean" },
+        "hasScripts": { "type": "boolean" },
+        "sourceState": { "$ref": "#/$defs/SourceState" },
+        "reviewStatus": { "$ref": "#/$defs/ReviewStatus" },
+        "bodyBytes": { "$ref": "#/$defs/Count" },
+        "descriptionBytes": { "$ref": "#/$defs/Count" },
+        "routeCount": { "$ref": "#/$defs/Count" },
+        "lastRecommendedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "lastHash": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "trustLabel": { "enum": ["provider-verified", "user-reported", "unverified-user-reported"] },
+        "reasonHints": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        }
+      }
+    },
+    "RouteRecommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "score", "tier", "reasons"],
+      "properties": {
+        "name": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+        "score": { "type": "number", "minimum": 0, "maximum": 10000 },
+        "tier": { "enum": ["core", "preferred", "optional", "fallback", "blocked"] },
+        "family": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "reasons": {
+          "type": "array",
+          "maxItems": 50,
+          "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        }
+      }
+    },
+    "RouteExclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "reason", "severity"],
+      "properties": {
+        "name": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "severity": { "enum": ["info", "warning", "blocked"] }
+      }
+    },
+    "RouteTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "createdAt", "rawPromptStored", "recommendations", "exclusions", "hookText", "hookChars", "statusWarnings", "tokenEstimate"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "rawPromptStored": { "const": false },
+        "recommendations": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/RouteRecommendation" } },
+        "exclusions": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/RouteExclusion" } },
+        "hookText": { "type": "string", "maxLength": 500 },
+        "hookChars": { "$ref": "#/$defs/Count" },
+        "statusWarnings": { "$ref": "#/$defs/StringList" },
+        "tokenEstimate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hookTokens", "method"],
+          "properties": {
+            "hookTokens": { "$ref": "#/$defs/Count" },
+            "catalogTokensAvoided": { "$ref": "#/$defs/Count" },
+            "fullBodyTokensAvoided": { "$ref": "#/$defs/Count" },
+            "method": { "type": "string", "minLength": 1, "maxLength": 300 }
+          }
+        }
+      }
+    },
+    "PolicyReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "queue", "name", "state", "reason", "nextAction"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "queue": { "enum": ["unmatched", "duplicate", "explicit-only", "blocked", "inventory-missing"] },
+        "name": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+        "state": { "enum": ["ready", "needs-review", "held"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "nextAction": { "type": "string", "minLength": 1, "maxLength": 2000 }
+      }
+    },
+    "SourceState": { "enum": ["clean", "modified", "stale", "risky", "unknown", "error", "local"] },
+    "ReviewStatus": { "enum": ["none", "reviewed", "held", "needs-review"] },
+    "SourceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "source", "state", "lastCheckedAt", "reviewStatus", "nextAction"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "name": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel" },
+        "source": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "state": { "$ref": "#/$defs/SourceState" },
+        "lastCheckedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "reviewStatus": { "$ref": "#/$defs/ReviewStatus" },
+        "nextAction": { "type": "string", "minLength": 1, "maxLength": 2000 }
+      }
+    }
+  }
+}

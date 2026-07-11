@@ -7,13 +7,13 @@ export async function readJson<T>(file: string): Promise<T> {
 }
 
 export async function writeJson(file: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
 export async function writeText(file: string, value: string): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, value.endsWith('\n') ? value : `${value}\n`, 'utf8');
+  await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+  await writeFile(file, value.endsWith('\n') ? value : `${value}\n`, { encoding: 'utf8', mode: 0o600 });
 }
 
 export async function hashFile(file: string): Promise<string> {

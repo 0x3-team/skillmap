@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "vectors": [
+    {
+      "name": "recursive-key-order-negative-zero-and-self-digest",
+      "input": {
+        "z": 3,
+        "payloadDigest": "excluded",
+        "a": { "z": 1, "a": 2 },
+        "list": [{ "b": 2, "a": 1 }, 0]
+      },
+      "canonicalPayloadJson": "{\"a\":{\"a\":2,\"z\":1},\"list\":[{\"a\":1,\"b\":2},0],\"z\":3}",
+      "payloadDigest": "sha256:14621e97c81c2ffae8fa42f1966e99dda9b08cb7cd66323f3a9da2917b55803b"
+    },
+    {
+      "name": "hostile-own-key-preserved",
+      "inputJson": "{\"kind\":\"prototype-vector\",\"__proto__\":{\"value\":1}}",
+      "canonicalPayloadJson": "{\"__proto__\":{\"value\":1},\"kind\":\"prototype-vector\"}"
+    },
+    {
+      "name": "nested-transport-digest-is-semantic",
+      "input": {
+        "kind": "nested-transport",
+        "payloadDigest": "excluded",
+        "nested": { "transportDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+      },
+      "canonicalPayloadJson": "{\"kind\":\"nested-transport\",\"nested\":{\"transportDigest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}"
+    }
+  ]
+}

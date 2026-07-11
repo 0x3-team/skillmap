@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/api-envelope/v1.schema.json",
+  "title": "SkillMap Common API Response Envelope v1",
+  "description": "The exact success and error envelope emitted by the local connector and MCP facade, including captured serving/current revision receipts.",
+  "oneOf": [
+    { "$ref": "#/$defs/SuccessEnvelope" },
+    { "$ref": "#/$defs/ErrorEnvelope" }
+  ],
+  "$defs": {
+    "NullableRevision": {
+      "oneOf": [
+        { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        { "type": "null" }
+      ]
+    },
+    "Compatibility": {
+      "enum": ["compatible", "degraded", "upgrade-required", "client-too-new", "incompatible"]
+    },
+    "SuccessEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "ok", "requestId", "servingRevision", "currentRevision", "compatibility", "data"],
+      "properties": {
+        "kind": { "const": "skillmap.api-response" },
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": true },
+        "requestId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RequestId" },
+        "servingRevision": { "$ref": "#/$defs/NullableRevision" },
+        "currentRevision": { "$ref": "#/$defs/NullableRevision" },
+        "compatibility": { "$ref": "#/$defs/Compatibility" },
+        "data": true
+      }
+    },
+    "ErrorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "ok", "requestId", "servingRevision", "currentRevision", "compatibility", "error"],
+      "properties": {
+        "kind": { "const": "skillmap.api-response" },
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": false },
+        "requestId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RequestId" },
+        "servingRevision": { "$ref": "#/$defs/NullableRevision" },
+        "currentRevision": { "$ref": "#/$defs/NullableRevision" },
+        "compatibility": { "$ref": "#/$defs/Compatibility" },
+        "error": { "$ref": "#/$defs/SafeApiError" }
+      }
+    },
+    "SafeApiError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "retryable": { "type": "boolean" },
+        "details": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

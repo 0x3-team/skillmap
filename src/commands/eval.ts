@@ -1,54 +1,84 @@
 import path from 'node:path';
 import { flagString, hasFlag } from '../core/args.js';
 import { readJson, writeJson } from '../core/fs.js';
-import { routePrompt } from '../core/route.js';
-import { evalConfidence } from '../core/status.js';
-import type { EffectiveRegistry } from '../schemas/types.js';
-import { outDir } from './common.js';
+import {
+  CANONICAL_EVAL_DATASET_REF,
+  evaluateEvalSuite,
+  evaluateEvalSuiteV3,
+  evalUsesFixture,
+  parseEvalSuiteDocument,
+  persistedEvalReport
+} from '../services/eval-use-case.js';
+import { prepareEvalRunV3ExecutionContext, type EvalRunV3ExecutionContext } from '../services/eval-release-context.js';
+import { openApprovedWorkspaceRead } from '../services/workspace-read-model.js';
+import { fileExists, outDir } from './common.js';
 
-interface EvalFile { evals: Array<{ prompt: string; expected: string[]; avoid?: string[] }> }
+export { computeEvalDatasetDigest } from '../services/eval-use-case.js';
 
-export async function evalCommand(cwd: string, flags: Record<string, string | boolean | string[]>): Promise<unknown> {
-  const evalFile = flagString(flags, 'file') ?? path.join(cwd, 'test/fixtures/evals.json');
-  const effective = await readJson<EffectiveRegistry>(path.join(outDir(cwd), 'effective.json'));
-  const data = await readJson<EvalFile>(evalFile);
-  if (!data || !Array.isArray(data.evals)) {
-    throw new Error('eval file must be a JSON object with an evals array');
+/** CLI adapter: flags/filesystem/save behavior around the pure eval use case. */
+export interface EvalCommandRuntime {
+  releaseContext?: EvalRunV3ExecutionContext;
+}
+
+export async function evalCommand(
+  cwd: string,
+  flags: Record<string, string | boolean | string[]>,
+  runtime: EvalCommandRuntime = {}
+): Promise<unknown> {
+  const explicitFile = flagString(flags, 'file');
+  const canonicalEvalFile = path.join(outDir(cwd), 'real-evals.json');
+  const evalFile = explicitFile ? path.resolve(cwd, explicitFile) : canonicalEvalFile;
+  if (!explicitFile && !(await fileExists(evalFile))) {
+    throw new Error('No eval file specified and .skillmap/real-evals.json was not found. Pass --file FILE for ad hoc evals.');
   }
-  let top1 = 0;
-  let top3 = 0;
-  let avoidHits = 0;
-  const rows = data.evals.map((item) => {
-    const result = routePrompt(effective, item.prompt, 3);
-    const names = result.recommendations.map((rec) => rec.name);
-    const expectedHit = item.expected.some((name) => names.includes(name));
-    if (names[0] && item.expected.includes(names[0])) top1 += 1;
-    if (expectedHit) top3 += 1;
-    const bad = (item.avoid ?? []).filter((name) => names.includes(name));
-    avoidHits += bad.length;
-    return { prompt: item.prompt, expected: item.expected, recommended: names, avoidedButRecommended: bad, hookText: result.hookText };
-  });
-  const count = data.evals.length;
-  const top1Rate = count === 0 ? 0 : top1 / count;
-  const top3Rate = count === 0 ? 0 : top3 / count;
-  const minCount = Number(flagString(flags, 'min-count') ?? '0');
-  const confidence = evalConfidence(count);
-  const pass = count > 0 && top1Rate >= 0.75 && top3Rate >= 0.9 && avoidHits === 0 && (minCount <= 0 || count >= minCount);
-  const report = {
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    count,
-    top1,
-    top3,
-    avoidHits,
-    top1Rate,
-    top3Rate,
-    pass,
-    confidence,
-    minCount,
-    summary: `SkillMap eval: top1 ${top1}/${count} (${Math.round(top1Rate * 100)}%), top3 ${top3}/${count} (${Math.round(top3Rate * 100)}%), avoid hits ${avoidHits}, confidence=${confidence.level}, pass=${pass}.`,
-    rows
+
+  const approved = await openApprovedWorkspaceRead(cwd, 'routing');
+  if (!approved.effective) throw new Error('The approved revision has no effective registry for eval execution.');
+  const document = parseEvalSuiteDocument(await readJson<unknown>(evalFile));
+  const thresholds = {
+    minCount: numberFlag(flags, 'min-count', 150),
+    minTop1: numberFlag(flags, 'min-top1', 0.8),
+    minTop3: numberFlag(flags, 'min-top3', 0.92),
+    maxAvoidHits: numberFlag(flags, 'max-avoid-hits', 0)
   };
-  if (hasFlag(flags, 'save-report')) await writeJson(path.join(outDir(cwd), 'eval-report.json'), report);
+  if (document.schemaVersion === 3) {
+    const releaseContext = runtime.releaseContext ?? await prepareEvalRunV3ExecutionContext(cwd, document.suite, approved);
+    const startedAt = new Date().toISOString();
+    const report = evaluateEvalSuiteV3(approved.effective, document.suite, {
+      revision: approved.servingRevision,
+      effectiveArtifact: releaseContext.effectiveArtifact as string,
+      baselineEffectiveArtifact: releaseContext.baselineEffectiveArtifact as string | null,
+      approvedBaselineRevision: releaseContext.approvedBaselineRevision,
+      startedAt,
+      ...thresholds
+    });
+    if (hasFlag(flags, 'save-report')) {
+      await writeJson(path.join(outDir(cwd), 'eval-report.json'), report);
+    }
+    return report;
+  }
+
+  const report = evaluateEvalSuite(approved.effective, document.suite, {
+    evalFile,
+    generatedAt: new Date().toISOString(),
+    fixture: evalUsesFixture(approved.effective, evalFile),
+    ...thresholds
+  });
+  if (approved.servingRevision.effectiveRevisionDigest !== report.effectiveRevisionDigest) {
+    throw new Error('Approved revision semantic effective digest does not match the eval routing model.');
+  }
+  if (hasFlag(flags, 'save-report')) {
+    const persistedFile = path.resolve(evalFile) === path.resolve(canonicalEvalFile)
+      ? CANONICAL_EVAL_DATASET_REF
+      : evalFile;
+    await writeJson(path.join(outDir(cwd), 'eval-report.json'), persistedEvalReport(report, persistedFile));
+  }
   return report;
+}
+
+function numberFlag(flags: Record<string, string | boolean | string[]>, name: string, fallback: number): number {
+  const raw = flagString(flags, name);
+  const value = raw === undefined ? fallback : Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`--${name} must be a number.`);
+  return value;
 }

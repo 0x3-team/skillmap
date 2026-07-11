@@ -1,0 +1,34 @@
+[
+  {
+    "id": "policy-duplicate-frontend",
+    "queue": "duplicate",
+    "name": "frontend-design-v1",
+    "state": "needs-review",
+    "reason": "Duplicate family overlaps with frontend-design",
+    "nextAction": "Prefer frontend-design and archive v1 after confirming references"
+  },
+  {
+    "id": "policy-unmatched-legal",
+    "queue": "unmatched",
+    "name": "legal-review",
+    "state": "held",
+    "reason": "Policy entry has no matching local skill",
+    "nextAction": "Remove policy entry or adopt verified external source"
+  },
+  {
+    "id": "policy-explicit-provision",
+    "queue": "explicit-only",
+    "name": "provision-droplet",
+    "state": "ready",
+    "reason": "Explicit-only because it can create cloud resources",
+    "nextAction": "Keep explicit-only and require operator confirmation"
+  },
+  {
+    "id": "policy-blocked-registry-clone",
+    "queue": "blocked",
+    "name": "marketplace-clone",
+    "state": "held",
+    "reason": "Blocked by product policy: registry-only guidance",
+    "nextAction": "Replace with route-intelligence guidance"
+  }
+]

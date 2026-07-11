@@ -1,0 +1,52 @@
+{
+  "name": "skillmap-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:fixtures": "node scripts/check-fixtures.mjs && node scripts/test-snapshot-integrity.mjs && node scripts/check-ui-truth.mjs",
+    "test:ui-contracts": "node scripts/check-ui-truth.mjs",
+    "test:integrity": "node scripts/test-snapshot-integrity.mjs",
+    "test:browser": "node scripts/run-browser-smoke.mjs",
+    "test:browser:direct": "node scripts/browser-smoke.mjs",
+    "test:performance": "node scripts/web-performance.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.12",
+    "ajv": "8.20.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "motion": "^11.18.2",
+    "next": "^16.2.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "5.2.8",
+    "@types/node": "^24.0.7",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.2.10",
+    "pixelmatch": "7.2.0",
+    "playwright": "1.61.1",
+    "pngjs": "7.0.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

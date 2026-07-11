@@ -1,0 +1,118 @@
+[
+  {
+    "id": "trace-auth-mobile-001",
+    "createdAt": "2026-07-09T09:52:00.000Z",
+    "promptPreview": "Review this auth PR and verify mobile UX",
+    "rawPromptStored": false,
+    "recommendations": [
+      {
+        "name": "codex-security:security-scan",
+        "score": 0.92,
+        "tier": "preferred",
+        "family": "security",
+        "reasons": ["preferred_for: auth review", "alias: security PR", "source: provider-verified"]
+      },
+      {
+        "name": "frontend-design",
+        "score": 0.89,
+        "tier": "core",
+        "family": "product-ui",
+        "reasons": ["alias: mobile UX", "preferred_for: responsive UI", "tier: core"]
+      },
+      {
+        "name": "build-web-apps:frontend-testing-debugging",
+        "score": 0.81,
+        "tier": "preferred",
+        "family": "frontend-testing",
+        "reasons": ["preferred_for: browser validation", "keyword: Playwright"]
+      }
+    ],
+    "exclusions": [
+      {
+        "name": "security-review-old",
+        "reason": "superseded by codex-security:security-scan",
+        "severity": "info"
+      },
+      {
+        "name": "shader-background",
+        "reason": "script-bearing optional skill excluded for review task",
+        "severity": "warning"
+      }
+    ],
+    "hookText": "Use codex-security:security-scan, frontend-design, and build-web-apps:frontend-testing-debugging. Reasons: auth review, mobile UX, browser validation.",
+    "hookChars": 150,
+    "statusWarnings": [],
+    "tokenEstimate": {
+      "hookTokens": 32,
+      "catalogTokensAvoided": 412,
+      "fullBodyTokensAvoided": 3750,
+      "method": "estimated from chars / 4"
+    }
+  },
+  {
+    "id": "trace-hosted-skills-002",
+    "createdAt": "2026-07-09T08:40:00.000Z",
+    "promptPreview": "Plan a hosted skill library with privacy controls",
+    "rawPromptStored": false,
+    "recommendations": [
+      {
+        "name": "planning-orchestrator",
+        "score": 0.88,
+        "tier": "core",
+        "family": "planning",
+        "reasons": ["preferred_for: multi-surface plan", "keyword: hosted"]
+      },
+      {
+        "name": "security-threat-model",
+        "score": 0.76,
+        "tier": "preferred",
+        "family": "security",
+        "reasons": ["keyword: privacy controls", "policy: trust boundary"]
+      }
+    ],
+    "exclusions": [
+      {
+        "name": "marketplace-clone",
+        "reason": "blocked by policy: registry-only positioning",
+        "severity": "blocked"
+      }
+    ],
+    "hookText": "Use planning-orchestrator and security-threat-model. Keep hosted claims redacted and local-first until a connector exists.",
+    "hookChars": 118,
+    "statusWarnings": ["Effective registry stale by 1 day"],
+    "tokenEstimate": {
+      "hookTokens": 28,
+      "catalogTokensAvoided": 366,
+      "fullBodyTokensAvoided": 2910,
+      "method": "workspace-estimate"
+    }
+  },
+  {
+    "id": "trace-no-confident-route-003",
+    "createdAt": "2026-07-08T20:25:00.000Z",
+    "promptPreview": "Find a skill for unsupported hardware provisioning",
+    "rawPromptStored": false,
+    "recommendations": [],
+    "exclusions": [
+      {
+        "name": "provision-droplet",
+        "reason": "explicit-only skill not selected without matching host context",
+        "severity": "warning"
+      },
+      {
+        "name": "firmware-pentest",
+        "reason": "archived skill excluded",
+        "severity": "blocked"
+      }
+    ],
+    "hookText": "No confident route. Ask for target host/provider and avoid loading broad provisioning skills.",
+    "hookChars": 86,
+    "statusWarnings": ["No top-3 route above confidence threshold"],
+    "tokenEstimate": {
+      "hookTokens": 21,
+      "catalogTokensAvoided": 294,
+      "fullBodyTokensAvoided": 2440,
+      "method": "estimated from chars / 4"
+    }
+  }
+]

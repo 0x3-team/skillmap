@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "workspaceId": "fixture-skillops",
+  "workspaceName": "SkillOps Fixture",
+  "generatedAt": "2026-07-09T10:16:00.000Z",
+  "redacted": true,
+  "mode": "attention-required",
+  "status": {
+    "verdict": "attention-required",
+    "label": "Attention required",
+    "summary": "This recorded fixture shows stale policy and unknown source state that require review before a future local export can be trusted.",
+    "warnings": ["Effective registry is stale", "One source state is unknown", "Curation receipt is missing for the latest policy"],
+    "nextActions": ["Run skillmap apply-policy --strict", "Run skillmap sources check", "Record a fresh curation receipt"]
+  },
+  "tokenMetrics": {
+    "fullBodyTokens": 119800,
+    "catalogTokens": 15900,
+    "hookTokensMean": 21.4,
+    "tokensAvoidedVsBodies": 119286,
+    "tokensAvoidedVsCatalog": 15386,
+    "sampleSize": 78,
+    "method": "recorded-fixture-estimate",
+    "computedAt": "2026-07-09T09:58:00.000Z"
+  },
+  "productivity": {
+    "routeCount": 214,
+    "top1Rate": 0.72,
+    "top3Rate": 0.94,
+    "avoidHits": 2,
+    "evalConfidence": "alpha",
+    "releaseReady": false,
+    "avgRecommendations": 3.4,
+    "avgHookChars": 144
+  },
+  "connector": {
+    "state": "blocked",
+    "cliVersion": "0.1.0",
+    "cwdAlias": "$PROJECT",
+    "lastSeenAt": "2026-07-08T23:40:00.000Z",
+    "lastSnapshotHash": "sha256:stale-redacted-snapshot",
+    "redactionEnabled": true,
+    "readOnlyMode": true,
+    "allowedCommands": ["skillmap status --json", "skillmap sources check", "skillmap export --redact"],
+    "nextCommand": "skillmap status --json",
+    "message": "Connector is blocked until a fresh redacted snapshot is exported locally."
+  },
+  "skills": [],
+  "recentRouteTraces": [],
+  "policyReviews": [],
+  "sources": []
+}

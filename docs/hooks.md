@@ -26,7 +26,19 @@ skillmap hook dry-run codex "make this UI less generic"
 skillmap hook install codex --passive --dry-run
 ```
 
-The install dry-run reports the target `hooks.json`, backup path, and exact command that would be inserted.
+The install dry-run reports the target `hooks.json`, backup path, exact command that would be inserted, and readiness verdict. When readiness is not green it returns `blocked: true`, `wouldInstall: false`, and `changed: false`, and says it would refuse installation.
+
+## Readiness preflight
+
+`skillmap hook install codex --passive` reads `skillmap status` first. It writes nothing unless status is `ok` and `readinessPhase` is `ready`. Unresolved duplicate names, incomplete source coverage, legacy/demo eval evidence, or stale eval digests therefore block installation.
+
+If you are testing against a temporary hooks file or deliberately overriding after manual review, pass `--force`:
+
+```bash
+skillmap hook install codex --passive --config /tmp/hooks.json --force
+```
+
+Force is an explicit operator override for later evidence gates: the result keeps `readiness.allowed: false` and reports `forced: true`; it does not make the workspace ready and cannot bypass the exact approved-revision routing boundary.
 
 ## Install targets
 
@@ -59,6 +71,22 @@ Every install or uninstall of an existing hook file writes a timestamped backup 
 ```bash
 skillmap hook uninstall codex
 ```
+
+## Controlled smoke checklist
+
+Use a temporary hooks file when producing personal V1 evidence. Do not use
+`--global`.
+
+```bash
+printf '%s\n' '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"printf existing-hook","timeout":1}]}]}}' > /tmp/skillmap-hooks.json
+skillmap hook install codex --passive --config /tmp/skillmap-hooks.json --dry-run --json
+skillmap hook install codex --passive --config /tmp/skillmap-hooks.json --json
+skillmap hook uninstall codex --config /tmp/skillmap-hooks.json --json
+```
+
+The evidence should show that the unrelated existing hook remains after install,
+only the SkillMap hook is removed after uninstall, and the final claim is
+`not globally hooked`.
 
 ## Failure behavior
 
