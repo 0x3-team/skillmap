@@ -5,9 +5,135 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  test:
+  cli-supported-platforms:
+    name: CLI / Node ${{ matrix.node }} / ${{ matrix.os }}
+    needs: package-candidate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Download the retained package candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: skillmap-package-candidate
+          path: artifacts/package
+      - name: Verify candidate manifest, modes, and SHA-256
+        id: verify_candidate
+        run: node scripts/verify-package-candidate.mjs artifacts/package
+      - name: Install and exercise the exact retained candidate
+        env:
+          SKILLMAP_TEST_TARBALL: ${{ steps.verify_candidate.outputs.tarball }}
+        run: npm run test:consumer-install
+      - run: npm pack --dry-run
+
+  focused-quality-lanes:
+    name: Quality / ${{ matrix.lane }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [contracts, integration, privacy, migrations, failure, connector]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Run ${{ matrix.lane }} gate
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          npm run test:${{ matrix.lane }} 2>&1 | tee artifacts/${{ matrix.lane }}.log
+      - name: Upload ${{ matrix.lane }} evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-${{ matrix.lane }}
+          path: artifacts/${{ matrix.lane }}.log
+          if-no-files-found: error
+
+  web:
+    name: Web / Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run test:fixtures
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+
+  public-web-performance:
+    name: Public web / Core Web Vitals and route bundles
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - name: Install pinned Chromium and host dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Build the public Next.js application
+        run: npm run build
+        working-directory: apps/web
+      - name: Enforce public Core Web Vitals and per-route JavaScript budgets
+        shell: bash
+        run: |
+          export SKILLMAP_WEB_PERF_ARTIFACTS="$PWD/artifacts/public-web-performance"
+          mkdir -p "$SKILLMAP_WEB_PERF_ARTIFACTS"
+          npm --prefix apps/web run test:performance 2>&1 | tee "$SKILLMAP_WEB_PERF_ARTIFACTS/run.log"
+      - name: Upload public web performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-web-performance
+          path: artifacts/public-web-performance
+          if-no-files-found: error
+
+  package-candidate:
+    name: Package candidate / retained evidence
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +141,214 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm pack --dry-run
+      - name: Build exact non-published candidate
+        id: verify_candidate
+        run: |
+          node -e "require('node:fs').mkdirSync('artifacts/package', { recursive: true })"
+          npm pack --json --silent --pack-destination artifacts/package > artifacts/package/pack-manifest.json
+          node scripts/verify-package-candidate.mjs artifacts/package --write
+      - name: Install and exercise the exact candidate
+        env:
+          SKILLMAP_TEST_TARBALL: ${{ steps.verify_candidate.outputs.tarball }}
+        run: npm run test:consumer-install
+      - name: Record two-version upgrade and rollback gate status
+        shell: bash
+        env:
+          SKILLMAP_TEST_TARBALL: ${{ steps.verify_candidate.outputs.tarball }}
+        run: |
+          export SKILLMAP_UPGRADE_ARTIFACTS="$PWD/artifacts/package"
+          npm run test:upgrade-rollback
+      - name: Upload candidate tarball, manifest, and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillmap-package-candidate
+          path: artifacts/package
+          if-no-files-found: error
+          retention-days: 30
+
+  local-app-critical-source:
+    name: Local app critical source / ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/web
+      - name: Install ${{ matrix.browser }} browser and host dependencies
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+        working-directory: apps/web
+      - name: Run ${{ matrix.browser }} critical-flow gate
+        shell: bash
+        run: |
+          export SKILLMAP_BROWSER_ARTIFACTS="$PWD/artifacts/browser-${{ matrix.browser }}"
+          mkdir -p "$SKILLMAP_BROWSER_ARTIFACTS"
+          npm run test:browser:${{ matrix.browser }} 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
+      - name: Upload ${{ matrix.browser }} browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-critical-${{ matrix.browser }}
+          path: artifacts/browser-${{ matrix.browser }}
+          if-no-files-found: error
+
+  local-app-critical-candidate:
+    name: Local app critical / chromium / exact candidate
+    needs: package-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/web
+      - name: Download the retained package candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: skillmap-package-candidate
+          path: artifacts/package
+      - name: Verify candidate manifest, modes, and SHA-256
+        id: verify_candidate
+        run: node scripts/verify-package-candidate.mjs artifacts/package
+      - name: Install Chromium and host dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Run modular and eval-trace Chromium fixtures against the source harness
+        run: npm run test:browser-fixture
+      - name: Run exact-candidate Chromium route, trace, feedback, and job gate
+        shell: bash
+        env:
+          SKILLMAP_TEST_TARBALL: ${{ steps.verify_candidate.outputs.tarball }}
+        run: |
+          export SKILLMAP_BROWSER_ARTIFACTS="$PWD/artifacts/browser-chromium"
+          mkdir -p "$SKILLMAP_BROWSER_ARTIFACTS"
+          npm run test:browser:candidate:chromium 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
+      - name: Upload exact-candidate Chromium browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-critical-chromium
+          path: artifacts/browser-chromium
+          if-no-files-found: error
+
+  local-app-chromium-quality:
+    name: Local app Chromium / ${{ matrix.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Measured provisional regression gates. The 1000 ms warm-start target is
+      # aspirational and intentionally does not replace or pass this gate.
+      SKILLMAP_LOCAL_APP_COLD_STARTUP_BUDGET_MS: "6000"
+      SKILLMAP_LOCAL_APP_WARM_STARTUP_BUDGET_MS: "2500"
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [a11y, perf]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/web
+      - name: Install pinned Chromium and host dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Declare startup performance policy
+        if: matrix.mode == 'perf'
+        shell: bash
+        run: |
+          echo "Cold startup: 6000 ms enforced provisional gate."
+          echo "Warm startup: 2500 ms enforced provisional gate."
+          echo "Warm startup: 1000 ms optimization target, not enforced and not claimed as passed."
+      - name: Run Chromium ${{ matrix.mode }} gate
+        shell: bash
+        run: |
+          export SKILLMAP_BROWSER_ARTIFACTS="$PWD/artifacts/browser-${{ matrix.mode }}"
+          mkdir -p "$SKILLMAP_BROWSER_ARTIFACTS"
+          npm run test:${{ matrix.mode }} 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
+      - name: Upload Chromium ${{ matrix.mode }} evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-chromium-${{ matrix.mode }}
+          path: artifacts/browser-${{ matrix.mode }}
+          if-no-files-found: error
+
+  local-app-visual:
+    name: Local app Chromium / deterministic visual
+    runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.61.1-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/web
+      - name: Verify pinned Chromium installation
+        run: npx playwright install chromium
+        working-directory: apps/web
+      - name: Run deterministic pixel-diff gate
+        shell: bash
+        run: |
+          export SKILLMAP_BROWSER_ARTIFACTS="$PWD/artifacts/browser-visual"
+          mkdir -p "$SKILLMAP_BROWSER_ARTIFACTS"
+          npm run test:visual 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
+      - name: Upload visual actuals, diffs, metrics, and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-chromium-visual
+          path: artifacts/browser-visual
+          if-no-files-found: error
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm ci
+        working-directory: apps/web
+      - run: npm audit --audit-level=high
+        working-directory: apps/web
