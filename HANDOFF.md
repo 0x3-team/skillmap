@@ -5,7 +5,7 @@ Last reconciled: 2026-07-11
 Repo: https://github.com/0x3-team/skillmap
 Current branch: `codex/hosted-library-foundation`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Current status: the product-application implementation is a dirty local worktree. It has not been committed, pushed, published, or deployed.
+Current status: the hosted-library foundation is committed locally on `codex/hosted-library-foundation`; inspect the branch head for its exact current commit. The reviewed seed branch is pushed in PR #5, but the implementation branch is not pushed, published, or deployed. Final seed CI and merge are blocked by the organization's zero-dollar GitHub Actions budget; the implementation must then be rebound to the permanent squash commit before its PR.
 
 ## Purpose of this handoff
 
@@ -34,7 +34,7 @@ This is different from adding another skill list into Codex. The main value appe
 
 ## Historical baseline and current local implementation
 
-The historical baseline commit above passed its then-current CI. The current local worktree substantially changes its identity, evidence, export, dashboard, and test contracts; it remains experimental alpha until the new work is reviewed, committed, pushed, and revalidated in CI.
+The historical baseline commit above passed its then-current CI. The current local implementation substantially changes its identity, evidence, export, dashboard, and test contracts. It is committed and locally validated, but remains experimental alpha until its permanent seed binding is committed, the branch is pushed and reviewed, and the exact implementation head passes hosted CI.
 
 Completed surfaces:
 
@@ -58,7 +58,7 @@ Completed surfaces:
 - Capability-authenticated IPv4-loopback connector with origin/CSRF/Host limits, bounded responses, foreground lifecycle, and versioned packaged assets.
 - Live local UI routes for onboarding, workspaces, overview, Route Lab, skills/variants, policy, eval, sources, trust, integrations, activity, and settings.
 - Bounded redacted route/feedback/job ledgers, restart-safe allowlisted jobs, and explicit cancellation before publication.
-- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. These are local implementations until the final current-worktree run and hosted CI both pass.
+- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. Local acceptance passed for the hosted foundation; hosted CI on the eventual implementation PR remains required.
 - Separate hosted contracts plus local Supabase `api`/`private` schemas, deterministic first-party seeds, RLS/grant tests, public `/skills` and `/api/v1/skills` routes, Supabase SSR auth integration points, and free-account saved skills. These are locally implemented, not deployed.
 
 ## Historical validation evidence (not current release proof)
@@ -131,7 +131,7 @@ SkillMap = another list of skills inside Codex
 
 ## Release boundary
 
-The repository and current worktree are experimental alpha, not a release candidate. Public release actions remain intentionally gated on explicit user approval and fresh validation of the eventual committed revision.
+The repository and committed hosted foundation are experimental alpha, not a release candidate. Public release actions remain intentionally gated on explicit user approval and fresh validation of the eventual pushed revision.
 
 Not yet done:
 
@@ -196,7 +196,7 @@ If the next goal is product improvement:
 1. Build a true no-SkillMap human/agent A/B test, not only raw lexical baseline.
 2. Add a `show`/`load` command for selected skill content if not already sufficient through MCP `show_skill`.
 3. Improve host integration so Codex/Claude can avoid broad native skill registry exposure.
-4. Add a hosted or synced registry only after local export/import and MCP workflows are stable.
+4. Continue the authorized hosted-registry phases only through their explicit evidence gates; do not collapse local runtime, hosted catalog, package, grade, and router authority into one state.
 5. Expand evals with real missed routes from daily use, not only generated examples.
 
 ## Important constraints
@@ -205,7 +205,7 @@ If the next goal is product improvement:
 - Do not install global hooks without explicit approval.
 - Do not publish npm, create tags, or create GitHub releases without explicit approval.
 - Treat local outputs as evidence, not package artifacts.
-- Keep SkillMap local-first for v1; cloud registry/sync is v1.1 or later unless explicitly reprioritized.
+- Preserve the local-first runtime and privacy boundary while implementing the now-authorized hosted catalog as a separate online trust plane.
 - Be honest about benefits: large context savings, modest measured routing quality improvement.
 
 ## Quick commands for a fresh agent

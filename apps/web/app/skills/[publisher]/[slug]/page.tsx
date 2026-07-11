@@ -5,6 +5,7 @@ import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
 import { GradePill, humanize } from "@/components/skillmap/skill-card";
 import { saveSkill, unsaveSkill } from "@/app/account/actions";
+import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { getPublicSkillByRoute } from "@/lib/registry/repository.server";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
@@ -32,17 +33,25 @@ export default async function SkillDetailPage({
 
   let signedIn = false;
   let saved = false;
+  let accountUnavailable = false;
   try {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.auth.getClaims();
-    const userId = data?.claims?.sub;
-    signedIn = typeof userId === "string";
-    if (signedIn) {
-      const { data: savedRow } = await supabase.from("saved_skills").select("skill_id").eq("skill_id", skill.skillId).maybeSingle();
-      saved = Boolean(savedRow);
-    }
+    const { data, error } = await supabase.auth.getClaims();
+    const auth = classifyVerifiedClaims(data, error);
+    signedIn = auth.state === "authenticated";
+    if (auth.state === "authenticated") {
+      const { data: savedRow, error: savedError } = await supabase
+        .from("saved_skills")
+        .select("skill_id")
+        .eq("user_id", auth.userId)
+        .eq("skill_id", skill.skillId)
+        .maybeSingle();
+      if (savedError) accountUnavailable = true;
+      else saved = Boolean(savedRow);
+    } else accountUnavailable = auth.state === "unavailable";
   } catch (error) {
     if (!(error instanceof SupabaseConfigurationError)) throw error;
+    accountUnavailable = true;
   }
 
   return (
@@ -101,7 +110,11 @@ export default async function SkillDetailPage({
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             License: {skill.license.spdxExpression ?? humanize(skill.license.state)} · redistribution: {humanize(skill.license.redistribution)} · artifact: {humanize(skill.artifact.availability)}.
           </p>
-          {signedIn ? (
+          {accountUnavailable ? (
+            <p role="status" className="mt-5 rounded-lg border border-border bg-muted px-4 py-3 text-center text-sm font-medium text-muted-foreground">
+              Saved-skill status is temporarily unavailable.
+            </p>
+          ) : signedIn ? (
             <form action={saved ? unsaveSkill : saveSkill} className="mt-5">
               <input type="hidden" name="skillId" value={skill.skillId} />
               <button type="submit" className="press inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">

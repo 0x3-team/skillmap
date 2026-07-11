@@ -6,7 +6,8 @@ import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
 import { signOut } from "@/app/sign-in/actions";
 import { unsaveSkill } from "@/app/account/actions";
-import { shouldRedirectForAuthError } from "@/lib/auth/errors";
+import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { listSavedSkills } from "@/lib/registry/repository.server";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
@@ -14,7 +15,15 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams
+}: {
+  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  if (params.error === "auth-unavailable") return <AccountUnavailable />;
+  const cursor = typeof params.cursor === "string" ? params.cursor : null;
+
   let supabase: SupabaseClient<Database>;
   try {
     supabase = await createSupabaseServerClient();
@@ -23,15 +32,23 @@ export default async function AccountPage() {
     return <AccountUnavailable />;
   }
   const { data, error } = await supabase.auth.getClaims();
-  const userId = data?.claims?.sub;
-  if (typeof userId !== "string") {
-    if (shouldRedirectForAuthError(error)) redirect("/sign-in?next=/account");
+  const auth = classifyVerifiedClaims(data, error);
+  if (auth.state !== "authenticated") {
+    if (auth.state === "signed-out") redirect("/sign-in?next=/account");
     return <AccountUnavailable />;
   }
 
-  const accountData = await loadAccountData(supabase, userId);
+  let accountData;
+  try {
+    accountData = await loadAccountData(supabase, auth.userId, cursor);
+  } catch (error) {
+    if (error instanceof CatalogInputError) return <InvalidSavedSkillsPage />;
+    if (error instanceof CatalogQueryError || error instanceof CatalogDataError) return <AccountUnavailable />;
+    throw error;
+  }
   if (!accountData) return <AccountUnavailable />;
-  const { profile, savedSkills } = accountData;
+  const { profile, savedPage } = accountData;
+  const savedSkills = savedPage.items;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -56,9 +73,13 @@ export default async function AccountPage() {
           {savedSkills.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-card/60 p-8 text-center">
               <Bookmark className="mx-auto h-6 w-6 text-primary" />
-              <h2 className="mt-4 text-lg font-semibold">No saved skills yet</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Browse the public library and save the skills worth returning to.</p>
-              <Link href="/skills" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Browse library</Link>
+              <h2 className="mt-4 text-lg font-semibold">{cursor ? "No saved skills on this page" : "No saved skills yet"}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {cursor ? "The saved list changed or this page is now empty. Return to the first page." : "Browse the public library and save the skills worth returning to."}
+              </p>
+              <Link href={cursor ? "/account#saved" : "/skills"} className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                {cursor ? "Return to first page" : "Browse library"}
+              </Link>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -77,23 +98,25 @@ export default async function AccountPage() {
               ))}
             </div>
           )}
+          {(cursor || savedPage.hasMore) && (
+            <nav aria-label="Saved skills pages" className="mt-6 flex flex-wrap gap-3">
+              {cursor && <Link href="/account#saved" className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">First page</Link>}
+              {savedPage.nextCursor && <Link href={`/account?cursor=${encodeURIComponent(savedPage.nextCursor)}#saved`} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">Next saved skills</Link>}
+            </nav>
+          )}
         </section>
       </div>
     </main>
   );
 }
 
-async function loadAccountData(supabase: SupabaseClient<Database>, userId: string) {
-  try {
-    const [profileResult, savedSkills] = await Promise.all([
-      supabase.from("profiles").select("created_at").eq("user_id", userId).maybeSingle(),
-      listSavedSkills(supabase)
-    ]);
-    if (profileResult.error) return null;
-    return { profile: profileResult.data, savedSkills };
-  } catch {
-    return null;
-  }
+async function loadAccountData(supabase: SupabaseClient<Database>, userId: string, cursor: string | null) {
+  const [profileResult, savedPage] = await Promise.all([
+    supabase.from("profiles").select("created_at").eq("user_id", userId).maybeSingle(),
+    listSavedSkills(supabase, cursor)
+  ]);
+  if (profileResult.error) return null;
+  return { profile: profileResult.data, savedPage };
 }
 
 function AccountUnavailable() {
@@ -101,6 +124,21 @@ function AccountUnavailable() {
     <main className="min-h-screen bg-background text-foreground">
       <CatalogHeader />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6"><CatalogUnavailable /></section>
+    </main>
+  );
+}
+
+function InvalidSavedSkillsPage() {
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <CatalogHeader account />
+      <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+        <div className="rounded-xl border border-border bg-card p-8 text-center">
+          <h1 className="text-xl font-semibold">That saved-skills page link is invalid.</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Return to the first page of your saved skills. No account data was changed.</p>
+          <Link href="/account#saved" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Return to saved skills</Link>
+        </div>
+      </section>
     </main>
   );
 }

@@ -79,7 +79,10 @@ create table private.source_repositories (
   id uuid primary key default gen_random_uuid(),
   publisher_id uuid not null references private.publishers(id) on delete restrict,
   repository_url text not null unique
-    check (repository_url ~ '^https://[^[:space:]]+$' and length(repository_url) <= 2048),
+    check (
+      repository_url ~ '^https://github[.]com/[A-Za-z0-9][A-Za-z0-9.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$'
+      and length(repository_url) <= 226
+    ),
   catalog_state text not null default 'draft'
     check (catalog_state in ('draft', 'published', 'blocked')),
   revoked_at timestamptz,
@@ -295,6 +298,7 @@ create index skill_relationships_target_skill_id_idx on private.skill_relationsh
 create index audit_events_actor_user_id_idx on private.audit_events(actor_user_id);
 create index audit_events_subject_idx on private.audit_events(subject_type, subject_id, created_at desc);
 create index saved_skills_skill_id_idx on api.saved_skills(skill_id);
+create index saved_skills_owner_page_idx on api.saved_skills(user_id, created_at desc, skill_id asc);
 
 create function private.enforce_immutable_skill_version_coordinates()
 returns trigger
@@ -609,7 +613,6 @@ create view api.saved_skill_catalog
 with (security_invoker = true, security_barrier = true)
 as
 select
-  saved.user_id,
   saved.created_at as saved_at,
   catalog.*
 from api.saved_skills saved

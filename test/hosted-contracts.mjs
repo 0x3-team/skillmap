@@ -216,6 +216,22 @@ test('hosted identity and source boundaries reject local IDs, mutable refs, trav
   traversal.source.path = '../secret/SKILL.md';
   assertInvalid(IDS.skill, traversal, /pattern/);
 
+  const credentialedRepository = hostedSkill();
+  credentialedRepository.source.repositoryUrl = 'https://user:token@example.invalid/repository';
+  assertInvalid(IDS.skill, credentialedRepository, /pattern/);
+
+  const tokenQueryRepository = hostedSkill();
+  tokenQueryRepository.source.repositoryUrl = 'https://example.invalid/repository?token=secret';
+  assertInvalid(IDS.skill, tokenQueryRepository, /pattern/);
+
+  const fragmentRepository = hostedSkill();
+  fragmentRepository.source.repositoryUrl = 'https://example.invalid/repository#private-ref';
+  assertInvalid(IDS.skill, fragmentRepository, /pattern/);
+
+  const unsupportedRepositoryProvider = hostedSkill();
+  unsupportedRepositoryProvider.source.repositoryUrl = 'https://gitlab.com/0x3-team/skillmap';
+  assertInvalid(IDS.skill, unsupportedRepositoryProvider, /pattern/);
+
   const extra = hostedList();
   extra.items[0].privateNotes = 'must never be public';
   assertInvalid(IDS.list, extra, /unevaluated properties|must NOT have/);

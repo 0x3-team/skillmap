@@ -5841,9 +5841,9 @@ export const CONTRACT_SCHEMAS = [
         "properties": {
           "repositoryUrl": {
             "type": "string",
-            "minLength": 12,
-            "maxLength": 2048,
-            "pattern": "^https://[^\\s]+$"
+            "minLength": 20,
+            "maxLength": 226,
+            "pattern": "^https://github\\.com/[A-Za-z0-9][A-Za-z0-9.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"
           },
           "commit": {
             "type": "string",

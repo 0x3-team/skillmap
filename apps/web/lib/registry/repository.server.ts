@@ -18,18 +18,25 @@ import type {
   Sha256Digest
 } from "@/lib/contracts/generated/types";
 import { assertContract } from "@/lib/contracts/generated/validate.server";
-import { CatalogDataError, CatalogQueryError } from "@/lib/registry/errors";
+import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import {
   assertCatalogRoute,
   assertHostedSkillId,
   encodeCatalogCursor,
   normalizeCatalogQuery
 } from "@/lib/registry/query";
+import {
+  decodeSavedSkillsCursor,
+  encodeSavedSkillsCursor,
+  SavedSkillsCursorError
+} from "@/lib/registry/saved-cursor";
 import { createPublicCatalogClient } from "@/lib/supabase/catalog.server";
 import type { Database } from "@/lib/supabase/database.types";
 
 const HOSTED_LIST_SCHEMA = "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json";
 const HOSTED_SKILL_SCHEMA = "https://skillmap.dev/contracts/hosted-skill/v1.schema.json";
+const SAVED_PAGE_SIZE = 50;
+const SAVED_SKILL_SELECT = "saved_at,skill_id,publisher_id,publisher_handle,publisher_display_name,publisher_verification_state,slug,display_name,summary,lifecycle_state,capabilities,updated_at,version_id,version,entrypoint_content_digest,license_state,redistribution_state,compatibility_state,grade_state,grade_band,grade_confidence,grade_receipt_id,grade_receipt_digest,graded_at,grade_rubric_version,grade_host_profile_version,grade_invalidated_at,grade_reason_codes,published_at";
 
 type CatalogRow = Database["api"]["Views"]["catalog_skill_versions"]["Row"];
 type CatalogSummaryRow = Database["api"]["Views"]["catalog_skills"]["Row"];
@@ -101,28 +108,58 @@ export async function getPublicSkillByRoute(publisher: string, slug: string): Pr
   return getPublicSkill({ publisher, slug });
 }
 
+export interface SavedSkillsPage {
+  items: HostedSkillSummaryV1[];
+  limit: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+  stableSortKey: "saved_at_desc_skill_id_asc";
+}
+
 export async function listSavedSkills(
-  supabase: SupabaseClient<Database>
-): Promise<HostedSkillSummaryV1[]> {
-  const { data, error } = await supabase
+  supabase: SupabaseClient<Database>,
+  cursor: string | null = null
+): Promise<SavedSkillsPage> {
+  let decodedCursor = null;
+  try {
+    decodedCursor = cursor ? decodeSavedSkillsCursor(cursor) : null;
+  } catch (error) {
+    if (error instanceof SavedSkillsCursorError) {
+      throw new CatalogInputError("INVALID_CURSOR", error.message);
+    }
+    throw error;
+  }
+  let query = supabase
     .from("saved_skill_catalog")
-    .select("*")
-    .order("published_at", { ascending: false })
+    .select(SAVED_SKILL_SELECT)
+    .order("saved_at", { ascending: false })
     .order("skill_id", { ascending: true })
-    .limit(50);
+    .limit(SAVED_PAGE_SIZE + 1);
+  if (decodedCursor) {
+    query = query.or(`saved_at.lt.${decodedCursor.savedAt},and(saved_at.eq.${decodedCursor.savedAt},skill_id.gt.${decodedCursor.skillId})`);
+  }
+
+  const { data, error } = await query;
   if (error) throw new CatalogQueryError("Saved skills could not be loaded.");
 
-  const items = ((data ?? []) as SavedCatalogRow[]).map(mapSummary);
-  const validationEnvelope: HostedSkillListV1 = {
-    kind: "skillmap.hosted-skill-list",
-    schemaVersion: 1,
-    query: { q: null, limit: 50, cursor: null },
+  const rows = (data ?? []) as SavedCatalogRow[];
+  const hasMore = rows.length > SAVED_PAGE_SIZE;
+  const pageRows = rows.slice(0, SAVED_PAGE_SIZE);
+  const items = pageRows.map(mapSummary);
+  const lastRow = pageRows.at(-1);
+  const nextCursor = hasMore && lastRow
+    ? encodeSavedSkillsCursor({
+        savedAt: requiredTimestamp(lastRow.saved_at, "saved_at"),
+        skillId: requiredHostedSkillId(lastRow.skill_id, "skill_id")
+      })
+    : null;
+  return {
     items,
-    pagination: { nextCursor: null, hasMore: false, stableSortKey: "published_at_desc_skill_id_asc" },
-    generatedAt: new Date().toISOString()
+    limit: SAVED_PAGE_SIZE,
+    nextCursor,
+    hasMore,
+    stableSortKey: "saved_at_desc_skill_id_asc"
   };
-  assertContract(HOSTED_LIST_SCHEMA, validationEnvelope);
-  return items;
 }
 
 async function getPublicSkill(

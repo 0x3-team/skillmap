@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { assertHostedSkillId } from "@/lib/registry/query";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -41,9 +42,12 @@ export async function unsaveSkill(formData: FormData) {
 async function authenticatedActionContext() {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getClaims();
-  const userId = data?.claims?.sub;
-  if (error || typeof userId !== "string") redirect("/sign-in?next=/account");
-  return { supabase, userId };
+  const auth = classifyVerifiedClaims(data, error);
+  if (auth.state !== "authenticated") {
+    if (auth.state === "signed-out") redirect("/sign-in?next=/account");
+    redirect("/account?error=auth-unavailable");
+  }
+  return { supabase, userId: auth.userId };
 }
 
 function revalidateSkillPaths() {
