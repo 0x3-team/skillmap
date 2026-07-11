@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { shouldRedirectForAuthError } from "@/lib/auth/errors";
-import { SupabaseConfigurationError, getPublicSupabaseConfig } from "@/lib/supabase/config";
+import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 
 export async function proxy(request: NextRequest) {
@@ -26,12 +26,15 @@ export async function proxy(request: NextRequest) {
     });
 
     const { data, error } = await supabase.auth.getClaims();
-    if (request.nextUrl.pathname.startsWith("/account") && !data?.claims?.sub) {
-      if (shouldRedirectForAuthError(error)) {
-        const signIn = request.nextUrl.clone();
-        signIn.pathname = "/sign-in";
+    const auth = classifyVerifiedClaims(data, error);
+    if (request.nextUrl.pathname.startsWith("/account") && auth.state !== "authenticated") {
+      if (auth.state === "signed-out") {
+        const signIn = new URL("/sign-in", getSiteUrl());
         signIn.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-        return NextResponse.redirect(signIn);
+        const redirectResponse = NextResponse.redirect(signIn);
+        for (const cookie of response.cookies.getAll()) redirectResponse.cookies.set(cookie);
+        setPrivateNoStore(redirectResponse);
+        return redirectResponse;
       }
       // Retryable/5xx auth failures continue to the protected page so it can
       // render an explicit unavailable state instead of a false sign-out.
@@ -42,7 +45,13 @@ export async function proxy(request: NextRequest) {
     // configuration must never trigger fixture fallback.
   }
 
+  if (/^\/(?:account|sign-in|auth)(?:\/|$)/.test(request.nextUrl.pathname)) setPrivateNoStore(response);
   return response;
+}
+
+function setPrivateNoStore(response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  response.headers.set("Pragma", "no-cache");
 }
 
 export const config = {

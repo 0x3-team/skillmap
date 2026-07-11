@@ -3,7 +3,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, private, api;
 
-select plan(93);
+\ir fixtures/hosted_catalog_test_seed.sql.inc
+
+select plan(96);
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -40,6 +42,12 @@ select is(
     where n.nspname = 'api' and p.prosecdef),
   0::bigint,
   'the exposed API schema contains no security-definer functions'
+);
+select is(
+  (select count(*) from information_schema.columns
+    where table_schema = 'api' and table_name = 'saved_skill_catalog' and column_name = 'user_id'),
+  0::bigint,
+  'the saved catalog projection does not transport the private account identifier'
 );
 
 select ok(has_table_privilege('anon', 'api.catalog_skills', 'select'), 'anonymous users can select the public catalog');
@@ -107,6 +115,31 @@ select throws_ok(
 );
 
 reset role;
+
+select throws_ok(
+  $$insert into private.source_repositories (id, publisher_id, repository_url, catalog_state)
+    values (
+      '22000000-0000-4000-8000-000000000099',
+      '10000000-0000-4000-8000-000000000001',
+      'https://user:token@example.invalid/repository',
+      'draft'
+    )$$,
+  23514,
+  null,
+  'repository coordinates reject embedded credentials'
+);
+select throws_ok(
+  $$insert into private.source_repositories (id, publisher_id, repository_url, catalog_state)
+    values (
+      '22000000-0000-4000-8000-000000000099',
+      '10000000-0000-4000-8000-000000000001',
+      'https://example.invalid/repository?token=secret',
+      'draft'
+    )$$,
+  23514,
+  null,
+  'repository coordinates reject query credentials and signed URLs'
+);
 
 insert into private.skill_versions (
   id, public_id, skill_id, version_label, source_commit, source_path,
@@ -360,7 +393,7 @@ insert into private.source_repositories (
 ) values (
   '22000000-0000-4000-8000-000000000002',
   '11000000-0000-4000-8000-000000000002',
-  'https://example.invalid/other/repository',
+  'https://github.com/example-owner/other-repository',
   'draft'
 );
 
@@ -382,7 +415,7 @@ select throws_ok(
 );
 select throws_ok(
   $$update private.source_repositories
-    set repository_url = 'https://example.invalid/reassigned'
+    set repository_url = 'https://github.com/example-owner/reassigned'
     where id = '20000000-0000-4000-8000-000000000001'$$,
   23514,
   null,
@@ -608,9 +641,10 @@ select is(
     'skill_relationships_target_skill_id_idx',
     'audit_events_actor_user_id_idx',
     'audit_events_subject_idx',
-    'saved_skills_skill_id_idx'
+    'saved_skills_skill_id_idx',
+    'saved_skills_owner_page_idx'
   )),
-  15::bigint,
+  16::bigint,
   'all explicit FK, RLS, search, and lifecycle indexes exist'
 );
 

@@ -22,6 +22,7 @@ const ENTRIES = [
 
 test('hosted seed entrypoint digests bind the exact committed bytes and remain domain-separated', async () => {
   const seed = await readFile(new URL('../supabase/seed.sql', import.meta.url), 'utf8');
+  const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
   for (const entry of ENTRIES) {
     const committed = execFileSync('git', ['show', `${COMMIT}:${entry.path}`]);
     const current = await readFile(new URL(`../${entry.path}`, import.meta.url));
@@ -33,7 +34,10 @@ test('hosted seed entrypoint digests bind the exact committed bytes and remain d
   }
 
   assert.match(seed, new RegExp(COMMIT, 'g'));
-  assert.equal((seed.match(new RegExp(COMMIT, 'g')) ?? []).length, 6);
+  assert.equal((seed.match(new RegExp(COMMIT, 'g')) ?? []).length, 3);
+  assert.doesNotMatch(seed, /phase1-[ab]@skillmap\.invalid|test\.hidden|(?:draft|private|revoked)-decoy/);
+  assert.doesNotMatch(seed, /insert\s+into\s+auth\.users|insert\s+into\s+private\.publisher_members/i);
+  assert.doesNotMatch(config, /sql_paths\s*=\s*\[[^\]]*(?:tests|fixtures)/is);
   assert.equal((seed.match(/raw_snapshot_digest[\s\S]*?normalized_artifact_digest[\s\S]*?manifest_digest/g) ?? []).length > 0, true);
   assert.equal((seed.match(/null, 'metadata-only', null, null/g) ?? []).length >= 3, true);
 });

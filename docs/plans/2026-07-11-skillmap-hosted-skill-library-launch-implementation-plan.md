@@ -129,14 +129,16 @@ Make the hosted registry the discovery, trust, version, and update authority whi
 - Raw user prompt: local ephemeral input unless the user explicitly opts into a hosted playground or feedback submission.
 - Public website: a projection of registry data, never an independent editing surface for immutable package facts.
 
-### Current behavior
+### Pre-implementation baseline (historical)
+
+This subsection records the repository state before the authorized Phase 1 slice. The Phase 1 implementation receipt near the end of this plan supersedes it for current local behavior; neither section is evidence of a remote deployment.
 
 - SkillMap is a local-first CLI and local product with scan, doctor, policy, graph, route, eval, source, hook, MCP, and dashboard capabilities.
 - Routing is deterministic and does not require an LLM.
 - The existing MCP surface can route and inspect redacted metadata.
 - The existing show_skill behavior does not deliver a verified skill body or reference file.
-- The public Next.js surface is a polished product and fixture experience, not yet a hosted registry, publisher system, or searchable skill library.
-- There is no hosted database, artifact store, ingestion worker, grading service, publisher account model, public skill URL, or package CDN in the repository today.
+- The public Next.js surface was a polished product and fixture experience, not yet a hosted registry, publisher system, or searchable skill library.
+- There was no hosted database, artifact store, ingestion worker, grading service, publisher account model, public skill URL, or package CDN in the repository at that baseline.
 - Route currently ranks a prompt as one unit. It does not produce an ordered multi-segment execution plan for long prompts.
 
 ### Expected outcome
@@ -170,7 +172,7 @@ Public launch occurs only when:
 
 - the local loader and signed registry index work end to end
 - the first curated corpus has known provenance and licenses
-- every public version has a reproducible grade receipt or is explicitly quarantined from public results
+- every version exposed in public results has a reproducible current grade receipt; ungraded or unverifiable candidates are quarantined and excluded from public results
 - public search, skill detail, compare, connect, trust, and documentation flows are production-ready
 - publisher submission and update paths have operational owners
 - revocation, takedown, rollback, backup, and incident procedures have been exercised
@@ -563,6 +565,8 @@ Every catalog crawl must publish:
 - importer version and Agent Skills specification snapshot digest
 
 The website may say “all indexed skills” only when the coverage report is linked. It may never claim literal global exhaustiveness.
+
+The canonical receipt shape, reconciliation equations, crawl-record transitions, and public completeness gate are defined by `docs/specs/source-coverage-receipt-v1.md`. Aggregate UI counts must be computed from receipts that bind the same declared-universe digest, never from unrelated live table counts.
 
 ## Information Architecture
 
@@ -2217,7 +2221,7 @@ Work:
 - define local, preview, staging, and production environment mapping without secrets
 - define package, TUF, attestation, route-plan, grade-receipt, lifecycle, coverage, advisory, and revocation contracts
 - define metadata-only behavior for unclear redistribution rights
-- define source, package, grade, and revocation state machines
+- define explicit crawl-record, package/version, grade, advisory, and revocation transition tables, including forbidden transitions and immutable-history rules
 - perform hosted threat model and privacy review
 - pin hosted runtime policy to Node 22 or newer, targeting Node 24
 - record Vercel as preferred web host and Supabase as backend, with provisioning/cost approval still gated
@@ -2233,9 +2237,12 @@ Deliverables:
 - `docs/specs/grade-receipt-v1.md`
 - `docs/specs/evidence-states-v1.md`
 - `docs/specs/host-profile-v1.md`
+- `docs/specs/source-coverage-receipt-v1.md`
+- `docs/specs/advisory-v1.md`
 - `docs/architecture/hosted-registry.md`
 - `docs/security/hosted-threat-model.md`
-- architecture and legal decision logs
+- `docs/decisions/2026-07-11-hosted-architecture.md`
+- `docs/decisions/2026-07-11-hosted-legal-boundary.md`
 
 Exit gate:
 
@@ -2245,6 +2252,8 @@ Exit gate:
 - no unresolved choice can force a published identity or digest migration
 - no launch contract contains Stripe, billing, entitlement, or metering state
 - deployment, corpus mirroring, and production mutation remain explicitly gated
+- declared-source coverage mechanically reconciles every discovered record against one exact universe digest, and the “all indexed skills” claim fails closed on missing, partial, failed, stale, or unverifiable receipts
+- source, package, and advisory transitions have exact machine vocabularies, allowed edges, receipt gates, and append-only history behavior
 
 ## Phase 1: Supabase-Backed Online Catalog and Account Spine
 
@@ -2262,7 +2271,7 @@ Work:
 - keep publisher, skill, version, grade, and audit mutation worker/operator-only in this slice
 - seed three first-party, clearly licensed versions: two alternatives and one complement/guardrail
 - bind each seed to source repository, exact commit/path, immutable IDs, and the checked-in `SKILL.md` entrypoint-content digest
-- leave raw-snapshot, normalized-artifact, and manifest digests explicitly pending until the Phase 2 packaging pipeline can produce canonical bytes and receipts; never relabel the entrypoint-content digest as one of those authorities
+- leave raw-snapshot, normalized-artifact, and manifest digests null on the Phase 1 metadata-only version identities; Phase 2 must mint new admitted `skv_...` identities for canonical package bytes, advance current-version pointers through a receipt-backed transition, and preserve the original metadata-only versions unchanged; never relabel the entrypoint-content digest as another digest authority
 - seed explicit `unverified`, `ungraded`, `not-run`, and `not-tested` states rather than implying canonical provenance, grade, audit, or compatibility work that has not happened
 - implement a server-only registry repository and bounded public read API
 - implement server-rendered `/skills` search and `/skills/[publisher]/[slug]` detail routes
@@ -2305,6 +2314,7 @@ Work:
 
 - implement strict Agent Skills import profile and deterministic package normalization
 - preserve exact upstream snapshot bytes separately from normalized package bytes
+- mint new admitted package-version identities for canonical raw/normalized bytes instead of filling Phase 1 metadata-only versions in place; advance current pointers only through an append-only transition receipt while old versions and pins remain addressable
 - implement artifact, manifest, and in-toto-shaped provenance contracts
 - implement the SkillMap TUF root/targets/snapshot/timestamp profile
 - implement threshold/root bootstrap, expiry, rollback/freeze protection, consistent snapshots, rotation, and recovery
@@ -2317,6 +2327,7 @@ Work:
 Exit gate:
 
 - selected package loads only by immutable version ID and digest
+- packaging a Phase 1 metadata-only source creates a new `skv_...`, leaves the original version byte-for-byte and field-for-field immutable, advances the public current pointer through a verifiable transition, and preserves old-version pin/rollback behavior
 - tampered package, metadata, manifest, or TUF role fails closed
 - rollback, freeze, mix-and-match, expired-metadata, path traversal, symlink escape, archive bomb, and oversized-output tests pass
 - local route and load work offline from cache
@@ -2344,6 +2355,7 @@ Work:
 Exit gate:
 
 - one first-party source travels from source adapter through crawl, validation, disposition, audit, artifact, and public index without manual row edits
+- changing that source to a new exact commit creates a new immutable version, produces fresh audit/advisory evidence, advances the public pointer only after all gates pass, invalidates and requeues affected grade/compatibility evidence, updates the coverage receipt, preserves the prior pin, and proves rollback without rewriting either version
 - replay and duplicate webhook delivery create no duplicate consequence
 - old versions remain immutable and aliases cannot resurrect identity
 - metadata-only records never expose bodies or artifacts
@@ -2500,6 +2512,7 @@ Exit gate:
 - ARC-012: Freeze local `sk_...`, hosted `pub_...`/`skl_...`/`skv_...`, aliases, transfers, and tombstones.
 - ARC-013: Freeze declared-source coverage and crawl-receipt contract.
 - ARC-014: Record free-to-users versus infrastructure-plan/cost gate; prohibit launch billing artifacts.
+- ARC-015: Freeze advisory revision, affected-subject, exposure-state, and lifecycle-separation contract.
 
 ### Package and runtime
 
@@ -3205,7 +3218,7 @@ Start with the smallest real online product path:
 5. Seed three first-party, clearly licensed versions:
    - two overlapping alternatives
    - one complementary or guardrail skill
-   - exact commit/path and entrypoint-content digest, with raw-snapshot and normalized-artifact receipts explicitly pending
+   - exact commit/path and entrypoint-content digest, with raw-snapshot and normalized-artifact fields permanently null on these metadata-only identities; later packaging mints new admitted versions and receipts
    - explicit license state plus truthful `unverified`, `ungraded`, `not-run`, and `not-tested` evidence states
 6. Implement a server-only Supabase catalog repository and bounded public list/detail APIs.
 7. Render server-side `/skills` search and `/skills/[publisher]/[slug]` from the same contracts and real local database.
@@ -3276,6 +3289,28 @@ Stop and request owner direction if:
 - a security control requires executing untrusted code
 - launch scope expands into billing, enterprise, or publisher payments
 
+## Phase 0 Contract and Architecture Receipt — 2026-07-11
+
+Status: accepted as the controlling contract baseline for the first hosted slice. Later phases must version these artifacts rather than silently widening Phase 1 truth.
+
+Materialized deliverables:
+
+- `docs/specs/hosted-identity-v1.md`
+- `docs/specs/package-format-v1.md`
+- `docs/specs/registry-tuf-profile-v1.md`
+- `docs/specs/route-plan-v1.md`
+- `docs/specs/grade-receipt-v1.md`
+- `docs/specs/evidence-states-v1.md`
+- `docs/specs/host-profile-v1.md`
+- `docs/specs/source-coverage-receipt-v1.md`
+- `docs/specs/advisory-v1.md`
+- `docs/architecture/hosted-registry.md`
+- `docs/security/hosted-threat-model.md`
+- `docs/decisions/2026-07-11-hosted-architecture.md`
+- `docs/decisions/2026-07-11-hosted-legal-boundary.md`
+
+The checked-in hosted JSON Schemas, generated validators, Supabase migration/RLS matrix, research dossier, and these documents now jointly own Phase 0 truth. Package, TUF, route-plan, grade-receipt, compatibility-worker, publisher/operator, and remote-deployment behavior remains specified but unimplemented until its named phase exits.
+
 ## Phase 1 Local Implementation Receipt — 2026-07-11
 
 Status: implemented and independently accepted with documented risks against real local Supabase data. Merge readiness remains gated on completing seed-anchor PR #5 and rebinding the catalog to its permanent squash commit. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
@@ -3284,10 +3319,10 @@ Implemented:
 
 - distinct hosted skill, list, grade/evidence, and API response contracts with generated root/web consumers
 - three checked-in first-party MIT skills provisionally pinned to final reviewed seed-branch head `6e80296e4680c9f469a30e85af39549726573e3d`, including the recomputed supply-chain entrypoint digest after review hardening; before the implementation PR, this pin must be rebound to the permanent squash commit produced by seed-anchor PR #5
-- explicit Supabase `api` and non-exposed `private` schemas, deterministic seed, immutable public/source coordinates, composite publisher/repository ownership, grants, forced RLS, security-invoker/barrier views, full-text search, indexes, and generated database types
-- truthful Phase 1 trust limits: publisher/provenance remain `unverified`, audit `not-run`, compatibility `not-tested`, grade `ungraded`, package digests pending, and positive evidence promotions database-blocked until receipt models exist
+- explicit Supabase `api` and non-exposed `private` schemas, deterministic deployable first-party seed separated from non-discoverable test-only fixtures, immutable public/source coordinates, composite publisher/repository ownership, grants, forced RLS, security-invoker/barrier views, full-text search, indexes, and generated database types
+- truthful Phase 1 trust limits: publisher/provenance remain `unverified`, audit `not-run`, compatibility `not-tested`, grade `ungraded`, package digest fields remain permanently null for these metadata-only version identities, and positive evidence promotions are database-blocked until receipt models exist; Phase 2 must mint new package-version identities rather than completing these rows in place
 - anonymous no-store catalog repository, bounded cursor search, `/api/v1/skills` list/detail, generic hidden/nonexistent `404` parity, and explicit missing-config `503`
-- server-rendered `/skills`, skill detail, GitHub OAuth integration points, root Proxy session refresh, callback/sign-out, free `/account`, save/unsave, and saved-skill projection
+- server-rendered `/skills`, skill detail, GitHub OAuth integration points, root Proxy session refresh, same-origin callback/sign-out, free `/account`, save/unsave, and 50-row keyset-paged saved-skill projection with invalid/deep-page recovery
 - landing navigation, Node 22+ web boundary, pinned Supabase JS/SSR dependencies, local operations docs, and hosted database/API CI lane
 
 Local evidence recorded so far:
@@ -3295,14 +3330,14 @@ Local evidence recorded so far:
 - contract and seed-integrity suite: 31/31 tests passing
 - `supabase db reset --local`: passing
 - `supabase db lint --local --level warning`: no schema errors
-- pgTAP grants/RLS/identity/lifecycle/trust tests: 93/93 passing
+- pgTAP grants/RLS/identity/lifecycle/trust tests: 96/96 passing under full Supabase test discovery
 - direct PostgREST: three published seeds and private schema HTTP `406`
 - hosted API smoke: list, stable cursor, search, malformed input, hidden/nonexistent parity, truthful detail state, and secret canary passing
 - missing configuration: API `503`; UI explicit unavailable/no-fixture-fallback state
-- checked-in authenticated browser smoke: account route, save, saved projection, cross-user database isolation, unsave, mobile accessible navigation name, 390px containment, and test-user cleanup passing; the local service-role key is confined to that test process and is not inherited by Next.js
+- checked-in authenticated production-server browser smoke: account route, save, saved projection, unsave, 52-row same-timestamp keyset pagination without gaps or duplicates, revocation filtering between pages, forged-session rejection, logout/cookie clearing, signed-out redirect, private/no-store cache policy, mobile accessible navigation name, 390px containment, and test-user/fixture cleanup passing; the local service-role key is confined to that test process and is not inherited by Next.js
 - desktop 1440x1000 and mobile 390x844 rendered QA: search interaction, detail evidence, sign-in boundary, no overflow, no framework overlay, and no console error/warning after remediation
 - in-app Browser runtime was unavailable despite the installed plugin bundle, so the rendered pass used the repository-pinned Playwright runtime; live GitHub OAuth remains unverified until the remote provider exists
-- independent engineering acceptance: accepted with risks after remediation of fabricated-grade authority, historical relationship contamination, search-copy mismatch, PostgREST pagination truncation, mobile accessible naming, account outage behavior, privacy under-disclosure, and CI secret-scope findings
+- independent engineering acceptance: accepted with risks after remediation of fabricated-grade authority, historical relationship contamination, search-copy mismatch, PostgREST and saved-list pagination truncation, repository credential-bearing URL admission, auth outage/session classification, same-origin callback normalization, production HTTPS configuration, deployable/test seed separation, mobile accessible naming, account outage behavior, privacy under-disclosure, and CI secret-scope findings
 - CodeRabbit seed review: three untrusted-content and inert-review boundaries accepted, implemented, re-digested, and pushed to seed-anchor PR #5
 
 Still gated:

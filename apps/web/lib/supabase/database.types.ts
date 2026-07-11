@@ -207,7 +207,6 @@ export type Database = {
           slug: string | null
           summary: string | null
           updated_at: string | null
-          user_id: string | null
           version: string | null
           version_id: string | null
         }

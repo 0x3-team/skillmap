@@ -97,7 +97,7 @@ jobs:
       - run: supabase start
       - run: supabase db reset --local
       - run: supabase db lint --local --level warning
-      - run: supabase test db supabase/tests/hosted_catalog_rls.test.sql --local
+      - run: supabase test db --local
       - run: npm ci
         working-directory: apps/web
       - name: Install pinned Chromium and host dependencies
@@ -115,11 +115,12 @@ jobs:
           export NEXT_PUBLIC_SITE_URL="http://127.0.0.1:3000"
           export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
           export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
-          npm --prefix apps/web run dev -- --port 3000 > /tmp/skillmap-web.log 2>&1 &
+          npm --prefix apps/web run build
+          npm --prefix apps/web run start -- --port 3000 > /tmp/skillmap-web.log 2>&1 &
           web_pid=$!
           trap 'kill "$web_pid" 2>/dev/null || true' EXIT
-          npm --prefix apps/web run test:hosted-api
-          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" npm --prefix apps/web run test:hosted-auth
+          SKILLMAP_TEST_DB_URL="$DB_URL" npm --prefix apps/web run test:hosted-api
+          SKILLMAP_TEST_DB_URL="$DB_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" npm --prefix apps/web run test:hosted-auth
       - if: always()
         run: supabase stop --no-backup
 
