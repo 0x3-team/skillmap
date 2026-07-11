@@ -190,7 +190,7 @@ export async function writeQaReport({ artifactDir, browserName, browserVersion, 
     runtimePackage,
     modes: [...modes].sort(),
     status,
-    performance: performanceEvidence(metrics, budgets),
+    performance: performanceEvidence(metrics, budgets, modes),
     metrics,
     assets,
     visuals,
@@ -200,31 +200,47 @@ export async function writeQaReport({ artifactDir, browserName, browserVersion, 
   await writeFile(path.join(artifactDir, `qa-${browserName}.json`), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 }
 
-function performanceEvidence(metrics, budgets) {
+function performanceEvidence(metrics, budgets, modes) {
+  const performanceGateEnforced = modes instanceof Set ? modes.has("perf") : Array.isArray(modes) && modes.includes("perf");
   const coldMeasurement = finiteOrNull(metrics?.coldStartupMs);
   const warmMeasurement = finiteOrNull(metrics?.warmStartupMs);
+  const deepLinkMeasurement = finiteOrNull(metrics?.deepLinkMs);
+  const deepLinkMaximum = finiteOrNull(metrics?.deepLinkMaxMs);
+  const deepLinkSamples = Array.isArray(metrics?.deepLinkSamplesMs)
+    ? metrics.deepLinkSamplesMs.map(finiteOrNull).filter(value => value !== null)
+    : [];
   const coldGate = finiteOrNull(budgets?.coldStartupMs);
   const warmGate = finiteOrNull(budgets?.warmStartupMs);
+  const deepLinkGate = finiteOrNull(budgets?.deepLinkMs);
   return {
-    gateKind: "provisional-regression-gate",
+    gateKind: performanceGateEnforced ? "provisional-regression-gate" : "not-enforced",
     startup: {
       cold: {
         run: "first authenticated application load",
         measurementMs: coldMeasurement,
-        enforcedGateMs: coldGate,
-        gateStatus: gateStatus(coldMeasurement, coldGate)
+        enforcedGateMs: performanceGateEnforced ? coldGate : null,
+        gateStatus: performanceGateEnforced ? gateStatus(coldMeasurement, coldGate) : "not-enforced"
       },
       warm: {
         run: "authenticated reload with browser cache warm",
         measurementMs: warmMeasurement,
-        enforcedGateMs: warmGate,
-        gateStatus: gateStatus(warmMeasurement, warmGate),
+        enforcedGateMs: performanceGateEnforced ? warmGate : null,
+        gateStatus: performanceGateEnforced ? gateStatus(warmMeasurement, warmGate) : "not-enforced",
         optimizationTargetMs: WARM_STARTUP_OPTIMIZATION_TARGET_MS,
         optimizationTargetEnforced: false,
         optimizationTargetStatus: targetStatus(warmMeasurement, WARM_STARTUP_OPTIMIZATION_TARGET_MS)
       }
     },
-    enforcedBudgets: budgets ?? null
+    deepLink: {
+      run: "authenticated Activity reload through its data-ready state",
+      aggregation: performanceGateEnforced && deepLinkSamples.length === 3 ? "median-of-three" : deepLinkSamples.length === 1 ? "single-sample-not-enforced" : "not-measured",
+      samplesMs: deepLinkSamples,
+      measurementMs: deepLinkMeasurement,
+      maximumMs: deepLinkMaximum,
+      enforcedGateMs: performanceGateEnforced ? deepLinkGate : null,
+      gateStatus: performanceGateEnforced ? gateStatus(deepLinkMeasurement, deepLinkGate) : "not-enforced"
+    },
+    enforcedBudgets: performanceGateEnforced ? budgets ?? null : null
   };
 }
 

@@ -171,7 +171,7 @@ end-to-end timings in `qa-chromium.json`:
 | Route-transition feedback | 200 ms | — | `SKILLMAP_LOCAL_APP_TRANSITION_FEEDBACK_BUDGET_MS` |
 | Route-transition completion | 1000 ms | — | `SKILLMAP_LOCAL_APP_TRANSITION_COMPLETE_BUDGET_MS` |
 | 500-skill filter/render | 100 ms | — | `SKILLMAP_LOCAL_APP_FILTER_500_BUDGET_MS` |
-| Authenticated deep link | 4000 ms | — | `SKILLMAP_LOCAL_APP_DEEP_LINK_BUDGET_MS` |
+| Authenticated deep link | 4000 ms median of 3 | — | `SKILLMAP_LOCAL_APP_DEEP_LINK_BUDGET_MS` |
 | All packaged static files, raw | 393216 bytes | — | `SKILLMAP_LOCAL_APP_STATIC_RAW_BUDGET_BYTES` |
 | All packaged static files, gzip-9 | 102400 bytes | — | `SKILLMAP_LOCAL_APP_STATIC_GZIP_BUDGET_BYTES` |
 
@@ -222,6 +222,14 @@ The authenticated deep-link timing measures an ordinary authenticated Activity
 reload through its ready state. The deliberately injected revision-conflict
 retry is exercised immediately afterward as a separate resilience assertion;
 its forced failure latency is not mislabeled as normal deep-link performance.
+The ready state includes three sequential integrity stages: bootstrap, parallel
+workspace/dashboard reads, and parallel routes/jobs reads. A reload can collide
+with the outgoing page's five-second background poll: the browser aborts those
+requests, but their already-started server-side integrity reads may still add
+host-load variance. The performance lane therefore records three immediate
+reload samples, their maximum, and their median, and enforces the unchanged
+4000 ms gate against the median. One scheduling collision cannot pass or fail
+the gate by itself; a persistent slowdown still fails at least two samples.
 
 The 2500 ms warm gate reflects the current measured 500-skill local corpus and
 keeps regression headroom for shared CI. The final accepted 2026-07-10

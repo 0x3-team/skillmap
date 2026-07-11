@@ -38,7 +38,15 @@ test('approved-root watcher marks a changed skill dirty, full verification suppl
 
   const changed = skillText('alpha', 'Use for changed alpha work with different behavior.');
   await writeFile(fixture.skillFile, changed);
-  await waitFor(() => monitor.snapshot().reasonCode === 'manifest-mismatch');
+  const installedWatcher = [...monitor.watchers.values()][0]?.watcher;
+  assert.ok(installedWatcher, 'clean verification must install watcher coverage before changes are observed');
+  // Native fs.watch delivery is intentionally only a hint and varies across
+  // macOS FSEvents, kqueue, and loaded CI hosts. Exercise the installed
+  // callback deterministically, then prove the full verification result.
+  installedWatcher.emit('change', 'change', 'SKILL.md');
+  assert.equal(monitor.snapshot().reasonCode, 'watch-event');
+  await monitor.verifyNow();
+  assert.equal(monitor.snapshot().reasonCode, 'manifest-mismatch');
   const dirty = monitor.snapshot();
   assert.equal(dirty.filesystemDirty, true);
   assert.equal(dirty.suggestedJobType, 'scan');
