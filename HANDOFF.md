@@ -2,7 +2,7 @@
 
 Originally created: 2026-07-08
 Last reconciled: 2026-07-10
-Repo: https://github.com/Masih-0x3/skillmap
+Repo: https://github.com/0x3-team/skillmap
 Current branch: `main`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
 Current status: the product-application implementation is a dirty local worktree. It has not been committed, pushed, published, or deployed.
@@ -65,7 +65,7 @@ Completed surfaces:
 The following evidence belongs to the 2026-07-08 baseline. It is retained for history and must not be used as proof that the current worktree is release-ready:
 
 - Commit: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-- CI run: https://github.com/Masih-0x3/skillmap/actions/runs/28982829760
+- CI run: https://github.com/0x3-team/skillmap/actions/runs/28982829760
 - CI result: success
 - `npm ci`: passed with 0 vulnerabilities reported
 - `npm run typecheck`: passed

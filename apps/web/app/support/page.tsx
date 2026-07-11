@@ -39,7 +39,7 @@ export default function SupportPage() {
         <p>
           If the project issue tracker is available to you, submit the redacted reproduction there. This is an alpha feedback channel, not a production support commitment. {" "}
           <a
-            href="https://github.com/Masih-0x3/skillmap/issues"
+            href="https://github.com/0x3-team/skillmap/issues"
             className="font-semibold text-primary underline underline-offset-4"
             target="_blank"
             rel="noreferrer"

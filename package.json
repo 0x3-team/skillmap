@@ -77,10 +77,10 @@
   "author": "Masih Hedayati",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Masih-0x3/skillmap.git"
+    "url": "git+https://github.com/0x3-team/skillmap.git"
   },
   "bugs": {
-    "url": "https://github.com/Masih-0x3/skillmap/issues"
+    "url": "https://github.com/0x3-team/skillmap/issues"
   },
-  "homepage": "https://github.com/Masih-0x3/skillmap#readme"
+  "homepage": "https://github.com/0x3-team/skillmap#readme"
 }
