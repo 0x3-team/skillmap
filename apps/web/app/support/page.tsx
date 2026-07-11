@@ -8,7 +8,7 @@ export default function SupportPage() {
     <TrustPage
       eyebrow="Experimental alpha support"
       title="Start with bounded, redacted local evidence."
-      intro="SkillMap has no hosted account, production incident desk, or response-time SLA in this build. A useful report identifies the exact package and local state without sending private prompts, skill bodies, paths, credentials, or workspace artifacts."
+      intro="SkillMap has a locally validated free-account flow, but no deployed production incident desk or response-time SLA. A useful report identifies the exact package and local state without sending private prompts, skill bodies, paths, credentials, or workspace artifacts."
     >
       <TrustSection
         title="Capture the smallest safe diagnostic"

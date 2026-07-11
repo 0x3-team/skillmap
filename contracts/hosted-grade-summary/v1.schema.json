@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json",
+  "title": "SkillMap Hosted Grade Summary v1",
+  "description": "A truthful public grade state. Current and stale bands require a bound receipt; ungraded seed data cannot carry a band.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "state", "band", "confidence", "receipt", "invalidatedAt", "reasonCodes"],
+  "properties": {
+    "kind": { "const": "skillmap.hosted-grade-summary" },
+    "schemaVersion": { "const": 1 },
+    "state": { "enum": ["ungraded", "provisional", "current", "stale", "blocked", "revoked"] },
+    "band": {
+      "oneOf": [
+        { "enum": ["A", "B", "C", "D", "F"] },
+        { "type": "null" }
+      ]
+    },
+    "confidence": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "maximum": 1 },
+        { "type": "null" }
+      ]
+    },
+    "receipt": {
+      "oneOf": [
+        { "$ref": "#/$defs/ReceiptRef" },
+        { "type": "null" }
+      ]
+    },
+    "invalidatedAt": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "reasonCodes": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "state": { "const": "ungraded" },
+        "band": { "type": "null" },
+        "confidence": { "type": "null" },
+        "receipt": { "type": "null" },
+        "invalidatedAt": { "type": "null" }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "provisional" },
+        "band": { "type": "null" },
+        "confidence": { "type": "number" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "invalidatedAt": { "type": "null" },
+        "reasonCodes": { "type": "array", "minItems": 1 }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "current" },
+        "band": { "enum": ["A", "B", "C", "D", "F"] },
+        "confidence": { "type": "number" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "invalidatedAt": { "type": "null" },
+        "reasonCodes": { "type": "array", "maxItems": 0 }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "stale" },
+        "band": { "enum": ["A", "B", "C", "D", "F"] },
+        "confidence": { "type": "number" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "invalidatedAt": { "type": "string", "format": "date-time" },
+        "reasonCodes": { "type": "array", "minItems": 1 }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "blocked" },
+        "band": { "type": "null" },
+        "confidence": { "type": "null" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "invalidatedAt": { "type": "null" },
+        "reasonCodes": { "type": "array", "minItems": 1 }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "revoked" },
+        "band": { "type": "null" },
+        "confidence": { "type": "null" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "invalidatedAt": { "type": "string", "format": "date-time" },
+        "reasonCodes": { "type": "array", "minItems": 1 }
+      }
+    }
+  ],
+  "$defs": {
+    "ReceiptRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receiptId", "receiptDigest", "gradedAt", "rubricVersion", "hostProfileVersion"],
+      "properties": {
+        "receiptId": { "type": "string", "pattern": "^grd_[0-9a-f]{32}$" },
+        "receiptDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "gradedAt": { "type": "string", "format": "date-time" },
+        "rubricVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "hostProfileVersion": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    }
+  }
+}

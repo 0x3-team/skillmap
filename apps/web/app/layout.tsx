@@ -16,14 +16,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SkillMap | Local-First Skill Intelligence",
+  title: "SkillMap | Auditable Skill Library and Local Router",
   description:
-    "Route compact, policy-backed skill advice from local registries and redacted snapshots without flooding the agent prompt."
+    "Inspect hosted skill evidence, save useful skills, and route compact policy-backed advice without flooding the agent prompt."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
     </html>
   );

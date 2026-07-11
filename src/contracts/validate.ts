@@ -39,6 +39,9 @@ export const EVAL_RELEASE_SKILL_LIMIT = 10_000;
 export const EVAL_RELEASE_ROUTE_WORK_LIMIT = 72_000_000;
 const EVAL_SUITE_V3_SCHEMA_ID = 'https://skillmap.dev/contracts/eval-suite/v3.schema.json';
 const EVAL_RUN_V3_SCHEMA_ID = 'https://skillmap.dev/contracts/eval-run/v3.schema.json';
+const HOSTED_GRADE_SUMMARY_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json';
+const HOSTED_SKILL_LIST_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json';
+const HOSTED_API_RESPONSE_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-api-response/v1.schema.json';
 const PAYLOAD_EXCLUDED_KEYS = new Set(['payloadDigest', 'transportDigest', 'transportMetadata']);
 const FORBIDDEN_REDACTED_KEYS = new Set([
   'prompt',
@@ -517,6 +520,9 @@ function semanticIssues(schemaId: string, value: unknown, context?: SemanticVali
   if (schemaId.endsWith('/eval-run/v3.schema.json')) validateEvalRunV3(value, issues, context);
   if (schemaId.endsWith('/sync-envelope/v1.schema.json')) validateSync(value, issues);
   if (schemaId.endsWith('/api-envelope/v1.schema.json')) validateApiEnvelope(value, issues);
+  if (schemaId === HOSTED_GRADE_SUMMARY_V1_SCHEMA_ID) validateHostedGradeSummary(value, issues);
+  if (schemaId === HOSTED_SKILL_LIST_V1_SCHEMA_ID) validateHostedSkillList(value, issues);
+  if (schemaId === HOSTED_API_RESPONSE_V1_SCHEMA_ID) validateHostedApiResponse(value, issues);
 
   if (schemaId.endsWith('/route-result/v2.schema.json')
     || (schemaId.endsWith('/event/v1.schema.json') && value.kind === 'skillmap.route-event')
@@ -623,6 +629,60 @@ function validateJob(value: Record<string, unknown>, issues: ContractIssue[]): v
 
 function validateFeedback(value: Record<string, unknown>, issues: ContractIssue[]): void {
   disjointArrays(value.expectedSkillIds, value.unsafeSkillIds, '/', issues);
+}
+
+function validateHostedGradeSummary(value: Record<string, unknown>, issues: ContractIssue[], basePath = ''): void {
+  const receipt = recordValue(value.receipt);
+  const invalidatedAt = value.invalidatedAt;
+  if (receipt && typeof invalidatedAt === 'string') {
+    timestampOrder(receipt.gradedAt, invalidatedAt, `${basePath}/invalidatedAt`, issues);
+  }
+}
+
+function validateHostedSkillList(value: Record<string, unknown>, issues: ContractIssue[], basePath = ''): void {
+  const query = recordValue(value.query);
+  const pagination = recordValue(value.pagination);
+  const rawItems = value.items;
+  const items = arrayRecords(rawItems);
+  if (Array.isArray(rawItems) && rawItems.length === items.length) {
+    uniqueRecordField(rawItems, 'skillId', `${basePath}/items`, issues);
+    if (query && typeof query.limit === 'number' && rawItems.length > query.limit) {
+      issue(issues, `${basePath}/items`, 'pageLimit', 'must not contain more items than query.limit');
+    }
+    for (let index = 1; index < items.length; index += 1) {
+      const previous = items[index - 1];
+      const current = items[index];
+      const previousVersion = recordValue(previous.currentVersion);
+      const currentVersion = recordValue(current.currentVersion);
+      const previousPublishedAt = previousVersion?.publishedAt;
+      const currentPublishedAt = currentVersion?.publishedAt;
+      if (typeof previousPublishedAt !== 'string' || typeof currentPublishedAt !== 'string') continue;
+      if (currentPublishedAt > previousPublishedAt
+        || (currentPublishedAt === previousPublishedAt
+          && typeof previous.skillId === 'string'
+          && typeof current.skillId === 'string'
+          && current.skillId.localeCompare(previous.skillId) < 0)) {
+        issue(issues, `${basePath}/items/${index}`, 'stableSort', 'must follow published_at descending then skill_id ascending');
+      }
+    }
+  }
+  if (pagination) {
+    const cursorPresent = typeof pagination.nextCursor === 'string';
+    if (pagination.hasMore !== cursorPresent) {
+      issue(issues, `${basePath}/pagination`, 'cursorState', 'hasMore must be true exactly when nextCursor is present');
+    }
+  }
+}
+
+function validateHostedApiResponse(value: Record<string, unknown>, issues: ContractIssue[]): void {
+  if (value.ok !== true) return;
+  const data = recordValue(value.data);
+  if (!data) return;
+  if (data.kind === 'skillmap.hosted-skill-list') validateHostedSkillList(data, issues, '/data');
+  if (data.kind === 'skillmap.hosted-skill') {
+    const grade = recordValue(recordValue(data.currentVersion)?.grade);
+    if (grade) validateHostedGradeSummary(grade, issues, '/data/currentVersion/grade');
+  }
 }
 
 function validateEvalSuiteV2(value: Record<string, unknown>, issues: ContractIssue[]): void {

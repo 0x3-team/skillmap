@@ -12,7 +12,7 @@
     "build": "node scripts/check-product-version.mjs && tsc -p tsconfig.json && node scripts/normalize-build-modes.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node scripts/run-root-tests.mjs",
-    "test:contracts": "npm run build && node scripts/generate-contracts.mjs --check && node --test test/phase1-contracts.mjs",
+    "test:contracts": "npm run build && node scripts/generate-contracts.mjs --check && node --test test/phase1-contracts.mjs test/hosted-contracts.mjs test/hosted-seed-integrity.mjs",
     "test:integration": "npm run build && node --test test/core.mjs test/slice-b-dashboard.mjs test/phase1-routing-readiness.mjs test/phase1-route-events.mjs test/phase2-backend-onboarding.mjs test/phase2-job-safety.mjs test/phase2-workspace-switch.mjs test/phase3-policy-sources.mjs",
     "test:privacy": "npm run build && node --test test/slice-b-share.mjs test/phase1-contracts.mjs test/phase1-route-events.mjs",
     "test:migrations": "npm run build && node --test test/slice-b-policy.mjs test/slice-b-identity.mjs test/phase1-workspace-state.mjs",

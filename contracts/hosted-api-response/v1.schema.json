@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json",
+  "title": "SkillMap Hosted Public API Response v1",
+  "description": "The hosted public API envelope. It is intentionally separate from the local workspace revision envelope.",
+  "oneOf": [
+    { "$ref": "#/$defs/Success" },
+    { "$ref": "#/$defs/Error" }
+  ],
+  "$defs": {
+    "Success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "ok", "requestId", "data"],
+      "properties": {
+        "kind": { "const": "skillmap.hosted-api-response" },
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": true },
+        "requestId": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+        "data": {
+          "oneOf": [
+            { "$ref": "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json" },
+            { "$ref": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json" }
+          ]
+        }
+      }
+    },
+    "Error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "ok", "requestId", "error"],
+      "properties": {
+        "kind": { "const": "skillmap.hosted-api-response" },
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": false },
+        "requestId": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "message": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

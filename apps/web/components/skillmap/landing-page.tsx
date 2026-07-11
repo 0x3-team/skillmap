@@ -7,7 +7,6 @@ import {
   BookOpen,
   Braces,
   CheckCircle2,
-  Command,
   DatabaseZap,
   Gauge,
   GitBranch,
@@ -79,6 +78,15 @@ export function LandingPage() {
   };
   const commands: CommandItem[] = [
     {
+      id: "skill-library",
+      label: "Browse online skill library",
+      group: "Navigation",
+      icon: BookOpen,
+      onSelect: () => {
+        window.location.href = "/skills";
+      }
+    },
+    {
       id: "sample-route",
       label: "Run recorded route demo",
       group: "Router Lab",
@@ -114,32 +122,35 @@ export function LandingPage() {
         <div className="mx-auto grid min-h-[calc(100dvh-4rem)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8">
           <div className="max-w-2xl">
             <AnimatedBadge status="info" size="md" className="mb-5">
-              Local-first skill intelligence
+              Hosted library + local skill intelligence
             </AnimatedBadge>
             <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] tracking-normal text-foreground sm:text-5xl lg:text-6xl">
-              The skill layer agents should not hold in context.
+              Inspect the skill layer before agents load it.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
-              Index, rank, and govern local skill libraries while agents receive only compact, evidence-backed route hints.
+              Browse version-bound skill evidence online, save useful skills for free, and keep local routing compact and policy-backed.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                icon={<Gauge className="h-4 w-4" />}
+                icon={<BookOpen className="h-4 w-4" />}
                 onClick={() => {
-                  window.location.href = "/dashboard";
+                  window.location.href = "/skills";
                 }}
               >
-                Open dashboard
+                Browse skill library
               </Button>
               <Button
                 size="lg"
                 variant="secondary"
-                icon={<Command className="h-4 w-4" />}
+                icon={<Sparkles className="h-4 w-4" />}
                 onClick={runRecordedDemo}
               >
                 Run recorded demo
               </Button>
+              <Link href="/dashboard" className="inline-flex h-12 items-center justify-center px-3 text-sm font-semibold text-muted-foreground hover:text-foreground">
+                Open local dashboard <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </div>
           </div>
 
@@ -159,8 +170,8 @@ export function LandingPage() {
       <section className="border-b border-border" id="product">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <SectionIntro
-            title="A working local product with explicit evidence boundaries."
-            text="SkillMap reduces context load, makes curation auditable, and keeps every route tied to the snapshot that produced it."
+            title="One evidence model, online and local."
+            text="The hosted library makes source, license, audit, compatibility, grade, and relationship state inspectable while the local router stays tied to the snapshot that produced each recommendation."
           />
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             {serviceCells.map((cell, index) => (
@@ -235,16 +246,16 @@ export function LandingPage() {
       <section className="px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 rounded-lg border border-border bg-foreground p-6 text-background sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold">Make skills a governed local layer.</h2>
+            <h2 className="text-2xl font-semibold">Start with the evidence, then load the skill.</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-background/72">
-              This hosted page is a recorded demo or redacted snapshot viewer. Live local routing is served separately by the foreground <code>skillmap dashboard</code> command; accounts, team sync, billing, and hosted command execution are not features of this build.
+              The online catalog and free saved-skill accounts are now separate from the fixture-backed local dashboard. Automated package loading, ingestion, auditing, grading, updates, and advanced routing remain later plan phases and are not claimed here.
             </p>
           </div>
           <Link
-            href="/dashboard"
+            href="/skills"
             className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-background px-5 text-sm font-semibold text-foreground transition hover:bg-background/90"
           >
-            Open dashboard
+            Browse library
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </div>
@@ -252,6 +263,7 @@ export function LandingPage() {
       <footer className="border-t border-border px-4 py-8 sm:px-6 lg:px-8">
         <nav className="mx-auto flex max-w-7xl flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground" aria-label="Product information">
           <Link href="/getting-started" className="hover:text-foreground">Getting started</Link>
+          <Link href="/skills" className="hover:text-foreground">Skill library</Link>
           <Link href="/security" className="hover:text-foreground">Security</Link>
           <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
           <Link href="/release-status" className="hover:text-foreground">Release status</Link>
@@ -273,6 +285,9 @@ function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
           SkillMap
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
+          <Link href="/skills" className="hover:text-foreground">
+            Library
+          </Link>
           <a href="#product" className="hover:text-foreground">
             Product
           </a>
@@ -295,10 +310,10 @@ function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
           <Button
             className="hidden sm:inline-flex"
             onClick={() => {
-              window.location.href = "/dashboard";
+              window.location.href = "/sign-in";
             }}
           >
-            Dashboard
+            Sign in
           </Button>
         </div>
       </div>

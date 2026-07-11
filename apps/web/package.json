@@ -14,10 +14,14 @@
     "test:integrity": "node scripts/test-snapshot-integrity.mjs",
     "test:browser": "node scripts/run-browser-smoke.mjs",
     "test:browser:direct": "node scripts/browser-smoke.mjs",
+    "test:hosted-api": "node scripts/hosted-api-smoke.mjs",
+    "test:hosted-auth": "node scripts/hosted-auth-browser-smoke.mjs",
     "test:performance": "node scripts/web-performance.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.0",
+    "@supabase/supabase-js": "2.110.2",
     "@tanstack/react-virtual": "^3.13.12",
     "ajv": "8.20.0",
     "clsx": "^2.1.1",
@@ -47,6 +51,6 @@
     "postcss": "^8.5.10"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }
