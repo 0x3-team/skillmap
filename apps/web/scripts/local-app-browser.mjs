@@ -1924,6 +1924,10 @@ async function assertTracePermalink(page, { workspaceId, routeId, forbidden, vis
   const detailUrlPattern = `**${detailPathname}`;
   let detailAttempts = 0;
   const detailHandler = async route => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
     detailAttempts += 1;
     if (detailAttempts === 1) {
       await route.fulfill({
@@ -1974,7 +1978,10 @@ async function assertTracePermalink(page, { workspaceId, routeId, forbidden, vis
     page.off("response", captureDetailResponse);
     if (visualGate) await page.unroute(detailUrlPattern, detailHandler);
   }
-  if (visualGate) assert.equal(detailAttempts, 2, `route detail used ${detailAttempts} attempts instead of one bounded revision retry`);
+  if (visualGate) {
+    assert.equal(detailAttempts, 2, `route detail used ${detailAttempts} GET attempts instead of one bounded revision retry`);
+    assert.deepEqual(detailResponses.map(response => response.status()), [409, 200], "route detail retry did not capture one GET conflict followed by one GET success");
+  }
   assert.equal(detailResponse.status(), 200, `route detail failed: ${await detailResponse.text()}`);
   const detailRaw = await detailResponse.text();
   for (const value of forbidden) assert.equal(detailRaw.includes(value), false, 'route detail response exposed private prompt or workspace text');
