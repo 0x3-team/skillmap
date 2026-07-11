@@ -1,9 +1,9 @@
 # SkillMap Handoff
 
 Originally created: 2026-07-08
-Last reconciled: 2026-07-10
+Last reconciled: 2026-07-11
 Repo: https://github.com/0x3-team/skillmap
-Current branch: `main`
+Current branch: `codex/hosted-library-foundation`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
 Current status: the product-application implementation is a dirty local worktree. It has not been committed, pushed, published, or deployed.
 
@@ -17,7 +17,7 @@ Do not duplicate or reinterpret the whole planning history. Use this handoff as 
 
 SkillMap is a local-first skill registry, SkillGraph, router, source tracker, and quality system for coding agents.
 
-Current surface boundary: `apps/web` is the separate public/read-only Next.js surface and renders recorded fixtures or an explicitly configured redacted snapshot. The package also contains `assets/local-app/v1`, a modular application served only by the foreground `skillmap dashboard` loopback connector. That local application performs live routes and narrowly allowlisted revision-bound operations; it is not a hosted session and never grants arbitrary command execution or browser writes to skill roots. Accounts, team sync, billing, hosted registry storage, and remote mutation remain unimplemented and must not be presented as current behavior.
+Current surface boundary: `apps/web` now contains a local-Supabase-validated hosted catalog and free-account saved-skill spine alongside the separate recorded-fixture/redacted-snapshot dashboard. The package also contains `assets/local-app/v1`, a modular application served only by the foreground `skillmap dashboard` loopback connector. The hosted slice has not been provisioned or deployed remotely, and live GitHub OAuth has not been verified. Team sync, billing, automated ingestion/auditing/grading, package loading, advanced hosted routing, and remote operator mutation remain unimplemented and must not be presented as current behavior.
 
 The strongest intended architecture is:
 
@@ -59,6 +59,7 @@ Completed surfaces:
 - Live local UI routes for onboarding, workspaces, overview, Route Lab, skills/variants, policy, eval, sources, trust, integrations, activity, and settings.
 - Bounded redacted route/feedback/job ledgers, restart-safe allowlisted jobs, and explicit cancellation before publication.
 - Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. These are local implementations until the final current-worktree run and hosted CI both pass.
+- Separate hosted contracts plus local Supabase `api`/`private` schemas, deterministic first-party seeds, RLS/grant tests, public `/skills` and `/api/v1/skills` routes, Supabase SSR auth integration points, and free-account saved skills. These are locally implemented, not deployed.
 
 ## Historical validation evidence (not current release proof)
 
@@ -141,7 +142,7 @@ Not yet done:
 - Five external onboarding pilots
 - Recorded manual screen-reader, keyboard, zoom/reflow, contrast, forced-colors, and operating-system review for the eventual beta candidate
 - Hosted CI validation of the eventual committed revision
-- Hosted identity, tenancy, connector pairing, team sync, billing, deployment, or production operations
+- Remote Supabase/Vercel provisioning, live GitHub OAuth, hosted tenancy, connector pairing, team sync, billing, deployment, or production operations
 
 Before public release, a fresh agent should verify current state again because package registries, CI, and repo state can drift.
 

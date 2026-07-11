@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json",
+  "title": "SkillMap Hosted Public Skill List v1",
+  "description": "A bounded, cursor-ready public catalog result using the same hosted skill summary contract as detail pages.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "query", "items", "pagination", "generatedAt"],
+  "properties": {
+    "kind": { "const": "skillmap.hosted-skill-list" },
+    "schemaVersion": { "const": 1 },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["q", "limit", "cursor"],
+      "properties": {
+        "q": {
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 200 },
+            { "type": "null" }
+          ]
+        },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "cursor": {
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9_-]+$" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "allOf": [
+          { "$ref": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json#/$defs/HostedSkillSummary" }
+        ],
+        "unevaluatedProperties": false
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nextCursor", "hasMore", "stableSortKey"],
+      "properties": {
+        "nextCursor": {
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9_-]+$" },
+            { "type": "null" }
+          ]
+        },
+        "hasMore": { "type": "boolean" },
+        "stableSortKey": { "const": "published_at_desc_skill_id_asc" }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" }
+  }
+}

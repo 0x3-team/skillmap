@@ -26,6 +26,8 @@ jobs:
         node: [20, 22]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -57,6 +59,8 @@ jobs:
         lane: [contracts, integration, privacy, migrations, failure, connector]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -76,13 +80,56 @@ jobs:
           path: artifacts/${{ matrix.lane }}.log
           if-no-files-found: error
 
+  hosted-database:
+    name: Hosted catalog / migrations and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+      - run: supabase start
+      - run: supabase db reset --local
+      - run: supabase db lint --local --level warning
+      - run: supabase test db supabase/tests/hosted_catalog_rls.test.sql --local
+      - run: npm ci
+        working-directory: apps/web
+      - name: Install pinned Chromium and host dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Verify generated database types are current
+        shell: bash
+        run: |
+          supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > /tmp/skillmap-database.types.ts
+          cmp /tmp/skillmap-database.types.ts apps/web/lib/supabase/database.types.ts
+      - name: Run the hosted API smoke against real local rows
+        shell: bash
+        run: |
+          eval "$(supabase status -o env)"
+          export NEXT_PUBLIC_SITE_URL="http://127.0.0.1:3000"
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          npm --prefix apps/web run dev -- --port 3000 > /tmp/skillmap-web.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$web_pid" 2>/dev/null || true' EXIT
+          npm --prefix apps/web run test:hosted-api
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" npm --prefix apps/web run test:hosted-auth
+      - if: always()
+        run: supabase stop --no-backup
+
   web:
     name: Web / Node ${{ matrix.node }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     defaults:
       run:
         working-directory: apps/web
@@ -107,7 +154,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci

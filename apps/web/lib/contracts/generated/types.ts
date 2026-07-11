@@ -11,6 +11,145 @@ export type EventId = Uuid;
 export type FeedbackId = Uuid;
 export type RequestId = Uuid;
 export type IsoTimestamp = string;
+export type HostedPublisherId = `pub_${string}`;
+export type HostedSkillId = `skl_${string}`;
+export type HostedSkillVersionId = `skv_${string}`;
+export type HostedGradeReceiptId = `grd_${string}`;
+
+export type HostedGradeState = "ungraded" | "provisional" | "current" | "stale" | "blocked" | "revoked";
+export type HostedGradeBand = "A" | "B" | "C" | "D" | "F";
+export type HostedLifecycleState = "published" | "deprecated";
+export type HostedLicenseState = "confirmed" | "noassertion" | "restricted";
+export type HostedRedistributionState = "mirrored" | "metadata-only" | "blocked";
+export type HostedCompatibilityState = "not-tested" | "declared" | "compatible" | "stale" | "incompatible";
+
+export interface HostedGradeReceiptRefV1 {
+  receiptId: HostedGradeReceiptId;
+  receiptDigest: Sha256Digest;
+  gradedAt: IsoTimestamp;
+  rubricVersion: string;
+  hostProfileVersion: string;
+}
+
+export interface HostedGradeSummaryV1 {
+  kind: "skillmap.hosted-grade-summary";
+  schemaVersion: 1;
+  state: HostedGradeState;
+  band: HostedGradeBand | null;
+  confidence: number | null;
+  receipt: HostedGradeReceiptRefV1 | null;
+  invalidatedAt: IsoTimestamp | null;
+  reasonCodes: string[];
+}
+
+export interface HostedPublisherSummaryV1 {
+  publisherId: HostedPublisherId;
+  handle: string;
+  displayName: string;
+  verificationState: "unverified" | "identity-verified" | "disputed";
+}
+
+export interface HostedCurrentVersionSummaryV1 {
+  versionId: HostedSkillVersionId;
+  version: string;
+  entrypointContentDigest: Sha256Digest;
+  licenseState: HostedLicenseState;
+  redistribution: HostedRedistributionState;
+  compatibilityState: HostedCompatibilityState;
+  grade: HostedGradeSummaryV1;
+  publishedAt: IsoTimestamp;
+}
+
+export interface HostedSkillSummaryV1 {
+  skillId: HostedSkillId;
+  publisher: HostedPublisherSummaryV1;
+  slug: string;
+  displayName: string;
+  summary: string;
+  lifecycleState: HostedLifecycleState;
+  currentVersion: HostedCurrentVersionSummaryV1;
+  capabilities: string[];
+  updatedAt: IsoTimestamp;
+}
+
+export interface HostedSkillSourceV1 {
+  repositoryUrl: string;
+  commit: string;
+  path: string;
+  entrypointContentDigest: Sha256Digest;
+  rawSnapshotDigest: Sha256Digest | null;
+}
+
+export interface HostedSkillArtifactV1 {
+  availability: "metadata-only" | "mirrored";
+  normalizedDigest: Sha256Digest | null;
+  manifestDigest: Sha256Digest | null;
+}
+
+export interface HostedSkillLicenseV1 {
+  state: HostedLicenseState;
+  spdxExpression: string | null;
+  redistribution: HostedRedistributionState;
+  files: string[];
+}
+
+export interface HostedSkillCompatibilityV1 {
+  host: "codex";
+  state: HostedCompatibilityState;
+  profileVersion: string | null;
+  evidenceDigest: Sha256Digest | null;
+}
+
+export interface HostedSkillPermissionsV1 {
+  scripts: boolean;
+  network: string[];
+  tools: string[];
+}
+
+export interface HostedSkillEvidenceV1 {
+  provenance: "unverified" | "source-pinned" | "attested" | "stale" | "blocked";
+  audit: "not-run" | "passed" | "warnings" | "stale" | "blocked";
+  compatibility: HostedCompatibilityState;
+}
+
+export interface HostedSkillRelationshipV1 {
+  type: "alternative" | "complement" | "prerequisite" | "conflict" | "duplicate" | "supersedes";
+  targetSkillId: HostedSkillId;
+  evidenceState: "declared" | "reviewed" | "evaluated";
+  reason: string;
+}
+
+export interface HostedSkillV1 extends HostedSkillSummaryV1 {
+  kind: "skillmap.hosted-skill";
+  schemaVersion: 1;
+  description: string;
+  source: HostedSkillSourceV1;
+  artifact: HostedSkillArtifactV1;
+  license: HostedSkillLicenseV1;
+  compatibility: HostedSkillCompatibilityV1;
+  permissions: HostedSkillPermissionsV1;
+  evidence: HostedSkillEvidenceV1;
+  relationships: HostedSkillRelationshipV1[];
+}
+
+export interface HostedSkillListV1 {
+  kind: "skillmap.hosted-skill-list";
+  schemaVersion: 1;
+  query: { q: string | null; limit: number; cursor: string | null };
+  items: HostedSkillSummaryV1[];
+  pagination: { nextCursor: string | null; hasMore: boolean; stableSortKey: "published_at_desc_skill_id_asc" };
+  generatedAt: IsoTimestamp;
+}
+
+export interface HostedApiErrorV1 {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+export type HostedApiResponseV1 =
+  | { kind: "skillmap.hosted-api-response"; schemaVersion: 1; ok: true; requestId: RequestId; data: HostedSkillListV1 | HostedSkillV1 }
+  | { kind: "skillmap.hosted-api-response"; schemaVersion: 1; ok: false; requestId: RequestId; error: HostedApiErrorV1 };
 
 export type CompatibilityState = "compatible" | "upgrade-required" | "client-too-new" | "degraded";
 export type RedactionClassification = "shareable-redacted" | "metadata-only" | "local-sensitive";
@@ -751,6 +890,10 @@ export interface ContractBySchemaId {
   "https://skillmap.dev/contracts/eval-run/v3.schema.json": EvalRunV3;
   "https://skillmap.dev/contracts/sync-envelope/v1.schema.json": SyncEnvelopeV1;
   "https://skillmap.dev/contracts/api-envelope/v1.schema.json": ApiEnvelopeV1;
+  "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json": HostedGradeSummaryV1;
+  "https://skillmap.dev/contracts/hosted-skill/v1.schema.json": HostedSkillV1;
+  "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json": HostedSkillListV1;
+  "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json": HostedApiResponseV1;
 }
 
 export type KnownContractSchemaId = keyof ContractBySchemaId;
