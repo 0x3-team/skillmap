@@ -3283,7 +3283,7 @@ Status: implemented and independently accepted with documented risks against rea
 Implemented:
 
 - distinct hosted skill, list, grade/evidence, and API response contracts with generated root/web consumers
-- three checked-in first-party MIT skills pinned locally to reviewed seed-branch commit `5bcee4b7d0e8c8c2723e34f79a0ebe67c039e418` with recomputed entrypoint-content digests; before the implementation PR, this pin must be rebound to the permanent squash commit produced by seed-anchor PR #5
+- three checked-in first-party MIT skills provisionally pinned to final reviewed seed-branch head `6e80296e4680c9f469a30e85af39549726573e3d`, including the recomputed supply-chain entrypoint digest after review hardening; before the implementation PR, this pin must be rebound to the permanent squash commit produced by seed-anchor PR #5
 - explicit Supabase `api` and non-exposed `private` schemas, deterministic seed, immutable public/source coordinates, composite publisher/repository ownership, grants, forced RLS, security-invoker/barrier views, full-text search, indexes, and generated database types
 - truthful Phase 1 trust limits: publisher/provenance remain `unverified`, audit `not-run`, compatibility `not-tested`, grade `ungraded`, package digests pending, and positive evidence promotions database-blocked until receipt models exist
 - anonymous no-store catalog repository, bounded cursor search, `/api/v1/skills` list/detail, generic hidden/nonexistent `404` parity, and explicit missing-config `503`

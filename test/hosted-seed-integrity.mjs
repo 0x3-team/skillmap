@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
-const COMMIT = '5bcee4b7d0e8c8c2723e34f79a0ebe67c039e418';
+const COMMIT = '6e80296e4680c9f469a30e85af39549726573e3d';
 const ENTRIES = [
   {
     path: 'catalog/first-party/skill-audit/SKILL.md',
@@ -16,7 +16,7 @@ const ENTRIES = [
   },
   {
     path: 'catalog/first-party/skill-supply-chain-review/SKILL.md',
-    digest: '864b0ed1c29d04a67e3b8aeb9fffd5fa13e534474acfcf3612e6fe14e686a170'
+    digest: '295ad7b51050d476e91e4f84bbe6ec184d66452faa6956bd3f54ee1499c683ab'
   }
 ];
 
