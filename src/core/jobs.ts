@@ -22,7 +22,9 @@ export const JOB_LEDGER_MAX_ENTRIES = 128;
 const JOB_SIDE_DIRECTORY_MAX_ENTRIES = JOB_LEDGER_MAX_ENTRIES + 32;
 const JOB_LEDGER_LOCK_LEASE_MS = 30_000;
 const JOB_LEDGER_LOCK_RETRIES = 500;
+const JOB_LEDGER_QUEUE_MAX_PENDING = JOB_SIDE_DIRECTORY_MAX_ENTRIES;
 const MAX_JOB_FILE_BYTES = 128 * 1024;
+const jobLedgerQueues = new Map<string, { tail: Promise<void>; pending: number }>();
 
 export interface StoredJob {
   job: JobV1;
@@ -571,8 +573,27 @@ async function pruneJobLedgerEntry(cwd: string, jobId: string, anchorFileName: s
 }
 
 async function withJobLedgerLock<T>(cwd: string, operation: () => Promise<T>): Promise<T> {
-  const lock = await acquireJobLedgerLock(cwd);
-  try { return await operation(); } finally { await lock.release(); }
+  // Serialize callers inside one Node process before taking the filesystem
+  // lock. Windows can surface a transient EPERM when many same-process
+  // contenders create and remove the same exclusive lock file concurrently.
+  // The filesystem lock remains authoritative across processes.
+  const root = await ensureSafeJobLedgerRoot(cwd);
+  const queueKey = await realpath(root);
+  const queue = jobLedgerQueues.get(queueKey) ?? { tail: Promise.resolve(), pending: 0 };
+  if (queue.pending >= JOB_LEDGER_QUEUE_MAX_PENDING) throw new JobLedgerBusyError();
+  queue.pending += 1;
+  const queued = queue.tail.then(async () => {
+    const lock = await acquireJobLedgerLock(cwd);
+    try { return await operation(); } finally { await lock.release(); }
+  });
+  queue.tail = queued.then(() => undefined, () => undefined);
+  jobLedgerQueues.set(queueKey, queue);
+  try {
+    return await queued;
+  } finally {
+    queue.pending -= 1;
+    if (queue.pending === 0 && jobLedgerQueues.get(queueKey) === queue) jobLedgerQueues.delete(queueKey);
+  }
 }
 
 async function acquireJobLedgerLock(cwd: string): Promise<HeldJobLedgerLock> {
@@ -587,7 +608,27 @@ async function acquireJobLedgerLock(cwd: string): Promise<HeldJobLedgerLock> {
     };
     let handle: Awaited<ReturnType<typeof open>>;
     try { handle = await open(file, 'wx', 0o600); } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const code = (error as NodeJS.ErrnoException).code;
+      const windowsCollision = process.platform === 'win32' && code === 'EPERM';
+      if (code !== 'EEXIST' && !windowsCollision) throw error;
+      if (windowsCollision) {
+        try {
+          const info = await lstat(file);
+          if (info.isSymbolicLink() || !info.isFile()) {
+            throw new Error('Job ledger lock must be a non-symlink regular file.');
+          }
+        } catch (inspectionError) {
+          // A winner can release the lock between the failed exclusive open
+          // and inspection. Retry only that disappearance; all other EPERM
+          // causes and unsafe lock paths remain fail-closed.
+          if ((inspectionError as NodeJS.ErrnoException).code === 'ENOENT') {
+            if (attempt + 1 >= JOB_LEDGER_LOCK_RETRIES) throw error;
+            await delay(10);
+            continue;
+          }
+          throw inspectionError;
+        }
+      }
       await tryReclaimJobLedgerLock(file, root);
       if (attempt + 1 >= JOB_LEDGER_LOCK_RETRIES) throw new JobLedgerBusyError();
       await delay(10);
@@ -620,7 +661,10 @@ async function acquireJobLedgerLock(cwd: string): Promise<HeldJobLedgerLock> {
 }
 
 async function tryReclaimJobLedgerLock(file: string, root: string): Promise<void> {
-  const info = await lstat(file).catch(() => undefined);
+  const info = await lstat(file).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  });
   if (!info) return;
   if (info.isSymbolicLink() || !info.isFile()) throw new Error('Job ledger lock must be a non-symlink regular file.');
   if (Date.now() - info.mtimeMs <= JOB_LEDGER_LOCK_LEASE_MS) return;
