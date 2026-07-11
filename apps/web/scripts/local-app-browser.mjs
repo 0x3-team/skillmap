@@ -1439,10 +1439,14 @@ async function selectWithLostCommitResponse(page, confirm, phase) {
     const selectionRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/api/v1/workspaces/select' && request.method() === 'POST');
     const selectionResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/workspaces/select' && response.request().method() === 'POST' && response.status() === 500);
     const bootstrapResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/bootstrap' && response.request().method() === 'GET' && response.status() === 200);
+    const reconciledReads = Promise.all(['/api/v1/workspace', '/api/v1/dashboard'].map(pathname => page.waitForResponse(response =>
+      new URL(response.url()).pathname === pathname
+      && response.request().method() === 'GET'
+      && response.status() === 200
+    )));
     await confirm.click();
     const [selectedRequest, selectedResponse] = await Promise.all([selectionRequest, selectionResponse]);
-    await bootstrapResponse;
-    await new Promise(resolve => setTimeout(resolve, 750));
+    await Promise.all([bootstrapResponse, reconciledReads]);
     assert.ok(committedResponse, 'the simulated response loss did not reach the real backend selection endpoint');
     return { selectedRequest, selectedResponse, committedResponse, followUpResponses: await Promise.all(followUpReads) };
   } finally {

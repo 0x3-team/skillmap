@@ -373,9 +373,13 @@ export async function claimJobExecution(cwd: string, jobId: string): Promise<Job
     };
     const pending = path.join(claims, `.pending-${jobId}-${owner.ownerId}`);
     await mkdir(pending, { mode: 0o700 });
+    let renameAttempted = false;
+    let renamePublished = false;
     try {
       await writeExclusive(path.join(pending, 'owner.json'), owner);
+      renameAttempted = true;
       await rename(pending, target);
+      renamePublished = true;
       await syncDir(claims);
       let released = false;
       return {
@@ -388,7 +392,12 @@ export async function claimJobExecution(cwd: string, jobId: string): Promise<Job
           if (!current || current.ownerId !== owner.ownerId || current.jobId !== jobId) {
             throw new Error('Job execution claim ownership changed before release.');
           }
-          await rm(target, { recursive: true, force: false });
+          await rm(target, {
+            recursive: true,
+            force: false,
+            maxRetries: process.platform === 'win32' ? 3 : 0,
+            retryDelay: 10
+          });
           await syncDir(claims);
           released = true;
         }
@@ -396,10 +405,34 @@ export async function claimJobExecution(cwd: string, jobId: string): Promise<Job
     } catch (error) {
       await rm(pending, { recursive: true, force: true }).catch(() => undefined);
       const code = (error as NodeJS.ErrnoException).code;
-      if (code !== 'EEXIST' && code !== 'ENOTEMPTY') throw error;
-      const safeTarget = await safeJobOperationalDirectoryExists(target);
-      const current = safeTarget ? await readOptional<JobClaimOwner>(path.join(safeTarget, 'owner.json')) : undefined;
-      if (!current || current.jobId !== jobId || !UUID.test(current.ownerId)
+      const renameCollision = renameAttempted && !renamePublished
+        && (code === 'EEXIST' || code === 'ENOTEMPTY' || (process.platform === 'win32' && code === 'EPERM'));
+      if (!renameCollision) throw error;
+      const windowsRenameCollision = process.platform === 'win32' && code === 'EPERM';
+      let safeTarget: string | undefined;
+      let current: JobClaimOwner | undefined;
+      try {
+        safeTarget = await safeJobOperationalDirectoryExists(target);
+        current = safeTarget ? await readOptional<JobClaimOwner>(path.join(safeTarget, 'owner.json')) : undefined;
+      } catch (inspectionError) {
+        // A live owner can release the atomically-published claim between the
+        // directory check and owner-file open. Retry only that disappearance;
+        // every other inspection failure remains fail-closed.
+        if ((inspectionError as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw inspectionError;
+      }
+      // Windows can report an existing non-empty rename target as EPERM. Only
+      // classify that code as a claim collision after proving the target is a
+      // safe, real directory; otherwise preserve the original failure.
+      if (!safeTarget) {
+        if (windowsRenameCollision) throw error;
+        continue;
+      }
+      if (!current) {
+        if (attempt + 1 < 3) continue;
+        throw new Error('Job execution claim is malformed and requires explicit local repair.');
+      }
+      if (current.jobId !== jobId || !UUID.test(current.ownerId)
         || !Number.isInteger(current.pid) || current.pid <= 0 || typeof current.hostname !== 'string') {
         throw new Error('Job execution claim is malformed and requires explicit local repair.');
       }

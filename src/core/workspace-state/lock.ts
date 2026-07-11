@@ -84,13 +84,23 @@ async function initializeLock(
       async release() {
         if (released) return;
         await assertHeld();
-        await rm(paths.writerLock, { recursive: true, force: false });
+        await rm(paths.writerLock, {
+          recursive: true,
+          force: false,
+          maxRetries: process.platform === 'win32' ? 3 : 0,
+          retryDelay: 10
+        });
         await syncDirectory(paths.state);
         released = true;
       }
     };
   } catch (error) {
-    await rm(paths.writerLock, { recursive: true, force: true }).catch(() => undefined);
+    await rm(paths.writerLock, {
+      recursive: true,
+      force: true,
+      maxRetries: process.platform === 'win32' ? 3 : 0,
+      retryDelay: 10
+    }).catch(() => undefined);
     await syncDirectory(paths.state).catch(() => undefined);
     throw error;
   }
