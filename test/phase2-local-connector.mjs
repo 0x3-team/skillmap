@@ -548,6 +548,15 @@ test('JSON bodies, field sets, prompts, query strings, and pagination limits are
   assert.equal(oversizedBody.status, 413);
   assert.equal(json(oversizedBody).error.code, 'REQUEST_TOO_LARGE');
 
+  const oversizedChunkedBody = await rawRequest(connector.origin, {
+    method: 'POST',
+    pathname: '/api/v1/routes/preview',
+    headers: mutationHeaders(connector, session, { 'content-type': 'application/json', 'transfer-encoding': 'chunked' }),
+    body: JSON.stringify({ prompt: 'x'.repeat(70 * 1024) })
+  });
+  assert.equal(oversizedChunkedBody.status, 413);
+  assert.equal(json(oversizedChunkedBody).error.code, 'REQUEST_TOO_LARGE');
+
   for (const limit of ['0', '101', '1.5', 'NaN']) {
     const rejected = await authenticatedGet(connector, session, `/api/v1/skills?limit=${limit}`);
     assert.equal(rejected.status, 400);

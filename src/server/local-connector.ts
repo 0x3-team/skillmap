@@ -663,15 +663,23 @@ async function readJsonBody(req: IncomingMessage, maxBytes = MAX_REQUEST_BYTES):
   const type = String(req.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase();
   if (type !== 'application/json') throw new HttpError(415, 'CONTENT_TYPE_REQUIRED', 'Mutation requests require application/json.');
   const declared = Number(req.headers['content-length'] ?? 0);
-  if (declared > maxBytes) throw new HttpError(413, 'REQUEST_TOO_LARGE', 'The request body exceeds the local connector limit.');
   const chunks: Buffer[] = [];
   let bytes = 0;
+  let tooLarge = declared > maxBytes;
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     bytes += buffer.length;
-    if (bytes > maxBytes) throw new HttpError(413, 'REQUEST_TOO_LARGE', 'The request body exceeds the local connector limit.');
+    if (tooLarge || bytes > maxBytes) {
+      // Drain the authenticated request without retaining excess bytes. An
+      // immediate Content-Length rejection can close a Windows loopback socket
+      // with unread inbound data before the structured 413 reaches the client.
+      tooLarge = true;
+      chunks.length = 0;
+      continue;
+    }
     chunks.push(buffer);
   }
+  if (tooLarge) throw new HttpError(413, 'REQUEST_TOO_LARGE', 'The request body exceeds the local connector limit.');
   if (bytes === 0) throw new HttpError(400, 'BODY_REQUIRED', 'A JSON request body is required.');
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new HttpError(400, 'MALFORMED_JSON', 'The request body is not valid JSON.'); }
 }

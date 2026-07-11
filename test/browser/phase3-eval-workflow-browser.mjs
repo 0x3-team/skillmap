@@ -32,9 +32,8 @@ const PRIVATE_PROMPT = 'PRIVATE-EVAL-BROWSER-PROMPT-CANARY';
 const API_REQUEST_ID = '00000000-0000-4000-8000-000000000009';
 
 test('Evals renders durable progress and paginated prompt-free case traces at desktop and 320px', async t => {
-  const fixture = await startFixture(t);
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const fixture = await startFixture();
+  const browser = await launchFixtureBrowser(t, fixture.server);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -71,9 +70,8 @@ test('Evals renders durable progress and paginated prompt-free case traces at de
 });
 
 test('Evals keeps a meaningful bounded error state when a case page cannot load', async t => {
-  const fixture = await startFixture(t, { failCursor: true });
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const fixture = await startFixture({ failCursor: true });
+  const browser = await launchFixtureBrowser(t, fixture.server);
   const page = await browser.newPage({ viewport: { width: 960, height: 760 } });
   await page.goto(`${fixture.origin}/app/${WORKSPACE_ID}/evals#skillmap-capability=${CAPABILITY}&skillmap-csrf=${CSRF}`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Next cases', exact: true }).click();
@@ -83,9 +81,8 @@ test('Evals keeps a meaningful bounded error state when a case page cannot load'
 });
 
 test('Evals reviews, canonicalizes, and submits the exact local-sensitive v3 authority without retaining its prompt in the page', async t => {
-  const fixture = await startFixture(t, { deepBaseline: true });
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const fixture = await startFixture({ deepBaseline: true });
+  const browser = await launchFixtureBrowser(t, fixture.server);
   const page = await browser.newPage({ viewport: { width: 1180, height: 900 } });
   const privateDraftPrompt = 'PRIVATE-V3-REVIEW-PROMPT-CANARY prepare the focused workflow.';
   const finalized = await finalizeEvalSuiteV3Snapshot(evalSuiteV3(privateDraftPrompt));
@@ -122,9 +119,8 @@ test('Evals reviews, canonicalizes, and submits the exact local-sensitive v3 aut
 });
 
 test('Evals labels v2 as candidate-only and migrates unique display names into a blocked in-memory v3 draft', async t => {
-  const fixture = await startFixture(t);
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const fixture = await startFixture();
+  const browser = await launchFixtureBrowser(t, fixture.server);
   const page = await browser.newPage({ viewport: { width: 980, height: 820 } });
   await page.goto(`${fixture.origin}/app/${WORKSPACE_ID}/evals#skillmap-capability=${CAPABILITY}&skillmap-csrf=${CSRF}`, { waitUntil: 'networkidle' });
   await page.locator('#eval-suite-file').setInputFiles({ name: 'legacy-v2.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(legacySuiteV2())) });
@@ -141,14 +137,38 @@ test('Evals labels v2 as candidate-only and migrates unique display names into a
   assert.equal(fixture.imports.length, 0, 'legacy migration wrote a revision without explicit v3 import');
 });
 
-async function startFixture(t, options = {}) {
+async function startFixture(options = {}) {
   const imports = [];
   const revisionCursors = [];
   const fixtureOptions = { ...options, imports, revisionCursors };
   const server = createServer((request, response) => { void handleRequest(request, response, fixtureOptions); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
-  return { origin: `http://127.0.0.1:${server.address().port}`, imports, revisionCursors };
+  return { origin: `http://127.0.0.1:${server.address().port}`, imports, revisionCursors, server };
+}
+
+async function launchFixtureBrowser(t, server) {
+  try {
+    const browser = await chromium.launch();
+    t.after(() => closeBrowserFixture(browser, server));
+    return browser;
+  } catch (error) {
+    await closeHttpServer(server);
+    throw error;
+  }
+}
+
+async function closeBrowserFixture(browser, server) {
+  let browserError;
+  try { await browser.close(); } catch (error) { browserError = error; }
+  await closeHttpServer(server);
+  if (browserError) throw browserError;
+}
+
+async function closeHttpServer(server) {
+  await new Promise((resolve, reject) => {
+    server.close(error => { if (error) reject(error); else resolve(); });
+    server.closeAllConnections?.();
+  });
 }
 
 async function handleRequest(request, response, options) {

@@ -48,10 +48,8 @@ const ROUTE_EVENT = {
 test('modular local app renders URL-owned skill workflows at desktop and 320px', async t => {
   const server = createServer((request, response) => { void handleRequest(request, response); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const browser = await launchFixtureBrowser(t, server);
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -147,10 +145,8 @@ test('modular local app renders URL-owned skill workflows at desktop and 320px',
 test('version mismatch globally blocks every canonical route before cached views or mutation controls render', async t => {
   const server = createServer((request, response) => { void handleRequest(request, response); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const browser = await launchFixtureBrowser(t, server);
   const targets = [
     '/app/onboarding', '/app/workspaces',
     ...['overview', 'route', 'skills', 'policies', 'evals', 'sources', 'trust', 'integrations', 'activity', 'settings'].map(route => `/app/${WORKSPACE_ID}/${route}`),
@@ -193,10 +189,8 @@ test('version mismatch globally blocks every canonical route before cached views
 test('navigating away aborts an in-flight Route Lab request without an unhandled rejection', async t => {
   const server = createServer((request, response) => { void handleRequest(request, response, { delayRoute: true }); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const browser = await launchFixtureBrowser(t, server);
   const page = await browser.newPage({ viewport: { width: 960, height: 760 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -215,10 +209,8 @@ test('navigating away aborts an in-flight Route Lab request without an unhandled
 test('incompatible workspace state reaches manual repair instead of the version blocker', async t => {
   const server = createServer((request, response) => { void handleRequest(request, response); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const browser = await launchFixtureBrowser(t, server);
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
   await page.addInitScript(() => {
     sessionStorage.setItem('skillmap.connector-auth.v1', JSON.stringify({ capability: 'A'.repeat(43), csrf: 'B'.repeat(43) }));
@@ -242,10 +234,8 @@ test('incompatible workspace state reaches manual repair instead of the version 
 test('malformed and clean browser contexts fail closed before an API request', async t => {
   const server = createServer((request, response) => { void handleRequest(request, response); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
+  const browser = await launchFixtureBrowser(t, server);
 
   const malformed = await browser.newPage({ viewport: { width: 900, height: 700 } });
   const malformedApiRequests = [];
@@ -271,6 +261,31 @@ async function assertContained(page, label) {
   const containment = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   assert.ok(containment.document <= containment.viewport, `${label}: ${JSON.stringify(containment)}`);
   assert.ok(containment.body <= containment.viewport, `${label}: ${JSON.stringify(containment)}`);
+}
+
+async function launchFixtureBrowser(t, server) {
+  try {
+    const browser = await chromium.launch();
+    t.after(() => closeBrowserFixture(browser, server));
+    return browser;
+  } catch (error) {
+    await closeHttpServer(server);
+    throw error;
+  }
+}
+
+async function closeBrowserFixture(browser, server) {
+  let browserError;
+  try { await browser.close(); } catch (error) { browserError = error; }
+  await closeHttpServer(server);
+  if (browserError) throw browserError;
+}
+
+async function closeHttpServer(server) {
+  await new Promise((resolve, reject) => {
+    server.close(error => { if (error) reject(error); else resolve(); });
+    server.closeAllConnections?.();
+  });
 }
 
 async function exerciseCancellationDialog(page, origin) {
