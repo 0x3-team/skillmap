@@ -1,6 +1,8 @@
 import { access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { isFixturePath } from '../contracts/fixture-path.js';
+import { readSkillMapConfig } from './config.js';
 
 async function exists(p: string): Promise<boolean> {
   try {
@@ -25,8 +27,12 @@ export async function resolveRoots(cwd: string, explicitRoots: string[], fixture
     return { roots: [...roots], warnings };
   }
 
-  for (const root of explicitRoots) await add(root);
-  if (explicitRoots.length === 0) {
+  const configured = explicitRoots.length === 0 ? await readSkillMapConfig(cwd) : undefined;
+  const rootsToUse = explicitRoots.length > 0 ? explicitRoots : configured?.roots;
+  if (rootsToUse) {
+    for (const root of rootsToUse) await add(root);
+    if (rootsToUse.length === 0) warnings.push('No roots configured in .skillmap/config.yml. Run `skillmap init --root PATH` or pass --root to scan.');
+  } else {
     await add(path.join(os.homedir(), '.agents/skills'));
     await add(path.join(os.homedir(), '.codex/skills'));
     await add(path.join(os.homedir(), '.claude/skills'));
@@ -38,7 +44,7 @@ export async function resolveRoots(cwd: string, explicitRoots: string[], fixture
 }
 
 export function inferScope(root: string, cwd: string): 'user' | 'project' | 'plugin' | 'fixture' | 'unknown' {
-  if (root.includes('/test/fixtures/')) return 'fixture';
+  if (isFixturePath(root)) return 'fixture';
   if (root.includes('/.codex/plugins/')) return 'plugin';
   if (root.startsWith(cwd)) return 'project';
   if (root.includes('/.agents/') || root.includes('/.codex/') || root.includes('/.claude/')) return 'user';
@@ -50,6 +56,6 @@ export function inferClientHints(root: string): string[] {
   if (root.includes('.agents')) hints.add('shared');
   if (root.includes('.codex')) hints.add('codex');
   if (root.includes('.claude')) hints.add('claude');
-  if (root.includes('/test/fixtures/')) hints.add('fixture');
+  if (isFixturePath(root)) hints.add('fixture');
   return [...hints];
 }

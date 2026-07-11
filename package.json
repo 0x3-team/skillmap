@@ -8,15 +8,44 @@
   },
   "scripts": {
     "prepack": "npm run build",
-    "prepublishOnly": "npm test",
-    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "node -e \"throw new Error('Direct npm publish is disabled; use npm run release:candidate with an exact retained tarball and explicit approval.')\"",
+    "build": "node scripts/check-product-version.mjs && tsc -p tsconfig.json && node scripts/normalize-build-modes.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test test/*.mjs",
+    "test": "npm run build && node scripts/run-root-tests.mjs",
+    "test:contracts": "npm run build && node scripts/generate-contracts.mjs --check && node --test test/phase1-contracts.mjs",
+    "test:integration": "npm run build && node --test test/core.mjs test/slice-b-dashboard.mjs test/phase1-routing-readiness.mjs test/phase1-route-events.mjs test/phase2-backend-onboarding.mjs test/phase2-job-safety.mjs test/phase2-workspace-switch.mjs test/phase3-policy-sources.mjs",
+    "test:privacy": "npm run build && node --test test/slice-b-share.mjs test/phase1-contracts.mjs test/phase1-route-events.mjs",
+    "test:migrations": "npm run build && node --test test/slice-b-policy.mjs test/slice-b-identity.mjs test/phase1-workspace-state.mjs",
+    "test:failure": "npm run build && node --test test/phase1-github-source-fetcher.mjs test/phase1-workspace-state.mjs test/phase1-skill-tree-limits.mjs test/phase1-route-events.mjs test/phase2-backend-onboarding.mjs test/phase2-filesystem-freshness.mjs test/phase2-job-safety.mjs test/phase2-workspace-switch.mjs",
+    "test:connector": "npm run build && node --test test/phase2-local-connector.mjs test/phase2-workspace-switch.mjs",
+    "test:browser-fixture": "npm run build && node --test --test-concurrency=1 test/phase3-local-app-browser-fixture.mjs test/browser/phase3-eval-workflow-browser.mjs",
+    "test:local-app-browser": "npm run test:browser:chromium",
+    "test:e2e": "npm run test:browser:chromium",
+    "test:browser:chromium": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=chromium --critical",
+    "test:browser:candidate:chromium": "node scripts/test-candidate-browser.mjs",
+    "test:browser:firefox": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=firefox --critical",
+    "test:browser:webkit": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=webkit --critical",
+    "test:cross-browser": "npm run test:browser:chromium && npm run test:browser:firefox && npm run test:browser:webkit",
+    "test:a11y": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=chromium --a11y",
+    "test:visual": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=chromium --visual",
+    "test:visual:update": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=chromium --visual --update-visual-baselines",
+    "test:perf": "npm run build && node apps/web/scripts/local-app-browser.mjs --browser=chromium --perf",
+    "test:web:perf": "npm --prefix apps/web run test:performance",
+    "test:consumer-install": "node scripts/test-consumer-install.mjs",
+    "test:upgrade-rollback": "node scripts/test-package-upgrade-rollback.mjs",
+    "test:upgrade-rollback:required": "node scripts/test-package-upgrade-rollback.mjs --required",
+    "test:release-path": "node --test test/release-package-candidate.mjs test/package-candidate-verifier.mjs test/release-ci-candidate-binding.mjs",
+    "release:candidate": "node scripts/release-package-candidate.mjs",
+    "check:web": "npm --prefix apps/web run test:fixtures && npm --prefix apps/web run typecheck && npm --prefix apps/web run lint && npm --prefix apps/web run build",
+    "check:all": "npm run typecheck && npm run test:contracts && npm run test:integration && npm run test:privacy && npm run test:migrations && npm run test:failure && npm run test:connector && npm run check:web && npm run test:browser-fixture && npm run test:cross-browser && npm run test:a11y && npm run test:visual && npm run test:perf && npm run test:consumer-install && npm run test:release-path",
     "lint": "npm run typecheck"
   },
   "files": [
     "dist",
+    "contracts",
+    "assets/local-app",
     "docs",
+    "!docs/plans",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
@@ -42,15 +71,16 @@
     "node": ">=20"
   },
   "dependencies": {
+    "ajv": "8.20.0",
     "yaml": "^2.9.0"
   },
   "author": "Masih Hedayati",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Masihhedayati/skillmap.git"
+    "url": "git+https://github.com/Masih-0x3/skillmap.git"
   },
   "bugs": {
-    "url": "https://github.com/Masihhedayati/skillmap/issues"
+    "url": "https://github.com/Masih-0x3/skillmap/issues"
   },
-  "homepage": "https://github.com/Masihhedayati/skillmap#readme"
+  "homepage": "https://github.com/Masih-0x3/skillmap#readme"
 }

@@ -1,0 +1,150 @@
+export const EVAL_RELEASE_POLICY = Object.freeze({
+  minCount: 150,
+  minTop1: 0.8,
+  minTop3: 0.92,
+  maxAvoidHits: 0,
+  minImplicitNatural: 100,
+  minMultiSkill: 25,
+  minNegativeNearMiss: 25,
+  minHoldoutCount: 30,
+  minHoldoutRatio: 0.2
+});
+
+export interface EvalThresholdsLike {
+  minCount: number;
+  minTop1: number;
+  minTop3: number;
+  maxAvoidHits: number;
+}
+
+export interface EvalMetricsLike {
+  top1Rate: number;
+  top3Rate: number;
+  avoidHits: number;
+  abstentionRate: number;
+  meanAdvisoryBytes: number;
+}
+
+export interface EvalCompositionLike {
+  implicitNatural: number;
+  multiSkill: number;
+  negativeNearMiss: number;
+  untyped: number;
+  releaseCounted: number;
+}
+
+export type EvalBaselineLike = EvalMetricsLike;
+
+export interface EvalBaselineComparisonLike {
+  provided: boolean;
+  nonRegression: boolean;
+  improvement: boolean;
+  perfectBaseline: boolean;
+  pass: boolean;
+  improvements: string[];
+  regressions: string[];
+}
+
+export function evalThresholdPass(releaseCounted: number, metrics: EvalMetricsLike, thresholds: EvalThresholdsLike): boolean {
+  return releaseCounted >= thresholds.minCount
+    && metrics.top1Rate >= thresholds.minTop1
+    && metrics.top3Rate >= thresholds.minTop3
+    && metrics.avoidHits <= thresholds.maxAvoidHits;
+}
+
+export function evalFixedThresholdPass(releaseCounted: number, metrics: EvalMetricsLike): boolean {
+  return evalThresholdPass(releaseCounted, metrics, EVAL_RELEASE_POLICY);
+}
+
+export function evalCompositionPass(composition: EvalCompositionLike): boolean {
+  return composition.implicitNatural >= EVAL_RELEASE_POLICY.minImplicitNatural
+    && composition.multiSkill >= EVAL_RELEASE_POLICY.minMultiSkill
+    && composition.negativeNearMiss >= EVAL_RELEASE_POLICY.minNegativeNearMiss
+    && composition.releaseCounted >= EVAL_RELEASE_POLICY.minCount
+    && composition.untyped === 0;
+}
+
+export function requiredEvalHoldoutCount(releaseCounted: number): number {
+  return Math.max(EVAL_RELEASE_POLICY.minHoldoutCount, Math.ceil(releaseCounted * EVAL_RELEASE_POLICY.minHoldoutRatio));
+}
+
+export function evalHoldoutResult(releaseCounted: number, holdoutCount: number): { count: number; requiredCount: number; ratio: number; pass: boolean } {
+  const requiredCount = requiredEvalHoldoutCount(releaseCounted);
+  const ratio = releaseCounted === 0 ? 0 : holdoutCount / releaseCounted;
+  return {
+    count: holdoutCount,
+    requiredCount,
+    ratio,
+    pass: holdoutCount >= requiredCount && ratio >= EVAL_RELEASE_POLICY.minHoldoutRatio
+  };
+}
+
+export function compareEvalBaseline(baseline: EvalBaselineLike | undefined, current: EvalMetricsLike): EvalBaselineComparisonLike {
+  const valid = Boolean(baseline
+    && isRate(baseline.top1Rate)
+    && isRate(baseline.top3Rate)
+    && Number.isFinite(baseline.avoidHits) && baseline.avoidHits >= 0
+    && isRate(baseline.abstentionRate)
+    && Number.isFinite(baseline.meanAdvisoryBytes) && baseline.meanAdvisoryBytes >= 0);
+  if (!baseline || !valid) {
+    return {
+      provided: Boolean(baseline),
+      nonRegression: false,
+      improvement: false,
+      perfectBaseline: false,
+      pass: false,
+      improvements: [],
+      regressions: ['baseline is missing or invalid']
+    };
+  }
+  const regressions: string[] = [];
+  if (current.top1Rate < baseline.top1Rate) regressions.push('top1Rate regressed');
+  if (current.top3Rate < baseline.top3Rate) regressions.push('top3Rate regressed');
+  if (current.avoidHits > baseline.avoidHits) regressions.push('avoidHits regressed');
+  const improvements: string[] = [];
+  if (current.top1Rate > baseline.top1Rate) improvements.push('top1Rate');
+  if (current.top3Rate > baseline.top3Rate) improvements.push('top3Rate');
+  if (current.abstentionRate > baseline.abstentionRate) improvements.push('abstentionRate');
+  if (current.meanAdvisoryBytes < baseline.meanAdvisoryBytes) improvements.push('meanAdvisoryBytes');
+  const perfectBaseline = baseline.top1Rate === 1 && baseline.top3Rate === 1 && baseline.avoidHits === 0;
+  const improvement = perfectBaseline ? improvements.includes('meanAdvisoryBytes') : improvements.length > 0;
+  const nonRegression = regressions.length === 0;
+  return { provided: true, nonRegression, improvement, perfectBaseline, pass: nonRegression && improvement, improvements, regressions };
+}
+
+export function evalReleaseEvidenceEligible(input: {
+  qualified: boolean;
+  fixture: boolean;
+  composition: EvalCompositionLike;
+  holdoutPass: boolean;
+  leakagePass: boolean;
+  provenanceComplete: boolean;
+  baselinePass: boolean;
+  invalidCaseCount: number;
+  validationErrorCount: number;
+  metrics: EvalMetricsLike;
+  revisionBound: boolean;
+}): boolean {
+  return input.qualified
+    && !input.fixture
+    && evalCompositionPass(input.composition)
+    && input.holdoutPass
+    && input.leakagePass
+    && input.provenanceComplete
+    && input.baselinePass
+    && input.invalidCaseCount === 0
+    && input.validationErrorCount === 0
+    && evalFixedThresholdPass(input.composition.releaseCounted, input.metrics)
+    && input.revisionBound;
+}
+
+export function evalEvidenceLevel(version: number | undefined, untyped: number, pass: boolean): 'demo' | 'smoke' | 'candidate' | 'release' {
+  if (pass) return 'release';
+  if ((version ?? 1) >= 2 && untyped === 0) return 'candidate';
+  if ((version ?? 1) >= 2) return 'smoke';
+  return 'demo';
+}
+
+function isRate(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}

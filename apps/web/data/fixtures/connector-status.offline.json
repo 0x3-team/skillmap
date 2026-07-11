@@ -1,0 +1,12 @@
+{
+  "state": "offline",
+  "cliVersion": "0.1.0",
+  "cwdAlias": "$PROJECT",
+  "lastSeenAt": "2026-07-08T19:18:00.000Z",
+  "lastSnapshotHash": "sha256:offline-snapshot",
+  "redactionEnabled": true,
+  "readOnlyMode": true,
+  "allowedCommands": ["skillmap status --json", "skillmap export --redact"],
+  "nextCommand": "skillmap export --redact --out $PROJECT/.skillmap/snapshot.json",
+  "message": "No connector heartbeat. Export a fresh redacted snapshot from the local checkout."
+}

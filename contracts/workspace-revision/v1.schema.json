@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/workspace-revision/v1.schema.json",
+  "title": "SkillMap Workspace Revision Family v1",
+  "description": "The exact immutable state-store manifest, current/LKG pointers, and migration marker persisted by WorkspaceStateStore.",
+  "oneOf": [
+    { "$ref": "#/$defs/WorkspaceRevision" },
+    { "$ref": "#/$defs/CurrentPointer" },
+    { "$ref": "#/$defs/LastKnownGoodPointer" },
+    { "$ref": "#/$defs/WorkspaceStateMarker" }
+  ],
+  "$defs": {
+    "RevisionMutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["legacy-migration", "legacy-snapshot", "rollback", "recovery"] },
+        "actor": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "sourceRevisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+        "targetRevisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" }
+      }
+    },
+    "RevisionArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "routingCritical", "bytes", "digest"],
+      "properties": {
+        "path": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/SafeRelativePath" },
+        "role": { "enum": ["canonical-intent", "raw-truth", "derived"] },
+        "routingCritical": { "type": "boolean" },
+        "bytes": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
+        "digest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "NullableDigest": {
+      "oneOf": [
+        { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        { "type": "null" }
+      ]
+    },
+    "WorkspaceRevision": {
+      "$comment": "workspaceRevision and the projection digests are recomputed by the state-store validator. payloadDigest binds the complete manifest envelope except itself.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "workspaceId", "revisionId", "sequence", "parentRevisionId", "createdAt", "fencingToken", "mutation", "canonicalIntentDigest", "rawTruthDigest", "routingSafetyDigest", "readModelDigest", "effectiveDigest", "effectiveRevisionDigest", "workspaceRevision", "artifacts", "producer", "compatibility", "redaction", "payloadDigest"],
+      "properties": {
+        "kind": { "const": "skillmap.workspace-revision" },
+        "schemaVersion": { "const": 1 },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "revisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "parentRevisionId": {
+          "oneOf": [
+            { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+            { "type": "null" }
+          ]
+        },
+        "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "fencingToken": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "mutation": { "$ref": "#/$defs/RevisionMutation" },
+        "canonicalIntentDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "rawTruthDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "routingSafetyDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "readModelDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "effectiveDigest": { "$ref": "#/$defs/NullableDigest" },
+        "effectiveRevisionDigest": { "$ref": "#/$defs/NullableDigest" },
+        "workspaceRevision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "items": { "$ref": "#/$defs/RevisionArtifact" }
+        },
+        "producer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "const": "skillmap" },
+            "version": { "type": "string", "minLength": 1, "maxLength": 80 }
+          }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minReaderSchemaVersion", "maxReaderSchemaVersion"],
+          "properties": {
+            "minReaderSchemaVersion": { "const": 1 },
+            "maxReaderSchemaVersion": { "const": 1 }
+          }
+        },
+        "redaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["classification"],
+          "properties": { "classification": { "const": "local-sensitive" } }
+        },
+        "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "RoutingApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "revisionId", "routingSafetyDigest", "approvedAt", "receiptDigest"],
+      "properties": {
+        "kind": { "const": "skillmap.routing-approval" },
+        "schemaVersion": { "const": 1 },
+        "revisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+        "routingSafetyDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "approvedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "receiptDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "CurrentPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "workspaceId", "revisionId", "sequence", "workspaceRevision", "manifestDigest", "canonicalIntentDigest", "rawTruthDigest", "routingSafetyDigest", "readModelDigest", "effectiveDigest", "effectiveRevisionDigest", "fencingToken", "publishedAt", "payloadDigest"],
+      "properties": {
+        "kind": { "const": "skillmap.workspace-current" },
+        "schemaVersion": { "const": 1 },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "revisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "workspaceRevision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "manifestDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "canonicalIntentDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "rawTruthDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "routingSafetyDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "readModelDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "effectiveDigest": { "$ref": "#/$defs/NullableDigest" },
+        "effectiveRevisionDigest": { "$ref": "#/$defs/NullableDigest" },
+        "fencingToken": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "publishedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "LastKnownGoodPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "workspaceId", "revisionId", "sequence", "workspaceRevision", "manifestDigest", "canonicalIntentDigest", "rawTruthDigest", "routingSafetyDigest", "readModelDigest", "effectiveDigest", "effectiveRevisionDigest", "fencingToken", "publishedAt", "routingApproval", "payloadDigest"],
+      "properties": {
+        "kind": { "const": "skillmap.workspace-last-known-good" },
+        "schemaVersion": { "const": 1 },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "revisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "workspaceRevision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "manifestDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "canonicalIntentDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "rawTruthDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "routingSafetyDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "readModelDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "effectiveDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "effectiveRevisionDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "fencingToken": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "publishedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "routingApproval": { "$ref": "#/$defs/RoutingApproval" },
+        "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "WorkspaceStateMarker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "layoutVersion", "workspaceId", "migrationRevisionId", "activatedAt", "legacyMode", "payloadDigest"],
+      "properties": {
+        "kind": { "const": "skillmap.workspace-state" },
+        "schemaVersion": { "const": 1 },
+        "layoutVersion": { "const": 1 },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "migrationRevisionId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+        "activatedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "legacyMode": { "const": "read-only-projection" },
+        "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    }
+  }
+}

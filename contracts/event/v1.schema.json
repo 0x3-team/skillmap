@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/event/v1.schema.json",
+  "title": "SkillMap Product Event Family v1",
+  "description": "Bounded revision/job stream events plus a redacted route event. Raw prompts are never represented.",
+  "oneOf": [
+    { "$ref": "#/$defs/RevisionPublishedEvent" },
+    { "$ref": "#/$defs/FilesystemDirtyEvent" },
+    { "$ref": "#/$defs/JobStateChangedEvent" },
+    { "$ref": "#/$defs/RouteEvent" }
+  ],
+  "$defs": {
+    "EventHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "eventId", "sequence", "workspaceId", "occurredAt", "revision", "redactionClassification"],
+      "properties": {
+        "kind": { "type": "string" },
+        "schemaVersion": { "const": 1 },
+        "eventId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/EventId" },
+        "sequence": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,39})$" },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "occurredAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "redactionClassification": { "const": "metadata-only" }
+      }
+    },
+    "RevisionPublishedEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "eventId", "sequence", "workspaceId", "occurredAt", "revision", "redactionClassification", "previousRevisionId"],
+      "properties": {
+        "kind": { "const": "skillmap.event.revision-published" },
+        "schemaVersion": { "const": 1 },
+        "eventId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/EventId" },
+        "sequence": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,39})$" },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "occurredAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "redactionClassification": { "const": "metadata-only" },
+        "previousRevisionId": {
+          "oneOf": [
+            { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "FilesystemDirtyEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "eventId", "sequence", "workspaceId", "occurredAt", "revision", "redactionClassification", "observedDigest", "rootIds", "suggestedJobType"],
+      "properties": {
+        "kind": { "const": "skillmap.event.filesystem-dirty" },
+        "schemaVersion": { "const": 1 },
+        "eventId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/EventId" },
+        "sequence": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,39})$" },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "occurredAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "redactionClassification": { "const": "metadata-only" },
+        "observedDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "rootIds": {
+          "type": "array",
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" }
+        },
+        "suggestedJobType": { "const": "scan" }
+      }
+    },
+    "JobStateChangedEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "eventId", "sequence", "workspaceId", "occurredAt", "revision", "redactionClassification", "jobId", "jobType", "state"],
+      "properties": {
+        "kind": { "const": "skillmap.event.job-state-changed" },
+        "schemaVersion": { "const": 1 },
+        "eventId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/EventId" },
+        "sequence": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,39})$" },
+        "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+        "occurredAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "redactionClassification": { "const": "metadata-only" },
+        "jobId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/JobId" },
+        "jobType": { "$ref": "https://skillmap.dev/contracts/job/v1.schema.json#/$defs/JobType" },
+        "state": { "enum": ["queued", "running", "succeeded", "failed", "cancelled"] }
+      }
+    },
+    "RouteEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "schemaVersion", "eventId", "routeId", "createdAt", "revision", "currentRevision", "surface", "outcome", "selectedSkillIds", "reasonCodes", "warningCodes", "latencyBucket", "promptStored", "payloadDigest"],
+      "properties": {
+        "kind": { "const": "skillmap.route-event" },
+        "schemaVersion": { "const": 1 },
+        "eventId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/EventId" },
+        "routeId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RouteId" },
+        "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "currentRevision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "surface": { "enum": ["cli", "hook", "mcp", "api"] },
+        "outcome": { "enum": ["recommended", "abstained", "blocked", "error"] },
+        "selectedSkillIds": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/SkillId" }
+        },
+        "reasonCodes": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/MachineCode" }
+        },
+        "warningCodes": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/MachineCode" }
+        },
+        "latencyBucket": { "enum": ["lt-10ms", "lt-50ms", "lt-250ms", "gte-250ms"] },
+        "degradedCode": { "$ref": "#/$defs/MachineCode" },
+        "decisionDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "promptStored": { "const": false },
+        "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" }
+      }
+    },
+    "MachineCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    }
+  }
+}

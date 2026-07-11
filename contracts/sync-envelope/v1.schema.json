@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/sync-envelope/v1.schema.json",
+  "title": "SkillMap Redacted Sync Envelope v1",
+  "description": "Versioned, idempotent, metadata-only connector synchronization. Device credentials and raw prompts, bodies, paths, and secrets are never payload fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "syncId", "workspaceId", "deviceId", "direction", "sequence", "idempotencyKey", "baseRevision", "targetRevision", "createdAt", "payloadType", "payload", "redactionClassification", "payloadDigest", "signature"],
+  "properties": {
+    "kind": { "const": "skillmap.sync-envelope" },
+    "schemaVersion": { "const": 1 },
+    "syncId": { "type": "string", "pattern": "^sync_[A-Za-z0-9_-]{16,80}$" },
+    "workspaceId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Uuid" },
+    "deviceId": { "type": "string", "pattern": "^device_[A-Za-z0-9_-]{16,80}$" },
+    "direction": { "enum": ["local-to-cloud", "cloud-to-local"] },
+    "sequence": { "type": "string", "pattern": "^(?:0|[1-9][0-9]{0,39})$" },
+    "idempotencyKey": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{16,200}$" },
+    "baseRevision": { "$ref": "#/$defs/NullableRevision" },
+    "targetRevision": { "$ref": "#/$defs/NullableRevision" },
+    "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "payloadType": { "enum": ["workspace-summary", "skill-metadata", "route-event-batch", "feedback-batch", "policy-proposal"] },
+    "payload": { "$ref": "#/$defs/SyncPayload" },
+    "redactionClassification": { "const": "metadata-only" },
+    "payloadDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "signature": {
+      "oneOf": [
+        { "$ref": "#/$defs/Signature" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "direction": { "const": "cloud-to-local" } }, "required": ["direction"] },
+      "then": { "properties": { "signature": { "$ref": "#/$defs/Signature" } } },
+      "else": { "properties": { "signature": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "payloadType": { "const": "workspace-summary" } }, "required": ["payloadType"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/WorkspaceSummaryPayload" } } }
+    },
+    {
+      "if": { "properties": { "payloadType": { "const": "skill-metadata" } }, "required": ["payloadType"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/SkillMetadataPayload" } } }
+    },
+    {
+      "if": { "properties": { "payloadType": { "const": "route-event-batch" } }, "required": ["payloadType"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/RouteEventBatchPayload" } } }
+    },
+    {
+      "if": { "properties": { "payloadType": { "const": "feedback-batch" } }, "required": ["payloadType"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/FeedbackBatchPayload" } } }
+    },
+    {
+      "if": { "properties": { "payloadType": { "const": "policy-proposal" } }, "required": ["payloadType"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/PolicyProposalPayload" } } }
+    }
+  ],
+  "$defs": {
+    "NullableRevision": {
+      "oneOf": [
+        { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        { "type": "null" }
+      ]
+    },
+    "Signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyId", "value", "expiresAt"],
+      "properties": {
+        "algorithm": { "const": "ed25519" },
+        "keyId": { "type": "string", "pattern": "^key_[A-Za-z0-9_-]{8,100}$" },
+        "value": { "type": "string", "pattern": "^[A-Za-z0-9_-]{86}$" },
+        "expiresAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" }
+      }
+    },
+    "WorkspaceSummaryPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "revision", "skillCount", "routeEligibleCount", "blockedCount", "readiness", "policyDigest", "evalSummaryDigest"],
+      "properties": {
+        "type": { "const": "workspace-summary" },
+        "revision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "skillCount": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "routeEligibleCount": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "blockedCount": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "readiness": { "enum": ["ready", "attention-required", "blocked"] },
+        "policyDigest": {
+          "oneOf": [
+            { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+            { "type": "null" }
+          ]
+        },
+        "evalSummaryDigest": {
+          "oneOf": [
+            { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "SkillMetadataEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity", "tier", "routeEligible", "hasScripts"],
+      "properties": {
+        "identity": { "$ref": "https://skillmap.dev/contracts/skill-identity/v1.schema.json#/$defs/SkillIdentityRef" },
+        "tier": { "enum": ["active-default", "specialist", "explicit-only", "archived", "blocked"] },
+        "family": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "routeEligible": { "type": "boolean" },
+        "hasScripts": { "type": "boolean" }
+      }
+    },
+    "SkillMetadataPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "skills"],
+      "properties": {
+        "type": { "const": "skill-metadata" },
+        "skills": { "type": "array", "maxItems": 20000, "items": { "$ref": "#/$defs/SkillMetadataEntry" } }
+      }
+    },
+    "RouteEventBatchPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "events"],
+      "properties": {
+        "type": { "const": "route-event-batch" },
+        "events": { "type": "array", "maxItems": 1000, "items": { "$ref": "https://skillmap.dev/contracts/event/v1.schema.json#/$defs/RouteEvent" } }
+      }
+    },
+    "FeedbackBatchPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "feedback"],
+      "properties": {
+        "type": { "const": "feedback-batch" },
+        "feedback": { "type": "array", "maxItems": 1000, "items": { "$ref": "https://skillmap.dev/contracts/route-feedback/v1.schema.json" } }
+      }
+    },
+    "PolicyProposalPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "proposalId", "baseRevision", "proposalDigest", "summaryCodes", "expiresAt", "requiresLocalApproval"],
+      "properties": {
+        "type": { "const": "policy-proposal" },
+        "proposalId": { "type": "string", "pattern": "^proposal_[A-Za-z0-9_-]{16,80}$" },
+        "baseRevision": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionRef" },
+        "proposalDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+        "summaryCodes": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,79}$" } },
+        "expiresAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+        "requiresLocalApproval": { "const": true }
+      }
+    },
+    "SyncPayload": {
+      "oneOf": [
+        { "$ref": "#/$defs/WorkspaceSummaryPayload" },
+        { "$ref": "#/$defs/SkillMetadataPayload" },
+        { "$ref": "#/$defs/RouteEventBatchPayload" },
+        { "$ref": "#/$defs/FeedbackBatchPayload" },
+        { "$ref": "#/$defs/PolicyProposalPayload" }
+      ]
+    }
+  }
+}

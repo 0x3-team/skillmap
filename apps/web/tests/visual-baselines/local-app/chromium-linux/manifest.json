@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "browser": "chromium",
+  "browserVersion": "149.0.7827.55",
+  "playwrightVersion": "1.61.1",
+  "platform": "linux",
+  "operatingSystem": "ubuntu-24.04",
+  "viewport": {
+    "width": 1024,
+    "height": 768
+  },
+  "deviceScaleFactor": 1,
+  "locale": "en-US",
+  "timezoneId": "UTC",
+  "colorScheme": "light",
+  "reducedMotion": "reduce",
+  "clock": "2026-07-10T12:00:00.000Z",
+  "font": "@fontsource/inter@5.2.8"
+}

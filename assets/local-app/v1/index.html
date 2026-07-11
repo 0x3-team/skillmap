@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>SkillMap local workspace</title>
+    <link rel="stylesheet" href="/app.css">
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to workspace</a>
+    <div id="app" class="app-shell" aria-busy="true">
+      <header class="topbar">
+        <a class="brand" href="/app" data-route="overview" aria-label="SkillMap overview">
+          <span class="brand-mark" aria-hidden="true">SM</span>
+          <span><strong>SkillMap</strong><small>Local workspace</small></span>
+        </a>
+        <div class="workspace-switcher">
+          <span class="eyebrow">Workspace</span>
+          <button id="workspace-button" class="quiet-button" type="button" data-route="workspaces" aria-label="Switch workspace" title="Select or create the foreground local workspace.">Loading…</button>
+        </div>
+        <div class="topbar-status">
+          <span id="connection-dot" class="status-dot pending" aria-hidden="true"></span>
+          <span id="connection-label">Connecting</span>
+          <code id="revision-short">—</code>
+        </div>
+      </header>
+
+      <aside class="sidebar" aria-label="Workspace navigation">
+        <nav id="primary-nav">
+          <a href="/app/overview" data-route="overview">Overview</a>
+          <a href="/app/route" data-route="route">Route Lab</a>
+          <a href="/app/skills" data-route="skills">Skills</a>
+          <a href="/app/policies" data-route="policies">Policies</a>
+          <a href="/app/evals" data-route="evals">Evals</a>
+          <a href="/app/sources" data-route="sources">Sources</a>
+          <a href="/app/trust" data-route="trust">Trust</a>
+          <a href="/app/integrations" data-route="integrations">Integrations</a>
+          <a href="/app/activity" data-route="activity">Activity</a>
+          <a href="/app/settings" data-route="settings">Settings</a>
+        </nav>
+        <div class="sidebar-foot">
+          <span>Connector</span>
+          <strong id="sidebar-connector">Starting</strong>
+          <small>Same-origin · loopback only</small>
+        </div>
+      </aside>
+
+      <div id="connection-banner" class="connection-banner" hidden role="status">
+        <strong id="banner-title">Connector disconnected</strong>
+        <span id="banner-copy">The last redacted view is retained. Mutations are paused.</span>
+        <button id="retry-button" class="quiet-button" type="button">Retry</button>
+      </div>
+
+      <main id="main" tabindex="-1">
+        <div id="view-state-banner" class="view-state-banner" role="status" hidden>
+          <span id="view-state-copy">A newer revision is available.</span>
+          <button id="refresh-view" class="quiet-button" type="button">Refresh view</button>
+        </div>
+        <div id="loading-view" class="loading-view" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Opening the approved workspace revision…</span>
+        </div>
+        <div id="view-root"></div>
+      </main>
+    </div>
+    <div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

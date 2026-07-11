@@ -2,7 +2,10 @@ import { chmod, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/pro
 import os from 'node:os';
 import path from 'node:path';
 import { flagString, hasFlag } from '../core/args.js';
-import { routeCommand } from './route.js';
+import { buildApprovedStatus } from '../services/status-use-case.js';
+import { approvedRoutingStateFromRead, openApprovedWorkspaceRead } from '../services/workspace-read-model.js';
+import { executeRouteUseCase } from '../services/route-use-case.js';
+import { createRouteEvent, recordRouteEvent } from '../core/route-events.js';
 
 interface HooksFile {
   hooks?: Record<string, HookGroup[]>;
@@ -28,25 +31,50 @@ export async function hookCommand(cwd: string, positionals: string[], flags: Rec
   if (action === 'dry-run') return dryRunPrompt(cwd, positionals.slice(2), flags);
   if (action === 'install') return installCodexHook(cwd, flags);
   if (action === 'uninstall') return uninstallCodexHook(cwd, flags);
-  throw new Error('Supported hook commands: hook dry-run codex <prompt>, hook install codex --passive [--dry-run], hook uninstall codex [--dry-run].');
+  throw new Error('Supported hook commands: hook dry-run codex <prompt>, hook install codex --passive [--dry-run] [--force], hook uninstall codex [--dry-run].');
 }
 
 async function dryRunPrompt(cwd: string, promptParts: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
   const prompt = flagString(flags, 'prompt') ?? promptParts.join(' ');
   if (!prompt.trim()) throw new Error('hook dry-run codex requires a prompt.');
-  const result = await routeCommand(cwd, [], { ...flags, prompt, hook: true });
-  const hookText = typeof result === 'object' && result !== null && 'hookText' in result ? String((result as { hookText?: string }).hookText ?? '') : '';
+  const { status, routing, routingReady } = await buildApprovedStatus(cwd);
+  // Build readiness from the valid current/status revision, but execute only
+  // against the separately selected routing revision. Passing an LKG routing
+  // read into status composition falsely classifies an unapproved derived-only
+  // current revision as corrupt.
+  const approved = routing ?? await openApprovedWorkspaceRead(cwd, 'routing');
+  const state = approvedRoutingStateFromRead(approved);
+  const execution = executeRouteUseCase(state, { prompt, max: Number(flagString(flags, 'max') ?? '3') });
+  await recordRouteEvent(cwd, createRouteEvent(execution.result, execution.currentRevision, 'hook'));
+  const hookText = execution.result.decision.recommendations.length > 0 ? execution.result.decision.hookText : '';
+  const allowed = routingReady && status.verdict === 'ok' && status.readinessPhase === 'ready';
   return {
     host: 'codex',
     action: 'dry-run',
-    prompt,
+    command: buildHookCommand(),
+    readiness: {
+      verdict: status.verdict,
+      phase: status.readinessPhase,
+      allowed,
+      routingReady,
+      warnings: status.warnings,
+      nextActions: status.nextActions
+    },
     hookText,
-    summary: hookText || 'SkillMap hook dry-run: no confident recommendation.'
+    summary: `${hookText || 'SkillMap hook dry-run: no confident recommendation.'}\nReadiness: ${status.verdict} (${status.readinessPhase})${allowed ? '' : '; install remains blocked unless forced after review'}.`
   };
 }
 
 async function installCodexHook(cwd: string, flags: Record<string, string | boolean | string[]>): Promise<unknown> {
   if (!hasFlag(flags, 'passive')) throw new Error('Codex hook install requires --passive. SkillMap only installs passive route hints.');
+  const { status, routingReady } = await buildApprovedStatus(cwd);
+  const forced = hasFlag(flags, 'force');
+  const allowed = routingReady && status.verdict === 'ok' && status.readinessPhase === 'ready';
+  const wouldInstall = routingReady && (allowed || forced);
+  if (!wouldInstall && !hasFlag(flags, 'dry-run')) {
+    const approvalNote = routingReady ? '' : ' The current revision is not the exact explicitly approved routing revision; --force cannot override this trust boundary.';
+    throw new Error(`Hook install blocked: SkillMap status is ${status.verdict} (${status.readinessPhase}).${approvalNote} Re-run after status is ready${routingReady ? ', or pass --force after manual review' : ''}.`);
+  }
   const target = hooksPath(cwd, flags);
   const command = buildHookCommand();
   const update = await buildInstallUpdate(target, command);
@@ -59,9 +87,23 @@ async function installCodexHook(cwd: string, flags: Record<string, string | bool
     target,
     backupPath: update.backupPath,
     command,
-    changed: update.changed,
+    changed: wouldInstall ? update.changed : false,
+    proposedChange: update.changed,
+    preflightBlocked: !wouldInstall,
+    blocked: !wouldInstall,
+    wouldInstall,
+    readiness: {
+      verdict: status.verdict,
+      phase: status.readinessPhase,
+      allowed,
+      routingReady,
+      forced,
+      warnings: status.warnings
+    },
     note: 'Codex requires /hooks review/trust before non-managed command hooks run.',
-    summary: `${hasFlag(flags, 'dry-run') ? 'Would install' : 'Installed'} SkillMap passive Codex UserPromptSubmit hook at ${target}${update.changed ? '' : ' (already present)'}.`
+    summary: hasFlag(flags, 'dry-run') && !wouldInstall
+      ? `Would refuse SkillMap passive Codex hook installation at ${target}: readiness is ${status.verdict} (${status.readinessPhase}).`
+      : `${hasFlag(flags, 'dry-run') ? 'Would install' : forced && !allowed ? 'Installed with explicit force override' : 'Installed'} SkillMap passive Codex UserPromptSubmit hook at ${target}${update.changed ? '' : ' (already present)'}.`
   };
 }
 

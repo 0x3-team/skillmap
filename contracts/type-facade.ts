@@ -1,0 +1,756 @@
+// Source template for generated contract type facades. Canonical runtime truth remains contracts/**/*.schema.json.
+
+export type Sha256Digest = `sha256:${string}`;
+export type HmacSha256Digest = `hmac-sha256:${string}`;
+export type Uuid = string;
+export type SkillId = `sk_${string}`;
+export type RevisionId = `r${string}-${string}`;
+export type RouteId = Uuid;
+export type JobId = Uuid;
+export type EventId = Uuid;
+export type FeedbackId = Uuid;
+export type RequestId = Uuid;
+export type IsoTimestamp = string;
+
+export type CompatibilityState = "compatible" | "upgrade-required" | "client-too-new" | "degraded";
+export type RedactionClassification = "shareable-redacted" | "metadata-only" | "local-sensitive";
+
+export interface Producer {
+  name: string;
+  version: string;
+}
+
+export interface Compatibility {
+  state: CompatibilityState;
+  minReaderSchemaVersion: number;
+  maxReaderSchemaVersion: number;
+  message?: string;
+}
+
+export interface RevisionRef {
+  workspaceId: Uuid;
+  revisionId: RevisionId;
+  workspaceRevision: Sha256Digest;
+  effectiveDigest: Sha256Digest | null;
+  effectiveRevisionDigest: Sha256Digest | null;
+}
+
+export interface ActorRef {
+  type: "local-user" | "device" | "system";
+  id: string;
+}
+
+export interface ValidationIssue {
+  path: string;
+  code: string;
+}
+
+export interface RevisionConflict {
+  expectedRevision: RevisionRef;
+  currentRevision: RevisionRef;
+}
+
+export interface SafeError {
+  code: string;
+  message: string;
+  retryable: boolean;
+  issues?: ValidationIssue[];
+  conflict?: RevisionConflict;
+}
+
+export interface Pagination {
+  limit: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+  stableSortKey: string;
+}
+
+export interface RevisionArtifactV1 {
+  path: string;
+  role: "canonical-intent" | "raw-truth" | "derived";
+  routingCritical: boolean;
+  bytes: number;
+  digest: Sha256Digest;
+}
+
+export interface RevisionMutationV1 {
+  kind: "legacy-migration" | "legacy-snapshot" | "rollback" | "recovery";
+  actor?: string;
+  reason?: string;
+  sourceRevisionId?: RevisionId;
+  targetRevisionId?: RevisionId;
+}
+
+export interface WorkspaceRevisionV1 {
+  kind: "skillmap.workspace-revision";
+  schemaVersion: 1;
+  workspaceId: Uuid;
+  revisionId: RevisionId;
+  sequence: number;
+  parentRevisionId: RevisionId | null;
+  createdAt: IsoTimestamp;
+  fencingToken: number;
+  mutation: RevisionMutationV1;
+  canonicalIntentDigest: Sha256Digest;
+  rawTruthDigest: Sha256Digest;
+  routingSafetyDigest: Sha256Digest;
+  readModelDigest: Sha256Digest;
+  workspaceRevision: Sha256Digest;
+  effectiveDigest: Sha256Digest | null;
+  effectiveRevisionDigest: Sha256Digest | null;
+  artifacts: RevisionArtifactV1[];
+  producer: { name: "skillmap"; version: string };
+  compatibility: { minReaderSchemaVersion: 1; maxReaderSchemaVersion: 1 };
+  redaction: { classification: "local-sensitive" };
+  payloadDigest: Sha256Digest;
+}
+
+export interface RoutingApprovalReceiptV1 {
+  kind: "skillmap.routing-approval";
+  schemaVersion: 1;
+  revisionId: RevisionId;
+  routingSafetyDigest: Sha256Digest;
+  approvedAt: IsoTimestamp;
+  receiptDigest: Sha256Digest;
+}
+
+export interface WorkspacePointerBaseV1 {
+  schemaVersion: 1;
+  workspaceId: Uuid;
+  revisionId: RevisionId;
+  sequence: number;
+  workspaceRevision: Sha256Digest;
+  manifestDigest: Sha256Digest;
+  canonicalIntentDigest: Sha256Digest;
+  rawTruthDigest: Sha256Digest;
+  routingSafetyDigest: Sha256Digest;
+  readModelDigest: Sha256Digest;
+  effectiveDigest: Sha256Digest | null;
+  effectiveRevisionDigest: Sha256Digest | null;
+  fencingToken: number;
+  publishedAt: IsoTimestamp;
+  payloadDigest: Sha256Digest;
+}
+
+export interface WorkspaceCurrentPointerV1 extends WorkspacePointerBaseV1 {
+  kind: "skillmap.workspace-current";
+}
+
+export interface WorkspaceLastKnownGoodPointerV1 extends WorkspacePointerBaseV1 {
+  kind: "skillmap.workspace-last-known-good";
+  effectiveDigest: Sha256Digest;
+  effectiveRevisionDigest: Sha256Digest;
+  routingApproval: RoutingApprovalReceiptV1;
+}
+
+export type WorkspaceRevisionPointerV1 = WorkspaceCurrentPointerV1 | WorkspaceLastKnownGoodPointerV1;
+
+export interface WorkspaceStateMarkerV1 {
+  kind: "skillmap.workspace-state";
+  schemaVersion: 1;
+  layoutVersion: 1;
+  workspaceId: Uuid;
+  migrationRevisionId: RevisionId;
+  activatedAt: IsoTimestamp;
+  legacyMode: "read-only-projection";
+  payloadDigest: Sha256Digest;
+}
+
+export type WorkspaceRevisionContractV1 = WorkspaceRevisionV1 | WorkspaceRevisionPointerV1 | WorkspaceStateMarkerV1;
+
+export interface ApprovedRootRecordV1 {
+  rootId: string;
+  configuredPath: string;
+  realPath: string;
+  approvedAt: IsoTimestamp;
+}
+
+export interface WorkspaceIdentityRegistryV1 {
+  kind: "skillmap.workspace-identity";
+  schemaVersion: 1;
+  identityVersion: 1;
+  workspaceId: string;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  roots: ApprovedRootRecordV1[];
+  redactionClassification: "local-sensitive";
+}
+
+export interface SkillTreeEntryV1 {
+  path: string;
+  bytes: number;
+  mode: number;
+  digest: Sha256Digest;
+}
+
+export interface QualifiedSkillIdentityV1 {
+  kind: "skillmap.qualified-skill-identity";
+  schemaVersion: 1;
+  identityVersion: 1;
+  workspaceId: string;
+  rootId: string;
+  relativePath: string;
+  skillId: SkillId;
+  displayName: string;
+  contentRevision: Sha256Digest;
+  treeEntries: SkillTreeEntryV1[];
+  realPath: string;
+  redactionClassification: "local-sensitive";
+}
+
+export interface SkillIdentityRefV1 {
+  kind: "skillmap.skill-identity-ref";
+  schemaVersion: 1;
+  skillId: SkillId;
+  displayName: string;
+  contentRevision: Sha256Digest;
+}
+
+export interface IdentityMoveReceiptV1 {
+  kind: "skillmap.identity-move-receipt";
+  schemaVersion: 1;
+  fromSkillId: SkillId;
+  toSkillId: SkillId;
+  displayName: string;
+  contentRevision: Sha256Digest;
+  actor: string;
+  reason: string;
+  approvedAt: IsoTimestamp;
+  receiptDigest: Sha256Digest;
+}
+
+export interface IdentityTombstoneV1 {
+  kind: "skillmap.identity-tombstone";
+  schemaVersion: 1;
+  skillId: SkillId;
+  displayName: string;
+  contentRevision: Sha256Digest;
+  rootId: string;
+  relativePath: string;
+  removedAt: IsoTimestamp;
+}
+
+export interface ApprovedNewIdentityReceiptV1 {
+  kind: "skillmap.approved-new-identity-receipt";
+  schemaVersion: 1;
+  skillId: SkillId;
+  displayName: string;
+  contentRevision: Sha256Digest;
+  actor: string;
+  reason: string;
+  approvedAt: IsoTimestamp;
+  receiptDigest: Sha256Digest;
+}
+
+export type SkillIdentityContractV1 = WorkspaceIdentityRegistryV1 | QualifiedSkillIdentityV1 | SkillIdentityRefV1 | IdentityMoveReceiptV1 | IdentityTombstoneV1 | ApprovedNewIdentityReceiptV1;
+
+export type SkillTier = "active-default" | "specialist" | "explicit-only" | "archived" | "blocked";
+export type RouteWarningState = "none" | "degraded" | "blocked";
+
+export interface RouteRecommendationV2 {
+  skillId: SkillId;
+  displayName: string;
+  score: number;
+  tier: SkillTier;
+  reasonCodes: string[];
+}
+
+export interface RouteExclusionV2 {
+  skillId?: SkillId;
+  displayName: string;
+  reasonCode: string;
+}
+
+export interface RouteDecisionV2 {
+  kind: "skillmap.route-decision";
+  schemaVersion: 2;
+  revision: RevisionRef;
+  servingMode: "current" | "last-known-good";
+  recommendations: RouteRecommendationV2[];
+  exclusions: RouteExclusionV2[];
+  hookText: string;
+  warningState: RouteWarningState;
+  warningCodes: string[];
+}
+
+export interface RouteResultV2 {
+  kind: "skillmap.route-result";
+  schemaVersion: 2;
+  routeId: RouteId;
+  createdAt: IsoTimestamp;
+  promptStored: false;
+  decision: RouteDecisionV2;
+  decisionDigest: Sha256Digest;
+  latencyMs: number;
+}
+
+export type DashboardMode = "release-ready" | "attention-required";
+export type DashboardVerdict = "ok" | "attention-required" | "blocked";
+export type DashboardSourceState = "clean" | "modified" | "stale" | "risky" | "unknown" | "error" | "local";
+export type ReviewStatus = "none" | "reviewed" | "held" | "needs-review";
+
+export interface DashboardStatusSummary {
+  verdict: DashboardVerdict;
+  label: string;
+  summary: string;
+  warnings: string[];
+  nextActions: string[];
+}
+
+export interface DashboardTokenMetrics {
+  fullBodyTokens?: number;
+  catalogTokens?: number;
+  hookTokensMean?: number;
+  tokensAvoidedVsBodies?: number;
+  tokensAvoidedVsCatalog?: number;
+  sampleSize: number;
+  method: "workspace-estimate" | "eval-report" | "unknown";
+  computedAt: IsoTimestamp;
+}
+
+export interface DashboardProductivity {
+  routeCount: number;
+  top1Rate?: number;
+  top3Rate?: number;
+  avoidHits?: number;
+  evalConfidence: "none" | "demo" | "weak" | "alpha" | "release";
+  releaseReady: boolean;
+  avgRecommendations?: number;
+  avgHookChars?: number;
+}
+
+export interface DashboardCurationReceipt {
+  modelLabel: "provider-verified" | "user-reported" | "unverified-user-reported";
+  curator: string;
+  recordedAt: IsoTimestamp;
+  policyHash: Sha256Digest;
+}
+
+export interface DashboardPolicyReview {
+  id: string;
+  queue: "unmatched" | "duplicate" | "explicit-only" | "blocked" | "inventory-missing";
+  name: string;
+  state: "ready" | "needs-review" | "held";
+  reason: string;
+  nextAction: string;
+}
+
+export interface DashboardSnapshotV2 {
+  version: 2;
+  kind: "skillmap.dashboard-snapshot";
+  schemaVersion: 2;
+  workspaceId: string;
+  workspaceRevision: Sha256Digest;
+  workspaceName: string;
+  generatedAt: IsoTimestamp;
+  producer: Producer;
+  compatibility: { minReaderSchemaVersion: 2; maxReaderSchemaVersion: 2 };
+  inputDigests: Record<string, Sha256Digest>;
+  payloadDigest: Sha256Digest;
+  redactionClassification: "shareable-redacted";
+  redacted: true;
+  mode: DashboardMode;
+  source: "local-snapshot";
+  status: DashboardStatusSummary;
+  tokenMetrics: DashboardTokenMetrics;
+  productivity: DashboardProductivity;
+  connector: Record<string, unknown>;
+  curationReceipt?: DashboardCurationReceipt;
+  skills: Array<Record<string, unknown>>;
+  recentRouteTraces: Array<Record<string, unknown>>;
+  policyReviews: DashboardPolicyReview[];
+  sources: Array<Record<string, unknown>>;
+}
+
+export interface DashboardSnapshotV3 {
+  version: 3;
+  kind: "skillmap.dashboard-snapshot";
+  schemaVersion: 3;
+  workspaceId: string;
+  revision: RevisionRef;
+  workspaceName: string;
+  generatedAt: IsoTimestamp;
+  producer: Producer;
+  compatibility: Compatibility;
+  inputDigests: Record<string, Sha256Digest>;
+  payloadDigest: Sha256Digest;
+  redactionClassification: "shareable-redacted";
+  redacted: true;
+  mode: DashboardMode;
+  source: "local-snapshot";
+  routeHistorySource: "recorded-events" | "eval-fixture" | "none";
+  status: DashboardStatusSummary;
+  tokenMetrics: DashboardTokenMetrics;
+  productivity: DashboardProductivity;
+  connector: Record<string, unknown>;
+  curationReceipt?: DashboardCurationReceipt;
+  skills: Array<Record<string, unknown>>;
+  recentRouteEvents: RouteEventV1[];
+  policyReviews: DashboardPolicyReview[];
+  sources: Array<Record<string, unknown>>;
+}
+
+export type JobType = "scan" | "doctor" | "doctor-pack" | "graph-build" | "eval-run" | "sources-check";
+export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export type JobReceiptValueV1 = string | number | boolean | null;
+
+export interface JobV1 {
+  kind: "skillmap.job";
+  schemaVersion: 1;
+  jobId: JobId;
+  type: JobType;
+  state: JobState;
+  expectedRevision: RevisionId;
+  idempotencyKey: string;
+  requestDigest: Sha256Digest;
+  confirmation: "none";
+  createdAt: IsoTimestamp;
+  startedAt?: IsoTimestamp;
+  completedAt?: IsoTimestamp;
+  resultReceipt?: Record<string, JobReceiptValueV1>;
+  error?: { code: string; message: string; retryable: boolean };
+}
+
+interface EventBaseV1 {
+  schemaVersion: 1;
+  eventId: EventId;
+  sequence: string;
+  workspaceId: string;
+  occurredAt: IsoTimestamp;
+  revision: RevisionRef;
+  redactionClassification: "metadata-only";
+}
+
+export interface RevisionPublishedEventV1 extends EventBaseV1 {
+  kind: "skillmap.event.revision-published";
+  previousRevisionId: RevisionId | null;
+}
+
+export interface FilesystemDirtyEventV1 extends EventBaseV1 {
+  kind: "skillmap.event.filesystem-dirty";
+  observedDigest: Sha256Digest;
+  rootIds: string[];
+  suggestedJobType: "scan";
+}
+
+export interface JobStateChangedEventV1 extends EventBaseV1 {
+  kind: "skillmap.event.job-state-changed";
+  jobId: JobId;
+  jobType: JobType;
+  state: JobState;
+}
+
+export interface RouteEventV1 {
+  kind: "skillmap.route-event";
+  schemaVersion: 1;
+  eventId: EventId;
+  routeId: RouteId;
+  createdAt: IsoTimestamp;
+  revision: RevisionRef;
+  currentRevision: RevisionRef;
+  surface: "cli" | "hook" | "mcp" | "api";
+  outcome: "recommended" | "abstained" | "blocked" | "error";
+  selectedSkillIds: SkillId[];
+  reasonCodes: string[];
+  warningCodes: string[];
+  latencyBucket: "lt-10ms" | "lt-50ms" | "lt-250ms" | "gte-250ms";
+  degradedCode?: string;
+  decisionDigest?: Sha256Digest;
+  promptStored: false;
+  payloadDigest: Sha256Digest;
+}
+
+export type ProductEventV1 = RevisionPublishedEventV1 | FilesystemDirtyEventV1 | JobStateChangedEventV1 | RouteEventV1;
+
+export interface RouteFeedbackV1 {
+  kind: "skillmap.route-feedback";
+  schemaVersion: 1;
+  feedbackId: FeedbackId;
+  routeId: RouteId;
+  createdAt: IsoTimestamp;
+  revision: RevisionRef;
+  outcome: "correct" | "wrong" | "missing" | "unsafe";
+  selectedSkillIds: SkillId[];
+  expectedSkillIds: SkillId[];
+  unsafeSkillIds: SkillId[];
+  reasonCode: "operator-correct" | "operator-wrong" | "operator-missing" | "operator-unsafe";
+  idempotencyKeyHash: Sha256Digest;
+  promptStored: false;
+  commentStored: false;
+  payloadDigest: Sha256Digest;
+}
+
+export type EvalPrimaryCaseType = "explicit" | "implicit-natural" | "multi-skill" | "negative-near-miss";
+export type EvalMembership = "train" | "holdout";
+
+export interface EvalSuiteV2 {
+  version: 2;
+  provenance: Record<string, unknown>;
+  baseline: Record<string, number>;
+  evals: Array<{
+    id?: string;
+    prompt: string;
+    expected: string[];
+    avoid?: string[];
+    primaryCaseType: EvalPrimaryCaseType;
+    membership: EvalMembership;
+  }>;
+}
+
+export interface EvalSuiteV3 {
+  kind: "skillmap.eval-suite";
+  schemaVersion: 3;
+  suiteId: string;
+  name: string;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  datasetDigest: Sha256Digest;
+  provenance: EvalDatasetProvenanceV3;
+  baseline: EvalBaselineV3;
+  cases: EvalSuiteCaseV3[];
+  redactionClassification: "local-sensitive";
+  payloadDigest: Sha256Digest;
+}
+
+export type EvalSourceClassV3 = "operator-authored" | "observed-redacted" | "imported" | "synthetic";
+
+export interface EvalDatasetProvenanceV3 {
+  labelAuthor: string;
+  reviewedBy: string;
+  sourceClass: EvalSourceClassV3;
+  createdAt: IsoTimestamp;
+  holdoutFrozenAt: IsoTimestamp;
+  reviewedAt: IsoTimestamp;
+  deduplicationResult: "passed";
+  holdoutFrozen: true;
+  frozenCaseSetDigest: Sha256Digest;
+}
+
+export interface EvalCaseLabelProvenanceV3 {
+  author: string;
+  sourceClass: EvalSourceClassV3;
+  createdAt: IsoTimestamp;
+  reviewedAt: IsoTimestamp;
+}
+
+interface EvalBaselineProvenanceBaseV3 {
+  completedAt: IsoTimestamp;
+  caseSetDigest: Sha256Digest;
+}
+
+export type EvalBaselineProvenanceV3 =
+  | (EvalBaselineProvenanceBaseV3 & {
+      sourceKind: "approved-effective-revision";
+      sourceRevision: RevisionRef;
+    })
+  | (EvalBaselineProvenanceBaseV3 & {
+      sourceKind: "operator-declared-no-skillmap";
+      sourceRevision: null;
+    });
+
+export interface EvalBaselineV3 {
+  top1Rate: number;
+  top3Rate: number;
+  avoidHits: number;
+  abstentionRate: number;
+  meanAdvisoryBytes: number;
+  provenance: EvalBaselineProvenanceV3;
+}
+
+export interface EvalSuiteCaseV3 {
+  caseId: string;
+  prompt: string;
+  expectedSkillIds: SkillId[];
+  avoidSkillIds: SkillId[];
+  qualifiedSkillId?: SkillId;
+  primaryCaseType: EvalPrimaryCaseType;
+  membership: EvalMembership;
+  labelProvenance: EvalCaseLabelProvenanceV3;
+}
+
+export interface EvalRunV2 extends Record<string, unknown> {
+  version: 2;
+  generatedAt: IsoTimestamp;
+  datasetDigest: Sha256Digest;
+  effectiveRevisionDigest: Sha256Digest;
+  rows: Array<Record<string, unknown>>;
+}
+
+export interface EvalThresholdsV3 {
+  minCount: number;
+  minTop1: number;
+  minTop3: number;
+  maxAvoidHits: number;
+}
+
+export interface EvalCompositionV3 {
+  total: number;
+  explicit: number;
+  implicitNatural: number;
+  multiSkill: number;
+  negativeNearMiss: number;
+  untyped: number;
+  releaseCounted: number;
+  releaseScored: number;
+}
+
+export interface EvalHoldoutV3 {
+  count: number;
+  requiredCount: number;
+  ratio: number;
+  pass: boolean;
+}
+
+export interface EvalLeakageSummaryV3 {
+  count: number;
+  pass: boolean;
+  caseIds: string[];
+}
+
+export interface EvalBaselineComparisonV3 {
+  provided: boolean;
+  nonRegression: boolean;
+  improvement: boolean;
+  perfectBaseline: boolean;
+  pass: boolean;
+  improvements: string[];
+  regressions: string[];
+}
+
+export interface EvalMetricsV3 {
+  count: number;
+  top1: number;
+  top3: number;
+  avoidHits: number;
+  top1Rate: number;
+  top3Rate: number;
+  abstentionRate: number;
+  meanAdvisoryBytes: number;
+}
+
+export interface EvalRunCaseResultV3 {
+  caseId: string;
+  primaryCaseType: EvalPrimaryCaseType;
+  membership: EvalMembership;
+  releaseCounted: boolean;
+  releaseScored: boolean;
+  expectedSkillIds: SkillId[];
+  avoidSkillIds: SkillId[];
+  qualifiedSkillId?: SkillId;
+  recommendedSkillIds: SkillId[];
+  avoidedButRecommendedSkillIds: SkillId[];
+  top1Hit: boolean;
+  top3Hit: boolean;
+  abstained: boolean;
+  advisoryBytes: number;
+  outcome: "top1-hit" | "top3-hit" | "correct-abstention" | "miss" | "unsafe" | "invalid";
+  reasonCodes: string[];
+  validationCodes: string[];
+  leakageCodes: string[];
+}
+
+export interface EvalRunV3 {
+  kind: "skillmap.eval-run";
+  schemaVersion: 3;
+  runId: string;
+  suiteId: string;
+  workspaceId: Uuid;
+  revision: RevisionRef;
+  datasetDigest: Sha256Digest;
+  startedAt: IsoTimestamp;
+  finishedAt: IsoTimestamp;
+  fixture: boolean;
+  evidenceLevel: "demo" | "smoke" | "candidate" | "release";
+  releaseEvidenceEligible: boolean;
+  thresholdPass: boolean;
+  pass: boolean;
+  thresholds: EvalThresholdsV3;
+  composition: EvalCompositionV3;
+  holdout: EvalHoldoutV3;
+  leakage: EvalLeakageSummaryV3;
+  baseline: EvalBaselineV3;
+  baselineComparison: EvalBaselineComparisonV3;
+  metrics: EvalMetricsV3;
+  invalidCaseCount: number;
+  validationErrors: string[];
+  caseResults: EvalRunCaseResultV3[];
+  redactionClassification: "local-sensitive";
+  payloadDigest: Sha256Digest;
+}
+
+export type SyncPayloadV1 =
+  | ({ type: "workspace-summary" } & Record<string, unknown>)
+  | { type: "skill-metadata"; skills: Array<Record<string, unknown>> }
+  | { type: "route-event-batch"; events: RouteEventV1[] }
+  | { type: "feedback-batch"; feedback: RouteFeedbackV1[] }
+  | ({ type: "policy-proposal" } & Record<string, unknown>);
+
+export interface SyncEnvelopeV1 {
+  kind: "skillmap.sync-envelope";
+  schemaVersion: 1;
+  syncId: string;
+  workspaceId: string;
+  deviceId: string;
+  direction: "local-to-cloud" | "cloud-to-local";
+  sequence: string;
+  idempotencyKey: string;
+  baseRevision: RevisionRef | null;
+  targetRevision: RevisionRef | null;
+  createdAt: IsoTimestamp;
+  payloadType: SyncPayloadV1["type"];
+  payload: SyncPayloadV1;
+  redactionClassification: "metadata-only";
+  payloadDigest: Sha256Digest;
+  signature: { algorithm: "ed25519"; keyId: string; value: string; expiresAt: IsoTimestamp } | null;
+}
+
+export interface ApiSuccessEnvelopeV1<T = unknown> {
+  kind: "skillmap.api-response";
+  schemaVersion: 1;
+  ok: true;
+  requestId: RequestId;
+  servingRevision: RevisionRef | null;
+  currentRevision: RevisionRef | null;
+  compatibility: "compatible" | "degraded" | "upgrade-required" | "client-too-new" | "incompatible";
+  data: T;
+}
+
+export interface SafeApiErrorV1 {
+  code: string;
+  message: string;
+  retryable: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface ApiErrorEnvelopeV1 {
+  kind: "skillmap.api-response";
+  schemaVersion: 1;
+  ok: false;
+  requestId: RequestId;
+  servingRevision: RevisionRef | null;
+  currentRevision: RevisionRef | null;
+  compatibility: "compatible" | "degraded" | "upgrade-required" | "client-too-new" | "incompatible";
+  error: SafeApiErrorV1;
+}
+
+export type ApiEnvelopeV1<T = unknown> = ApiSuccessEnvelopeV1<T> | ApiErrorEnvelopeV1;
+
+export interface ContractBySchemaId {
+  "https://skillmap.dev/contracts/workspace-revision/v1.schema.json": WorkspaceRevisionContractV1;
+  "https://skillmap.dev/contracts/skill-identity/v1.schema.json": SkillIdentityContractV1;
+  "https://skillmap.dev/contracts/route-result/v2.schema.json": RouteResultV2;
+  "https://skillmap.dev/contracts/dashboard/v2.schema.json": DashboardSnapshotV2;
+  "https://skillmap.dev/contracts/dashboard/v3.schema.json": DashboardSnapshotV3;
+  "https://skillmap.dev/contracts/job/v1.schema.json": JobV1;
+  "https://skillmap.dev/contracts/event/v1.schema.json": ProductEventV1;
+  "https://skillmap.dev/contracts/route-feedback/v1.schema.json": RouteFeedbackV1;
+  "https://skillmap.dev/contracts/eval-suite/v2.schema.json": EvalSuiteV2;
+  "https://skillmap.dev/contracts/eval-suite/v3.schema.json": EvalSuiteV3;
+  "https://skillmap.dev/contracts/eval-run/v2.schema.json": EvalRunV2;
+  "https://skillmap.dev/contracts/eval-run/v3.schema.json": EvalRunV3;
+  "https://skillmap.dev/contracts/sync-envelope/v1.schema.json": SyncEnvelopeV1;
+  "https://skillmap.dev/contracts/api-envelope/v1.schema.json": ApiEnvelopeV1;
+}
+
+export type KnownContractSchemaId = keyof ContractBySchemaId;

@@ -1,10 +1,11 @@
 # SkillMap Handoff
 
-Date: 2026-07-08
+Originally created: 2026-07-08
+Last reconciled: 2026-07-10
 Repo: https://github.com/Masih-0x3/skillmap
 Current branch: `main`
-Current pushed commit before this handoff: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Status at handoff creation: local repo clean and aligned with `origin/main`.
+Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
+Current status: the product-application implementation is a dirty local worktree. It has not been committed, pushed, published, or deployed.
 
 ## Purpose of this handoff
 
@@ -15,6 +16,8 @@ Do not duplicate or reinterpret the whole planning history. Use this handoff as 
 ## Product summary
 
 SkillMap is a local-first skill registry, SkillGraph, router, source tracker, and quality system for coding agents.
+
+Current surface boundary: `apps/web` is the separate public/read-only Next.js surface and renders recorded fixtures or an explicitly configured redacted snapshot. The package also contains `assets/local-app/v1`, a modular application served only by the foreground `skillmap dashboard` loopback connector. That local application performs live routes and narrowly allowlisted revision-bound operations; it is not a hosted session and never grants arbitrary command execution or browser writes to skill roots. Accounts, team sync, billing, hosted registry storage, and remote mutation remain unimplemented and must not be presented as current behavior.
 
 The strongest intended architecture is:
 
@@ -29,9 +32,9 @@ agent loads only selected skill content when needed
 
 This is different from adding another skill list into Codex. The main value appears when SkillMap becomes the skill access layer, not when it sits on top of an already-loaded host skill registry.
 
-## What has been completed
+## Historical baseline and current local implementation
 
-A v1 release candidate has been implemented, committed, pushed, and CI passed.
+The historical baseline commit above passed its then-current CI. The current local worktree substantially changes its identity, evidence, export, dashboard, and test contracts; it remains experimental alpha until the new work is reviewed, committed, pushed, and revalidated in CI.
 
 Completed surfaces:
 
@@ -44,15 +47,22 @@ Completed surfaces:
 - Passive Codex hook install/uninstall with backup/merge safety.
 - Source provenance and update checker: list/adopt/check/diff/update/review.
 - Source review receipts for reviewed stale/risky/unknown states.
-- Release-confidence eval support with `.skillmap/real-evals.json`.
+- Receipt-verified `eval-suite/v3` / `eval-run/v3` support with qualified identities, immutable current/baseline replay, and prompt-free traces; eval v2 and self-labeling suites are candidate/demo evidence and cannot authorize release.
 - Local export/import with redaction and conflict reporting.
 - Read-only MCP surface: manifest/call/serve.
 - First-run, troubleshooting, host compatibility, security, and threat model docs.
 - GitHub issue templates.
+- Canonical runtime contracts shared by CLI, hook, MCP, API, snapshots, and web adapters.
+- Qualified root/path identity and explicit hash-bound canonical duplicate decisions.
+- Fenced, fsynced immutable workspace revisions with compare-and-swap publication, last-known-good routing, migration, recovery, verified history, and rollback.
+- Capability-authenticated IPv4-loopback connector with origin/CSRF/Host limits, bounded responses, foreground lifecycle, and versioned packaged assets.
+- Live local UI routes for onboarding, workspaces, overview, Route Lab, skills/variants, policy, eval, sources, trust, integrations, activity, and settings.
+- Bounded redacted route/feedback/job ledgers, restart-safe allowlisted jobs, and explicit cancellation before publication.
+- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. These are local implementations until the final current-worktree run and hosted CI both pass.
 
-## Validation evidence
+## Historical validation evidence (not current release proof)
 
-Latest known release-candidate evidence from the prior implementation run:
+The following evidence belongs to the 2026-07-08 baseline. It is retained for history and must not be used as proof that the current worktree is release-ready:
 
 - Commit: `2709937347cb4f556ceb0c123306f6db3df8f8af`
 - CI run: https://github.com/Masih-0x3/skillmap/actions/runs/28982829760
@@ -64,7 +74,7 @@ Latest known release-candidate evidence from the prior implementation run:
 - `npm --cache /private/tmp/skillmap-npm-cache publish --dry-run`: passed
 - Clean consumer install from local tarball: passed
 - `skillmap status` on copied corpus: `ok`
-- Eval: 185 prompts, 183/185 top-1, 185/185 top-3, 0 avoid hits, release confidence
+- Eval: 185 prompts, 183/185 top-1, 185/185 top-3, 0 avoid hits; the current evidence rules classify this self-labeling dataset as demo evidence, not release confidence
 - MCP serve JSON-RPC smoke: initialized and listed 6 read-only tools
 - Temp hook install/uninstall smoke: passed
 
@@ -77,9 +87,9 @@ Important local evidence artifacts outside the repo:
 
 These output files are not part of the published package. They are audit evidence from this local workspace.
 
-## Scientific audit summary
+## Historical demo audit summary
 
-We compared SkillMap to a raw inventory-only lexical baseline over 185 labeled prompts.
+The prior run compared SkillMap to a raw inventory-only lexical baseline over 185 labeled prompts. Under the retained legacy eval-v2 classification this dataset is useful directional/demo evidence, not a release gate; it must be migrated and independently reviewed before it can enter the v3 authority flow.
 
 Results:
 
@@ -96,7 +106,7 @@ Results:
 
 Scientific conclusion:
 
-SkillMap's strongest proven benefit is context efficiency and governance. Routing quality improved modestly. The honest claim is not "dramatically smarter routing"; it is compact, policy-backed skill access without loading the whole skill library into context.
+The directional result supports further testing of context efficiency and governance. It does not prove current release readiness or production routing quality. The honest current claim is compact, policy-backed skill access with explicit evidence gates.
 
 ## Current design truth
 
@@ -120,7 +130,7 @@ SkillMap = another list of skills inside Codex
 
 ## Release boundary
 
-The repo is a v1 release candidate, but public release actions were intentionally not performed without explicit user approval.
+The repository and current worktree are experimental alpha, not a release candidate. Public release actions remain intentionally gated on explicit user approval and fresh validation of the eventual committed revision.
 
 Not yet done:
 
@@ -128,6 +138,10 @@ Not yet done:
 - GitHub tag/release
 - Global hook install
 - Applying held risky/stale upstream third-party skill updates
+- Five external onboarding pilots
+- Recorded manual screen-reader, keyboard, zoom/reflow, contrast, forced-colors, and operating-system review for the eventual beta candidate
+- Hosted CI validation of the eventual committed revision
+- Hosted identity, tenancy, connector pairing, team sync, billing, deployment, or production operations
 
 Before public release, a fresh agent should verify current state again because package registries, CI, and repo state can drift.
 
@@ -169,13 +183,12 @@ If the next goal is public release:
 1. Re-anchor repo state.
 2. Run `git status --short --branch`.
 3. Run `npm ci`.
-4. Run `npm run typecheck`.
-5. Run `npm test`.
-6. Run `npm --cache /private/tmp/skillmap-npm-cache pack --dry-run`.
-7. Run `npm --cache /private/tmp/skillmap-npm-cache publish --dry-run`.
-8. Check latest GitHub CI.
-9. Confirm package name, version, npm account, tag strategy, and visibility with the user.
-10. Only after explicit approval: tag, publish, create GitHub release.
+4. Run `npm run check:all`, the root and web dependency audits, and the full regression suite from the repo root. Do not run mutating CLI workflows from the repo root because its ignored `.skillmap` state is protected evidence.
+5. Run `npm run test:consumer-install` and `npm pack --dry-run`; inspect the exact tarball manifest.
+6. Complete every manual item in `docs/ui-acceptance-matrix.md` and five real sessions from `docs/external-pilot-runbook.md` against the exact candidate tarball.
+7. Push a reviewed commit and verify the supported Node/OS, browser, privacy, migration, failure, and consumer-install jobs in hosted GitHub Actions.
+8. Confirm package name, prerelease version/tag, npm account, trusted-publishing environment, support owner, and visibility with the user.
+9. Only after explicit approval: create the immutable tag, publish with provenance, verify a registry install, and create the GitHub release. Report npm, tag, release, and any web deployment as separate states.
 
 If the next goal is product improvement:
 
@@ -197,16 +210,25 @@ If the next goal is product improvement:
 ## Quick commands for a fresh agent
 
 ```bash
-cd /Users/stevmq/Documents/Codex/2026-07-01/wha/work/skillmap
+cd /home/codex/projects/skillmap
 git status --short --branch
 npm run typecheck
 npm test
-node dist/cli.js status --json
-node dist/cli.js eval --file .skillmap/real-evals.json --min-count 150 --save-report --json
+npm run check:web
+npm run test:consumer-install
+npm pack --dry-run
 ```
 
-If the local npm cache has ownership issues, use:
+Run CLI workflow reproductions only in a disposable consumer workspace, for
+example:
 
 ```bash
-npm --cache /private/tmp/skillmap-npm-cache pack --dry-run
+WORKSPACE="$(mktemp -d)"
+cd "$WORKSPACE"
+node /home/codex/projects/skillmap/dist/cli.js --help
 ```
+
+Never use the repository directory as the working directory for `init`,
+`scan`, `state`, `policy`, `eval --save-report`, or another command that writes
+`.skillmap`; earlier acceptance work proved that doing so can overwrite ignored
+evidence even while tracked files remain untouched.

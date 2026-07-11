@@ -1,0 +1,9 @@
+import { escapeHtml, pageHead, revisionLine } from '../render.js';
+
+export function renderTrust(ctx) {
+  const dashboard = ctx.state.dashboard;
+  ctx.mount(`${pageHead('Trust & privacy', 'Inspect the active boundary for this foreground connector and approved revision.')}
+    ${dashboard?.revision ? revisionLine(dashboard.revision, dashboard.servingMode) : ''}
+    <div class="section-grid"><section class="panel"><div class="panel-head"><h2>Local connector</h2><span>${ctx.state.connected ? 'Active' : 'Offline'}</span></div><div class="panel-body"><ul class="stack-list"><li><span>Bind address</span><small>127.0.0.1</small></li><li><span>Browser authorization</span><small>Origin-scoped session capability</small></li><li><span>Mutation protection</span><small>Capability + Origin + CSRF</small></li><li><span>CORS</span><small>Disabled</small></li><li><span>Prompt retention</span><small>False</small></li><li><span>Browser cache</span><small>Redacted workspace/dashboard only</small></li></ul></div></section>
+    <section class="panel"><div class="panel-head"><h2>State integrity</h2><span>${escapeHtml(dashboard?.servingMode || 'unavailable')}</span></div><div class="panel-body"><p>Readers capture one pointer, verify an immutable manifest, and use only that revision. Canonical divergence blocks routing; eligible derived corruption may use an explicit last-known-good receipt.</p><ul class="stack-list"><li><span>Serving revision</span><small><code>${escapeHtml(dashboard?.revision?.revisionId || 'unavailable')}</code></small></li><li><span>Current revision</span><small><code>${escapeHtml(dashboard?.currentRevision?.revisionId || 'unavailable')}</code></small></li><li><span>Routing ready</span><small>${String(dashboard?.routingReady === true)}</small></li><li><span>Filesystem dirty</span><small>${String(dashboard?.filesystemDirty === true)}</small></li></ul></div></section></div>`);
+}

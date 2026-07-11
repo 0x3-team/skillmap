@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "canonicalization": "canonicalization-v1.md",
+  "schemas": [
+    { "name": "common-v1", "path": "common/v1.schema.json", "id": "https://skillmap.dev/contracts/common/v1.schema.json" },
+    { "name": "workspace-revision-v1", "path": "workspace-revision/v1.schema.json", "id": "https://skillmap.dev/contracts/workspace-revision/v1.schema.json" },
+    { "name": "skill-identity-v1", "path": "skill-identity/v1.schema.json", "id": "https://skillmap.dev/contracts/skill-identity/v1.schema.json" },
+    { "name": "route-result-v2", "path": "route-result/v2.schema.json", "id": "https://skillmap.dev/contracts/route-result/v2.schema.json" },
+    { "name": "dashboard-v2", "path": "dashboard/v2.schema.json", "id": "https://skillmap.dev/contracts/dashboard/v2.schema.json" },
+    { "name": "dashboard-v3", "path": "dashboard/v3.schema.json", "id": "https://skillmap.dev/contracts/dashboard/v3.schema.json" },
+    { "name": "job-v1", "path": "job/v1.schema.json", "id": "https://skillmap.dev/contracts/job/v1.schema.json" },
+    { "name": "event-v1", "path": "event/v1.schema.json", "id": "https://skillmap.dev/contracts/event/v1.schema.json" },
+    { "name": "route-feedback-v1", "path": "route-feedback/v1.schema.json", "id": "https://skillmap.dev/contracts/route-feedback/v1.schema.json" },
+    { "name": "eval-suite-v2", "path": "eval-suite/v2.schema.json", "id": "https://skillmap.dev/contracts/eval-suite/v2.schema.json" },
+    { "name": "eval-suite-v3", "path": "eval-suite/v3.schema.json", "id": "https://skillmap.dev/contracts/eval-suite/v3.schema.json" },
+    { "name": "eval-run-v2", "path": "eval-run/v2.schema.json", "id": "https://skillmap.dev/contracts/eval-run/v2.schema.json" },
+    { "name": "eval-run-v3", "path": "eval-run/v3.schema.json", "id": "https://skillmap.dev/contracts/eval-run/v3.schema.json" },
+    { "name": "sync-envelope-v1", "path": "sync-envelope/v1.schema.json", "id": "https://skillmap.dev/contracts/sync-envelope/v1.schema.json" },
+    { "name": "api-envelope-v1", "path": "api-envelope/v1.schema.json", "id": "https://skillmap.dev/contracts/api-envelope/v1.schema.json" }
+  ],
+  "testVectors": ["test-vectors/canonicalization-v1.json"]
+}

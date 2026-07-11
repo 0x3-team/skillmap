@@ -12,8 +12,7 @@ SkillMap is currently private alpha software. Contributions should preserve the 
 
 ```bash
 npm ci
-npm run typecheck
-npm test
+npm run check:all
 npm pack --dry-run
 ```
 
@@ -26,6 +25,8 @@ A change should include:
 - fixture coverage for parser, policy, doctor, graph, route, or eval behavior when relevant
 - updated docs for user-visible commands or safety semantics
 - validation output from `npm run typecheck` and `npm test`
+- clean-consumer install evidence for packaging or local-app changes
+- browser, privacy, migration, and failure-lane evidence for the surfaces changed
 
 ## Design principles
 
@@ -34,3 +35,5 @@ A change should include:
 - Policy should be reversible.
 - Route traces should explain recommendations and exclusions.
 - Runtime hooks must stay compact and deterministic.
+- Routing readers must serve one verified explicitly approved revision, or abstain.
+- Browser/API receipts must omit prompts, paths, secrets, and free-form private text by construction.

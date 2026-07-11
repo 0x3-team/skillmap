@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/job/v1.schema.json",
+  "title": "SkillMap Allowlisted Job v1",
+  "description": "The compact durable job record produced by the local connector. The separately persisted request remains an internal command envelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "jobId", "type", "state", "expectedRevision", "idempotencyKey", "requestDigest", "confirmation", "createdAt"],
+  "properties": {
+    "kind": { "const": "skillmap.job" },
+    "schemaVersion": { "const": 1 },
+    "jobId": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/JobId" },
+    "type": { "$ref": "#/$defs/JobType" },
+    "state": { "enum": ["queued", "running", "succeeded", "failed", "cancelled"] },
+    "expectedRevision": {
+      "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/RevisionId"
+    },
+    "idempotencyKey": {
+      "$comment": "Persistence-safe domain-separated digest; raw caller idempotency keys are never stored or returned.",
+      "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest"
+    },
+    "requestDigest": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest" },
+    "confirmation": { "const": "none" },
+    "createdAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "startedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "completedAt": { "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp" },
+    "resultReceipt": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "maxLength": 256 },
+          { "type": "number" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      }
+    },
+    "error": { "$ref": "#/$defs/JobError" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "queued" } }, "required": ["state"] },
+      "then": { "not": { "anyOf": [
+        { "properties": { "startedAt": true }, "required": ["startedAt"] },
+        { "properties": { "completedAt": true }, "required": ["completedAt"] },
+        { "properties": { "resultReceipt": true }, "required": ["resultReceipt"] },
+        { "properties": { "error": true }, "required": ["error"] }
+      ] } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "running" } }, "required": ["state"] },
+      "then": {
+        "properties": { "startedAt": true },
+        "required": ["startedAt"],
+        "not": { "anyOf": [
+          { "properties": { "completedAt": true }, "required": ["completedAt"] },
+          { "properties": { "resultReceipt": true }, "required": ["resultReceipt"] },
+          { "properties": { "error": true }, "required": ["error"] }
+        ] }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "succeeded" } }, "required": ["state"] },
+      "then": {
+        "properties": { "startedAt": true, "completedAt": true, "resultReceipt": true, "error": true },
+        "required": ["startedAt", "completedAt", "resultReceipt"],
+        "not": { "properties": { "error": true }, "required": ["error"] }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "failed" } }, "required": ["state"] },
+      "then": {
+        "properties": { "startedAt": true, "completedAt": true, "error": true, "resultReceipt": true },
+        "required": ["startedAt", "completedAt", "error"],
+        "not": { "properties": { "resultReceipt": true }, "required": ["resultReceipt"] }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "cancelled" } }, "required": ["state"] },
+      "then": {
+        "properties": { "completedAt": true, "resultReceipt": true, "error": true },
+        "required": ["completedAt"],
+        "not": { "properties": { "error": true }, "required": ["error"] }
+      }
+    }
+  ],
+  "$defs": {
+    "JobType": {
+      "enum": ["scan", "doctor", "doctor-pack", "graph-build", "eval-run", "sources-check"]
+    },
+    "JobError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "retryable": { "type": "boolean" }
+      }
+    }
+  }
+}

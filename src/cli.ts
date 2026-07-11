@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { parseArgs, hasFlag } from './core/args.js';
+import { parseArgs, hasFlag, flagString } from './core/args.js';
 import { initCommand } from './commands/init.js';
 import { scanCommand } from './commands/scan.js';
 import { doctorCommand } from './commands/doctor.js';
@@ -17,6 +17,12 @@ import { sourcesCommand } from './commands/sources.js';
 import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { mcpCommand } from './commands/mcp.js';
+import { policyCommand } from './commands/policy.js';
+import { identityCommand } from './commands/identity.js';
+import { WorkspaceStateStore, type PublicationResult } from './core/workspace-state/index.js';
+import { stateCommand } from './commands/state.js';
+import { dashboardCommand } from './commands/dashboard.js';
+import { SKILLMAP_PRODUCT_VERSION } from './server/compatibility.js';
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
@@ -25,32 +31,102 @@ async function main() {
     printHelp();
     return;
   }
-  let output: unknown;
-  switch (parsed.command) {
-    case 'init': output = await initCommand(cwd, parsed.flags); break;
-    case 'scan': output = await scanCommand(cwd, parsed.flags); break;
-    case 'list': output = await listCommand(cwd); break;
-    case 'doctor': output = await doctorCommand(cwd, parsed.flags); break;
-    case 'doctor-pack': output = await doctorPackCommand(cwd, parsed.flags); break;
-    case 'ingest-agent-review': output = await ingestAgentReviewCommand(cwd, parsed.positionals); break;
-    case 'status': output = await statusCommand(cwd); break;
-    case 'export': output = await exportCommand(cwd, parsed.flags); break;
-    case 'import': output = await importCommand(cwd, parsed.positionals, parsed.flags); break;
-    case 'mcp': output = await mcpCommand(cwd, parsed.positionals, parsed.flags); break;
-    case 'curate': output = await curateCommand(cwd, parsed.positionals, parsed.flags); break;
-    case 'sources': output = await sourcesCommand(cwd, parsed.positionals, parsed.flags); break;
-    case 'apply-policy': output = await applyPolicyCommand(cwd, parsed.flags); break;
-    case 'graph': output = await graphCommand(cwd, parsed.positionals, parsed.flags); break;
-    case 'route': output = await routeCommand(cwd, parsed.positionals, parsed.flags); break;
-    case 'eval': output = await evalCommand(cwd, parsed.flags); break;
-    case 'hook': output = await hookCommand(cwd, parsed.positionals, parsed.flags); break;
-    default: throw new Error(`Unknown command: ${parsed.command}`);
+  if (parsed.command === 'version' || parsed.command === '--version' || hasFlag(parsed.flags, 'version')) {
+    console.log(SKILLMAP_PRODUCT_VERSION);
+    return;
   }
+  let output: unknown;
+  const mutation = mutationOperation(parsed.command, parsed.positionals, parsed.flags);
+  if (mutation) {
+    const store = WorkspaceStateStore.open(cwd);
+    const wrapped = await store.withMutationLock(`cli:${mutation}`, async (context) => {
+      const migrated = await store.isMigrated();
+      if (migrated) {
+        const preflight = await store.readCurrent({ purpose: 'status' });
+        if (preflight.legacyDivergence.some((item) => item.severity === 'blocking')) {
+          throw new Error('Canonical legacy projections diverged from the approved revision. Review them, then run `skillmap state import-legacy --confirm` or `skillmap state repair-projections --confirm` explicitly.');
+        }
+      }
+      const value = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
+      const approveForRouting = routingApprovalCandidate(parsed.command, value);
+      const publication = migrated
+        ? await context.publishLegacySnapshot({ approveForRouting, actor: 'local-cli', reason: `Successful ${mutation} command.` })
+        : await context.migrateLegacy({ confirm: true, approveForRouting, actor: 'local-cli', reason: `Initial state publication after ${mutation}.` });
+      return { value, publication };
+    });
+    output = attachPublicationReceipt(wrapped.value, wrapped.publication);
+  } else {
+    output = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
+  }
+  if (output === undefined) return;
   if (hasFlag(parsed.flags, 'json')) {
     console.log(JSON.stringify(output, null, 2));
   } else {
     printHuman(output);
   }
+}
+
+async function dispatchCommand(cwd: string, command: string, positionals: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
+  let output: unknown;
+  switch (command) {
+    case 'init': output = await initCommand(cwd, flags); break;
+    case 'scan': output = await scanCommand(cwd, flags); break;
+    case 'list': output = await listCommand(cwd); break;
+    case 'doctor': output = await doctorCommand(cwd, flags); break;
+    case 'doctor-pack': output = await doctorPackCommand(cwd, flags); break;
+    case 'ingest-agent-review': output = await ingestAgentReviewCommand(cwd, positionals); break;
+    case 'status': output = await statusCommand(cwd); break;
+    case 'state': output = await stateCommand(cwd, positionals, flags); break;
+    case 'dashboard': output = await dashboardCommand(cwd, flags); break;
+    case 'export': output = await exportCommand(cwd, flags); break;
+    case 'import': output = await importCommand(cwd, positionals, flags); break;
+    case 'mcp': output = await mcpCommand(cwd, positionals, flags); break;
+    case 'curate': output = await curateCommand(cwd, positionals, flags); break;
+    case 'sources': output = await sourcesCommand(cwd, positionals, flags); break;
+    case 'apply-policy': output = await applyPolicyCommand(cwd, flags); break;
+    case 'policy': output = await policyCommand(cwd, positionals, flags); break;
+    case 'identity': output = await identityCommand(cwd, positionals, flags); break;
+    case 'graph': output = await graphCommand(cwd, positionals, flags); break;
+    case 'route': output = await routeCommand(cwd, positionals, flags); break;
+    case 'eval': output = await evalCommand(cwd, flags); break;
+    case 'hook': output = await hookCommand(cwd, positionals, flags); break;
+    default: throw new Error(`Unknown command: ${command}`);
+  }
+  return output;
+}
+
+function mutationOperation(command: string, positionals: string[], flags: Record<string, string | boolean | string[]>): string | undefined {
+  if (hasFlag(flags, 'dry-run')) return undefined;
+  if ((command === 'doctor' || command === 'doctor-pack') && flagString(flags, 'fixtures')) return undefined;
+  if (command === 'init' || command === 'scan' || command === 'doctor' || command === 'doctor-pack' || command === 'apply-policy') return command;
+  if (command === 'graph' && ['build', 'raw'].includes(positionals[0] ?? 'build')) return `graph-${positionals[0] ?? 'build'}`;
+  if (command === 'eval' && hasFlag(flags, 'save-report')) return 'eval-save-report';
+  if (command === 'sources' && ['adopt', 'check', 'review'].includes(positionals[0] ?? 'list')) return `sources-${positionals[0]}`;
+  if (command === 'curate' && flagString(flags, 'ingest') && hasFlag(flags, 'confirm')) return 'curate-ingest';
+  if (command === 'policy' && ['migrate', 'select-canonical', 'rollback'].includes(positionals[0] ?? '') && hasFlag(flags, 'confirm')) return `policy-${positionals[0]}`;
+  if (command === 'identity' && ['adopt-move', 'approve-new'].includes(positionals[0] ?? '') && hasFlag(flags, 'confirm')) return `identity-${positionals[0]}`;
+  return undefined;
+}
+
+function routingApprovalCandidate(command: string, value: unknown): boolean {
+  if (command !== 'apply-policy' || !value || typeof value !== 'object') return false;
+  const validation = (value as { policyValidation?: { duplicateInventoryNameGroups?: unknown[]; invalidCanonicalDecisions?: unknown[] } }).policyValidation;
+  return Boolean(validation
+    && (validation.duplicateInventoryNameGroups?.length ?? 0) === 0
+    && (validation.invalidCanonicalDecisions?.length ?? 0) === 0);
+}
+
+function attachPublicationReceipt(value: unknown, publication: PublicationResult): unknown {
+  const receipt = {
+    workspaceId: publication.pointer.workspaceId,
+    revisionId: publication.pointer.revisionId,
+    workspaceRevision: publication.pointer.workspaceRevision,
+    effectiveDigest: publication.pointer.effectiveDigest,
+    effectiveRevisionDigest: publication.pointer.effectiveRevisionDigest,
+    lastKnownGoodUpdated: publication.lastKnownGoodUpdated
+  };
+  if (value && typeof value === 'object' && !Array.isArray(value)) return { ...(value as Record<string, unknown>), revision: receipt };
+  return { value, revision: receipt };
 }
 
 function printHuman(output: unknown) {
@@ -70,7 +146,59 @@ function printHuman(output: unknown) {
 }
 
 function printHelp() {
-  console.log(`SkillMap CLI\n\nCommands:\n  init [--dry-run] [--json]\n  scan [--root PATH] [--fixtures PATH] [--json]\n  list [--json]\n  doctor [--fixtures PATH] [--fix-plan] [--json]\n  doctor-pack [--fixtures PATH] [--summary] [--max-skills N] [--json]\n  ingest-agent-review FILE [--json]\n  status [--json]\n  export [--output PATH] [--redact-paths] [--json]\n  import FILE [--dry-run|--confirm] [--json]\n  curate codex --prepare [--json]\n  curate codex --ingest FILE --rationale FILE --model MODEL [--dry-run|--confirm] [--json]\n  sources list|check [--json]\n  sources adopt SKILL --repo OWNER/REPO --path PATH [--ref REF] [--json]\n  sources diff SKILL [--json]\n  sources update SKILL [--dry-run|--confirm] [--allow-risky] [--json]\n  sources review SKILL --decision hold|accepted|ignore --reason TEXT [--json]\n  apply-policy [--policy FILE] [--dry-run] [--strict] [--allow-fixtures] [--json]\n  graph [build|query|explain|duplicates|conflicts|export] [--raw|--effective] [--format mermaid|json] [--json]\n  route <prompt> [--trace] [--json]\n  route --hook [--prompt TEXT] [--max N] [--json]\n  eval [--file FILE] [--min-count N] [--save-report] [--json]\n  hook dry-run codex <prompt> [--json]\n  hook install codex --passive [--dry-run] [--global] [--config PATH] [--json]\n  hook uninstall codex [--dry-run] [--global] [--config PATH] [--json]\n  mcp manifest [--json]\n  mcp call TOOL [--prompt TEXT] [--query TEXT] [--name SKILL] [--json]\n  mcp serve\n\nSafety defaults: no cloud calls, no skill script execution, no hook install unless explicitly requested.`);
+  console.log(`SkillMap CLI
+
+Usage:
+  skillmap --version
+  skillmap <command> [options]
+
+Commands:
+  init [--root PATH] [--dry-run] [--json]
+  scan [--root PATH] [--fixtures PATH] [--json]
+  list [--json]
+  doctor [--fixtures PATH] [--fix-plan] [--json]
+  doctor-pack [--fixtures PATH] [--summary] [--max-skills N] [--json]
+  ingest-agent-review FILE [--json]
+  status [--json]
+  state status [--json]
+  state migrate --confirm [--approve-routing] [--actor NAME] [--reason TEXT] [--json]
+  state import-legacy --confirm [--approve-routing] [--actor NAME] [--reason TEXT] [--json]
+  state rollback --target REVISION --expected-revision REVISION --actor NAME --reason TEXT --confirm [--approve-routing] [--json]
+  state recover --confirm [--actor NAME] [--reason TEXT] [--json]
+  state repair-projections --confirm [--json]
+  dashboard [--port N] [--static-root PATH] [--json]
+  export [--output PATH] [--redact-paths] [--json]
+  export --include-sensitive-local --output .skillmap/private-exports/FILE [--json]
+  export --dashboard-snapshot --redact-paths [--output PATH] [--json]
+  import FILE [--dry-run|--confirm] [--acknowledge-sensitive-local] [--json]
+  curate codex --prepare [--json]
+  curate codex --ingest FILE --rationale FILE --model MODEL [--dry-run|--confirm] [--json]
+  sources list|check [--json]
+  sources adopt SKILL [--skill-id ID] --repo OWNER/REPO --path PATH [--ref REF] [--json]
+  sources adopt SKILL [--skill-id ID] --local --reason TEXT [--json]
+  sources diff SKILL [--json]
+  sources update SKILL [--dry-run] [--json]
+  sources review SKILL --decision hold|accepted|ignore --reason TEXT [--json]
+  apply-policy [--policy FILE] [--dry-run] [--strict] [--allow-fixtures] [--json]
+  policy status [--json]
+  policy migrate [--dry-run|--confirm] [--json]
+  policy select-canonical NAME --skill-id ID --actor ACTOR --reason TEXT [--dry-run|--confirm] [--json]
+  policy rollback [--confirm] [--json]
+  identity status [--json]
+  identity adopt-move --from OLD_ID --to NEW_ID --actor ACTOR --reason TEXT [--dry-run|--confirm] [--json]
+  identity approve-new --skill-id ID --actor ACTOR --reason TEXT [--dry-run|--confirm] [--json]
+  graph [build|query|explain|duplicates|conflicts|export] [--raw|--effective] [--format mermaid|json] [--json]
+  route <prompt> [--skill-id ID] [--trace] [--json]
+  route --hook [--prompt TEXT] [--max N] [--json]
+  eval [--file FILE] [--min-count N] [--min-top1 N] [--min-top3 N] [--max-avoid-hits N] [--save-report] [--json]
+  hook dry-run codex <prompt> [--json]
+  hook install codex --passive [--dry-run] [--force] [--global] [--config PATH] [--json]
+  hook uninstall codex [--dry-run] [--global] [--config PATH] [--json]
+  mcp manifest [--json]
+  mcp call TOOL [--prompt TEXT] [--query TEXT] [--name SKILL] [--skill-id ID] [--json]
+  mcp serve
+
+Safety defaults: no cloud calls, no skill script execution, source updates are preview-only, dashboard snapshots require redaction, and hook install requires ready status unless forced.`);
 }
 
 main().catch((error: unknown) => {

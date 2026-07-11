@@ -1,0 +1,12 @@
+{
+  "state": "blocked",
+  "cliVersion": "0.1.0",
+  "cwdAlias": "$PROJECT",
+  "lastSeenAt": "2026-07-08T23:40:00.000Z",
+  "lastSnapshotHash": "sha256:blocked-snapshot",
+  "redactionEnabled": true,
+  "readOnlyMode": true,
+  "allowedCommands": ["skillmap status --json", "skillmap sources check", "skillmap export --redact"],
+  "nextCommand": "skillmap sources check && skillmap export --redact",
+  "message": "Source freshness gate is blocked. Run a local source check before syncing a new snapshot."
+}
