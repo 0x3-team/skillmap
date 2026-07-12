@@ -41,6 +41,8 @@ privileged container and still shares the host's kernel, network, CPU, memory,
 and disk. Use it only for repositories and workflow changes controlled by the
 owner. Do not run workflows from untrusted forks. Move CI to a dedicated worker
 VM before allowing outside contributors or privileged deployment credentials.
+Job containers share the nested rootless daemon's host network so Docker-based
+tools such as the Supabase CLI can reach sibling containers on `127.0.0.1`.
 
 ## Add any project
 
