@@ -37,7 +37,9 @@ import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-err
 import {
   InMemoryFixedWindowRateLimiter,
   applyRateLimitHeaders,
-  getAnonymousClientKey
+  getAnonymousClientKey,
+  isPublicCatalogApiPath,
+  isPublicCatalogReadRequest
 } from "../lib/security/rate-limit.ts";
 
 const APP_ORIGIN = "https://skillmap.invalid";
@@ -203,10 +205,13 @@ test("nonce CSP is strict, environment-aware, and rejects malformed sources", ()
   });
   assert.match(production, new RegExp(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`));
   assert.match(production, new RegExp(`style-src 'self' 'nonce-${nonce}'`));
+  assert.match(production, new RegExp(`style-src-elem 'self' 'nonce-${nonce}'`));
+  assert.match(production, /style-src-attr 'unsafe-inline'/);
   assert.match(production, /connect-src 'self' https:\/\/project\.supabase\.co wss:\/\/project\.supabase\.co/);
   assert.match(production, /frame-ancestors 'none'/);
   assert.match(production, /upgrade-insecure-requests/);
-  assert.doesNotMatch(production, /'unsafe-inline'/);
+  assert.doesNotMatch(production, /script-src [^;]*'unsafe-inline'/);
+  assert.doesNotMatch(production, /style-src-elem [^;]*'unsafe-inline'/);
   assert.doesNotMatch(production, /'unsafe-eval'/);
 
   const development = buildContentSecurityPolicy({
@@ -216,7 +221,8 @@ test("nonce CSP is strict, environment-aware, and rejects malformed sources", ()
   });
   assert.match(development, /connect-src 'self' http:\/\/127\.0\.0\.1:54321 ws:\/\/127\.0\.0\.1:54321/);
   assert.match(development, /'unsafe-eval'/);
-  assert.doesNotMatch(development, /'unsafe-inline'/);
+  assert.doesNotMatch(development, /script-src [^;]*'unsafe-inline'/);
+  assert.doesNotMatch(development, /style-src-elem [^;]*'unsafe-inline'/);
 
   for (const hostile of [
     "https://user:secret@project.supabase.co",
@@ -238,6 +244,30 @@ test("nonce CSP is strict, environment-aware, and rejects malformed sources", ()
     }),
     TypeError
   );
+});
+
+test("catalog rate limiting covers API and server-rendered read paths only", () => {
+  for (const pathname of [
+    "/skills",
+    "/skills/",
+    "/skills/0x3-team/skill-audit",
+    "/api/v1/skills",
+    "/api/v1/skills/skl_00000000000000000000000000000001"
+  ]) {
+    assert.equal(isPublicCatalogReadRequest(pathname, "GET"), true, pathname);
+    assert.equal(isPublicCatalogReadRequest(pathname, "HEAD"), true, pathname);
+  }
+  for (const [pathname, method] of [
+    ["/skills", "POST"],
+    ["/skill", "GET"],
+    ["/skills-preview", "GET"],
+    ["/api/v1/skills-preview", "GET"],
+    ["/account", "GET"]
+  ]) assert.equal(isPublicCatalogReadRequest(pathname, method), false, `${method} ${pathname}`);
+
+  assert.equal(isPublicCatalogApiPath("/api/v1/skills"), true);
+  assert.equal(isPublicCatalogApiPath("/api/v1/skills/example"), true);
+  assert.equal(isPublicCatalogApiPath("/skills"), false);
 });
 
 test("anonymous rate limiting is bounded, resets deterministically, and emits bounded headers", () => {

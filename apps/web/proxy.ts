@@ -1,12 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { catalogError } from "@/lib/registry/api.server";
 import {
   buildContentSecurityPolicy,
   buildResponseSecurityHeaders,
   createRequestNonce,
   isPublicIndexingEnabled
 } from "@/lib/security/policy";
+import {
+  applyRateLimitHeaders,
+  consumePublicSkillRequest,
+  isPublicCatalogApiPath,
+  isPublicCatalogReadRequest,
+  type RateLimitDecision
+} from "@/lib/security/rate-limit";
 import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -23,6 +31,12 @@ export async function proxy(request: NextRequest) {
     https: request.nextUrl.protocol === "https:",
     publicIndexing: isPublicIndexingEnabled()
   });
+  const rateLimit = isPublicCatalogReadRequest(request.nextUrl.pathname, request.method)
+    ? consumePublicSkillRequest(request)
+    : null;
+  if (rateLimit && !rateLimit.allowed) {
+    return createRateLimitedResponse(request, rateLimit, responseSecurityHeaders);
+  }
   let response = createPassthroughResponse(request, nonce, contentSecurityPolicy);
 
   try {
@@ -64,7 +78,30 @@ export async function proxy(request: NextRequest) {
   }
 
   if (/^\/(?:account|sign-in|auth)(?:\/|$)/.test(request.nextUrl.pathname)) setPrivateNoStore(response);
+  if (rateLimit) applyRateLimitHeaders(response, rateLimit);
   return applySecurityHeaders(response, responseSecurityHeaders);
+}
+
+function createRateLimitedResponse(
+  request: NextRequest,
+  decision: RateLimitDecision,
+  securityHeaders: Readonly<Record<string, string>>
+): NextResponse {
+  const response = isPublicCatalogApiPath(request.nextUrl.pathname)
+    ? catalogError(
+        429,
+        "RATE_LIMITED",
+        "Too many catalog requests. Try again shortly.",
+        true
+      )
+    : new NextResponse("Too many catalog requests. Try again shortly.\n", {
+        status: 429,
+        headers: { "Content-Type": "text/plain; charset=utf-8" }
+      });
+  applyRateLimitHeaders(response, decision);
+  response.headers.set("Retry-After", String(decision.retryAfterSeconds));
+  setPrivateNoStore(response);
+  return applySecurityHeaders(response, securityHeaders);
 }
 
 function createPassthroughResponse(

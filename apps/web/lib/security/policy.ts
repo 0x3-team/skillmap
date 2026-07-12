@@ -40,6 +40,8 @@ export function buildContentSecurityPolicy(input: ContentSecurityPolicyInput): s
     "default-src 'self'",
     `script-src 'self' 'nonce-${input.nonce}' 'strict-dynamic'${input.development ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${input.nonce}'`,
+    `style-src-elem 'self' 'nonce-${input.nonce}'`,
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
     `connect-src ${connectSources.join(" ")}`,

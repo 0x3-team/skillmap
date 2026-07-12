@@ -20,7 +20,9 @@ assert.equal(landingResponse.status, 200);
 const contentSecurityPolicy = landingResponse.headers.get("content-security-policy") ?? "";
 assert.match(contentSecurityPolicy, /script-src 'self' 'nonce-([^']+)' 'strict-dynamic'/);
 assert.match(contentSecurityPolicy, /frame-ancestors 'none'/);
-assert.doesNotMatch(contentSecurityPolicy, /'unsafe-inline'/);
+assert.doesNotMatch(contentSecurityPolicy, /script-src [^;]*'unsafe-inline'/);
+assert.doesNotMatch(contentSecurityPolicy, /style-src-elem [^;]*'unsafe-inline'/);
+assert.match(contentSecurityPolicy, /style-src-attr 'unsafe-inline'/);
 assert.equal(landingResponse.headers.get("x-content-type-options"), "nosniff");
 assert.equal(landingResponse.headers.get("x-frame-options"), "DENY");
 assert.match(landingResponse.headers.get("x-robots-tag") ?? "", /noindex/);
@@ -116,13 +118,22 @@ assert.match(rateLimited.headers.get("retry-after") ?? "", /^[1-9][0-9]*$/);
 assert.equal(rateLimited.headers.get("ratelimit-limit"), "60");
 assert.equal(rateLimited.headers.get("ratelimit-remaining"), "0");
 
+const rateLimitedPage = await fetch(`${baseUrl}/skills`, {
+  cache: "no-store",
+  headers: { "x-vercel-forwarded-for": "203.0.113.77" }
+});
+assert.equal(rateLimitedPage.status, 429);
+assert.match(rateLimitedPage.headers.get("retry-after") ?? "", /^[1-9][0-9]*$/);
+assert.equal(rateLimitedPage.headers.get("ratelimit-remaining"), "0");
+assert.match(await rateLimitedPage.text(), /Too many catalog requests/);
+
   process.stdout.write(`${JSON.stringify({
     result: "pass",
     list: "cursor-stable",
     search: "bounded",
     hiddenNotFoundParity: true,
     privateAlphaHeaders: "nonce-csp-noindex",
-    rateLimit: "contract-429",
+    rateLimit: "shared-api-and-page-429",
     trustStates: "truthful",
     secretCanary: "absent"
   })}\n`);

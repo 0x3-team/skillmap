@@ -108,7 +108,7 @@ Capture evidence against the exact deployment commit:
 - `/`, `/skills`, and each first-party detail return expected content with no fixture fallback
 - `/api/v1/skills` returns a contract-valid list, rejects malformed cursor/limit input, emits no-store headers, and returns `429` plus `Retry-After` when the alpha limit is exceeded
 - `robots.txt`, metadata, and `X-Robots-Tag` block indexing during private alpha
-- CSP uses a per-request nonce and forbids framing, objects, and foreign base URLs
+- CSP uses a per-request nonce, keeps stylesheet elements nonce-restricted, permits inline style attributes only for the reviewed React/Motion UI boundary, and forbids framing, objects, and foreign base URLs
 - HSTS, nosniff, referrer, permissions, and frame protections are present
 - only the exact Supabase origin appears in `connect-src`
 - direct anonymous access to `private` and hidden lifecycle records fails
@@ -116,7 +116,7 @@ Capture evidence against the exact deployment commit:
 - two distinct accounts cannot read or mutate each other's profile or saved skills
 - auth cookies are `Secure`, `HttpOnly`, and appropriately `SameSite`
 - no secret/service-role key appears in HTML, JavaScript, logs, screenshots, or deployment metadata
-- desktop and 390px browser checks, accessibility checks, performance budgets, and Vercel error logs pass
+- desktop and 390px browser checks, a hydrated landing-page interaction with zero CSP console violations, accessibility checks, performance budgets, and Vercel error logs pass
 
 The application limiter is a per-instance private-alpha safeguard. A provider-level/global abuse control is still required before public preview.
 

@@ -103,6 +103,15 @@ export function consumePublicSkillRequest(
   return publicSkillLimiter.consume(getAnonymousClientKey(request.headers), now);
 }
 
+export function isPublicCatalogReadRequest(pathname: string, method: string): boolean {
+  if (method !== "GET" && method !== "HEAD") return false;
+  return isPathOrDescendant(pathname, "/skills") || isPathOrDescendant(pathname, "/api/v1/skills");
+}
+
+export function isPublicCatalogApiPath(pathname: string): boolean {
+  return isPathOrDescendant(pathname, "/api/v1/skills");
+}
+
 export function getAnonymousClientKey(headers: Headers): string {
   const vercelForwarded = firstHeaderValue(headers.get("x-vercel-forwarded-for"));
   const realIp = firstHeaderValue(headers.get("x-real-ip"));
@@ -129,6 +138,10 @@ function firstHeaderValue(value: string | null): string | null {
   if (!value || value.length > 1_024) return null;
   const first = value.split(",", 1)[0]?.trim();
   return first && first.length <= 64 ? first : null;
+}
+
+function isPathOrDescendant(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`);
 }
 
 function denied(limit: number, resetAt: number, now: number): RateLimitDecision {

@@ -95,6 +95,11 @@ try {
   });
   page.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
 
+  await page.goto(new URL("/", baseUrl).toString(), { waitUntil: "load" });
+  await page.getByRole("button", { name: "Browse skill library" }).waitFor();
+  await page.getByRole("button", { name: "Run recorded demo" }).click();
+  await page.getByText(/Recorded fixture selected:/).waitFor();
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(new URL("/skills", baseUrl).toString(), { waitUntil: "load" });
   await page.getByRole("link", { name: "Skill library" }).waitFor();
@@ -199,6 +204,7 @@ try {
     authCacheHeaders: "private-no-store",
     mobileNavigationName: "passed",
     mobileOverflow: "passed",
+    landingCspAndHydration: "passed",
     diagnostics: 0
   })}\n`);
 } finally {
