@@ -22,7 +22,13 @@ import {
   decodeSavedSkillsCursor,
   encodeSavedSkillsCursor
 } from "../lib/registry/saved-cursor.ts";
-import { CatalogInputError, CatalogQueryError } from "../lib/registry/errors.ts";
+import {
+  assertPublicSkillRelationshipLimit,
+  CatalogDataError,
+  CatalogInputError,
+  CatalogQueryError,
+  MAX_PUBLIC_SKILL_RELATIONSHIPS
+} from "../lib/registry/errors.ts";
 import {
   CatalogFetchAbortError,
   createBoundedCatalogFetch
@@ -188,6 +194,15 @@ test("database timestamps retain microseconds in one canonical UTC form", () => 
     "2026-07-11T18:00:00.1234567Z",
     "2026-07-11T19:00:00.123456+01:00"
   ]) assert.throws(() => canonicalizeUtcTimestamp(invalid), TypeError, invalid);
+});
+
+test("public skill relationships fail closed before exceeding the detail contract", () => {
+  assert.equal(MAX_PUBLIC_SKILL_RELATIONSHIPS, 100);
+  assert.doesNotThrow(() => assertPublicSkillRelationshipLimit(Array(100).fill(null)));
+  assert.throws(
+    () => assertPublicSkillRelationshipLimit(Array(101).fill(null)),
+    CatalogDataError
+  );
 });
 
 test("private-alpha indexing fails closed and requires one exact public opt-in", () => {
@@ -391,6 +406,12 @@ test("public catalog failures distinguish retryable upstream 503 from unexpected
     retryable: false
   });
   assert.deepEqual(classifyPublicCatalogFailure(new Error("PRIVATE-CANARY")), {
+    status: 500,
+    code: "CATALOG_UNAVAILABLE",
+    message: "The hosted catalog is temporarily unavailable.",
+    retryable: true
+  });
+  assert.deepEqual(classifyPublicCatalogFailure(new CatalogDataError("PRIVATE-CANARY")), {
     status: 500,
     code: "CATALOG_UNAVAILABLE",
     message: "The hosted catalog is temporarily unavailable.",

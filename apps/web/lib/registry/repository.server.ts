@@ -18,7 +18,13 @@ import type {
   Sha256Digest
 } from "@/lib/contracts/generated/types";
 import { assertContract } from "@/lib/contracts/generated/validate.server";
-import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
+import {
+  assertPublicSkillRelationshipLimit,
+  CatalogDataError,
+  CatalogInputError,
+  CatalogQueryError,
+  MAX_PUBLIC_SKILL_RELATIONSHIPS
+} from "@/lib/registry/errors";
 import {
   assertCatalogRoute,
   assertHostedSkillId,
@@ -183,10 +189,13 @@ async function getPublicSkill(
     .select("*")
     .eq("source_skill_id", skillId)
     .order("relationship_type", { ascending: true })
-    .order("target_skill_id", { ascending: true });
+    .order("target_skill_id", { ascending: true })
+    .limit(MAX_PUBLIC_SKILL_RELATIONSHIPS + 1);
   if (relationshipError) throw new CatalogQueryError();
 
-  const detail = mapDetail(row, (relationshipData ?? []) as RelationshipRow[]);
+  const relationships = (relationshipData ?? []) as RelationshipRow[];
+  assertPublicSkillRelationshipLimit(relationships);
+  const detail = mapDetail(row, relationships);
   assertContract(HOSTED_SKILL_SCHEMA, detail);
   return detail;
 }

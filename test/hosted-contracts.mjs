@@ -161,6 +161,17 @@ test('hosted grade, detail, list, and API contracts accept the bounded first-par
   });
 });
 
+test('hosted skill detail relationships are capped at one hundred entries', () => {
+  const skill = hostedSkill();
+  skill.relationships = Array.from({ length: 100 }, (_, index) => ({
+    ...skill.relationships[0],
+    reason: `Bounded relationship ${index + 1}.`
+  }));
+  assertValid(IDS.skill, skill);
+  skill.relationships.push({ ...skill.relationships[0], reason: 'Relationship 101.' });
+  assertInvalid(IDS.skill, skill, /relationships/);
+});
+
 test('ungraded and current grade states cannot borrow each other\'s authority', () => {
   const fabricated = ungraded();
   fabricated.band = 'A';

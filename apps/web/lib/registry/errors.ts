@@ -17,6 +17,14 @@ export class CatalogDataError extends Error {
   }
 }
 
+export const MAX_PUBLIC_SKILL_RELATIONSHIPS = 100;
+
+export function assertPublicSkillRelationshipLimit(rows: readonly unknown[]): void {
+  if (rows.length > MAX_PUBLIC_SKILL_RELATIONSHIPS) {
+    throw new CatalogDataError("Published relationships exceed the hosted skill contract limit.");
+  }
+}
+
 export class CatalogQueryError extends Error {
   readonly code = "CATALOG_QUERY_FAILED";
 
