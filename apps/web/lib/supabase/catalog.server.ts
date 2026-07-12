@@ -1,11 +1,13 @@
 import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
+import { createBoundedCatalogFetch } from "@/lib/security/bounded-fetch";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 
 export function createPublicCatalogClient() {
   const { url, publishableKey } = getPublicSupabaseConfig();
+  const boundedFetch = createBoundedCatalogFetch();
 
   return createClient<Database>(url, publishableKey, {
     db: { schema: "api" },
@@ -16,7 +18,7 @@ export function createPublicCatalogClient() {
     },
     global: {
       fetch(input, init) {
-        return fetch(input, { ...init, cache: "no-store" });
+        return boundedFetch(input, init);
       }
     }
   });

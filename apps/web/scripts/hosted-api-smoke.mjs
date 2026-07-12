@@ -15,6 +15,24 @@ runFixture(hiddenFixture, "install");
 try {
   await waitForServer();
 
+const landingResponse = await fetch(`${baseUrl}/`, { cache: "no-store" });
+assert.equal(landingResponse.status, 200);
+const contentSecurityPolicy = landingResponse.headers.get("content-security-policy") ?? "";
+assert.match(contentSecurityPolicy, /script-src 'self' 'nonce-([^']+)' 'strict-dynamic'/);
+assert.match(contentSecurityPolicy, /frame-ancestors 'none'/);
+assert.doesNotMatch(contentSecurityPolicy, /'unsafe-inline'/);
+assert.equal(landingResponse.headers.get("x-content-type-options"), "nosniff");
+assert.equal(landingResponse.headers.get("x-frame-options"), "DENY");
+assert.match(landingResponse.headers.get("x-robots-tag") ?? "", /noindex/);
+const landingHtml = await landingResponse.text();
+const nonce = contentSecurityPolicy.match(/'nonce-([^']+)'/)?.[1];
+assert.equal(typeof nonce, "string");
+assert.match(landingHtml, new RegExp(`nonce=["']${escapeRegExp(nonce)}["']`));
+
+const robotsResponse = await fetch(`${baseUrl}/robots.txt`, { cache: "no-store" });
+assert.equal(robotsResponse.status, 200);
+assert.match(await robotsResponse.text(), /^Disallow: \/$/m);
+
 const hostileNext = encodeURIComponent("/%2e%2e//evil.example");
 const callback = await fetch(`${baseUrl}/auth/callback?next=${hostileNext}`, { redirect: "manual", cache: "no-store" });
 assert.equal(callback.status, 307);
@@ -71,18 +89,40 @@ assert.equal(detail.body.data.evidence.provenance, "unverified");
 assert.equal(detail.body.data.evidence.audit, "not-run");
 assert.equal(detail.body.data.compatibility.state, "not-tested");
 assert.equal(detail.body.data.currentVersion.grade.state, "ungraded");
-assert.equal(detail.body.data.source.commit, "6e80296e4680c9f469a30e85af39549726573e3d");
+assert.equal(detail.body.data.source.commit, "d1c23990af82d1c8c99997cb8d9a2c23707d91fa");
 
 for (const result of [first, second, search, badLimit, badCursor, hidden, missing, detail]) {
   const serialized = JSON.stringify(result.body);
   assert.doesNotMatch(serialized, /service_role|sb_secret_|super-secret-jwt|phase1-[ab]@skillmap|[?&](?:token|key|signature)=/i);
 }
 
+let rateLimited;
+for (let requestNumber = 1; requestNumber <= 61; requestNumber += 1) {
+  const response = await fetch(`${baseUrl}/api/v1/skills?limit=0`, {
+    cache: "no-store",
+    headers: { "x-vercel-forwarded-for": "203.0.113.77" }
+  });
+  if (requestNumber <= 60) {
+    assert.equal(response.status, 400, `rate-limit warmup request ${requestNumber}`);
+    await response.arrayBuffer();
+    continue;
+  }
+  rateLimited = { body: await response.json(), headers: response.headers, status: response.status };
+}
+assert.equal(rateLimited?.status, 429);
+assert.equal(rateLimited.body.error.code, "RATE_LIMITED");
+assert.equal(rateLimited.body.error.retryable, true);
+assert.match(rateLimited.headers.get("retry-after") ?? "", /^[1-9][0-9]*$/);
+assert.equal(rateLimited.headers.get("ratelimit-limit"), "60");
+assert.equal(rateLimited.headers.get("ratelimit-remaining"), "0");
+
   process.stdout.write(`${JSON.stringify({
     result: "pass",
     list: "cursor-stable",
     search: "bounded",
     hiddenNotFoundParity: true,
+    privateAlphaHeaders: "nonce-csp-noindex",
+    rateLimit: "contract-429",
     trustStates: "truthful",
     secretCanary: "absent"
   })}\n`);
@@ -123,4 +163,8 @@ async function getJson(pathname, expectedStatus) {
   const response = await fetch(`${baseUrl}${pathname}`, { cache: "no-store" });
   assert.equal(response.status, expectedStatus, `${pathname} status`);
   return { body: await response.json(), headers: response.headers };
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

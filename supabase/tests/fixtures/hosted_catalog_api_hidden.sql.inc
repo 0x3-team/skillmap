@@ -27,7 +27,7 @@ insert into private.skill_versions (
   '40000000-0000-4000-8000-000000000004',
   'skv_00000000000000000000000000000004',
   '30000000-0000-4000-8000-000000000004', '0.0.0-api-hidden',
-  '6e80296e4680c9f469a30e85af39549726573e3d',
+  'd1c23990af82d1c8c99997cb8d9a2c23707d91fa',
   'catalog/first-party/skill-audit/SKILL.md',
   'sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a',
   null, 'metadata-only', null, null, 'confirmed', 'MIT', 'metadata-only', array['LICENSE'],

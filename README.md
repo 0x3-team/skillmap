@@ -2,7 +2,7 @@
 
 SkillMap is a local-first SkillOps CLI for people with too many agent skills. It scans installed skill trees with qualified identity, doctors the library for ambiguity and risk, prepares native-agent curation, applies reversible policy with canonical duplicate decisions, builds/query-explains a SkillGraph, routes prompts to the best skills, tracks external skill provenance, and can optionally install a passive Codex route-hint hook.
 
-The repository now also contains the first locally validated hosted-library slice: a Supabase-backed public catalog, version-bound evidence contracts, GitHub OAuth integration points, and free-account saved skills. That slice is implemented and tested against local Supabase; it is not yet provisioned, deployed, or verified against a remote SkillMap project.
+The repository now also contains the first locally validated hosted-library slice: a Supabase-backed public catalog, version-bound evidence contracts, GitHub OAuth integration points, and free-account saved skills. That slice is implemented and tested against local Supabase. Any remote private-alpha state must be proven by an exact-commit deployment receipt in the implementation ledger; this README does not claim public release or production readiness.
 
 Status: experimental alpha moving toward v1. The current release is useful for local inventory, doctoring, native-agent policy curation, route-quality dogfooding, source provenance experiments, and controlled Codex hook dry-runs. It does not mutate global skill roots and does not install hooks unless you explicitly run a hook install command.
 

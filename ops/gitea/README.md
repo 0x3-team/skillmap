@@ -107,3 +107,12 @@ Gitea is the CI authority while GitHub remains a private secondary host. Avoid a
 bidirectional force-push mirror. Push reviewed branches explicitly to both
 remotes, or configure a one-way Gitea-to-GitHub mirror only after the GitHub
 token has the required repository and workflow permissions.
+
+The `main` branch is protected from ordinary direct pushes and all force pushes.
+Pull requests must be current and free of rejected reviews. The owner-only admin
+override exists solely for audited fast-forward synchronization from the reviewed
+GitHub `main`; it is not a substitute for a passing exact-commit Actions run.
+Enable the two Gitea status contexts as required checks after their final names
+have been captured on the hosted-foundation candidate. Never place Supabase,
+Vercel, OAuth, signing, or deployment credentials in this shared privileged
+runner.

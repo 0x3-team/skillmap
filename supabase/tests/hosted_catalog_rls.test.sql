@@ -650,7 +650,7 @@ select is(
 
 select is(
   (select count(*) from private.skill_versions
-    where source_commit = '6e80296e4680c9f469a30e85af39549726573e3d'
+    where source_commit = 'd1c23990af82d1c8c99997cb8d9a2c23707d91fa'
       and public_id in (
         'skv_00000000000000000000000000000001',
         'skv_00000000000000000000000000000002',

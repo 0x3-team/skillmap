@@ -16,7 +16,7 @@ const OTHER_SKILL_ID = `skl_${'0'.repeat(31)}2`;
 const VERSION_ID = `skv_${'0'.repeat(31)}1`;
 const SHA_A = `sha256:${'a'.repeat(64)}`;
 const SHA_B = `sha256:${'b'.repeat(64)}`;
-const COMMIT = '6e80296e4680c9f469a30e85af39549726573e3d';
+const COMMIT = 'd1c23990af82d1c8c99997cb8d9a2c23707d91fa';
 const NOW = '2026-07-11T19:03:51.000Z';
 const REQUEST_ID = '00000000-0000-4000-8000-000000000001';
 

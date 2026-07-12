@@ -3313,12 +3313,12 @@ The checked-in hosted JSON Schemas, generated validators, Supabase migration/RLS
 
 ## Phase 1 Local Implementation Receipt — 2026-07-11
 
-Status: implemented and independently accepted with documented risks against real local Supabase data. Merge readiness remains gated on completing seed-anchor PR #5 and rebinding the catalog to its permanent squash commit. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
+Status: implemented and independently accepted with documented risks against real local Supabase data. Seed-anchor PR #5 is merged and the catalog is rebound to permanent squash commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`; merge readiness is now gated on committing the rebound candidate, exact-head Gitea CI, GitHub review, and final-main CI. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
 
 Implemented:
 
 - distinct hosted skill, list, grade/evidence, and API response contracts with generated root/web consumers
-- three checked-in first-party MIT skills provisionally pinned to final reviewed seed-branch head `6e80296e4680c9f469a30e85af39549726573e3d`, including the recomputed supply-chain entrypoint digest after review hardening; before the implementation PR, this pin must be rebound to the permanent squash commit produced by seed-anchor PR #5
+- three checked-in first-party MIT skills permanently pinned to reviewed squash commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa` from seed-anchor PR #5, including the recomputed supply-chain entrypoint digest after review hardening
 - explicit Supabase `api` and non-exposed `private` schemas, deterministic deployable first-party seed separated from non-discoverable test-only fixtures, immutable public/source coordinates, composite publisher/repository ownership, grants, forced RLS, security-invoker/barrier views, full-text search, indexes, and generated database types
 - truthful Phase 1 trust limits: publisher/provenance remain `unverified`, audit `not-run`, compatibility `not-tested`, grade `ungraded`, package digest fields remain permanently null for these metadata-only version identities, and positive evidence promotions are database-blocked until receipt models exist; Phase 2 must mint new package-version identities rather than completing these rows in place
 - anonymous no-store catalog repository, bounded cursor search, `/api/v1/skills` list/detail, generic hidden/nonexistent `404` parity, and explicit missing-config `503`
@@ -3343,7 +3343,8 @@ Local evidence recorded so far:
 Still gated:
 
 - remote Supabase project/region/plan, GitHub OAuth app and exact callbacks, Vercel project/plan, canonical domain, remote migrations, deploy, and production checks
-- seed-anchor PR #5 must land first under the repository's deliberate squash-only policy; all catalog source coordinates then rebind to that permanent `main` commit before the implementation PR can be merge-ready
+- seed-anchor PR #5 is merged and the source coordinates are locally rebound to permanent commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`; the implementation PR and its resulting final `main` commit still require exact-head Gitea CI and review
+- professional Vercel ownership requires explicit approval of the current paid team charge; the isolated Supabase alpha organization/name and free-tier backup limitations must be accepted before remote creation
 - real-data hosted catalog Core Web Vitals and full accessibility coverage remain a pre-remote-alpha gate; the checked-in Phase 1 browser smoke covers functional account, mobile navigation naming, and overflow
 - revoked saved-skill tombstone/removal UX is required before Phase 3 enables public revocation workflows
 - Phases 2 through 7: package/TUF loader, automated ingestion/update/audit/advisories, grading/compatibility, advanced router and Codex plugin, publisher/operator workflows, declared-source coverage, and production launch

@@ -34,7 +34,7 @@ select
   'skv_' || lpad(to_hex(131072 + sequence), 32, '0'),
   ('51000000-0000-4000-8000-' || lpad(sequence::text, 12, '0'))::uuid,
   '1.0.0',
-  '6e80296e4680c9f469a30e85af39549726573e3d',
+  'd1c23990af82d1c8c99997cb8d9a2c23707d91fa',
   'test/pagination/' || lpad(sequence::text, 3, '0') || '/SKILL.md',
   'sha256:' || lpad(to_hex(196608 + sequence), 64, '0'),
   'metadata-only',

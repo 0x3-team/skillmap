@@ -1,11 +1,11 @@
 # SkillMap Handoff
 
 Originally created: 2026-07-08
-Last reconciled: 2026-07-11
+Last reconciled: 2026-07-12
 Repo: https://github.com/0x3-team/skillmap
-Current branch: `codex/hosted-library-foundation`
+Current branch: `codex/hosted-library-foundation-review`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Current status: the hosted-library foundation is committed locally on `codex/hosted-library-foundation`; inspect the branch head for its exact current commit. The reviewed seed branch is pushed in PR #5, but the implementation branch is not pushed, published, or deployed. Final seed CI and merge are blocked by the organization's zero-dollar GitHub Actions budget; the implementation must then be rebound to the permanent squash commit before its PR.
+Current status: seed-anchor PR #5 was squash-merged into GitHub `main` at permanent source commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`, and Gitea `main` was fast-forwarded to the same commit. The hosted foundation was replayed in a clean worktree, its catalog/source/test coordinates were rebound to that permanent commit, and the focused contract, web, migration, lint, generated-type, and 96-test RLS gates passed locally. The review branch still requires an exact-head Gitea run, GitHub review, merge, final-main CI, approved provider ownership/cost, remote migration, OAuth configuration, deployment, and live acceptance. It is not published or deployed.
 
 ## Purpose of this handoff
 
@@ -34,7 +34,7 @@ This is different from adding another skill list into Codex. The main value appe
 
 ## Historical baseline and current local implementation
 
-The historical baseline commit above passed its then-current CI. The current local implementation substantially changes its identity, evidence, export, dashboard, and test contracts. It is committed and locally validated, but remains experimental alpha until its permanent seed binding is committed, the branch is pushed and reviewed, and the exact implementation head passes hosted CI.
+The historical baseline commit above passed its then-current CI. The current local implementation substantially changes its identity, evidence, export, dashboard, and test contracts. It remains experimental alpha until the permanent binding and private-alpha hardening are committed, the review branch is pushed and reviewed, and the exact implementation and final `main` heads pass Gitea CI.
 
 Completed surfaces:
 

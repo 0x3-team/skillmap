@@ -1,12 +1,25 @@
-import { CatalogInputError } from "@/lib/registry/errors";
 import { catalogError, catalogSuccess } from "@/lib/registry/api.server";
 import { listPublicSkills } from "@/lib/registry/repository.server";
-import { SupabaseConfigurationError } from "@/lib/supabase/config";
+import { classifyPublicCatalogFailure } from "@/lib/security/public-catalog-errors";
+import { applyRateLimitHeaders, consumePublicSkillRequest } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
+  const rateLimit = consumePublicSkillRequest(request);
+  const respond = <T extends Response>(response: T) => applyRateLimitHeaders(response, rateLimit);
+  if (!rateLimit.allowed) {
+    const response = respond(catalogError(
+      429,
+      "RATE_LIMITED",
+      "Too many catalog requests. Try again shortly.",
+      true
+    ));
+    response.headers.set("Retry-After", String(rateLimit.retryAfterSeconds));
+    return response;
+  }
+
   try {
     const url = new URL(request.url);
     const result = await listPublicSkills({
@@ -14,14 +27,9 @@ export async function GET(request: Request) {
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor")
     });
-    return catalogSuccess(result);
+    return respond(catalogSuccess(result));
   } catch (error) {
-    if (error instanceof CatalogInputError) {
-      return catalogError(400, error.code, error.message);
-    }
-    if (error instanceof SupabaseConfigurationError) {
-      return catalogError(503, "SERVICE_UNAVAILABLE", "The hosted catalog is not configured.", true);
-    }
-    return catalogError(500, "CATALOG_UNAVAILABLE", "The hosted catalog is temporarily unavailable.", true);
+    const failure = classifyPublicCatalogFailure(error);
+    return respond(catalogError(failure.status, failure.code, failure.message, failure.retryable));
   }
 }
