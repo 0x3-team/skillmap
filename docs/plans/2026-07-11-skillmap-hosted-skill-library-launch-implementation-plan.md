@@ -3330,7 +3330,7 @@ Final local and hosted-CI evidence:
 
 - root regression suite: 328/328 tests passing
 - contract and seed-integrity suite: 32/32 tests passing
-- hosted boundary suite: 14/14 tests passing, including the streaming-fallback landmark regression
+- local hosted boundary suite: 14/14 tests passing, including the streaming-fallback landmark regression
 - `supabase db reset --local`: passing
 - `supabase db lint --local --level warning`: no schema errors
 - pgTAP grants/RLS/identity/lifecycle/trust tests: 96/96 passing under full Supabase test discovery
