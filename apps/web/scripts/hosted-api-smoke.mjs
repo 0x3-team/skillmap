@@ -72,6 +72,11 @@ for (const [query, parameter] of [
     await repeatedCatalogQuery.text(),
     new RegExp(`Repeated ${parameter} parameters are not allowed`)
   );
+
+  const repeatedApiQuery = await getJson(`/api/v1/skills?${query}`, 400);
+  assert.equal(repeatedApiQuery.body.error.code, "INVALID_QUERY");
+  assert.equal(repeatedApiQuery.body.error.retryable, false);
+  assert.equal(repeatedApiQuery.body.error.message, `Repeated ${parameter} parameters are not allowed.`);
 }
 
 const first = await getJson("/api/v1/skills?limit=1", 200);
