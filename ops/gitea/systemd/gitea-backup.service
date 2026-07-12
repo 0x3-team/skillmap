@@ -1,0 +1,13 @@
+[Unit]
+Description=Consistent local backup of the SkillMap Gitea stack
+Requires=gitea-stack.service
+After=gitea-stack.service network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/srv/gitea/backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=30min

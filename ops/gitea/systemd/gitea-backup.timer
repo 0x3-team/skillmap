@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily backup timer for the SkillMap Gitea stack
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=gitea-backup.service
+
+[Install]
+WantedBy=timers.target
