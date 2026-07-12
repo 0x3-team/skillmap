@@ -5,7 +5,7 @@ Last reconciled: 2026-07-12
 Repo: https://github.com/0x3-team/skillmap
 Current canonical branch: `main`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Current status: seed-anchor PR #5 was squash-merged at permanent source commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`. Hosted-foundation PR #7 was then squash-merged at accepted implementation anchor `295dffe031d3010bb241ade75e9f249c97cd6063`, which canonical `main` contains on both GitHub and Gitea. Gitea exact-feature run 14 and implementation-anchor final-main run 15 passed both required jobs, branch protection was restored, and temporary synchronization credentials were removed. GitHub Actions is presently blocked before test execution by the organization spending limit, so Gitea is the authoritative hosted CI lane. The hosted product is still not provisioned, published, or deployed; remote provider ownership/cost approval, migrations, OAuth configuration, and live acceptance remain separate gates.
+Current status: seed-anchor PR #5 was squash-merged at permanent source commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`, followed by hosted-foundation PR #7 at `295dffe031d3010bb241ade75e9f249c97cd6063`. Acceptance reconciliation PR #8 and its late-review accessibility follow-up PR #9 produced final accepted product anchor `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`, which canonical `main` contains on both GitHub and Gitea. Gitea exact-feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and final-product-main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; both commits have tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Branch protection was restored, and temporary synchronization credentials were removed. GitHub Actions is presently blocked before test execution by the organization spending limit, so Gitea is the authoritative hosted CI lane. The hosted product is still not provisioned, published, or deployed; remote provider ownership/cost approval, migrations, OAuth configuration, and live acceptance remain separate gates.
 
 ## Purpose of this handoff
 
@@ -143,7 +143,7 @@ Not yet done:
 - Recorded manual screen-reader, keyboard, zoom/reflow, contrast, forced-colors, and operating-system review for the eventual beta candidate
 - Remote Supabase/Vercel provisioning, live GitHub OAuth, hosted tenancy, connector pairing, team sync, billing, deployment, or production operations
 
-Current CI note: Gitea runs 14 and 15 passed the required hosted-foundation feature and final-main jobs at `295dffe031d3010bb241ade75e9f249c97cd6063`. GitHub Actions jobs are spending-blocked before execution and must not be interpreted as test failures or successes.
+Current CI note: Gitea feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; those commits share tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Historical hosted-foundation feature run 14 passed `00e29a442b3ef03345f25970aa2abff4655d259d`, and main run 15 passed `295dffe031d3010bb241ade75e9f249c97cd6063`; those commits share tree `3a163cf577eef73b832c2947c6e01332e1c4ecca`. GitHub Actions jobs are spending-blocked before execution and must not be interpreted as test failures or successes.
 
 Before public release, a fresh agent should verify current state again because package registries, CI, and repo state can drift.
 

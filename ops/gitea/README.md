@@ -121,5 +121,11 @@ runner supports the complete disposable Supabase service stack. Never place
 Supabase, Vercel, OAuth, signing, or deployment credentials in this shared
 privileged runner.
 
-Hosted-foundation feature run 14 and final-main run 15 passed both required
-contexts; run 15 reconfirmed them at `295dffe031d3010bb241ade75e9f249c97cd6063`.
+Hosted-foundation feature run 14 passed both required contexts at
+`00e29a442b3ef03345f25970aa2abff4655d259d`, and main run 15 passed them at
+`295dffe031d3010bb241ade75e9f249c97cd6063`; those commits share tree
+`3a163cf577eef73b832c2947c6e01332e1c4ecca`. Phase 1 final-product feature run
+18 later reconfirmed them at `1427e277e46315de5792a973deded1af4c274195`,
+and main run 19 reconfirmed them at
+`f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; those commits share tree
+`be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`.
