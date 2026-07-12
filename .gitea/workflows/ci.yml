@@ -78,7 +78,23 @@ jobs:
           supabase start --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector
           supabase db reset --local
           supabase db lint --local --level warning
-          supabase test db --local
+
+          # `supabase test db` bind-mounts the checkout into pg_prove. In
+          # rootless DinD the checkout belongs to the job container, so copy it
+          # through the Docker API instead and run the same pg_prove command.
+          pg_prove_container="skillmap-pg-prove-${GITHUB_RUN_ID:-manual}-${GITHUB_JOB:-db}"
+          cleanup_pg_prove() { docker rm -f "$pg_prove_container" >/dev/null 2>&1 || true; }
+          trap cleanup_pg_prove EXIT
+          cleanup_pg_prove
+          docker create --name "$pg_prove_container" --network host --workdir /tests \
+            -e PGHOST=127.0.0.1 -e PGPORT=54322 -e PGUSER=postgres \
+            -e PGPASSWORD=postgres -e PGDATABASE=postgres \
+            ghcr.io/supabase/pg_prove:3.36@sha256:eda7c5e68719e9c8287e78c017118407b48df904a51c935f5ab6098b8c0bc6bc \
+            pg_prove --ext .pg --ext .sql -r /tests >/dev/null
+          docker cp supabase/tests/. "$pg_prove_container:/tests"
+          docker start --attach "$pg_prove_container"
+          cleanup_pg_prove
+          trap - EXIT
 
       - name: Verify generated database types are current
         run: |
