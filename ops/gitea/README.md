@@ -92,8 +92,10 @@ sudo /srv/gitea/restore-check.sh
 sudo systemctl status gitea-runner-prune.timer
 ```
 
-The weekly prune timer removes stopped job containers, old images, build cache,
-and unused nested-runner volumes. Container logs rotate at 20 MiB x five files.
+The weekly prune timer removes old stopped job containers, old build cache, and
+unused anonymous volumes while preserving named caches and digest-pinned CI
+images. Image retirement is an explicit maintenance action because Docker treats
+digest-only images as dangling. Container logs rotate at 20 MiB x five files.
 
 Local backups protect against application mistakes but not loss of this Linode.
 An encrypted off-host backup destination remains required before this becomes
