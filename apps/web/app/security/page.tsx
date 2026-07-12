@@ -13,7 +13,7 @@ export default function SecurityPage() {
         <BoundaryList items={["One fenced writer lock spans legacy mutation and immutable revision publication.", "Readers capture one pointer, validate a manifest, and consume one revision.", "Unapproved safety changes abstain; derived-only failures may use an explicitly recorded safety-equivalent last-known-good revision.", "Root traversal, symlink escape, identity collisions, manifest tamper, and canonical legacy divergence fail closed."]} />
       </TrustSection>
       <TrustSection title="Deliberate limits">
-        <p>SkillMap does not execute skill scripts, apply source updates, install a global hook, publish packages, or upload private skill content automatically. Hosted auth, tenancy, billing, and team sync are not present in this build.</p>
+        <p>SkillMap does not execute skill scripts, apply source updates, install a global hook, publish packages, or upload private skill content automatically. The hosted catalog and free-account spine are implemented against Supabase and may be operated only as the separately evidenced private hosted alpha described by the deployment runbook. No public tenancy, billing, team sync, audited-package, grading, or hosted-router claim follows from Phase 1.</p>
       </TrustSection>
     </TrustPage>
   );

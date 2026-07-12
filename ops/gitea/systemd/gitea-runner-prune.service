@@ -1,0 +1,13 @@
+[Unit]
+Description=Prune disposable Gitea Actions runner storage
+Requires=gitea-stack.service
+After=gitea-stack.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/srv/gitea/runner-prune.sh
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=30min

@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly storage pruning for the Gitea Actions runner
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00 UTC
+Persistent=true
+RandomizedDelaySec=20m
+Unit=gitea-runner-prune.service
+
+[Install]
+WantedBy=timers.target

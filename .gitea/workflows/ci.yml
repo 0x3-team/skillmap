@@ -1,0 +1,106 @@
+name: Gitea CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+
+# The private runner has capacity one. Keep the high-value gates ordered so a
+# push cannot fan out into competing jobs on the same rootless Docker daemon.
+jobs:
+  quality:
+    name: CLI contracts and web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install CLI dependencies
+        run: npm ci
+
+      - name: Typecheck the CLI
+        run: npm run typecheck
+
+      - name: Run the complete root test suite
+        env:
+          SKILLMAP_TEST_CONCURRENCY: "3"
+        run: npm test
+
+      - name: Verify generated and hosted contracts
+        run: npm run test:contracts
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: apps/web
+
+      - name: Test, typecheck, lint, and build the web application
+        run: npm run check:web
+
+      - name: Audit production dependencies
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm --prefix apps/web audit --omit=dev --audit-level=high
+
+  hosted-database:
+    name: Hosted catalog migrations and RLS
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Supabase CLI 2.109.0
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.0
+
+      - name: Verify the isolated Docker daemon
+        run: docker info
+
+      - name: Start and validate the local Supabase stack
+        run: |
+          # This lane exercises PostgreSQL migrations, RLS, pgTAP, and generated
+          # types. Optional services bind the checkout path through the nested
+          # daemon and are intentionally excluded from this database-only gate.
+          supabase start --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector
+          supabase db reset --local
+          supabase db lint --local --level warning
+
+          # `supabase test db` bind-mounts the checkout into pg_prove. In
+          # rootless DinD the checkout belongs to the job container, so copy it
+          # through the Docker API instead and run the same pg_prove command.
+          pg_prove_container="skillmap-pg-prove-${GITHUB_RUN_ID:-manual}-${GITHUB_JOB:-db}"
+          cleanup_pg_prove() { docker rm -f "$pg_prove_container" >/dev/null 2>&1 || true; }
+          trap cleanup_pg_prove EXIT
+          cleanup_pg_prove
+          docker create --name "$pg_prove_container" --network host --workdir /tests \
+            -e PGHOST=127.0.0.1 -e PGPORT=54322 -e PGUSER=postgres \
+            -e PGPASSWORD=postgres -e PGDATABASE=postgres \
+            ghcr.io/supabase/pg_prove:3.36@sha256:eda7c5e68719e9c8287e78c017118407b48df904a51c935f5ab6098b8c0bc6bc \
+            pg_prove --ext .pg --ext .sql -r /tests >/dev/null
+          docker cp supabase/tests/. "$pg_prove_container:/tests"
+          docker start --attach "$pg_prove_container"
+          cleanup_pg_prove
+          trap - EXIT
+
+      - name: Verify generated database types are current
+        run: |
+          supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > /tmp/skillmap-database.types.ts
+          cmp /tmp/skillmap-database.types.ts apps/web/lib/supabase/database.types.ts
+
+      - name: Stop the local Supabase stack
+        if: always()
+        run: supabase stop --no-backup

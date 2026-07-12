@@ -1,11 +1,11 @@
 # SkillMap Handoff
 
 Originally created: 2026-07-08
-Last reconciled: 2026-07-10
+Last reconciled: 2026-07-12
 Repo: https://github.com/0x3-team/skillmap
-Current branch: `main`
+Current branch: `codex/hosted-library-foundation-pr`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Current status: the product-application implementation is a dirty local worktree. It has not been committed, pushed, published, or deployed.
+Current status: seed-anchor PR #5 was squash-merged into GitHub `main` at permanent source commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`, and Gitea `main` was fast-forwarded to the same commit. The hosted foundation was replayed in a clean worktree, its catalog/source/test coordinates were rebound to that permanent commit, and the focused contract, web, migration, lint, generated-type, and 96-test RLS gates passed locally. The review branch still requires an exact-head Gitea run, GitHub review, merge, final-main CI, approved provider ownership/cost, remote migration, OAuth configuration, deployment, and live acceptance. It is not published or deployed.
 
 ## Purpose of this handoff
 
@@ -17,7 +17,7 @@ Do not duplicate or reinterpret the whole planning history. Use this handoff as 
 
 SkillMap is a local-first skill registry, SkillGraph, router, source tracker, and quality system for coding agents.
 
-Current surface boundary: `apps/web` is the separate public/read-only Next.js surface and renders recorded fixtures or an explicitly configured redacted snapshot. The package also contains `assets/local-app/v1`, a modular application served only by the foreground `skillmap dashboard` loopback connector. That local application performs live routes and narrowly allowlisted revision-bound operations; it is not a hosted session and never grants arbitrary command execution or browser writes to skill roots. Accounts, team sync, billing, hosted registry storage, and remote mutation remain unimplemented and must not be presented as current behavior.
+Current surface boundary: `apps/web` now contains a local-Supabase-validated hosted catalog and free-account saved-skill spine alongside the separate recorded-fixture/redacted-snapshot dashboard. The package also contains `assets/local-app/v1`, a modular application served only by the foreground `skillmap dashboard` loopback connector. The hosted slice has not been provisioned or deployed remotely, and live GitHub OAuth has not been verified. Team sync, billing, automated ingestion/auditing/grading, package loading, advanced hosted routing, and remote operator mutation remain unimplemented and must not be presented as current behavior.
 
 The strongest intended architecture is:
 
@@ -34,7 +34,7 @@ This is different from adding another skill list into Codex. The main value appe
 
 ## Historical baseline and current local implementation
 
-The historical baseline commit above passed its then-current CI. The current local worktree substantially changes its identity, evidence, export, dashboard, and test contracts; it remains experimental alpha until the new work is reviewed, committed, pushed, and revalidated in CI.
+The historical baseline commit above passed its then-current CI. The current local implementation substantially changes its identity, evidence, export, dashboard, and test contracts. It remains experimental alpha until the permanent binding and private-alpha hardening are committed, the review branch is pushed and reviewed, and the exact implementation and final `main` heads pass Gitea CI.
 
 Completed surfaces:
 
@@ -58,7 +58,8 @@ Completed surfaces:
 - Capability-authenticated IPv4-loopback connector with origin/CSRF/Host limits, bounded responses, foreground lifecycle, and versioned packaged assets.
 - Live local UI routes for onboarding, workspaces, overview, Route Lab, skills/variants, policy, eval, sources, trust, integrations, activity, and settings.
 - Bounded redacted route/feedback/job ledgers, restart-safe allowlisted jobs, and explicit cancellation before publication.
-- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. These are local implementations until the final current-worktree run and hosted CI both pass.
+- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. Local acceptance passed for the hosted foundation; hosted CI on the eventual implementation PR remains required.
+- Separate hosted contracts plus local Supabase `api`/`private` schemas, deterministic first-party seeds, RLS/grant tests, public `/skills` and `/api/v1/skills` routes, Supabase SSR auth integration points, and free-account saved skills. These are locally implemented, not deployed.
 
 ## Historical validation evidence (not current release proof)
 
@@ -130,7 +131,7 @@ SkillMap = another list of skills inside Codex
 
 ## Release boundary
 
-The repository and current worktree are experimental alpha, not a release candidate. Public release actions remain intentionally gated on explicit user approval and fresh validation of the eventual committed revision.
+The repository and committed hosted foundation are experimental alpha, not a release candidate. Public release actions remain intentionally gated on explicit user approval and fresh validation of the eventual pushed revision.
 
 Not yet done:
 
@@ -141,7 +142,7 @@ Not yet done:
 - Five external onboarding pilots
 - Recorded manual screen-reader, keyboard, zoom/reflow, contrast, forced-colors, and operating-system review for the eventual beta candidate
 - Hosted CI validation of the eventual committed revision
-- Hosted identity, tenancy, connector pairing, team sync, billing, deployment, or production operations
+- Remote Supabase/Vercel provisioning, live GitHub OAuth, hosted tenancy, connector pairing, team sync, billing, deployment, or production operations
 
 Before public release, a fresh agent should verify current state again because package registries, CI, and repo state can drift.
 
@@ -195,7 +196,7 @@ If the next goal is product improvement:
 1. Build a true no-SkillMap human/agent A/B test, not only raw lexical baseline.
 2. Add a `show`/`load` command for selected skill content if not already sufficient through MCP `show_skill`.
 3. Improve host integration so Codex/Claude can avoid broad native skill registry exposure.
-4. Add a hosted or synced registry only after local export/import and MCP workflows are stable.
+4. Continue the authorized hosted-registry phases only through their explicit evidence gates; do not collapse local runtime, hosted catalog, package, grade, and router authority into one state.
 5. Expand evals with real missed routes from daily use, not only generated examples.
 
 ## Important constraints
@@ -204,7 +205,7 @@ If the next goal is product improvement:
 - Do not install global hooks without explicit approval.
 - Do not publish npm, create tags, or create GitHub releases without explicit approval.
 - Treat local outputs as evidence, not package artifacts.
-- Keep SkillMap local-first for v1; cloud registry/sync is v1.1 or later unless explicitly reprioritized.
+- Preserve the local-first runtime and privacy boundary while implementing the now-authorized hosted catalog as a separate online trust plane.
 - Be honest about benefits: large context savings, modest measured routing quality improvement.
 
 ## Quick commands for a fresh agent

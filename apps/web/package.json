@@ -9,15 +9,20 @@
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:fixtures": "node scripts/check-fixtures.mjs && node scripts/test-snapshot-integrity.mjs && node scripts/check-ui-truth.mjs",
+    "test:fixtures": "node scripts/check-fixtures.mjs && node scripts/test-snapshot-integrity.mjs && node scripts/check-ui-truth.mjs && npm run test:hosted-boundaries",
+    "test:hosted-boundaries": "node --experimental-strip-types --test tests/hosted-boundaries.test.mjs",
     "test:ui-contracts": "node scripts/check-ui-truth.mjs",
     "test:integrity": "node scripts/test-snapshot-integrity.mjs",
     "test:browser": "node scripts/run-browser-smoke.mjs",
     "test:browser:direct": "node scripts/browser-smoke.mjs",
+    "test:hosted-api": "node scripts/hosted-api-smoke.mjs",
+    "test:hosted-auth": "node scripts/hosted-auth-browser-smoke.mjs",
     "test:performance": "node scripts/web-performance.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.0",
+    "@supabase/supabase-js": "2.110.2",
     "@tanstack/react-virtual": "^3.13.12",
     "ajv": "8.20.0",
     "clsx": "^2.1.1",
@@ -47,6 +52,6 @@
     "postcss": "^8.5.10"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

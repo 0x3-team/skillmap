@@ -1,0 +1,184 @@
+-- Deployable first-party catalog data only. Synthetic users, publisher roles,
+-- and hidden lifecycle decoys live under supabase/tests/fixtures with a non-.sql
+-- suffix, so only their explicit test runners load them.
+begin;
+
+insert into private.publishers (
+  id, public_id, handle, display_name, verification_state, catalog_state, created_at, updated_at
+) values (
+  '10000000-0000-4000-8000-000000000001',
+  'pub_00000000000000000000000000000001',
+  '0x3-team',
+  '0x3 Team',
+  'unverified',
+  'published',
+  '2026-07-11T17:00:00Z',
+  '2026-07-11T17:00:00Z'
+);
+
+insert into private.source_repositories (
+  id, publisher_id, repository_url, catalog_state, created_at, updated_at
+) values (
+  '20000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000001',
+  'https://github.com/0x3-team/skillmap',
+  'published',
+  '2026-07-11T17:00:00Z',
+  '2026-07-11T17:00:00Z'
+);
+
+insert into private.skills (
+  id, public_id, publisher_id, source_repository_id, slug, display_name, summary, description,
+  capabilities, visibility_state, lifecycle_state, revoked_at, created_at, updated_at
+) values
+  (
+    '30000000-0000-4000-8000-000000000001',
+    'skl_00000000000000000000000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000001',
+    'skill-audit',
+    'Skill Audit',
+    'Audit a skill without treating structural checks as a safety certificate.',
+    'Audits one immutable Agent Skill version for structure, scope, provenance, license, permissions, and operational risk. It reports evidence and remediation without running bundled scripts.',
+    array['skill.audit', 'skill.provenance', 'skill.license'],
+    'public',
+    'published',
+    null,
+    '2026-07-11T17:00:00Z',
+    '2026-07-11T18:00:00Z'
+  ),
+  (
+    '30000000-0000-4000-8000-000000000002',
+    'skl_00000000000000000000000000000002',
+    '10000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000001',
+    'skill-quality-review',
+    'Skill Quality Review',
+    'Review trigger boundaries, instructions, failure handling, and evaluation readiness.',
+    'Reviews one immutable Agent Skill version for reliable selection and use, including trigger boundaries, supporting instructions, failure recovery, overlap, and evaluation readiness.',
+    array['skill.quality', 'skill.evaluation', 'skill.relationships'],
+    'public',
+    'published',
+    null,
+    '2026-07-11T17:00:00Z',
+    '2026-07-11T17:59:00Z'
+  ),
+  (
+    '30000000-0000-4000-8000-000000000003',
+    'skl_00000000000000000000000000000003',
+    '10000000-0000-4000-8000-000000000001',
+    '20000000-0000-4000-8000-000000000001',
+    'skill-supply-chain-review',
+    'Skill Supply-Chain Review',
+    'Review immutable identity, package integrity, licensing, updates, and revocation controls.',
+    'Reviews source identity, package integrity, license evidence, update metadata, and revocation controls while keeping raw-source and normalized-artifact authorities separate.',
+    array['skill.supply-chain', 'skill.integrity', 'skill.revocation'],
+    'public',
+    'published',
+    null,
+    '2026-07-11T17:00:00Z',
+    '2026-07-11T17:58:00Z'
+  );
+
+insert into private.skill_versions (
+  id, public_id, skill_id, version_label, source_commit, source_path, entrypoint_content_digest,
+  raw_snapshot_digest, artifact_availability, normalized_artifact_digest, manifest_digest,
+  license_state, spdx_expression, redistribution_state, license_files,
+  compatibility_state, compatibility_profile_version, compatibility_evidence_digest,
+  permission_scripts, permission_network, permission_tools,
+  evidence_provenance_state, evidence_audit_state, evidence_compatibility_state,
+  grade_state, grade_reason_codes, publication_state, published_at, quarantined_at, revoked_at, created_at
+) values
+  (
+    '40000000-0000-4000-8000-000000000001',
+    'skv_00000000000000000000000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    '1.0.0',
+    'd1c23990af82d1c8c99997cb8d9a2c23707d91fa',
+    'catalog/first-party/skill-audit/SKILL.md',
+    'sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a',
+    null, 'metadata-only', null, null,
+    'confirmed', 'MIT', 'metadata-only', array['LICENSE'],
+    'not-tested', null, null,
+    false, '{}'::text[], '{}'::text[],
+    'unverified', 'not-run', 'not-tested',
+    'ungraded', array['evaluation-not-run'], 'published', '2026-07-11T18:00:00Z', null, null,
+    '2026-07-11T18:00:00Z'
+  ),
+  (
+    '40000000-0000-4000-8000-000000000002',
+    'skv_00000000000000000000000000000002',
+    '30000000-0000-4000-8000-000000000002',
+    '1.0.0',
+    'd1c23990af82d1c8c99997cb8d9a2c23707d91fa',
+    'catalog/first-party/skill-quality-review/SKILL.md',
+    'sha256:d38ab7b682ef41dcce18debc7a77857031951ba54b16b53a78a57e48b30745c3',
+    null, 'metadata-only', null, null,
+    'confirmed', 'MIT', 'metadata-only', array['LICENSE'],
+    'not-tested', null, null,
+    false, '{}'::text[], '{}'::text[],
+    'unverified', 'not-run', 'not-tested',
+    'ungraded', array['evaluation-not-run'], 'published', '2026-07-11T17:59:00Z', null, null,
+    '2026-07-11T17:59:00Z'
+  ),
+  (
+    '40000000-0000-4000-8000-000000000003',
+    'skv_00000000000000000000000000000003',
+    '30000000-0000-4000-8000-000000000003',
+    '1.0.0',
+    'd1c23990af82d1c8c99997cb8d9a2c23707d91fa',
+    'catalog/first-party/skill-supply-chain-review/SKILL.md',
+    'sha256:295ad7b51050d476e91e4f84bbe6ec184d66452faa6956bd3f54ee1499c683ab',
+    null, 'metadata-only', null, null,
+    'confirmed', 'MIT', 'metadata-only', array['LICENSE'],
+    'not-tested', null, null,
+    false, '{}'::text[], '{}'::text[],
+    'unverified', 'not-run', 'not-tested',
+    'ungraded', array['evaluation-not-run'], 'published', '2026-07-11T17:58:00Z', null, null,
+    '2026-07-11T17:58:00Z'
+  );
+
+update private.skills
+set current_version_id = case id
+  when '30000000-0000-4000-8000-000000000001' then '40000000-0000-4000-8000-000000000001'::uuid
+  when '30000000-0000-4000-8000-000000000002' then '40000000-0000-4000-8000-000000000002'::uuid
+  when '30000000-0000-4000-8000-000000000003' then '40000000-0000-4000-8000-000000000003'::uuid
+end
+where id in (
+  '30000000-0000-4000-8000-000000000001',
+  '30000000-0000-4000-8000-000000000002',
+  '30000000-0000-4000-8000-000000000003'
+);
+
+insert into private.skill_relationships (
+  id, source_version_id, relationship_type, target_skill_id, evidence_state, reason, created_at
+) values
+  (
+    '50000000-0000-4000-8000-000000000001',
+    '40000000-0000-4000-8000-000000000001',
+    'alternative',
+    '30000000-0000-4000-8000-000000000002',
+    'declared',
+    'Both review skill quality, but this one emphasizes catalog risk and provenance.',
+    '2026-07-11T18:00:00Z'
+  ),
+  (
+    '50000000-0000-4000-8000-000000000002',
+    '40000000-0000-4000-8000-000000000002',
+    'alternative',
+    '30000000-0000-4000-8000-000000000001',
+    'declared',
+    'Both review a skill, but this one emphasizes trigger quality and evaluation readiness.',
+    '2026-07-11T18:00:00Z'
+  ),
+  (
+    '50000000-0000-4000-8000-000000000003',
+    '40000000-0000-4000-8000-000000000003',
+    'complement',
+    '30000000-0000-4000-8000-000000000001',
+    'declared',
+    'Supply-chain evidence complements catalog and operational risk review.',
+    '2026-07-11T18:00:00Z'
+  );
+
+commit;

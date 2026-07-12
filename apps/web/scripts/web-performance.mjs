@@ -79,7 +79,15 @@ async function measureRoute(browserType, baseUrl, pathname) {
     if (message.type() === "error") diagnostics.push(`console: ${message.text()}`);
   });
   page.on("pageerror", error => diagnostics.push(`pageerror: ${error.message}`));
-  page.on("requestfailed", request => diagnostics.push(`requestfailed: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? "unknown"}`));
+  page.on("requestfailed", request => {
+    const url = new URL(request.url());
+    const errorText = request.failure()?.errorText ?? "unknown";
+    // Next.js may cancel speculative same-origin RSC prefetches when a client
+    // interaction changes the route tree. That is an expected optimization,
+    // not an application network failure. Keep every other failure visible.
+    if (errorText === "net::ERR_ABORTED" && url.origin === allowedOrigin && url.searchParams.has("_rsc")) return;
+    diagnostics.push(`requestfailed: ${request.method()} ${request.url()} ${errorText}`);
+  });
   page.on("response", response => {
     if (response.status() >= 500) diagnostics.push(`response: ${response.status()} ${response.url()}`);
   });

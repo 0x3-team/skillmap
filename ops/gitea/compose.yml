@@ -1,0 +1,167 @@
+name: gitea
+
+services:
+  db:
+    image: docker.io/library/postgres:17.9-alpine@sha256:c7526c0f6c3f30260a563d7bcf8ad778effac59a44f8ffa86678c35418338609
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gitea
+      POSTGRES_USER: gitea
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gitea -d gitea"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    mem_limit: 768m
+    cpus: "1.0"
+    pids_limit: 256
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+
+  gitea:
+    image: docker.gitea.com/gitea:1.26.4@sha256:8e25c717b8f748445e15ec46e0390f577cb628101184cb0a150d1dae126c1f39
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__database__DB_TYPE: postgres
+      GITEA__database__HOST: db:5432
+      GITEA__database__NAME: gitea
+      GITEA__database__USER: gitea
+      GITEA__database__PASSWD__FILE: /run/secrets/db_password
+      GITEA__database__SSL_MODE: disable
+      GITEA__server__DOMAIN: codex-linode.tail67a423.ts.net
+      GITEA__server__ROOT_URL: https://codex-linode.tail67a423.ts.net/
+      GITEA__server__LOCAL_ROOT_URL: http://gitea:3000/
+      GITEA__server__PUBLIC_URL_DETECTION: never
+      GITEA__server__SSH_DOMAIN: codex-linode.tail67a423.ts.net
+      GITEA__server__SSH_PORT: "2222"
+      GITEA__server__START_SSH_SERVER: "false"
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__security__SECRET_KEY__FILE: /run/secrets/secret_key
+      GITEA__security__INTERNAL_TOKEN__FILE: /run/secrets/internal_token
+      GITEA__security__MIN_PASSWORD_LENGTH: "14"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__service__REQUIRE_SIGNIN_VIEW: "true"
+      GITEA__repository__FORCE_PRIVATE: "true"
+      GITEA__repository__DEFAULT_PRIVATE: private
+      GITEA__repository__DEFAULT_PUSH_CREATE_PRIVATE: "true"
+      GITEA__repository__ENABLE_PUSH_CREATE_USER: "true"
+      GITEA__repository__ENABLE_PUSH_CREATE_ORG: "true"
+      GITEA__openid__ENABLE_OPENID_SIGNIN: "false"
+      GITEA__openid__ENABLE_OPENID_SIGNUP: "false"
+      GITEA__actions__ENABLED: "true"
+      GITEA__actions__WORKFLOW_DIRS: .gitea/workflows
+    secrets:
+      - db_password
+      - secret_key
+      - internal_token
+    volumes:
+      - ./data/gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:2222:22"
+    networks:
+      - database
+      - edge
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    mem_limit: 1g
+    cpus: "1.5"
+    pids_limit: 512
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
+    stop_grace_period: 60s
+
+  runner:
+    image: docker.io/gitea/act_runner:0.2.11-dind-rootless@sha256:6120b1165f3a9f567390c616a174b67165db3c8a87e5ec4c9d71c1de21c9cdf9
+    profiles: ["runner"]
+    restart: unless-stopped
+    depends_on:
+      gitea:
+        condition: service_healthy
+    privileged: true
+    security_opt:
+      - apparmor=rootlesskit
+    environment:
+      CONFIG_FILE: /config.yaml
+      GITEA_INSTANCE_URL: https://codex-linode.tail67a423.ts.net/
+      GITEA_RUNNER_REGISTRATION_TOKEN_FILE: /run/secrets/runner_token
+      GITEA_RUNNER_NAME: codex-linode-rootless
+      GITEA_RUNNER_LABELS: ubuntu-latest:docker://docker.io/gitea/runner-images:ubuntu-24.04@sha256:58ea92624c7c09582e05594d95488331045053d3a3f34cf09649f2a32313a614
+      DOCKER_HOST: unix:///var/run/user/1000/docker.sock
+    secrets:
+      - runner_token
+    volumes:
+      - ./runner-config.yaml:/config.yaml:ro
+      - ./data/runner:/data
+      - ./data/runner-docker:/home/rootless/.local/share/docker
+    networks:
+      - edge
+    mem_limit: 4g
+    cpus: "4.0"
+    pids_limit: 2048
+    shm_size: 1g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          docker info >/dev/null 2>&1 &&
+          test -s /data/.runner &&
+          pgrep -x act_runner >/dev/null &&
+          wget -qO- "$${GITEA_INSTANCE_URL%/}/api/healthz" >/dev/null
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
+    stop_grace_period: 90s
+
+networks:
+  database:
+    internal: true
+  edge:
+    driver_opts:
+      com.docker.network.bridge.name: br-gitea-edge
+    ipam:
+      config:
+        - subnet: 172.30.50.0/24
+
+secrets:
+  db_password:
+    file: ./secrets/db_password
+  secret_key:
+    file: ./secrets/secret_key
+  internal_token:
+    file: ./secrets/internal_token
+  runner_token:
+    file: ./secrets/runner_token
