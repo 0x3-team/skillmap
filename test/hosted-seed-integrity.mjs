@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 const COMMIT = 'd1c23990af82d1c8c99997cb8d9a2c23707d91fa';
+const LICENSE_DIGEST = '8aa204059753d85efaa18d51eaadb235e07ccec4e6fedddaf3523706cf5136c5';
 const ENTRIES = [
   {
     path: 'catalog/first-party/skill-audit/SKILL.md',
@@ -39,7 +40,9 @@ test('hosted seed entrypoint digests bind the checked-in bytes and permanent sou
 });
 
 test('the checked-in repository license matches the permanent seed binding', async () => {
-  const license = await readFile(new URL('../LICENSE', import.meta.url), 'utf8');
-  assert.match(license, /^MIT License/m);
-  assert.match(license, /Copyright \(c\) 2026 SkillMap contributors/);
+  const license = await readFile(new URL('../LICENSE', import.meta.url));
+  const licenseText = license.toString('utf8');
+  assert.equal(createHash('sha256').update(license).digest('hex'), LICENSE_DIGEST);
+  assert.match(licenseText, /^MIT License/m);
+  assert.match(licenseText, /Copyright \(c\) 2026 SkillMap contributors/);
 });
