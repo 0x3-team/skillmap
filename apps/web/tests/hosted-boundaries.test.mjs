@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   AuthApiError,
@@ -51,6 +52,14 @@ import {
 
 const APP_ORIGIN = "https://skillmap.invalid";
 const SKILL_ID = `skl_${"0".repeat(31)}1`;
+
+test("streaming fallback does not create a second main landmark", async () => {
+  const source = await readFile(new URL("../app/loading.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /<main\b/);
+  assert.match(source, /role="status"/);
+  assert.match(source, /aria-live="polite"/);
+  assert.match(source, /aria-busy="true"/);
+});
 
 test("safe next paths remain same-origin after URL normalization", () => {
   const valid = "/skills/0x3-team/skill-audit?q=quality#evidence";

@@ -15,11 +15,12 @@
 - Planning mode: research-backed parent-owned comprehensive revision
 - Plan artifact: `docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan.md`
 - Verified research dossier: `docs/research/2026-07-11-skillmap-hosted-library-verified-research.md`
-- Implementation status: first Supabase-backed online vertical slice authorized; production provisioning and deployment are not yet authorized
+- Implementation status: Phase 1 Supabase-backed online vertical slice implemented, reviewed, merged, and accepted locally; production provisioning and deployment are not yet authorized
+- Phase 1 hosted-foundation merge: PR #7, `295dffe031d3010bb241ade75e9f249c97cd6063`
 - Worktree before revision: synchronized with `origin/main`; this owner-created plan was the only untracked file
 - Worker count: 3 read-only research/planning workers
 - Worker scopes: Supabase/current-platform research, registry/trust/supply-chain research, and repository gap/first-slice analysis
-- Goal ledger: active goal `019f5141-225c-74c1-9200-83fcc3a52579`; the implementation ledger lives beside this plan once implementation starts
+- Goal ledger: active goal `019f5141-225c-74c1-9200-83fcc3a52579`; its append-only implementation ledger lives beside this plan and includes the Phase 1 merge/acceptance closeout
 - Primary repository sources inspected:
   - README.md
   - package.json
@@ -3311,9 +3312,9 @@ Materialized deliverables:
 
 The checked-in hosted JSON Schemas, generated validators, Supabase migration/RLS matrix, research dossier, and these documents now jointly own Phase 0 truth. Package, TUF, route-plan, grade-receipt, compatibility-worker, publisher/operator, and remote-deployment behavior remains specified but unimplemented until its named phase exits.
 
-## Phase 1 Local Implementation Receipt — 2026-07-11
+## Phase 1 Merge and Local Acceptance Receipt — 2026-07-12
 
-Status: implemented and independently accepted with documented risks against real local Supabase data. Seed-anchor PR #5 is merged and the catalog is rebound to permanent squash commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`; merge readiness is now gated on committing the rebound candidate, exact-head Gitea CI, GitHub review, and final-main CI. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
+Status: implemented, independently accepted with documented risks against real local Supabase data, and merged through PR #7 at `295dffe031d3010bb241ade75e9f249c97cd6063`. Seed-anchor PR #5 is merged and the catalog is bound to permanent squash commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`. Gitea exact-feature run 14 and final-main run 15 passed both required jobs; GitHub and Gitea `main` match, branch protection is restored, and temporary synchronization credentials are removed. GitHub Actions remains blocked before execution by the organization spending limit. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
 
 Implemented:
 
@@ -3323,27 +3324,32 @@ Implemented:
 - truthful Phase 1 trust limits: publisher/provenance remain `unverified`, audit `not-run`, compatibility `not-tested`, grade `ungraded`, package digest fields remain permanently null for these metadata-only version identities, and positive evidence promotions are database-blocked until receipt models exist; Phase 2 must mint new package-version identities rather than completing these rows in place
 - anonymous no-store catalog repository, bounded cursor search, `/api/v1/skills` list/detail, generic hidden/nonexistent `404` parity, and explicit missing-config `503`
 - server-rendered `/skills`, skill detail, GitHub OAuth integration points, root Proxy session refresh, same-origin callback/sign-out, free `/account`, save/unsave, and 50-row keyset-paged saved-skill projection with invalid/deep-page recovery
-- landing navigation, Node 22+ web boundary, pinned Supabase JS/SSR dependencies, local operations docs, and hosted database/API CI lane
+- landing navigation, Node 22+ web boundary, pinned Supabase JS/SSR dependencies, local operations docs, a required Gitea root/web plus database/RLS/type CI lane, and separate full-stack local API/auth acceptance gates
 
-Local evidence recorded so far:
+Final local and hosted-CI evidence:
 
-- contract and seed-integrity suite: 31/31 tests passing
+- root regression suite: 328/328 tests passing
+- contract and seed-integrity suite: 32/32 tests passing
+- hosted boundary suite: 14/14 tests passing, including the streaming-fallback landmark regression
 - `supabase db reset --local`: passing
 - `supabase db lint --local --level warning`: no schema errors
 - pgTAP grants/RLS/identity/lifecycle/trust tests: 96/96 passing under full Supabase test discovery
 - direct PostgREST: three published seeds and private schema HTTP `406`
-- hosted API smoke: list, stable cursor, search, malformed input, hidden/nonexistent parity, truthful detail state, and secret canary passing
+- manually run local production-server hosted API smoke: list, stable cursor, search, malformed input, hidden/nonexistent parity, truthful detail state, and secret canary passing
 - missing configuration: API `503`; UI explicit unavailable/no-fixture-fallback state
-- checked-in authenticated production-server browser smoke: account route, save, saved projection, unsave, 52-row same-timestamp keyset pagination without gaps or duplicates, revocation filtering between pages, forged-session rejection, logout/cookie clearing, signed-out redirect, private/no-store cache policy, mobile accessible navigation name, 390px containment, and test-user/fixture cleanup passing; the local service-role key is confined to that test process and is not inherited by Next.js
-- desktop 1440x1000 and mobile 390x844 rendered QA: search interaction, detail evidence, sign-in boundary, no overflow, no framework overlay, and no console error/warning after remediation
+- manually run local authenticated production-server browser smoke: account route, save, saved projection, unsave, 52-row same-timestamp keyset pagination without gaps or duplicates, revocation filtering between pages, forged-session rejection, logout/cookie clearing, signed-out redirect, private/no-store cache policy, mobile accessible navigation name, 390px containment, and test-user/fixture cleanup passing; the local service-role key is confined to that test process and is not inherited by Next.js
+- exact-tree targeted hosted-route QA: `/skills`, a skill detail, and `/sign-in` passed 9/9 route-by-viewport checks at 320px, 390px, and 1440px with one settled `main`/`h1`, named navigation and controls, visible first-Tab focus, no horizontal overflow, and no console diagnostics
+- the root streaming fallback now uses a polite busy status container instead of a second `main` landmark, with a checked-in regression test; settled-route semantics were rechecked after the remediation
+- the existing performance harness passed 7/7 measured public/local routes (maximum LCP 168 ms, INP 56 ms, CLS 0, and route JavaScript 247,589 bytes); it does not include the hosted catalog routes, whose real-data Core Web Vitals remain explicitly gated below
 - in-app Browser runtime was unavailable despite the installed plugin bundle, so the rendered pass used the repository-pinned Playwright runtime; live GitHub OAuth remains unverified until the remote provider exists
-- independent engineering acceptance: accepted with risks after remediation of fabricated-grade authority, historical relationship contamination, search-copy mismatch, PostgREST and saved-list pagination truncation, repository credential-bearing URL admission, auth outage/session classification, same-origin callback normalization, production HTTPS configuration, deployable/test seed separation, mobile accessible naming, account outage behavior, privacy under-disclosure, and CI secret-scope findings
+- independent engineering acceptance: accepted with risks after remediation of fabricated-grade authority, historical relationship contamination, search-copy mismatch, PostgREST and saved-list pagination truncation, repository credential-bearing URL admission, auth outage/session classification, same-origin callback normalization, production HTTPS configuration, deployable/test seed separation, mobile accessible naming, streaming-fallback landmark duplication, account outage behavior, privacy under-disclosure, and CI secret-scope findings
 - CodeRabbit seed review: three untrusted-content and inert-review boundaries accepted, implemented, re-digested, and pushed to seed-anchor PR #5
+- PR #7 review: CodeRabbit final success, all Codex findings resolved, and zero unresolved review threads at feature head `00e29a442b3ef03345f25970aa2abff4655d259d`
+- Gitea CI: exact-feature run 14 and final-main run 15 passed `CLI contracts and web` plus `Hosted catalog migrations and RLS`; the workflow does not run `test:hosted-api` or `test:hosted-auth`, whose evidence above is from the explicit local acceptance run
 
 Still gated:
 
 - remote Supabase project/region/plan, GitHub OAuth app and exact callbacks, Vercel project/plan, canonical domain, remote migrations, deploy, and production checks
-- seed-anchor PR #5 is merged and the source coordinates are locally rebound to permanent commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`; the implementation PR and its resulting final `main` commit still require exact-head Gitea CI and review
 - professional Vercel ownership requires explicit approval of the current paid team charge; the isolated Supabase alpha organization/name and free-tier backup limitations must be accepted before remote creation
 - real-data hosted catalog Core Web Vitals and full accessibility coverage remain a pre-remote-alpha gate; the checked-in Phase 1 browser smoke covers functional account, mobile navigation naming, and overflow
 - revoked saved-skill tombstone/removal UX is required before Phase 3 enables public revocation workflows
