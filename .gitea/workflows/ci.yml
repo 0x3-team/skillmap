@@ -72,7 +72,10 @@ jobs:
 
       - name: Start and validate the local Supabase stack
         run: |
-          supabase start
+          # This lane exercises PostgreSQL migrations, RLS, pgTAP, and generated
+          # types. Optional services bind the checkout path through the nested
+          # daemon and are intentionally excluded from this database-only gate.
+          supabase start --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector
           supabase db reset --local
           supabase db lint --local --level warning
           supabase test db --local
