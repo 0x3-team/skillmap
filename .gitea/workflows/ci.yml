@@ -1,0 +1,85 @@
+name: Gitea CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+
+# The private runner has capacity one. Keep the high-value gates ordered so a
+# push cannot fan out into competing jobs on the same rootless Docker daemon.
+jobs:
+  quality:
+    name: CLI contracts and web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install CLI dependencies
+        run: npm ci
+
+      - name: Typecheck the CLI
+        run: npm run typecheck
+
+      - name: Run the complete root test suite
+        run: npm test
+
+      - name: Verify generated and hosted contracts
+        run: npm run test:contracts
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: apps/web
+
+      - name: Test, typecheck, lint, and build the web application
+        run: npm run check:web
+
+      - name: Audit production dependencies
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm --prefix apps/web audit --omit=dev --audit-level=high
+
+  hosted-database:
+    name: Hosted catalog migrations and RLS
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Supabase CLI 2.109.0
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.0
+
+      - name: Verify the isolated Docker daemon
+        run: docker info
+
+      - name: Start and validate the local Supabase stack
+        run: |
+          supabase start
+          supabase db reset --local
+          supabase db lint --local --level warning
+          supabase test db --local
+
+      - name: Verify generated database types are current
+        run: |
+          supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > /tmp/skillmap-database.types.ts
+          cmp /tmp/skillmap-database.types.ts apps/web/lib/supabase/database.types.ts
+
+      - name: Stop the local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
