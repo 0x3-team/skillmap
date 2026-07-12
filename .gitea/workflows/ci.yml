@@ -35,6 +35,8 @@ jobs:
         run: npm run typecheck
 
       - name: Run the complete root test suite
+        env:
+          SKILLMAP_TEST_CONCURRENCY: "3"
         run: npm test
 
       - name: Verify generated and hosted contracts
