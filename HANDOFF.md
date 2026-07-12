@@ -143,7 +143,7 @@ Not yet done:
 - Recorded manual screen-reader, keyboard, zoom/reflow, contrast, forced-colors, and operating-system review for the eventual beta candidate
 - Remote Supabase/Vercel provisioning, live GitHub OAuth, hosted tenancy, connector pairing, team sync, billing, deployment, or production operations
 
-Current CI note: Gitea feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; those commits share tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Runs 14 and 15 remain the historical hosted-foundation evidence at `295dffe031d3010bb241ade75e9f249c97cd6063`. GitHub Actions jobs are spending-blocked before execution and must not be interpreted as test failures or successes.
+Current CI note: Gitea feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; those commits share tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Historical hosted-foundation feature run 14 passed `00e29a442b3ef03345f25970aa2abff4655d259d`, and main run 15 passed `295dffe031d3010bb241ade75e9f249c97cd6063`; those commits share tree `3a163cf577eef73b832c2947c6e01332e1c4ecca`. GitHub Actions jobs are spending-blocked before execution and must not be interpreted as test failures or successes.
 
 Before public release, a fresh agent should verify current state again because package registries, CI, and repo state can drift.
 
