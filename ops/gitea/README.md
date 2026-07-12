@@ -122,4 +122,8 @@ Supabase, Vercel, OAuth, signing, or deployment credentials in this shared
 privileged runner.
 
 Hosted-foundation feature run 14 and final-main run 15 passed both required
-contexts; run 15 reconfirmed them at `295dffe031d3010bb241ade75e9f249c97cd6063`.
+contexts at `295dffe031d3010bb241ade75e9f249c97cd6063`. Phase 1 final-product feature
+run 18 later reconfirmed them at `1427e277e46315de5792a973deded1af4c274195`,
+and main run 19 reconfirmed them at
+`f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`. Those two commits share tree
+`be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`.

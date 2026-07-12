@@ -15,12 +15,13 @@
 - Planning mode: research-backed parent-owned comprehensive revision
 - Plan artifact: `docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan.md`
 - Verified research dossier: `docs/research/2026-07-11-skillmap-hosted-library-verified-research.md`
-- Implementation status: Phase 1 Supabase-backed online vertical slice implemented, reviewed, merged, and accepted locally; production provisioning and deployment are not yet authorized
+- Implementation status: Phase 1 Supabase-backed online vertical slice implemented, reviewed, merged, and accepted locally at its final product anchor; production provisioning and deployment are not yet authorized
 - Phase 1 hosted-foundation merge: PR #7, `295dffe031d3010bb241ade75e9f249c97cd6063`
+- Phase 1 final accepted product anchor: PR #9, `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`
 - Worktree before revision: synchronized with `origin/main`; this owner-created plan was the only untracked file
 - Worker count: 3 read-only research/planning workers
 - Worker scopes: Supabase/current-platform research, registry/trust/supply-chain research, and repository gap/first-slice analysis
-- Goal ledger: active goal `019f5141-225c-74c1-9200-83fcc3a52579`; its append-only implementation ledger lives beside this plan and includes the Phase 1 merge/acceptance closeout
+- Goal ledger: goal `019f5141-225c-74c1-9200-83fcc3a52579`; its append-only implementation ledger lives beside this plan and ends with the accepted, merged, explicitly undeployed Phase 1 product receipt
 - Primary repository sources inspected:
   - README.md
   - package.json
@@ -3314,7 +3315,7 @@ The checked-in hosted JSON Schemas, generated validators, Supabase migration/RLS
 
 ## Phase 1 Merge and Local Acceptance Receipt — 2026-07-12
 
-Status: implemented, independently accepted with documented risks against real local Supabase data, and merged through PR #7 at `295dffe031d3010bb241ade75e9f249c97cd6063`. Seed-anchor PR #5 is merged and the catalog is bound to permanent squash commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`. Gitea exact-feature run 14 and final-main run 15 passed both required jobs; GitHub and Gitea `main` match, branch protection is restored, and temporary synchronization credentials are removed. GitHub Actions remains blocked before execution by the organization spending limit. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
+Status: implemented and independently accepted with documented risks against real local Supabase data. Hosted foundation PR #7 merged at `295dffe031d3010bb241ade75e9f249c97cd6063`; acceptance reconciliation PR #8 and the late-review accessibility follow-up PR #9 produced final accepted product anchor `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`. Seed-anchor PR #5 is merged and the catalog remains bound to permanent squash commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`. Gitea exact-feature run 18 and final-product-main run 19 passed both required jobs; canonical `main` on GitHub and Gitea contains the final product anchor, branch protection is restored, and temporary synchronization credentials are removed. GitHub Actions remains blocked before execution by the organization spending limit. Nothing in this receipt is a production, deployment, remote OAuth, or public-launch claim.
 
 Implemented:
 
@@ -3330,7 +3331,7 @@ Final local and hosted-CI evidence:
 
 - root regression suite: 328/328 tests passing
 - contract and seed-integrity suite: 32/32 tests passing
-- local hosted boundary suite: 14/14 tests passing, including the streaming-fallback landmark regression
+- local and final-product Gitea hosted boundary suite: 14/14 tests passing, including the streaming-fallback landmark and announcement regression
 - `supabase db reset --local`: passing
 - `supabase db lint --local --level warning`: no schema errors
 - pgTAP grants/RLS/identity/lifecycle/trust tests: 96/96 passing under full Supabase test discovery
@@ -3345,7 +3346,8 @@ Final local and hosted-CI evidence:
 - independent engineering acceptance: accepted with risks after remediation of fabricated-grade authority, historical relationship contamination, search-copy mismatch, PostgREST and saved-list pagination truncation, repository credential-bearing URL admission, auth outage/session classification, same-origin callback normalization, production HTTPS configuration, deployable/test seed separation, mobile accessible naming, streaming-fallback landmark duplication, account outage behavior, privacy under-disclosure, and CI secret-scope findings
 - CodeRabbit seed review: three untrusted-content and inert-review boundaries accepted, implemented, re-digested, and pushed to seed-anchor PR #5
 - PR #7 review: CodeRabbit final success, all Codex findings resolved, and zero unresolved review threads at feature head `00e29a442b3ef03345f25970aa2abff4655d259d`
-- Gitea CI: exact-feature run 14 and final-main run 15 passed `CLI contracts and web` plus `Hosted catalog migrations and RLS`; the workflow does not run `test:hosted-api` or `test:hosted-auth`, whose evidence above is from the explicit local acceptance run
+- PR #8/#9 closeout review: the late Codex loading-announcement P2 was accepted after PR #8 merged, fixed and independently re-accepted in PR #9, and closed with CodeRabbit success, Codex no-major-issue review, and zero unresolved current-head threads
+- Gitea CI: exact-feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and final-product-main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; both commits have tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1` and passed `CLI contracts and web` plus `Hosted catalog migrations and RLS`. The workflow does not run `test:hosted-api` or `test:hosted-auth`, whose evidence above is from the explicit local acceptance run
 
 Still gated:
 
