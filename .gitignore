@@ -8,8 +8,13 @@ dist/
 playwright-report/
 test-results/
 apps/web/artifacts/
+apps/web/.artifacts/
+supabase/.branches/
+supabase/.temp/
 .DS_Store
 .env
 .env.*
+!.env.example
+!apps/web/.env.example
 coverage/
 .tmp/

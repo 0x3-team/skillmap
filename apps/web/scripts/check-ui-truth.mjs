@@ -7,6 +7,8 @@ const sources = Object.fromEntries(
   await Promise.all(
     [
       "app/layout.tsx",
+      "app/privacy/page.tsx",
+      "app/release-status/page.tsx",
       "app/security/page.tsx",
       "app/support/page.tsx",
       "components/skillmap/landing-page.tsx",
@@ -51,8 +53,18 @@ for (const file of ["components/skillmap/landing-page.tsx", "components/skillmap
 }
 
 const support = sources["app/support/page.tsx"];
-for (const boundary of [/no hosted account/i, /no .*response-time SLA/i, /Do not include raw prompts/i, /Never delete locks/i]) {
+for (const boundary of [/locally validated free-account flow/i, /no public production .*response-time SLA/i, /Do not include raw prompts/i, /Never delete locks/i]) {
   if (!boundary.test(support)) failures.push(`app/support/page.tsx: missing support boundary ${boundary}`);
+}
+
+const privacy = sources["app/privacy/page.tsx"];
+for (const boundary of [/application schema stores the authenticated account identifier/i, /Supabase Auth retains the account email, GitHub identity\/provider metadata, and session records/i, /No billing profile, payment method, entitlement, or Stripe record/i]) {
+  if (!boundary.test(privacy)) failures.push(`app/privacy/page.tsx: missing hosted privacy boundary ${boundary}`);
+}
+
+const releaseStatus = sources["app/release-status/page.tsx"];
+for (const boundary of [/Supabase-backed public catalog/i, /unlisted private alpha/i, /No public beta/i, /Stripe integration is claimed/i]) {
+  if (!boundary.test(releaseStatus)) failures.push(`app/release-status/page.tsx: missing hosted release boundary ${boundary}`);
 }
 
 const security = sources["app/security/page.tsx"];

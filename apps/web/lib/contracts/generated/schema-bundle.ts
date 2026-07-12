@@ -5489,6 +5489,998 @@ export const CONTRACT_SCHEMAS = [
         }
       }
     }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json",
+    "title": "SkillMap Hosted Grade Summary v1",
+    "description": "A truthful public grade state. Current and stale bands require a bound receipt; ungraded seed data cannot carry a band.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "state",
+      "band",
+      "confidence",
+      "receipt",
+      "invalidatedAt",
+      "reasonCodes"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-grade-summary"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "state": {
+        "enum": [
+          "ungraded",
+          "provisional",
+          "current",
+          "stale",
+          "blocked",
+          "revoked"
+        ]
+      },
+      "band": {
+        "oneOf": [
+          {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "confidence": {
+        "oneOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "receipt": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "invalidatedAt": {
+        "oneOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "reasonCodes": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "state": {
+            "const": "ungraded"
+          },
+          "band": {
+            "type": "null"
+          },
+          "confidence": {
+            "type": "null"
+          },
+          "receipt": {
+            "type": "null"
+          },
+          "invalidatedAt": {
+            "type": "null"
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "provisional"
+          },
+          "band": {
+            "type": "null"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "invalidatedAt": {
+            "type": "null"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "current"
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "invalidatedAt": {
+            "type": "null"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "maxItems": 0
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "stale"
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "invalidatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "blocked"
+          },
+          "band": {
+            "type": "null"
+          },
+          "confidence": {
+            "type": "null"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "invalidatedAt": {
+            "type": "null"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "revoked"
+          },
+          "band": {
+            "type": "null"
+          },
+          "confidence": {
+            "type": "null"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "invalidatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    ],
+    "$defs": {
+      "ReceiptRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receiptId",
+          "receiptDigest",
+          "gradedAt",
+          "rubricVersion",
+          "hostProfileVersion"
+        ],
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "pattern": "^grd_[0-9a-f]{32}$"
+          },
+          "receiptDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "gradedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rubricVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "hostProfileVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json",
+    "title": "SkillMap Hosted Public Skill v1",
+    "description": "The public, evidence-separated detail projection for one published hosted skill.",
+    "$ref": "#/$defs/HostedSkillDetail",
+    "$defs": {
+      "Digest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "NullableDigest": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/Digest"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "Publisher": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "publisherId",
+          "handle",
+          "displayName",
+          "verificationState"
+        ],
+        "properties": {
+          "publisherId": {
+            "type": "string",
+            "pattern": "^pub_[0-9a-f]{32}$"
+          },
+          "handle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "verificationState": {
+            "enum": [
+              "unverified",
+              "identity-verified",
+              "disputed"
+            ]
+          }
+        }
+      },
+      "Source": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repositoryUrl",
+          "commit",
+          "path",
+          "entrypointContentDigest",
+          "rawSnapshotDigest"
+        ],
+        "properties": {
+          "repositoryUrl": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 226,
+            "pattern": "^https://github\\.com/[A-Za-z0-9][A-Za-z0-9.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+          },
+          "entrypointContentDigest": {
+            "$ref": "#/$defs/Digest"
+          },
+          "rawSnapshotDigest": {
+            "$ref": "#/$defs/NullableDigest"
+          }
+        }
+      },
+      "Artifact": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "availability",
+          "normalizedDigest",
+          "manifestDigest"
+        ],
+        "properties": {
+          "availability": {
+            "enum": [
+              "metadata-only",
+              "mirrored"
+            ]
+          },
+          "normalizedDigest": {
+            "$ref": "#/$defs/NullableDigest"
+          },
+          "manifestDigest": {
+            "$ref": "#/$defs/NullableDigest"
+          }
+        }
+      },
+      "License": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "spdxExpression",
+          "redistribution",
+          "files"
+        ],
+        "properties": {
+          "state": {
+            "enum": [
+              "confirmed",
+              "noassertion",
+              "restricted"
+            ]
+          },
+          "spdxExpression": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "redistribution": {
+            "enum": [
+              "mirrored",
+              "metadata-only",
+              "blocked"
+            ]
+          },
+          "files": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+            }
+          }
+        }
+      },
+      "Compatibility": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "state",
+          "profileVersion",
+          "evidenceDigest"
+        ],
+        "properties": {
+          "host": {
+            "const": "codex"
+          },
+          "state": {
+            "enum": [
+              "not-tested",
+              "declared",
+              "compatible",
+              "stale",
+              "incompatible"
+            ]
+          },
+          "profileVersion": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceDigest": {
+            "$ref": "#/$defs/NullableDigest"
+          }
+        }
+      },
+      "Permissions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scripts",
+          "network",
+          "tools"
+        ],
+        "properties": {
+          "scripts": {
+            "type": "boolean"
+          },
+          "network": {
+            "type": "array",
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "tools": {
+            "type": "array",
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        }
+      },
+      "Evidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provenance",
+          "audit",
+          "compatibility"
+        ],
+        "properties": {
+          "provenance": {
+            "enum": [
+              "unverified",
+              "source-pinned",
+              "attested",
+              "stale",
+              "blocked"
+            ]
+          },
+          "audit": {
+            "enum": [
+              "not-run",
+              "passed",
+              "warnings",
+              "stale",
+              "blocked"
+            ]
+          },
+          "compatibility": {
+            "enum": [
+              "not-tested",
+              "declared",
+              "compatible",
+              "stale",
+              "incompatible"
+            ]
+          }
+        }
+      },
+      "CurrentVersionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "versionId",
+          "version",
+          "entrypointContentDigest",
+          "licenseState",
+          "redistribution",
+          "compatibilityState",
+          "grade",
+          "publishedAt"
+        ],
+        "properties": {
+          "versionId": {
+            "type": "string",
+            "pattern": "^skv_[0-9a-f]{32}$"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "entrypointContentDigest": {
+            "$ref": "#/$defs/Digest"
+          },
+          "licenseState": {
+            "enum": [
+              "confirmed",
+              "noassertion",
+              "restricted"
+            ]
+          },
+          "redistribution": {
+            "enum": [
+              "mirrored",
+              "metadata-only",
+              "blocked"
+            ]
+          },
+          "compatibilityState": {
+            "enum": [
+              "not-tested",
+              "declared",
+              "compatible",
+              "stale",
+              "incompatible"
+            ]
+          },
+          "grade": {
+            "$ref": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HostedSkillSummary": {
+        "type": "object",
+        "required": [
+          "skillId",
+          "publisher",
+          "slug",
+          "displayName",
+          "summary",
+          "lifecycleState",
+          "currentVersion",
+          "capabilities",
+          "updatedAt"
+        ],
+        "properties": {
+          "skillId": {
+            "type": "string",
+            "pattern": "^skl_[0-9a-f]{32}$"
+          },
+          "publisher": {
+            "$ref": "#/$defs/Publisher"
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 140
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "lifecycleState": {
+            "enum": [
+              "published",
+              "deprecated"
+            ]
+          },
+          "currentVersion": {
+            "$ref": "#/$defs/CurrentVersionSummary"
+          },
+          "capabilities": {
+            "type": "array",
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(?:[.:/-][a-z0-9]+)*$"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Relationship": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "targetSkillId",
+          "evidenceState",
+          "reason"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "alternative",
+              "complement",
+              "prerequisite",
+              "conflict",
+              "duplicate",
+              "supersedes"
+            ]
+          },
+          "targetSkillId": {
+            "type": "string",
+            "pattern": "^skl_[0-9a-f]{32}$"
+          },
+          "evidenceState": {
+            "enum": [
+              "declared",
+              "reviewed",
+              "evaluated"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
+      "HostedSkillDetail": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/HostedSkillSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "schemaVersion",
+              "description",
+              "source",
+              "artifact",
+              "license",
+              "compatibility",
+              "permissions",
+              "evidence",
+              "relationships"
+            ],
+            "properties": {
+              "kind": {
+                "const": "skillmap.hosted-skill"
+              },
+              "schemaVersion": {
+                "const": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              },
+              "source": {
+                "$ref": "#/$defs/Source"
+              },
+              "artifact": {
+                "$ref": "#/$defs/Artifact"
+              },
+              "license": {
+                "$ref": "#/$defs/License"
+              },
+              "compatibility": {
+                "$ref": "#/$defs/Compatibility"
+              },
+              "permissions": {
+                "$ref": "#/$defs/Permissions"
+              },
+              "evidence": {
+                "$ref": "#/$defs/Evidence"
+              },
+              "relationships": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "$ref": "#/$defs/Relationship"
+                }
+              }
+            }
+          }
+        ],
+        "unevaluatedProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json",
+    "title": "SkillMap Hosted Public Skill List v1",
+    "description": "A bounded, cursor-ready public catalog result using the same hosted skill summary contract as detail pages.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "query",
+      "items",
+      "pagination",
+      "generatedAt"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-skill-list"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "query": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "q",
+          "limit",
+          "cursor"
+        ],
+        "properties": {
+          "q": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "cursor": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "items": {
+        "type": "array",
+        "maxItems": 50,
+        "items": {
+          "allOf": [
+            {
+              "$ref": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json#/$defs/HostedSkillSummary"
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "pagination": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nextCursor",
+          "hasMore",
+          "stableSortKey"
+        ],
+        "properties": {
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "stableSortKey": {
+            "const": "published_at_desc_skill_id_asc"
+          }
+        }
+      },
+      "generatedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json",
+    "title": "SkillMap Hosted Public API Response v1",
+    "description": "The hosted public API envelope. It is intentionally separate from the local workspace revision envelope.",
+    "oneOf": [
+      {
+        "$ref": "#/$defs/Success"
+      },
+      {
+        "$ref": "#/$defs/Error"
+      }
+    ],
+    "$defs": {
+      "Success": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "data"
+        ],
+        "properties": {
+          "kind": {
+            "const": "skillmap.hosted-api-response"
+          },
+          "schemaVersion": {
+            "const": 1
+          },
+          "ok": {
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json"
+              },
+              {
+                "$ref": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json"
+              }
+            ]
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "error"
+        ],
+        "properties": {
+          "kind": {
+            "const": "skillmap.hosted-api-response"
+          },
+          "schemaVersion": {
+            "const": 1
+          },
+          "ok": {
+            "const": false
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
   }
 ] as const;
 

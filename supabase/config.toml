@@ -1,0 +1,70 @@
+# Local-only Phase 1 environment. Remote project creation and provider setup
+# remain explicit operator actions.
+project_id = "skillmap"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["api"]
+extra_search_path = ["public", "extensions"]
+# The public API accepts limit=50 and reads one extra row to determine whether
+# a cursor exists. Keep the PostgREST ceiling above that sentinel query.
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+health_timeout = "2m"
+major_version = 17
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = [
+  "http://127.0.0.1:3000/auth/callback",
+  "http://localhost:3000/auth/callback"
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+
+[auth.email]
+# Local-only password accounts make authenticated RLS and browser tests
+# deterministic. The product UI exposes GitHub OAuth only; hosted provider
+# configuration is a separate operator-owned step.
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+# GitHub OAuth is deliberately configured in the hosted Supabase project,
+# where its client secret can remain outside this repository.
+[auth.external.github]
+enabled = false
+client_id = ""
+secret = ""
+redirect_uri = ""
+
+[realtime]
+enabled = false
+
+[storage]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[local_smtp]
+enabled = false

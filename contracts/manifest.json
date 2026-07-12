@@ -16,7 +16,11 @@
     { "name": "eval-run-v2", "path": "eval-run/v2.schema.json", "id": "https://skillmap.dev/contracts/eval-run/v2.schema.json" },
     { "name": "eval-run-v3", "path": "eval-run/v3.schema.json", "id": "https://skillmap.dev/contracts/eval-run/v3.schema.json" },
     { "name": "sync-envelope-v1", "path": "sync-envelope/v1.schema.json", "id": "https://skillmap.dev/contracts/sync-envelope/v1.schema.json" },
-    { "name": "api-envelope-v1", "path": "api-envelope/v1.schema.json", "id": "https://skillmap.dev/contracts/api-envelope/v1.schema.json" }
+    { "name": "api-envelope-v1", "path": "api-envelope/v1.schema.json", "id": "https://skillmap.dev/contracts/api-envelope/v1.schema.json" },
+    { "name": "hosted-grade-summary-v1", "path": "hosted-grade-summary/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json" },
+    { "name": "hosted-skill-v1", "path": "hosted-skill/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json" },
+    { "name": "hosted-skill-list-v1", "path": "hosted-skill-list/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json" },
+    { "name": "hosted-api-response-v1", "path": "hosted-api-response/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json" }
   ],
   "testVectors": ["test-vectors/canonicalization-v1.json"]
 }

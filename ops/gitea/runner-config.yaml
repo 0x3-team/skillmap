@@ -1,0 +1,32 @@
+log:
+  level: info
+
+runner:
+  file: /data/.runner
+  capacity: 1
+  env_file: ""
+  timeout: 3h
+  shutdown_timeout: 5m
+  insecure: false
+  fetch_timeout: 10s
+  fetch_interval: 2s
+  labels:
+    - "ubuntu-latest:docker://docker.io/gitea/runner-images:ubuntu-24.04@sha256:58ea92624c7c09582e05594d95488331045053d3a3f34cf09649f2a32313a614"
+
+cache:
+  enabled: false
+
+container:
+  # Supabase CLI publishes sibling containers on the nested daemon's loopback.
+  # The host network here is the rootless DinD namespace, not the Linode host.
+  network: host
+  privileged: false
+  options: "--memory=3g --cpus=3.5 --pids-limit=1024 --shm-size=1g --security-opt=no-new-privileges"
+  workdir_parent: workspace
+  valid_volumes: []
+  docker_host: ""
+  force_pull: true
+  force_rebuild: false
+
+host:
+  workdir_parent: /data/host-workspace
