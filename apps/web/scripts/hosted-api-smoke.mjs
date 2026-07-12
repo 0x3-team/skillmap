@@ -5,17 +5,19 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const baseUrl = (process.env.SKILLMAP_HOSTED_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
+const smokeClientIp = "203.0.113.76";
 const testDatabaseUrl = process.env.SKILLMAP_TEST_DB_URL;
 const hiddenFixture = fileURLToPath(new URL("../../../supabase/tests/fixtures/hosted_catalog_api_hidden.sql.inc", import.meta.url));
 const hiddenCleanup = fileURLToPath(new URL("../../../supabase/tests/fixtures/hosted_catalog_api_hidden_cleanup.sql.inc", import.meta.url));
 
 if (!testDatabaseUrl) throw new Error("SKILLMAP_TEST_DB_URL is required to prove hidden-record API parity.");
-runFixture(hiddenFixture, "install");
 
+let primaryError;
 try {
+  runFixture(hiddenFixture, "install");
   await waitForServer();
 
-const landingResponse = await fetch(`${baseUrl}/`, { cache: "no-store" });
+const landingResponse = await smokeFetch(`${baseUrl}/`, { cache: "no-store" });
 assert.equal(landingResponse.status, 200);
 const contentSecurityPolicy = landingResponse.headers.get("content-security-policy") ?? "";
 assert.match(contentSecurityPolicy, /script-src 'self' 'nonce-([^']+)' 'strict-dynamic'/);
@@ -31,12 +33,12 @@ const nonce = contentSecurityPolicy.match(/'nonce-([^']+)'/)?.[1];
 assert.equal(typeof nonce, "string");
 assert.match(landingHtml, new RegExp(`nonce=["']${escapeRegExp(nonce)}["']`));
 
-const robotsResponse = await fetch(`${baseUrl}/robots.txt`, { cache: "no-store" });
+const robotsResponse = await smokeFetch(`${baseUrl}/robots.txt`, { cache: "no-store" });
 assert.equal(robotsResponse.status, 200);
 assert.match(await robotsResponse.text(), /^Disallow: \/$/m);
 
 const hostileNext = encodeURIComponent("/%2e%2e//evil.example");
-const callback = await fetch(`${baseUrl}/auth/callback?next=${hostileNext}`, { redirect: "manual", cache: "no-store" });
+const callback = await smokeFetch(`${baseUrl}/auth/callback?next=${hostileNext}`, { redirect: "manual", cache: "no-store" });
 assert.equal(callback.status, 307);
 const callbackLocation = new URL(callback.headers.get("location") ?? "", baseUrl);
 assert.equal(callbackLocation.origin, new URL(baseUrl).origin);
@@ -44,13 +46,33 @@ assert.equal(callbackLocation.pathname, "/sign-in");
 assert.equal(callbackLocation.searchParams.get("error"), "missing-code");
 assertPrivateNoStore(callback, "callback redirect");
 
-const anonymousAccount = await fetch(`${baseUrl}/account`, { redirect: "manual", cache: "no-store" });
+const anonymousAccount = await smokeFetch(`${baseUrl}/account`, { redirect: "manual", cache: "no-store" });
 assert.equal(anonymousAccount.status, 307);
 const accountLocation = new URL(anonymousAccount.headers.get("location") ?? "", baseUrl);
 assert.equal(accountLocation.origin, new URL(baseUrl).origin);
 assert.equal(accountLocation.pathname, "/sign-in");
 assert.equal(accountLocation.searchParams.get("next"), "/account");
 assertPrivateNoStore(anonymousAccount, "anonymous account redirect");
+
+const accountLookalike = await smokeFetch(`${baseUrl}/account-info`, { redirect: "manual", cache: "no-store" });
+assert.equal(accountLookalike.status, 404);
+
+const repeatedNext = await smokeFetch(`${baseUrl}/sign-in?next=/skills&next=//evil.example`, { cache: "no-store" });
+assert.equal(repeatedNext.status, 200);
+assert.match(await repeatedNext.text(), /name="next" value="\/account"/);
+
+for (const [query, parameter] of [
+  ["q=quality&q=audit", "q"],
+  ["limit=1&limit=2", "limit"],
+  ["cursor=first&cursor=second", "cursor"]
+]) {
+  const repeatedCatalogQuery = await smokeFetch(`${baseUrl}/skills?${query}`, { cache: "no-store" });
+  assert.equal(repeatedCatalogQuery.status, 200);
+  assert.match(
+    await repeatedCatalogQuery.text(),
+    new RegExp(`Repeated ${parameter} parameters are not allowed`)
+  );
+}
 
 const first = await getJson("/api/v1/skills?limit=1", 200);
 assert.equal(first.body.ok, true);
@@ -66,6 +88,22 @@ assert.equal(second.body.data.items[0].slug, "skill-quality-review");
 
 const search = await getJson("/api/v1/skills?q=quality", 200);
 assert.deepEqual(search.body.data.items.map((item) => item.slug), ["skill-quality-review"]);
+
+const microsecondFirst = await getJson("/api/v1/skills?q=microsecond&limit=1", 200);
+assert.equal(microsecondFirst.body.data.items[0].skillId, "skl_00000000000000000000000000000005");
+const microsecondCursor = JSON.parse(
+  Buffer.from(microsecondFirst.body.data.pagination.nextCursor, "base64url").toString("utf8")
+);
+assert.equal(microsecondCursor.publishedAt, "2026-07-11T17:00:01.123456Z");
+const microsecondSecond = await getJson(
+  `/api/v1/skills?q=microsecond&limit=1&cursor=${encodeURIComponent(microsecondFirst.body.data.pagination.nextCursor)}`,
+  200
+);
+assert.deepEqual(
+  microsecondSecond.body.data.items.map((item) => item.skillId),
+  ["skl_00000000000000000000000000000006"]
+);
+assert.equal(microsecondSecond.body.data.pagination.hasMore, false);
 
 const badLimit = await getJson("/api/v1/skills?limit=51", 400);
 assert.equal(badLimit.body.error.code, "INVALID_QUERY");
@@ -100,7 +138,7 @@ for (const result of [first, second, search, badLimit, badCursor, hidden, missin
 
 let rateLimited;
 for (let requestNumber = 1; requestNumber <= 61; requestNumber += 1) {
-  const response = await fetch(`${baseUrl}/api/v1/skills?limit=0`, {
+  const response = await smokeFetch(`${baseUrl}/api/v1/skills?limit=0`, {
     cache: "no-store",
     headers: { "x-vercel-forwarded-for": "203.0.113.77" }
   });
@@ -118,7 +156,7 @@ assert.match(rateLimited.headers.get("retry-after") ?? "", /^[1-9][0-9]*$/);
 assert.equal(rateLimited.headers.get("ratelimit-limit"), "60");
 assert.equal(rateLimited.headers.get("ratelimit-remaining"), "0");
 
-const rateLimitedPage = await fetch(`${baseUrl}/skills`, {
+const rateLimitedPage = await smokeFetch(`${baseUrl}/skills`, {
   cache: "no-store",
   headers: { "x-vercel-forwarded-for": "203.0.113.77" }
 });
@@ -131,19 +169,28 @@ assert.match(await rateLimitedPage.text(), /Too many catalog requests/);
     result: "pass",
     list: "cursor-stable",
     search: "bounded",
+    microsecondPagination: "no-gap",
     hiddenNotFoundParity: true,
     privateAlphaHeaders: "nonce-csp-noindex",
     rateLimit: "shared-api-and-page-429",
     trustStates: "truthful",
     secretCanary: "absent"
   })}\n`);
+} catch (error) {
+  primaryError = error;
+  throw error;
 } finally {
-  runFixture(hiddenCleanup, "cleanup");
+  try {
+    runFixture(hiddenCleanup, "cleanup");
+  } catch (cleanupError) {
+    if (!primaryError) throw cleanupError;
+    process.stderr.write(`Hosted API fixture cleanup also failed: ${errorMessage(cleanupError)}\n`);
+  }
 }
 
 function runFixture(path, action) {
   try {
-    execFileSync("psql", [testDatabaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "ignore" });
+    execFileSync("psql", [testDatabaseUrl, "-X", "-1", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "ignore" });
   } catch {
     throw new Error(`Hosted API hidden fixture ${action} failed.`);
   }
@@ -160,7 +207,7 @@ async function waitForServer() {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${baseUrl}/skills`, { redirect: "manual" });
+      const response = await smokeFetch(`${baseUrl}/skills`, { redirect: "manual" });
       if (response.status === 200) return;
     } catch {
       // The development server may still be binding its socket.
@@ -171,11 +218,23 @@ async function waitForServer() {
 }
 
 async function getJson(pathname, expectedStatus) {
-  const response = await fetch(`${baseUrl}${pathname}`, { cache: "no-store" });
+  const response = await smokeFetch(`${baseUrl}${pathname}`, { cache: "no-store" });
   assert.equal(response.status, expectedStatus, `${pathname} status`);
   return { body: await response.json(), headers: response.headers };
 }
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function smokeFetch(input, init = {}) {
+  const headers = new Headers(init.headers);
+  if (!headers.has("x-vercel-forwarded-for")) {
+    headers.set("x-vercel-forwarded-for", smokeClientIp);
+  }
+  return fetch(input, { ...init, headers });
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -18,6 +18,7 @@ import {
 } from "../lib/supabase/config.ts";
 import {
   SavedSkillsCursorError,
+  canonicalizeUtcTimestamp,
   decodeSavedSkillsCursor,
   encodeSavedSkillsCursor
 } from "../lib/registry/saved-cursor.ts";
@@ -66,6 +67,7 @@ test("safe next paths remain same-origin after URL normalization", () => {
     assert.equal(sanitized, "/account", hostile);
     assert.equal(new URL(sanitized, APP_ORIGIN).origin, APP_ORIGIN, hostile);
   }
+  assert.equal(safeNextPath("https://evil.example/", "https://evil.example/"), "/account");
 });
 
 test("verified claims distinguish terminal sessions from retryable auth failures", () => {
@@ -145,23 +147,23 @@ test("production Supabase and site configuration accepts HTTPS origins only", ()
 
 test("saved-skill cursors are exact, versioned, canonical, and account-free", () => {
   const cursor = encodeSavedSkillsCursor({
-    savedAt: "2026-07-11T18:00:00.000Z",
+    savedAt: "2026-07-11T18:00:00.123456Z",
     skillId: SKILL_ID
   });
   assert.deepEqual(decodeSavedSkillsCursor(cursor), {
     kind: "saved-skills",
     v: 1,
-    savedAt: "2026-07-11T18:00:00.000Z",
+    savedAt: "2026-07-11T18:00:00.123456Z",
     skillId: SKILL_ID
   });
   assert.doesNotMatch(Buffer.from(cursor, "base64url").toString("utf8"), /user|account|email/i);
 
   const invalidPayloads = [
-    { kind: "wrong", v: 1, savedAt: "2026-07-11T18:00:00.000Z", skillId: SKILL_ID },
-    { kind: "saved-skills", v: 2, savedAt: "2026-07-11T18:00:00.000Z", skillId: SKILL_ID },
+    { kind: "wrong", v: 1, savedAt: "2026-07-11T18:00:00.123456Z", skillId: SKILL_ID },
+    { kind: "saved-skills", v: 2, savedAt: "2026-07-11T18:00:00.123456Z", skillId: SKILL_ID },
     { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00Z", skillId: SKILL_ID },
-    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.000Z", skillId: "sk_invalid" },
-    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.000Z", skillId: SKILL_ID, extra: true }
+    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.123456Z", skillId: "sk_invalid" },
+    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.123456Z", skillId: SKILL_ID, extra: true }
   ];
   for (const payload of invalidPayloads) {
     const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -170,6 +172,22 @@ test("saved-skill cursors are exact, versioned, canonical, and account-free", ()
   for (const malformed of ["not+a+cursor", "a".repeat(513), "e30"]) {
     assert.throws(() => decodeSavedSkillsCursor(malformed), SavedSkillsCursorError);
   }
+});
+
+test("database timestamps retain microseconds in one canonical UTC form", () => {
+  assert.equal(
+    canonicalizeUtcTimestamp("2026-07-11T18:00:00.123456+00:00"),
+    "2026-07-11T18:00:00.123456Z"
+  );
+  assert.equal(
+    canonicalizeUtcTimestamp("2026-07-11T18:00:00Z"),
+    "2026-07-11T18:00:00.000000Z"
+  );
+  for (const invalid of [
+    "2026-02-30T18:00:00.000000Z",
+    "2026-07-11T18:00:00.1234567Z",
+    "2026-07-11T19:00:00.123456+01:00"
+  ]) assert.throws(() => canonicalizeUtcTimestamp(invalid), TypeError, invalid);
 });
 
 test("private-alpha indexing fails closed and requires one exact public opt-in", () => {

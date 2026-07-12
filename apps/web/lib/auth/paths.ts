@@ -1,4 +1,7 @@
-export function safeNextPath(value: string | null | undefined, fallback = "/account"): string {
+const SAFE_NEXT_FALLBACK = "/account";
+
+export function safeNextPath(value: string | null | undefined): string {
+  const fallback = SAFE_NEXT_FALLBACK;
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
     const origin = "https://skillmap.invalid";

@@ -1,6 +1,6 @@
 # Advisory v1
 
-Status: Phase 0 frozen semantic contract. Phase 3 implements advisory storage, signed revisions, public projection, exposure evaluation, and revocation-overlay integration.
+Status: Phase 0 frozen semantic contract. Phase 3 will implement advisory storage, signed revisions, public projection, exposure evaluation, and revocation-overlay integration.
 
 ## Independent states
 

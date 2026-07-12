@@ -15,7 +15,7 @@ A grade is a reproducible, host-specific, version-bound evidence summary. It is 
 - `blocked`: a hard gate failed or required evidence is unavailable.
 - `revoked`: the receipt issuer or operator invalidated the result for a consequential reason.
 
-Only `current` and explicitly allowed `provisional` receipts may expose a band. Phase 1 contracts require `ungraded` to have no band, confidence, or fabricated receipt.
+The v1 public summary gives `provisional` receipts confidence but no band, and gives `current` receipts both a band and confidence. A `stale` result retains its historical band and confidence only with the original bound receipt, an invalidation time, and reason codes; clients must label it stale and never present it as current. `ungraded`, `blocked`, and `revoked` summaries expose no band or confidence, and Phase 1 seeds cannot fabricate a receipt.
 
 ## Canonical receipt
 

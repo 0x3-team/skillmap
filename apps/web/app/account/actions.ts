@@ -11,17 +11,13 @@ export async function saveSkill(formData: FormData) {
   assertHostedSkillId(skillId);
   const { supabase, userId } = await authenticatedActionContext();
 
-  const { data: existing, error: readError } = await supabase
+  const { error } = await supabase
     .from("saved_skills")
-    .select("skill_id")
-    .eq("user_id", userId)
-    .eq("skill_id", skillId)
-    .maybeSingle();
-  if (readError) throw new Error("Saved-skill state could not be read.");
-  if (!existing) {
-    const { error } = await supabase.from("saved_skills").insert({ user_id: userId, skill_id: skillId });
-    if (error) throw new Error("The skill could not be saved.");
-  }
+    .upsert(
+      { user_id: userId, skill_id: skillId },
+      { onConflict: "user_id,skill_id", ignoreDuplicates: true }
+    );
+  if (error) throw new Error("The skill could not be saved.");
 
   revalidateSkillPaths();
 }

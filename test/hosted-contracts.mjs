@@ -194,6 +194,15 @@ test('ungraded and current grade states cannot borrow each other\'s authority', 
   };
   assertInvalid(IDS.grade, staleBeforeEvaluation, /invalidatedAt|timestamp/);
 
+  const validStale = structuredClone(staleBeforeEvaluation);
+  validStale.invalidatedAt = '2026-07-11T21:00:00.000Z';
+  assertValid(IDS.grade, validStale);
+
+  const provisionalWithBand = structuredClone(validStale);
+  provisionalWithBand.state = 'provisional';
+  provisionalWithBand.invalidatedAt = null;
+  assertInvalid(IDS.grade, provisionalWithBand, /must be null|oneOf/);
+
   const gradeWithPrivateField = ungraded();
   gradeWithPrivateField.privateEvidence = true;
   assertInvalid(IDS.grade, gradeWithPrivateField, /additional properties|must NOT have/);

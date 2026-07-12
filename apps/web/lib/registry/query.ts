@@ -1,6 +1,7 @@
 import "server-only";
 
 import { CatalogInputError } from "@/lib/registry/errors";
+import { canonicalizeUtcTimestamp } from "@/lib/registry/saved-cursor";
 
 const HOSTED_SKILL_ID = /^skl_[0-9a-f]{32}$/;
 const PUBLISHER_HANDLE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -91,8 +92,13 @@ function assertCatalogCursor(cursor: Partial<CatalogCursor>): asserts cursor is 
   if (typeof cursor.publishedAt !== "string" || typeof cursor.skillId !== "string") {
     throw new CatalogInputError("INVALID_CURSOR", "The catalog cursor is malformed.");
   }
-  const parsed = new Date(cursor.publishedAt);
-  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString() !== cursor.publishedAt || !HOSTED_SKILL_ID.test(cursor.skillId)) {
+  let canonicalTimestamp: string;
+  try {
+    canonicalTimestamp = canonicalizeUtcTimestamp(cursor.publishedAt);
+  } catch {
+    throw new CatalogInputError("INVALID_CURSOR", "The catalog cursor is malformed.");
+  }
+  if (canonicalTimestamp !== cursor.publishedAt || !HOSTED_SKILL_ID.test(cursor.skillId)) {
     throw new CatalogInputError("INVALID_CURSOR", "The catalog cursor is malformed.");
   }
 }

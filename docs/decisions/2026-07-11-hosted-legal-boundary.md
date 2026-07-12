@@ -12,7 +12,7 @@ SkillMap distinguishes public source visibility from permission to redistribute 
 - Declared, detected, and concluded license states remain separate and version-bound.
 - Publisher verification, ownership, license, provenance, audit, compatibility, grade, popularity, and lifecycle are independent claims.
 - Takedown, dispute, correction, appeal, deprecation, quarantine, and revocation create auditable lifecycle records; they do not erase or reuse identity.
-- Private repositories or submissions are read only within the explicitly authorized job and are never made public by default.
+- Private repositories or submissions are read-only within the explicitly authorized job and are never made public by default.
 
 ## Phase 1 application
 

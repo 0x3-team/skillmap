@@ -10,6 +10,7 @@
 /apps/web/app/account/ @0x3-team/core @0x3-team/security
 /apps/web/app/api/ @0x3-team/core @0x3-team/security
 /apps/web/app/auth/ @0x3-team/core @0x3-team/security
+/apps/web/app/sign-in/ @0x3-team/core @0x3-team/security
 /apps/web/lib/auth/ @0x3-team/core @0x3-team/security
 /apps/web/lib/security/ @0x3-team/core @0x3-team/security
 /apps/web/lib/supabase/ @0x3-team/core @0x3-team/security

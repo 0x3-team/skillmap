@@ -2,7 +2,7 @@
 
 ## Planner Metadata
 
-- Repository: `/home/codex/projects/skillmap`
+- Repository: `0x3-team/skillmap`
 - Canonical remote: `https://github.com/0x3-team/skillmap.git`
 - Branch anchored for research and planning: `main`
 - Commit anchored: `a468324`, Stabilize route-detail visual diagnostics (#4)
@@ -13,8 +13,8 @@
 - Implementation skill: implementation-orchestrator
 - Acceptance skill: engineering-acceptance-review
 - Planning mode: research-backed parent-owned comprehensive revision
-- Plan artifact: `/home/codex/projects/skillmap/docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan.md`
-- Verified research dossier: `/home/codex/projects/skillmap/docs/research/2026-07-11-skillmap-hosted-library-verified-research.md`
+- Plan artifact: `docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan.md`
+- Verified research dossier: `docs/research/2026-07-11-skillmap-hosted-library-verified-research.md`
 - Implementation status: first Supabase-backed online vertical slice authorized; production provisioning and deployment are not yet authorized
 - Worktree before revision: synchronized with `origin/main`; this owner-created plan was the only untracked file
 - Worker count: 3 read-only research/planning workers
@@ -3234,14 +3234,14 @@ This slice proves that SkillMap has a real hosted-data product spine and that fr
 
 Invoke implementation-orchestrator against:
 
-/home/codex/projects/skillmap/docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan.md
+docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan.md
 
 ### First pass
 
 - verify branch and worktree
 - reread repository AGENTS.md, README.md, package scripts, current schemas, MCP connector, local server, and web contracts
 - create an implementation ledger beside this plan
-- ledger path: `/home/codex/projects/skillmap/docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan-implementation-ledger.jsonl`
+- ledger path: `docs/plans/2026-07-11-skillmap-hosted-skill-library-launch-implementation-plan-implementation-ledger.jsonl`
 - consume the verified research dossier and freeze the Phase 1 implementation contract before editing
 - implement on a `codex/` branch
 - preserve all unrelated user work

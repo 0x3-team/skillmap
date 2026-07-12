@@ -34,6 +34,7 @@ if (createError || !created.user) {
 }
 
 let browser;
+let primaryError;
 try {
   const cookieJar = new Map();
   const auth = createServerClient(supabaseUrl, publishableKey, {
@@ -51,9 +52,42 @@ try {
   const { error: profileError } = await auth.from("profiles").insert({ user_id: signedIn.user.id });
   if (profileError) throw profileError;
 
+  const concurrentSkillId = "skl_00000000000000000000000000000001";
+  const concurrentSaves = await Promise.all([
+    auth.from("saved_skills").upsert(
+      { user_id: signedIn.user.id, skill_id: concurrentSkillId },
+      { onConflict: "user_id,skill_id", ignoreDuplicates: true }
+    ),
+    auth.from("saved_skills").upsert(
+      { user_id: signedIn.user.id, skill_id: concurrentSkillId },
+      { onConflict: "user_id,skill_id", ignoreDuplicates: true }
+    )
+  ]);
+  if (concurrentSaves.some(({ error }) => error)) {
+    throw concurrentSaves.find(({ error }) => error)?.error;
+  }
+  const { data: concurrentRows, error: concurrentReadError } = await auth
+    .from("saved_skills")
+    .select("skill_id")
+    .eq("user_id", signedIn.user.id)
+    .eq("skill_id", concurrentSkillId);
+  if (concurrentReadError || concurrentRows?.length !== 1) {
+    throw concurrentReadError ?? new Error("Concurrent saves did not converge to one row.");
+  }
+  const { error: concurrentCleanupError } = await auth
+    .from("saved_skills")
+    .delete()
+    .eq("user_id", signedIn.user.id)
+    .eq("skill_id", concurrentSkillId);
+  if (concurrentCleanupError) throw concurrentCleanupError;
+
   browser = await chromium.launch({ headless: true });
 
-  const forgedContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+  const forgedContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: "light",
+    extraHTTPHeaders: { "x-vercel-forwarded-for": "203.0.113.78" }
+  });
   await forgedContext.addCookies([...cookieJar.values()].map(({ name }) => ({
     name,
     value: "forged-session",
@@ -76,7 +110,11 @@ try {
   }
   await forgedContext.close();
 
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: "light" });
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    colorScheme: "light",
+    extraHTTPHeaders: { "x-vercel-forwarded-for": "203.0.113.79" }
+  });
   await context.addCookies([...cookieJar.values()].map(({ name, value, options = {} }) => ({
     name,
     value,
@@ -193,6 +231,7 @@ try {
   process.stdout.write(`${JSON.stringify({
     result: "pass",
     account: "authenticated",
+    concurrentSave: "idempotent-single-row",
     save: "passed",
     savedProjection: "passed",
     unsave: "passed",
@@ -207,11 +246,33 @@ try {
     landingCspAndHydration: "passed",
     diagnostics: 0
   })}\n`);
+} catch (error) {
+  primaryError = error;
+  throw error;
 } finally {
-  await browser?.close().catch(() => undefined);
-  const { error: deleteError } = await admin.auth.admin.deleteUser(created.user.id);
-  runSqlFile(paginationCleanup);
-  if (deleteError) throw deleteError;
+  const cleanupErrors = [];
+  try {
+    await browser?.close();
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  try {
+    const { error } = await admin.auth.admin.deleteUser(created.user.id);
+    if (error) cleanupErrors.push(error);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  try {
+    runSqlFile(paginationCleanup);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  if (cleanupErrors.length > 0) {
+    if (!primaryError) {
+      throw new AggregateError(cleanupErrors, "Authenticated smoke cleanup failed.");
+    }
+    process.stderr.write(`Authenticated smoke cleanup also failed: ${cleanupErrors.map(errorMessage).join("; ")}\n`);
+  }
 }
 
 function assertPrivateNoStore(headers, label) {
@@ -223,4 +284,8 @@ function assertPrivateNoStore(headers, label) {
 
 function runSqlFile(path) {
   execFileSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "pipe" });
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }

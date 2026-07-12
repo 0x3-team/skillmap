@@ -26,6 +26,7 @@ import {
   normalizeCatalogQuery
 } from "@/lib/registry/query";
 import {
+  canonicalizeUtcTimestamp,
   decodeSavedSkillsCursor,
   encodeSavedSkillsCursor,
   SavedSkillsCursorError
@@ -328,9 +329,11 @@ function requiredStringArray(value: unknown, field: string): string[] {
 
 function requiredTimestamp(value: unknown, field: string): string {
   const timestamp = requiredString(value, field);
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.valueOf())) throw new CatalogDataError(`Invalid ${field}.`);
-  return parsed.toISOString();
+  try {
+    return canonicalizeUtcTimestamp(timestamp);
+  } catch {
+    throw new CatalogDataError(`Invalid ${field}.`);
+  }
 }
 
 function optionalTimestamp(value: unknown, field: string): string | null {

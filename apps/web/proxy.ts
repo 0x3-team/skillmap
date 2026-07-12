@@ -19,6 +19,7 @@ import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from 
 import type { Database } from "@/lib/supabase/database.types";
 
 export async function proxy(request: NextRequest) {
+  const isAccountPath = /^\/account(?:\/|$)/.test(request.nextUrl.pathname);
   const nonce = createRequestNonce();
   const contentSecurityPolicy = buildContentSecurityPolicy({
     nonce,
@@ -59,7 +60,7 @@ export async function proxy(request: NextRequest) {
 
     const { data, error } = await supabase.auth.getClaims();
     const auth = classifyVerifiedClaims(data, error);
-    if (request.nextUrl.pathname.startsWith("/account") && auth.state !== "authenticated") {
+    if (isAccountPath && auth.state !== "authenticated") {
       if (auth.state === "signed-out") {
         const signIn = new URL("/sign-in", getSiteUrl());
         signIn.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);

@@ -112,7 +112,7 @@ The `main` branch is protected from ordinary direct pushes and all force pushes.
 Pull requests must be current and free of rejected reviews. The owner-only admin
 override exists solely for audited fast-forward synchronization from the reviewed
 GitHub `main`; it is not a substitute for a passing exact-commit Actions run.
-Enable the two Gitea status contexts as required checks after their final names
-have been captured on the hosted-foundation candidate. Never place Supabase,
-Vercel, OAuth, signing, or deployment credentials in this shared privileged
-runner.
+The protected branch requires `Gitea CI / CLI contracts and web (push)` and
+`Gitea CI / Hosted catalog migrations and RLS (push)`, captured from the passing
+hosted-foundation candidate. Never place Supabase, Vercel, OAuth, signing, or
+deployment credentials in this shared privileged runner.

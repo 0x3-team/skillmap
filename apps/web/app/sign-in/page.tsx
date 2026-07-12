@@ -10,10 +10,13 @@ export const dynamic = "force-dynamic";
 export default async function SignInPage({
   searchParams
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{
+    next?: string | string[];
+    error?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
-  const next = safeNextPath(params.next);
+  const next = safeNextPath(typeof params.next === "string" ? params.next : undefined);
   let configured = true;
   try {
     getPublicSupabaseConfig();
