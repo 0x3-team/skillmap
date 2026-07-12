@@ -44,7 +44,7 @@ The browser bundle uses only the Supabase publishable key. A service-role or sec
 
 Remote provisioning, deployment, backup, rollback, OAuth, and live-acceptance steps are controlled by [`docs/operations/hosted-alpha-deploy.md`](../../docs/operations/hosted-alpha-deploy.md). Do not push the local-only `supabase/config.toml` to a hosted project.
 
-The hosted CI lane starts a disposable local Supabase stack, runs the public API smoke, and then injects the local service-role key only into `test:hosted-auth`. That browser smoke creates and deletes a synthetic account while proving account access, save, saved projection, unsave, mobile navigation naming, and 390px containment. The Next.js process never inherits the service-role key.
+The required Gitea hosted-database lane starts an isolated database service, runs reset/lint/pgTAP, and checks generated API types. The full public API and authenticated browser smokes remain manually run local acceptance gates because the rootless Gitea job intentionally excludes Auth, PostgREST, and the other optional Supabase services. With a full disposable local stack and production Next.js server running, `npm run test:hosted-api` proves the public boundary and `npm run test:hosted-auth` creates and deletes a synthetic account while proving account access, concurrent-safe save, saved projection, unsave, mobile navigation naming, and 390px containment. Only the auth-smoke process receives the local service-role key; the Next.js process never does.
 
 ## Local Snapshot Mode
 

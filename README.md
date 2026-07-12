@@ -198,7 +198,7 @@ supabase test db supabase/tests/hosted_catalog_rls.test.sql --local
 
 Copy `apps/web/.env.example` to an ignored local environment file and fill it from `supabase status`. The web application exposes `/skills`, `/api/v1/skills`, GitHub OAuth callback routes, `/account`, and saved skills. Public catalog reads always use the anonymous no-store client; account writes use authenticated RLS.
 
-The hosted CI lane recreates this database from zero, verifies generated types and the full pgTAP suite, probes the public API, and exercises a disposable authenticated browser account through save and unsave. Its local service-role key is scoped to the test process and is never inherited by the web server.
+The required Gitea hosted-database lane recreates the database from zero, runs schema lint and the full pgTAP suite, and verifies generated API types. The public API and authenticated save/unsave browser smokes are manually run local acceptance gates against a full disposable Supabase stack and a production Next.js server; they are not currently part of the rootless Gitea runner job. When `test:hosted-auth` runs, its local service-role key is scoped to the test process and is never inherited by the web server.
 
 The Next.js surface supports both the real Supabase catalog/account spine and the clearly labeled fixture dashboard with optional verified redacted local snapshots. The packaged local application is instead served by `skillmap dashboard` from `assets/local-app/v1` and uses the same-origin loopback API for live routes, redacted feedback, approved-root onboarding, state migration/recovery, and allowlisted jobs. Billing, entitlements, team sync, automated grading/ingestion, and browser-initiated mutation of skill-root contents are not implemented.
 
