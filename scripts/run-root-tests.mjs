@@ -12,7 +12,14 @@ const tests = readdirSync(testRoot)
   .map(name => path.join('test', name));
 
 if (!tests.length) throw new Error('No root test files were discovered.');
-const result = spawnSync(process.execPath, ['--test', ...tests], {
+const concurrency = process.env.SKILLMAP_TEST_CONCURRENCY?.trim();
+if (concurrency && !/^[1-9]\d*$/.test(concurrency)) {
+  throw new Error('SKILLMAP_TEST_CONCURRENCY must be a positive integer.');
+}
+const testArguments = ['--test'];
+if (concurrency) testArguments.push(`--test-concurrency=${concurrency}`);
+testArguments.push(...tests);
+const result = spawnSync(process.execPath, testArguments, {
   cwd: repo,
   env: process.env,
   stdio: 'inherit'
