@@ -53,12 +53,12 @@ import {
 const APP_ORIGIN = "https://skillmap.invalid";
 const SKILL_ID = `skl_${"0".repeat(31)}1`;
 
-test("streaming fallback does not create a second main landmark", async () => {
+test("streaming fallback announces without creating a second main landmark", async () => {
   const source = await readFile(new URL("../app/loading.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /<main\b/);
   assert.match(source, /role="status"/);
   assert.match(source, /aria-live="polite"/);
-  assert.match(source, /aria-busy="true"/);
+  assert.doesNotMatch(source, /aria-busy=/);
 });
 
 test("safe next paths remain same-origin after URL normalization", () => {

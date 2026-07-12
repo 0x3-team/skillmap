@@ -4,7 +4,6 @@ export default function Loading() {
       className="grid min-h-screen place-items-center bg-background px-4 text-foreground"
       role="status"
       aria-live="polite"
-      aria-busy="true"
     >
       <div className="rounded-xl border border-border bg-card p-6 text-center">
         <p className="text-sm font-semibold">Loading SkillMap evidence…</p>
