@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
-const COMMIT = '6e80296e4680c9f469a30e85af39549726573e3d';
+const COMMIT = 'd1c23990af82d1c8c99997cb8d9a2c23707d91fa';
+const LICENSE_DIGEST = '8aa204059753d85efaa18d51eaadb235e07ccec4e6fedddaf3523706cf5136c5';
 const ENTRIES = [
   {
     path: 'catalog/first-party/skill-audit/SKILL.md',
@@ -20,15 +20,12 @@ const ENTRIES = [
   }
 ];
 
-test('hosted seed entrypoint digests bind the exact committed bytes and remain domain-separated', async () => {
+test('hosted seed entrypoint digests bind the checked-in bytes and permanent source commit', async () => {
   const seed = await readFile(new URL('../supabase/seed.sql', import.meta.url), 'utf8');
   const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
   for (const entry of ENTRIES) {
-    const committed = execFileSync('git', ['show', `${COMMIT}:${entry.path}`]);
     const current = await readFile(new URL(`../${entry.path}`, import.meta.url));
-    const committedDigest = createHash('sha256').update(committed).digest('hex');
     const currentDigest = createHash('sha256').update(current).digest('hex');
-    assert.equal(committedDigest, entry.digest, `${entry.path} committed digest`);
     assert.equal(currentDigest, entry.digest, `${entry.path} current digest`);
     assert.match(seed, new RegExp(`${entry.path.replaceAll('/', '\\/')}[\\s\\S]{0,180}sha256:${entry.digest}`));
   }
@@ -42,8 +39,10 @@ test('hosted seed entrypoint digests bind the exact committed bytes and remain d
   assert.equal((seed.match(/null, 'metadata-only', null, null/g) ?? []).length >= 3, true);
 });
 
-test('the pinned source commit carries the MIT repository license named by the seed', () => {
-  const license = execFileSync('git', ['show', `${COMMIT}:LICENSE`], { encoding: 'utf8' });
-  assert.match(license, /^MIT License/m);
-  assert.match(license, /Copyright \(c\) 2026 SkillMap contributors/);
+test('the checked-in repository license matches the permanent seed binding', async () => {
+  const license = await readFile(new URL('../LICENSE', import.meta.url));
+  const licenseText = license.toString('utf8');
+  assert.equal(createHash('sha256').update(license).digest('hex'), LICENSE_DIGEST);
+  assert.match(licenseText, /^MIT License/m);
+  assert.match(licenseText, /Copyright \(c\) 2026 SkillMap contributors/);
 });

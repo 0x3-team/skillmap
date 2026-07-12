@@ -53,7 +53,7 @@ Invalidation creates a new event/receipt and updates the current projection. His
 
 ## Publication and routing gates
 
-- Public catalog visibility requires published, non-quarantined, non-revoked publisher, source, skill, and current version parents.
+- Public catalog visibility requires the publisher and source to be published and non-revoked, the skill to be public, published or deprecated, and non-revoked, and the current version to be published, non-quarantined, and non-revoked.
 - An installable artifact additionally requires admissible license/redistribution, canonical package digests, and current registry metadata.
 - A public grade requires all hard-gate receipts named by its rubric.
 - Router eligibility applies host, permission, lifecycle, advisory, evidence-currency, and local policy filters before relevance scoring.

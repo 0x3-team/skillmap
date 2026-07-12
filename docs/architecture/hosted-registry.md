@@ -7,8 +7,8 @@ Status: Phase 0 architecture baseline. Phase 1 implements the Supabase-backed pu
 ```mermaid
 flowchart LR
   Browser["Public browser / account"] --> Web["Next.js web and API"]
-  Web --> PublicAPI["Supabase exposed api schema"]
-  PublicAPI --> PrivateDB["Supabase private schema with forced RLS"]
+  Web --> PublicAPI["Supabase exposed api projections"]
+  PublicAPI -. "internal database dependency" .-> PrivateDB["Supabase private tables with forced RLS"]
   GitHub["GitHub OAuth"] --> SupabaseAuth["Supabase Auth"]
   SupabaseAuth --> Web
 

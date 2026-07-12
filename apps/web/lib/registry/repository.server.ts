@@ -18,7 +18,13 @@ import type {
   Sha256Digest
 } from "@/lib/contracts/generated/types";
 import { assertContract } from "@/lib/contracts/generated/validate.server";
-import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
+import {
+  assertPublicSkillRelationshipLimit,
+  CatalogDataError,
+  CatalogInputError,
+  CatalogQueryError,
+  MAX_PUBLIC_SKILL_RELATIONSHIPS
+} from "@/lib/registry/errors";
 import {
   assertCatalogRoute,
   assertHostedSkillId,
@@ -26,6 +32,7 @@ import {
   normalizeCatalogQuery
 } from "@/lib/registry/query";
 import {
+  canonicalizeUtcTimestamp,
   decodeSavedSkillsCursor,
   encodeSavedSkillsCursor,
   SavedSkillsCursorError
@@ -182,10 +189,13 @@ async function getPublicSkill(
     .select("*")
     .eq("source_skill_id", skillId)
     .order("relationship_type", { ascending: true })
-    .order("target_skill_id", { ascending: true });
+    .order("target_skill_id", { ascending: true })
+    .limit(MAX_PUBLIC_SKILL_RELATIONSHIPS + 1);
   if (relationshipError) throw new CatalogQueryError();
 
-  const detail = mapDetail(row, (relationshipData ?? []) as RelationshipRow[]);
+  const relationships = (relationshipData ?? []) as RelationshipRow[];
+  assertPublicSkillRelationshipLimit(relationships);
+  const detail = mapDetail(row, relationships);
   assertContract(HOSTED_SKILL_SCHEMA, detail);
   return detail;
 }
@@ -328,9 +338,11 @@ function requiredStringArray(value: unknown, field: string): string[] {
 
 function requiredTimestamp(value: unknown, field: string): string {
   const timestamp = requiredString(value, field);
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.valueOf())) throw new CatalogDataError(`Invalid ${field}.`);
-  return parsed.toISOString();
+  try {
+    return canonicalizeUtcTimestamp(timestamp);
+  } catch {
+    throw new CatalogDataError(`Invalid ${field}.`);
+  }
 }
 
 function optionalTimestamp(value: unknown, field: string): string | null {

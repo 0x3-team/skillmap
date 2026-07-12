@@ -4,7 +4,7 @@
 
 - Research mode: deep research audit feeding planning and implementation.
 - Frozen on: 2026-07-11 UTC.
-- Target repository: `/home/codex/projects/skillmap`.
+- Target repository: `0x3-team/skillmap`.
 - Target revision inspected: `a468324` on `main`, synchronized with `origin/main` before edits.
 - Decision supported: whether and how to build SkillMap now as a hosted, free-to-users skill library with Supabase user management, public catalog and trust data, auditing, updates, grading, and a deterministic router.
 - Approved product constraints:

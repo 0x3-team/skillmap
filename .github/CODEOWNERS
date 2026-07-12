@@ -3,7 +3,20 @@
 
 # Security-sensitive policy, runtime, and delivery surfaces.
 /.github/ @0x3-team/core @0x3-team/security
+/.gitea/ @0x3-team/core @0x3-team/security
+/ops/gitea/ @0x3-team/core @0x3-team/security
 /contracts/ @0x3-team/core @0x3-team/security
+/supabase/ @0x3-team/core @0x3-team/security
+/apps/web/app/account/ @0x3-team/core @0x3-team/security
+/apps/web/app/api/ @0x3-team/core @0x3-team/security
+/apps/web/app/auth/ @0x3-team/core @0x3-team/security
+/apps/web/app/sign-in/ @0x3-team/core @0x3-team/security
+/apps/web/lib/auth/ @0x3-team/core @0x3-team/security
+/apps/web/lib/security/ @0x3-team/core @0x3-team/security
+/apps/web/lib/supabase/ @0x3-team/core @0x3-team/security
+/apps/web/proxy.ts @0x3-team/core @0x3-team/security
+/docs/operations/ @0x3-team/core @0x3-team/security
+/docs/security/ @0x3-team/core @0x3-team/security
 /src/core/ @0x3-team/core @0x3-team/security
 /src/contracts/ @0x3-team/core @0x3-team/security
 /src/server/ @0x3-team/core @0x3-team/security

@@ -53,7 +53,7 @@ for (const file of ["components/skillmap/landing-page.tsx", "components/skillmap
 }
 
 const support = sources["app/support/page.tsx"];
-for (const boundary of [/locally validated free-account flow/i, /no deployed .*response-time SLA/i, /Do not include raw prompts/i, /Never delete locks/i]) {
+for (const boundary of [/locally validated free-account flow/i, /no public production .*response-time SLA/i, /Do not include raw prompts/i, /Never delete locks/i]) {
   if (!boundary.test(support)) failures.push(`app/support/page.tsx: missing support boundary ${boundary}`);
 }
 
@@ -63,7 +63,7 @@ for (const boundary of [/application schema stores the authenticated account ide
 }
 
 const releaseStatus = sources["app/release-status/page.tsx"];
-for (const boundary of [/Supabase-backed public catalog/i, /No remote SkillMap database/i, /no Stripe integration exists/i]) {
+for (const boundary of [/Supabase-backed public catalog/i, /unlisted private alpha/i, /No public beta/i, /Stripe integration is claimed/i]) {
   if (!boundary.test(releaseStatus)) failures.push(`app/release-status/page.tsx: missing hosted release boundary ${boundary}`);
 }
 

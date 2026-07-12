@@ -1,5 +1,6 @@
 const SAVED_CURSOR_PATTERN = /^[A-Za-z0-9_-]+$/;
 const HOSTED_SKILL_ID = /^skl_[0-9a-f]{32}$/;
+const UTC_TIMESTAMP = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(?:Z|\+00:00)$/;
 
 export interface SavedSkillsCursor {
   kind: "saved-skills";
@@ -13,6 +14,27 @@ export class SavedSkillsCursorError extends Error {
     super("The saved-skills cursor is malformed.");
     this.name = "SavedSkillsCursorError";
   }
+}
+
+/**
+ * Canonicalizes PostgreSQL/PostgREST UTC timestamps without discarding the
+ * microseconds used by keyset pagination. The single cursor representation is
+ * an ISO UTC timestamp with exactly six fractional digits.
+ */
+export function canonicalizeUtcTimestamp(value: string): string {
+  const match = UTC_TIMESTAMP.exec(value);
+  if (!match) throw new TypeError("The timestamp must be a UTC ISO value with microsecond precision.");
+
+  const [, dateTime, rawFraction = ""] = match;
+  const fraction = rawFraction.padEnd(6, "0");
+  const parsed = new Date(`${dateTime}.${fraction}Z`);
+  if (
+    Number.isNaN(parsed.valueOf())
+    || parsed.toISOString() !== `${dateTime}.${fraction.slice(0, 3)}Z`
+  ) {
+    throw new TypeError("The timestamp is not a valid UTC calendar value.");
+  }
+  return `${dateTime}.${fraction}Z`;
 }
 
 export function encodeSavedSkillsCursor(cursor: Pick<SavedSkillsCursor, "savedAt" | "skillId">): string {
@@ -46,6 +68,9 @@ export function decodeSavedSkillsCursor(value: string): SavedSkillsCursor {
 }
 
 function assertCanonicalTimestamp(value: string): void {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString() !== value) throw new SavedSkillsCursorError();
+  try {
+    if (canonicalizeUtcTimestamp(value) !== value) throw new SavedSkillsCursorError();
+  } catch {
+    throw new SavedSkillsCursorError();
+  }
 }

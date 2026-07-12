@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   AuthApiError,
@@ -18,12 +19,47 @@ import {
 } from "../lib/supabase/config.ts";
 import {
   SavedSkillsCursorError,
+  canonicalizeUtcTimestamp,
   decodeSavedSkillsCursor,
   encodeSavedSkillsCursor
 } from "../lib/registry/saved-cursor.ts";
+import {
+  assertPublicSkillRelationshipLimit,
+  CatalogDataError,
+  CatalogInputError,
+  CatalogQueryError,
+  MAX_PUBLIC_SKILL_RELATIONSHIPS
+} from "../lib/registry/errors.ts";
+import {
+  CatalogFetchAbortError,
+  createBoundedCatalogFetch
+} from "../lib/security/bounded-fetch.ts";
+import {
+  PRIVATE_ALPHA_ROBOTS_VALUE,
+  buildContentSecurityPolicy,
+  buildResponseSecurityHeaders,
+  getSupabaseConnectSources,
+  isPublicIndexingEnabled
+} from "../lib/security/policy.ts";
+import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-errors.ts";
+import {
+  InMemoryFixedWindowRateLimiter,
+  applyRateLimitHeaders,
+  getAnonymousClientKey,
+  isPublicCatalogApiPath,
+  isPublicCatalogReadRequest
+} from "../lib/security/rate-limit.ts";
 
 const APP_ORIGIN = "https://skillmap.invalid";
 const SKILL_ID = `skl_${"0".repeat(31)}1`;
+
+test("streaming fallback announces without creating a second main landmark", async () => {
+  const source = await readFile(new URL("../app/loading.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /<main\b/);
+  assert.match(source, /role="status"/);
+  assert.match(source, /aria-live="polite"/);
+  assert.doesNotMatch(source, /aria-busy=/);
+});
 
 test("safe next paths remain same-origin after URL normalization", () => {
   const valid = "/skills/0x3-team/skill-audit?q=quality#evidence";
@@ -46,6 +82,7 @@ test("safe next paths remain same-origin after URL normalization", () => {
     assert.equal(sanitized, "/account", hostile);
     assert.equal(new URL(sanitized, APP_ORIGIN).origin, APP_ORIGIN, hostile);
   }
+  assert.equal(safeNextPath("https://evil.example/", "https://evil.example/"), "/account");
 });
 
 test("verified claims distinguish terminal sessions from retryable auth failures", () => {
@@ -125,23 +162,23 @@ test("production Supabase and site configuration accepts HTTPS origins only", ()
 
 test("saved-skill cursors are exact, versioned, canonical, and account-free", () => {
   const cursor = encodeSavedSkillsCursor({
-    savedAt: "2026-07-11T18:00:00.000Z",
+    savedAt: "2026-07-11T18:00:00.123456Z",
     skillId: SKILL_ID
   });
   assert.deepEqual(decodeSavedSkillsCursor(cursor), {
     kind: "saved-skills",
     v: 1,
-    savedAt: "2026-07-11T18:00:00.000Z",
+    savedAt: "2026-07-11T18:00:00.123456Z",
     skillId: SKILL_ID
   });
   assert.doesNotMatch(Buffer.from(cursor, "base64url").toString("utf8"), /user|account|email/i);
 
   const invalidPayloads = [
-    { kind: "wrong", v: 1, savedAt: "2026-07-11T18:00:00.000Z", skillId: SKILL_ID },
-    { kind: "saved-skills", v: 2, savedAt: "2026-07-11T18:00:00.000Z", skillId: SKILL_ID },
+    { kind: "wrong", v: 1, savedAt: "2026-07-11T18:00:00.123456Z", skillId: SKILL_ID },
+    { kind: "saved-skills", v: 2, savedAt: "2026-07-11T18:00:00.123456Z", skillId: SKILL_ID },
     { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00Z", skillId: SKILL_ID },
-    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.000Z", skillId: "sk_invalid" },
-    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.000Z", skillId: SKILL_ID, extra: true }
+    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.123456Z", skillId: "sk_invalid" },
+    { kind: "saved-skills", v: 1, savedAt: "2026-07-11T18:00:00.123456Z", skillId: SKILL_ID, extra: true }
   ];
   for (const payload of invalidPayloads) {
     const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -150,6 +187,245 @@ test("saved-skill cursors are exact, versioned, canonical, and account-free", ()
   for (const malformed of ["not+a+cursor", "a".repeat(513), "e30"]) {
     assert.throws(() => decodeSavedSkillsCursor(malformed), SavedSkillsCursorError);
   }
+});
+
+test("database timestamps retain microseconds in one canonical UTC form", () => {
+  assert.equal(
+    canonicalizeUtcTimestamp("2026-07-11T18:00:00.123456+00:00"),
+    "2026-07-11T18:00:00.123456Z"
+  );
+  assert.equal(
+    canonicalizeUtcTimestamp("2026-07-11T18:00:00Z"),
+    "2026-07-11T18:00:00.000000Z"
+  );
+  for (const invalid of [
+    "2026-02-30T18:00:00.000000Z",
+    "2026-07-11T18:00:00.1234567Z",
+    "2026-07-11T19:00:00.123456+01:00"
+  ]) assert.throws(() => canonicalizeUtcTimestamp(invalid), TypeError, invalid);
+});
+
+test("public skill relationships fail closed before exceeding the detail contract", () => {
+  assert.equal(MAX_PUBLIC_SKILL_RELATIONSHIPS, 100);
+  assert.doesNotThrow(() => assertPublicSkillRelationshipLimit(Array(100).fill(null)));
+  assert.throws(
+    () => assertPublicSkillRelationshipLimit(Array(101).fill(null)),
+    CatalogDataError
+  );
+});
+
+test("private-alpha indexing fails closed and requires one exact public opt-in", () => {
+  for (const value of [undefined, "", "private", "PUBLIC", " public ", "true", "1"]) {
+    assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: value }), false, String(value));
+  }
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: "public" }), true);
+
+  const privateHeaders = buildResponseSecurityHeaders({
+    contentSecurityPolicy: "default-src 'self';",
+    https: true,
+    publicIndexing: false
+  });
+  assert.equal(privateHeaders["X-Robots-Tag"], PRIVATE_ALPHA_ROBOTS_VALUE);
+  assert.equal(privateHeaders["Strict-Transport-Security"], "max-age=63072000; includeSubDomains");
+
+  const publicHeaders = buildResponseSecurityHeaders({
+    contentSecurityPolicy: "default-src 'self';",
+    https: false,
+    publicIndexing: true
+  });
+  assert.equal(publicHeaders["X-Robots-Tag"], undefined);
+  assert.equal(publicHeaders["Strict-Transport-Security"], undefined);
+});
+
+test("nonce CSP is strict, environment-aware, and rejects malformed sources", () => {
+  const nonce = "bm9uY2UtZm9yLXRlc3Rz";
+  const production = buildContentSecurityPolicy({
+    nonce,
+    supabaseUrl: "https://project.supabase.co",
+    development: false,
+    upgradeInsecureRequests: true
+  });
+  assert.match(production, new RegExp(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`));
+  assert.match(production, new RegExp(`style-src 'self' 'nonce-${nonce}'`));
+  assert.match(production, new RegExp(`style-src-elem 'self' 'nonce-${nonce}'`));
+  assert.match(production, /style-src-attr 'unsafe-inline'/);
+  assert.match(production, /connect-src 'self' https:\/\/project\.supabase\.co wss:\/\/project\.supabase\.co/);
+  assert.match(production, /frame-ancestors 'none'/);
+  assert.match(production, /upgrade-insecure-requests/);
+  assert.doesNotMatch(production, /script-src [^;]*'unsafe-inline'/);
+  assert.doesNotMatch(production, /style-src-elem [^;]*'unsafe-inline'/);
+  assert.doesNotMatch(production, /'unsafe-eval'/);
+
+  const development = buildContentSecurityPolicy({
+    nonce,
+    supabaseUrl: "http://127.0.0.1:54321",
+    development: true
+  });
+  assert.match(development, /connect-src 'self' http:\/\/127\.0\.0\.1:54321 ws:\/\/127\.0\.0\.1:54321/);
+  assert.match(development, /'unsafe-eval'/);
+  assert.doesNotMatch(development, /script-src [^;]*'unsafe-inline'/);
+  assert.doesNotMatch(development, /style-src-elem [^;]*'unsafe-inline'/);
+
+  for (const hostile of [
+    "https://user:secret@project.supabase.co",
+    "https://project.supabase.co/rest/v1",
+    "https://project.supabase.co?token=PRIVATE-CANARY",
+    "https://project.supabase.co#PRIVATE-CANARY",
+    "javascript:alert(1)",
+    "https://project.supabase.co\nconnect-src https://evil.example"
+  ]) {
+    const policy = buildContentSecurityPolicy({ nonce, supabaseUrl: hostile, development: false });
+    assert.equal(getSupabaseConnectSources(hostile, false).length, 0, hostile);
+    assert.doesNotMatch(policy, /evil\.example|PRIVATE-CANARY|user:secret/, hostile);
+    assert.equal(policy.match(/connect-src [^;]+/)?.[0], "connect-src 'self'", hostile);
+  }
+  assert.throws(
+    () => buildContentSecurityPolicy({
+      nonce: "validnoncevalue1234'; connect-src https://evil.example",
+      development: false
+    }),
+    TypeError
+  );
+});
+
+test("catalog rate limiting covers API and server-rendered read paths only", () => {
+  for (const pathname of [
+    "/skills",
+    "/skills/",
+    "/skills/0x3-team/skill-audit",
+    "/api/v1/skills",
+    "/api/v1/skills/skl_00000000000000000000000000000001"
+  ]) {
+    assert.equal(isPublicCatalogReadRequest(pathname, "GET"), true, pathname);
+    assert.equal(isPublicCatalogReadRequest(pathname, "HEAD"), true, pathname);
+  }
+  for (const [pathname, method] of [
+    ["/skills", "POST"],
+    ["/skill", "GET"],
+    ["/skills-preview", "GET"],
+    ["/api/v1/skills-preview", "GET"],
+    ["/account", "GET"]
+  ]) assert.equal(isPublicCatalogReadRequest(pathname, method), false, `${method} ${pathname}`);
+
+  assert.equal(isPublicCatalogApiPath("/api/v1/skills"), true);
+  assert.equal(isPublicCatalogApiPath("/api/v1/skills/example"), true);
+  assert.equal(isPublicCatalogApiPath("/skills"), false);
+});
+
+test("anonymous rate limiting is bounded, resets deterministically, and emits bounded headers", () => {
+  const limiter = new InMemoryFixedWindowRateLimiter({ limit: 2, windowMs: 1_000, maxEntries: 2 });
+  assert.deepEqual(limiter.consume("client-a", 10), {
+    allowed: true,
+    limit: 2,
+    remaining: 1,
+    retryAfterSeconds: 0,
+    resetAfterSeconds: 1,
+    resetAt: 1_010
+  });
+  assert.equal(limiter.consume("client-a", 20).remaining, 0);
+  const limited = limiter.consume("client-a", 30);
+  assert.equal(limited.allowed, false);
+  assert.equal(limited.retryAfterSeconds, 1);
+
+  assert.equal(limiter.consume("client-b", 40).allowed, true);
+  assert.equal(limiter.consume("client-c", 50).allowed, false, "entry cap must fail closed");
+  assert.equal(limiter.consume("client-c", 1_041).allowed, true, "expired entries must be evicted");
+
+  const response = applyRateLimitHeaders(new Response(null), limited);
+  assert.equal(response.headers.get("ratelimit-limit"), "2");
+  assert.equal(response.headers.get("ratelimit-remaining"), "0");
+  assert.equal(response.headers.get("ratelimit-reset"), "1");
+
+  for (const policy of [
+    { limit: 0, windowMs: 1_000, maxEntries: 1 },
+    { limit: 1, windowMs: Number.NaN, maxEntries: 1 },
+    { limit: 1, windowMs: 1_000, maxEntries: -1 }
+  ]) assert.throws(() => new InMemoryFixedWindowRateLimiter(policy), TypeError);
+});
+
+test("anonymous rate-limit identity prefers provider headers and never exposes raw addresses", () => {
+  const providerHeaders = new Headers({
+    "x-vercel-forwarded-for": "203.0.113.10",
+    "x-real-ip": "203.0.113.20",
+    "x-forwarded-for": "203.0.113.30, 198.51.100.1"
+  });
+  assert.equal(
+    getAnonymousClientKey(providerHeaders),
+    getAnonymousClientKey(new Headers({ "x-vercel-forwarded-for": "203.0.113.10" }))
+  );
+  assert.equal(
+    getAnonymousClientKey(new Headers({
+      "x-vercel-forwarded-for": "not-an-ip",
+      "x-real-ip": "203.0.113.20",
+      "x-forwarded-for": "203.0.113.30"
+    })),
+    getAnonymousClientKey(new Headers({ "x-real-ip": "203.0.113.20" }))
+  );
+
+  const unknown = getAnonymousClientKey(new Headers({ "x-forwarded-for": "PRIVATE-CANARY" }));
+  assert.equal(unknown, getAnonymousClientKey(new Headers()));
+  assert.doesNotMatch(unknown, /203\.0\.113|PRIVATE-CANARY/);
+  assert.match(unknown, /^[A-Za-z0-9_-]{43}$/);
+});
+
+test("public catalog fetch is no-store, aborts on timeout, and redacts target details", async () => {
+  let observedInit;
+  const successfulFetch = createBoundedCatalogFetch({
+    timeoutMs: 100,
+    fetchImplementation: async (_input, init) => {
+      observedInit = init;
+      return new Response("ok", { status: 200 });
+    }
+  });
+  assert.equal((await successfulFetch("https://project.supabase.co/rest/v1/catalog")).status, 200);
+  assert.equal(observedInit.cache, "no-store");
+  assert.equal(observedInit.signal instanceof AbortSignal, true);
+
+  const timeoutFetch = createBoundedCatalogFetch({
+    timeoutMs: 5,
+    fetchImplementation: () => new Promise(() => {})
+  });
+  await assert.rejects(
+    timeoutFetch("https://project.supabase.co/rest/v1/catalog?token=PRIVATE-CANARY"),
+    (error) => {
+      assert.equal(error instanceof CatalogFetchAbortError, true);
+      assert.equal(error.name, "AbortError");
+      assert.equal(error.code, "ABORT_ERR");
+      assert.doesNotMatch(error.message, /project\.supabase\.co|PRIVATE-CANARY/);
+      return true;
+    }
+  );
+
+  for (const timeoutMs of [0, -1, 60_001, 1.5, Number.NaN]) {
+    assert.throws(() => createBoundedCatalogFetch({ timeoutMs }), TypeError);
+  }
+});
+
+test("public catalog failures distinguish retryable upstream 503 from unexpected 500", () => {
+  assert.deepEqual(classifyPublicCatalogFailure(new CatalogQueryError()), {
+    status: 503,
+    code: "CATALOG_UPSTREAM_UNAVAILABLE",
+    message: "The hosted catalog is temporarily unavailable.",
+    retryable: true
+  });
+  assert.deepEqual(classifyPublicCatalogFailure(new CatalogInputError("INVALID_QUERY", "Bad query.")), {
+    status: 400,
+    code: "INVALID_QUERY",
+    message: "Bad query.",
+    retryable: false
+  });
+  assert.deepEqual(classifyPublicCatalogFailure(new Error("PRIVATE-CANARY")), {
+    status: 500,
+    code: "CATALOG_UNAVAILABLE",
+    message: "The hosted catalog is temporarily unavailable.",
+    retryable: true
+  });
+  assert.deepEqual(classifyPublicCatalogFailure(new CatalogDataError("PRIVATE-CANARY")), {
+    status: 500,
+    code: "CATALOG_UNAVAILABLE",
+    message: "The hosted catalog is temporarily unavailable.",
+    retryable: true
+  });
 });
 
 function withEnvironment(values, callback) {

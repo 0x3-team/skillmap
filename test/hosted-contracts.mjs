@@ -16,7 +16,7 @@ const OTHER_SKILL_ID = `skl_${'0'.repeat(31)}2`;
 const VERSION_ID = `skv_${'0'.repeat(31)}1`;
 const SHA_A = `sha256:${'a'.repeat(64)}`;
 const SHA_B = `sha256:${'b'.repeat(64)}`;
-const COMMIT = '6e80296e4680c9f469a30e85af39549726573e3d';
+const COMMIT = 'd1c23990af82d1c8c99997cb8d9a2c23707d91fa';
 const NOW = '2026-07-11T19:03:51.000Z';
 const REQUEST_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -161,6 +161,17 @@ test('hosted grade, detail, list, and API contracts accept the bounded first-par
   });
 });
 
+test('hosted skill detail relationships are capped at one hundred entries', () => {
+  const skill = hostedSkill();
+  skill.relationships = Array.from({ length: 100 }, (_, index) => ({
+    ...skill.relationships[0],
+    reason: `Bounded relationship ${index + 1}.`
+  }));
+  assertValid(IDS.skill, skill);
+  skill.relationships.push({ ...skill.relationships[0], reason: 'Relationship 101.' });
+  assertInvalid(IDS.skill, skill, /relationships/);
+});
+
 test('ungraded and current grade states cannot borrow each other\'s authority', () => {
   const fabricated = ungraded();
   fabricated.band = 'A';
@@ -193,6 +204,15 @@ test('ungraded and current grade states cannot borrow each other\'s authority', 
     reasonCodes: ['host-profile-changed']
   };
   assertInvalid(IDS.grade, staleBeforeEvaluation, /invalidatedAt|timestamp/);
+
+  const validStale = structuredClone(staleBeforeEvaluation);
+  validStale.invalidatedAt = '2026-07-11T21:00:00.000Z';
+  assertValid(IDS.grade, validStale);
+
+  const provisionalWithBand = structuredClone(validStale);
+  provisionalWithBand.state = 'provisional';
+  provisionalWithBand.invalidatedAt = null;
+  assertInvalid(IDS.grade, provisionalWithBand, /must be null|oneOf/);
 
   const gradeWithPrivateField = ungraded();
   gradeWithPrivateField.privateEvidence = true;

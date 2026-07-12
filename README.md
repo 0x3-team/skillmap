@@ -2,7 +2,7 @@
 
 SkillMap is a local-first SkillOps CLI for people with too many agent skills. It scans installed skill trees with qualified identity, doctors the library for ambiguity and risk, prepares native-agent curation, applies reversible policy with canonical duplicate decisions, builds/query-explains a SkillGraph, routes prompts to the best skills, tracks external skill provenance, and can optionally install a passive Codex route-hint hook.
 
-The repository now also contains the first locally validated hosted-library slice: a Supabase-backed public catalog, version-bound evidence contracts, GitHub OAuth integration points, and free-account saved skills. That slice is implemented and tested against local Supabase; it is not yet provisioned, deployed, or verified against a remote SkillMap project.
+The repository now also contains the first locally validated hosted-library slice: a Supabase-backed public catalog, version-bound evidence contracts, GitHub OAuth integration points, and free-account saved skills. That slice is implemented and tested against local Supabase. Any remote private-alpha state must be proven by an exact-commit deployment receipt in the implementation ledger; this README does not claim public release or production readiness.
 
 Status: experimental alpha moving toward v1. The current release is useful for local inventory, doctoring, native-agent policy curation, route-quality dogfooding, source provenance experiments, and controlled Codex hook dry-runs. It does not mutate global skill roots and does not install hooks unless you explicitly run a hook install command.
 
@@ -198,7 +198,7 @@ supabase test db supabase/tests/hosted_catalog_rls.test.sql --local
 
 Copy `apps/web/.env.example` to an ignored local environment file and fill it from `supabase status`. The web application exposes `/skills`, `/api/v1/skills`, GitHub OAuth callback routes, `/account`, and saved skills. Public catalog reads always use the anonymous no-store client; account writes use authenticated RLS.
 
-The hosted CI lane recreates this database from zero, verifies generated types and the full pgTAP suite, probes the public API, and exercises a disposable authenticated browser account through save and unsave. Its local service-role key is scoped to the test process and is never inherited by the web server.
+The required Gitea hosted-database lane recreates the database from zero, runs schema lint and the full pgTAP suite, and verifies generated API types. The public API and authenticated save/unsave browser smokes are manually run local acceptance gates against a full disposable Supabase stack and a production Next.js server; they are not currently part of the rootless Gitea runner job. When `test:hosted-auth` runs, its local service-role key is scoped to the test process and is never inherited by the web server.
 
 The Next.js surface supports both the real Supabase catalog/account spine and the clearly labeled fixture dashboard with optional verified redacted local snapshots. The packaged local application is instead served by `skillmap dashboard` from `assets/local-app/v1` and uses the same-origin loopback API for live routes, redacted feedback, approved-root onboarding, state migration/recovery, and allowlisted jobs. Billing, entitlements, team sync, automated grading/ingestion, and browser-initiated mutation of skill-root contents are not implemented.
 

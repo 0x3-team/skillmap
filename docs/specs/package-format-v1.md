@@ -10,6 +10,7 @@ Minimum manifest shape:
 
 ```yaml
 schema_version: skillmap.package/v1
+path_policy: skillmap-path/v1-unicode-17.0.0
 skill_id: skl_...
 version_id: skv_...
 publisher_id: pub_...
@@ -50,9 +51,11 @@ attestations: []
 - Resolve a provider repository, immutable provider ID, full commit, and normalized relative source path once.
 - Preserve the exact raw snapshot separately from normalized output.
 - Require one regular-file `SKILL.md` entrypoint with parseable bounded frontmatter.
-- Normalize separators to `/`; reject absolute paths, `..`, empty segments, NUL, platform device names, and ambiguous Unicode/path aliases.
+- Decode path names as strict UTF-8, normalize separators to `/`, and normalize every segment to Unicode NFC using the pinned Unicode 17.0.0 data in `skillmap-path/v1-unicode-17.0.0`; importer locale and host Unicode libraries are not authority.
+- Canonical path identity is case-sensitive and locale-independent. For portable admission, also compute Unicode 17.0.0 default case folding followed by NFC and reject the whole package if two entries collide by normalized path or by that portable collision key; never overwrite or select a last entry.
+- Reject absolute paths, `..`, empty segments, NUL, platform device names, and any path that fails the pinned normalization/collision rules.
 - Reject symlinks, hard links, submodules, sockets, devices, unsupported archive entry types, and path escapes.
-- Sort entries by normalized UTF-8 path and define one deterministic serialization, text-encoding, line-ending, timestamp, owner, and mode policy.
+- Sort entries by unsigned lexicographic comparison of normalized UTF-8 path bytes and define one deterministic serialization, text-encoding, line-ending, timestamp, owner, and mode policy. Record the path-policy and Unicode versions in the manifest and provenance receipt.
 - Hash every admitted regular file and bind path, size, mode, and digest in the manifest.
 - Enforce explicit per-file, file-count, expanded-byte, archive-byte, and nesting limits before allocation or extraction. Limit values are versioned importer policy and recorded in the provenance receipt.
 - Unknown executable formats, undeclared scripts, and permission mismatches are blocked or quarantined, never silently normalized.

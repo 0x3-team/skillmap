@@ -12,12 +12,20 @@ export const dynamic = "force-dynamic";
 export default async function SkillsPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string; limit?: string; cursor?: string }>;
+  searchParams: Promise<{
+    q?: string | string[];
+    limit?: string | string[];
+    cursor?: string | string[];
+  }>;
 }) {
-  const params = await searchParams;
   let result;
   try {
-    result = await listPublicSkills(params);
+    const params = await searchParams;
+    result = await listPublicSkills({
+      q: scalarCatalogParameter(params.q, "q"),
+      limit: scalarCatalogParameter(params.limit, "limit"),
+      cursor: scalarCatalogParameter(params.cursor, "cursor")
+    });
   } catch (error) {
     if (error instanceof SupabaseConfigurationError || error instanceof CatalogQueryError || error instanceof CatalogDataError) {
       return <SkillsShell><CatalogUnavailable /></SkillsShell>;
@@ -83,6 +91,16 @@ export default async function SkillsPage({
       ) : null}
     </SkillsShell>
   );
+}
+
+function scalarCatalogParameter(
+  value: string | string[] | undefined,
+  name: "q" | "limit" | "cursor"
+): string | undefined {
+  if (Array.isArray(value)) {
+    throw new CatalogInputError("INVALID_QUERY", `Repeated ${name} parameters are not allowed.`);
+  }
+  return value;
 }
 
 function SkillsShell({ children }: { children: React.ReactNode }) {
