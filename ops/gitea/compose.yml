@@ -124,7 +124,7 @@ services:
     networks:
       - edge
     mem_limit: 4g
-    cpus: "2.5"
+    cpus: "4.0"
     pids_limit: 2048
     shm_size: 1g
     healthcheck:
