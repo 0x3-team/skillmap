@@ -11,9 +11,8 @@ if ! docker compose --profile runner ps --status running --services | grep -qx r
 fi
 
 docker compose --profile runner exec -T runner docker container prune --force --filter until=24h
-docker compose --profile runner exec -T runner docker image prune --all --force --filter until=168h
 docker compose --profile runner exec -T runner docker builder prune --all --force --filter until=168h
-docker compose --profile runner exec -T runner docker volume prune --force --filter all=1
+docker compose --profile runner exec -T runner docker volume prune --force
 
 echo "Nested runner storage after pruning:"
 docker compose --profile runner exec -T runner docker system df
