@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowLeft, Route, TerminalSquare } from "lucide-react";
+import { ArrowLeft, TerminalSquare } from "lucide-react";
+import { CatalogHeader } from "@/components/skillmap/catalog-header";
 
 export function TrustPage({
   eyebrow,
@@ -15,20 +16,11 @@ export function TrustPage({
 }) {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-background/95">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-foreground text-background">
-              <Route className="h-4 w-4" />
-            </span>
-            SkillMap
-          </Link>
-          <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Back to overview
-          </Link>
-        </div>
-      </header>
+      <CatalogHeader />
       <article className="mx-auto min-w-0 max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
+        <Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> Back to overview
+        </Link>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{eyebrow}</p>
         <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
         <p className="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground">{intro}</p>

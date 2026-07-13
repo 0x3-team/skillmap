@@ -1015,6 +1015,14 @@ export type Database = {
           version_revoked: boolean
         }[]
       }
+      dead_letter_expired_skill_submission: {
+        Args: { p_idempotency_digest: string; p_submission_id: string }
+        Returns: {
+          attempt_count: number
+          submission_id: string
+          submission_state: string
+        }[]
+      }
       delete_my_account: { Args: never; Returns: boolean }
       disposition_skill_report: {
         Args: {
@@ -1039,6 +1047,14 @@ export type Database = {
           report_id: string
           skill_id: string
           version_id: string
+        }[]
+      }
+      list_skill_submission_collisions: {
+        Args: { p_submission_id: string }
+        Returns: {
+          collision_found: boolean
+          review_subject: Json
+          review_subject_digest: string
         }[]
       }
       publish_skill_submission: {
@@ -1085,6 +1101,19 @@ export type Database = {
           attempt_count: number
           submission_id: string
           submission_state: string
+        }[]
+      }
+      review_skill_submission_collisions: {
+        Args: {
+          p_disposition: string
+          p_idempotency_digest: string
+          p_reason_code: string
+          p_submission_id: string
+        }
+        Returns: {
+          collision_review_id: string
+          disposition: string
+          review_subject_digest: string
         }[]
       }
     }

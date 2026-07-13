@@ -6,7 +6,6 @@ import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
 import { signOut } from "@/app/sign-in/actions";
 import { deleteMyAccount } from "@/app/account/data-actions";
-import { unsaveSkill } from "@/app/account/actions";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account/deletion.server";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
@@ -54,7 +53,7 @@ export default async function AccountPage({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -65,8 +64,8 @@ export default async function AccountPage({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/account/submissions" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileClock className="h-4 w-4" /> Submissions</Link>
-            <Link href="/account/reports" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileWarning className="h-4 w-4" /> Reports</Link>
+            <Link href="/account/submissions" prefetch={false} className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileClock className="h-4 w-4" /> Submissions</Link>
+            <Link href="/account/reports" prefetch={false} className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileWarning className="h-4 w-4" /> Reports</Link>
             <a href="/account/export" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><Download className="h-4 w-4" /> Export JSON</a>
             <form action={signOut}>
               <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent">
@@ -84,7 +83,7 @@ export default async function AccountPage({
               <p className="mt-2 text-sm text-muted-foreground">
                 {cursor ? "The saved list changed or this page is now empty. Return to the first page." : "Browse the public library and save the skills worth returning to."}
               </p>
-              <Link href={cursor ? "/account#saved" : "/skills"} className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
+              <Link href={cursor ? "/account#saved" : "/skills"} prefetch={false} className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
                 {cursor ? "Return to first page" : "Browse library"}
               </Link>
             </div>
@@ -94,11 +93,13 @@ export default async function AccountPage({
                 <article key={skill.skillId} className="grid gap-4 rounded-xl border border-border bg-card p-5 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{skill.publisher.handle}</p>
-                    <Link href={`/skills/${skill.publisher.handle}/${skill.slug}`} className="mt-1 block text-lg font-semibold hover:text-primary">{skill.displayName}</Link>
+                    <Link href={`/skills/${skill.publisher.handle}/${skill.slug}`} prefetch={false} className="mt-1 block text-lg font-semibold hover:text-primary">{skill.displayName}</Link>
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{skill.summary}</p>
                   </div>
-                  <form action={unsaveSkill}>
+                  <form action="/account/saved/action" method="post">
                     <input type="hidden" name="skillId" value={skill.skillId} />
+                    <input type="hidden" name="operation" value="remove" />
+                    <input type="hidden" name="returnPath" value="/account" />
                     <button type="submit" className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground">Remove</button>
                   </form>
                 </article>
@@ -107,8 +108,8 @@ export default async function AccountPage({
           )}
           {(cursor || savedPage.hasMore) && (
             <nav aria-label="Saved skills pages" className="mt-6 flex flex-wrap gap-3">
-              {cursor && <Link href="/account#saved" className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">First page</Link>}
-              {savedPage.nextCursor && <Link href={`/account?cursor=${encodeURIComponent(savedPage.nextCursor)}#saved`} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">Next saved skills</Link>}
+              {cursor && <Link href="/account#saved" prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">First page</Link>}
+              {savedPage.nextCursor && <Link href={`/account?cursor=${encodeURIComponent(savedPage.nextCursor)}#saved`} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">Next saved skills</Link>}
             </nav>
           )}
         </section>
@@ -157,7 +158,7 @@ async function loadAccountData(supabase: SupabaseClient<Database>, userId: strin
 function AccountUnavailable() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader />
+      <CatalogHeader accountState="unavailable" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6"><CatalogUnavailable /></section>
     </main>
   );
@@ -166,7 +167,7 @@ function AccountUnavailable() {
 function InvalidSavedSkillsPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader accountState="authenticated" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-border bg-card p-8 text-center">
           <h1 className="text-xl font-semibold">That saved-skills page link is invalid.</h1>

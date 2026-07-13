@@ -6,7 +6,7 @@ Status: execution template. This runbook is for the hosted free trust alpha, not
 
 Do not invite a participant until all of these are recorded for one exact deployment:
 
-- private-alpha origin, commit, deployment ID, migrations, and GitHub OAuth callback;
+- private-alpha origin, commit, deployment ID, zero-cost provider/plan limits, migrations, and GitHub OAuth callback;
 - anonymous browse and authenticated two-account smoke receipts;
 - worker, report, quarantine/revocation, encrypted restore, and web rollback receipts;
 - named pilot operator, incident owner, support contact, and approved retention/policy version; and

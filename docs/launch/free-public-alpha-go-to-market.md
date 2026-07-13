@@ -16,7 +16,7 @@ Do not claim that SkillMap proves a skill is safe, indexes every skill, mirrors 
 
 The public announcement may be sent only when all boxes are checked:
 
-- [ ] Exact candidate commit is pushed, reviewed, and accepted by authoritative CI.
+- [ ] Exact candidate commit is pushed, reviewed, and accepted by both current Gitea authority lanes and the GitHub `hosted-web-browser` lane; an unavailable required CI provider keeps this unchecked.
 - [ ] Production Supabase, web, OAuth, domain, worker, backup, incident, and support owners are recorded.
 - [ ] `SKILLMAP_SUPPORT_URL` opens an approved public HTTPS page with support, formal-appeal, and confidential security-report instructions; `/support` links to it while signed out.
 - [ ] Production migrations, generated types, secrets, callback URLs, and indexing mode are verified.
@@ -26,7 +26,7 @@ The public announcement may be sent only when all boxes are checked:
 - [ ] Retry, replay, report, quarantine/revocation, database restore, and web rollback are exercised.
 - [ ] Responsive, keyboard, screen-reader, CSP, RLS, rate-limit, performance, and secret-canary gates pass.
 - [ ] The initial catalog has at least 20 fully evidenced versions across five useful comparison groups.
-- [ ] Five external pilots run; at least four people complete browse, save, or submit without operator coaching.
+- [ ] The dedicated five-seat hosted pilot passes: at least four people finish uncoached and uncoached receipts cover browse/evidence, save/return, submit/status, and author follow-through through receipt-backed publication inspection.
 - [ ] The public policy pack is approved for the chosen operating jurisdiction and support identity.
 
 ## Initial corpus plan
@@ -84,17 +84,11 @@ Subject: Would you submit one public skill to SkillMap?
 
 ## Pilot protocol
 
-Recruit five participants: three regular skill users and two skill authors. Do not explain the UI after the opening prompt.
-
-Ask each participant to complete one primary task:
-
-- find a skill for a real job and explain why they would or would not trust it;
-- save a skill and return to it from the account page; or
-- submit an exact public skill version and interpret its status.
+Recruit exactly five participants: three regular skill users and two authors who control an authorized public skill. Assign the five seats and workflows from `hosted-alpha-pilot-runbook.md` before recruitment; participants do not choose an easier workflow. Do not explain the UI after the opening prompt.
 
 Record only task completion, elapsed time, route names, bounded error codes, and volunteered feedback. Do not record raw prompts, private repository data, tokens, or submitted skill bodies in analytics or research notes.
 
-Pass target: four of five participants complete their task without operator coaching. Every failure is fixed, explicitly accepted as a known limitation, or blocks launch.
+Pass target: at least four of five participants finish uncoached **and** the cohort contains an uncoached receipt for every mandatory workflow: browse/evidence, save/return, submit/status, and author follow-through through receipt-backed publication inspection. If the only assigned seat for a mandatory workflow fails, the cohort cannot pass even if four other seats finish. Every failure is fixed, explicitly accepted as a known limitation, or blocks launch.
 
 Run and record these sessions with the dedicated [hosted alpha pilot runbook](./hosted-alpha-pilot-runbook.md). The similarly named root `docs/external-pilot-runbook.md` belongs to the local tarball/dashboard product and is not evidence for this hosted public-alpha gate.
 

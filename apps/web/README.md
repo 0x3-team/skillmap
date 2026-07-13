@@ -34,7 +34,7 @@ From the repository root:
 ```bash
 supabase start
 supabase db reset --local
-supabase db lint --local --level warning
+supabase db lint --local --schema api,private,public --level warning --fail-on warning
 supabase test db supabase/tests/hosted_catalog_rls.test.sql --local
 supabase status
 ```

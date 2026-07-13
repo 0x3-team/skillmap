@@ -3,7 +3,10 @@ const ALLOWED_RPC = new Set([
   'renew_skill_submission_claim',
   'complete_skill_submission',
   'requeue_skill_submission',
+  'dead_letter_expired_skill_submission',
   'publish_skill_submission',
+  'list_skill_submission_collisions',
+  'review_skill_submission_collisions',
   'disposition_skill_report',
   'list_skill_report_queue',
   'control_catalog_lifecycle'

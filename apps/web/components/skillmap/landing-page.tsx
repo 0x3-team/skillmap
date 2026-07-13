@@ -22,12 +22,19 @@ import { Card } from "@/components/ui/card";
 import { CommandPalette, type CommandItem } from "@/components/ui/command-palette";
 import { AnimatedNumber } from "@/components/ui/number";
 import { getDashboardSnapshot } from "@/lib/fixtures";
+import type { HostedAccountState } from "@/lib/auth/account-state";
 import type { ReleaseStage } from "@/lib/security/policy";
 import { cn } from "@/lib/utils";
 
 const snapshot = getDashboardSnapshot("release-ready");
 
-export function LandingPage({ releaseStage = "local-candidate" }: { releaseStage?: ReleaseStage }) {
+export function LandingPage({
+  releaseStage = "local-candidate",
+  accountState = "unavailable"
+}: {
+  releaseStage?: ReleaseStage;
+  accountState?: HostedAccountState;
+}) {
   const hosted = releaseStage !== "local-candidate";
   const publicAlpha = releaseStage === "public-alpha";
   const trustCells = trustCellsFor(releaseStage);
@@ -106,7 +113,7 @@ export function LandingPage({ releaseStage = "local-candidate" }: { releaseStage
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={commands} />
-      <SiteHeader onOpenPalette={() => setPaletteOpen(true)} />
+      <SiteHeader accountState={accountState} onOpenPalette={() => setPaletteOpen(true)} />
 
       <section className="border-b border-border">
         <div className="mx-auto grid min-h-[calc(100dvh-4rem)] max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.04fr_0.96fr] lg:px-8">
@@ -143,9 +150,9 @@ export function LandingPage({ releaseStage = "local-candidate" }: { releaseStage
               </button>
             </form>
             <nav className="mt-5 flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold" aria-label="Trust alpha actions">
-              <Link href="/skills" className="inline-flex items-center text-primary hover:underline">Browse all skills <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
-              <Link href="/submit" className="text-muted-foreground hover:text-foreground">Submit a skill</Link>
-              <Link href="/trust/grading" className="text-muted-foreground hover:text-foreground">Read methodology</Link>
+              <Link href="/skills" prefetch={false} className="inline-flex items-center text-primary hover:underline">Browse all skills <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
+              <Link href="/submit" prefetch={false} className="text-muted-foreground hover:text-foreground">Submit a skill</Link>
+              <Link href="/trust/grading" prefetch={false} className="text-muted-foreground hover:text-foreground">Read methodology</Link>
             </nav>
             <p className="mt-5 max-w-xl text-xs leading-5 text-muted-foreground">
               {hosted
@@ -320,22 +327,22 @@ export function LandingPage({ releaseStage = "local-candidate" }: { releaseStage
   );
 }
 
-function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
+function SiteHeader({ accountState, onOpenPalette }: { accountState: HostedAccountState; onOpenPalette: () => void }) {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/88 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-foreground">
+        <Link href="/" prefetch={false} className="flex items-center gap-2 font-semibold text-foreground">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-foreground text-background">
             <Route className="h-4 w-4" />
           </span>
           SkillMap
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-          <Link href="/skills" className="hover:text-foreground">
+          <Link href="/skills" prefetch={false} className="hover:text-foreground">
             Library
           </Link>
-          <Link href="/submit" className="hover:text-foreground">Submit</Link>
-          <Link href="/trust/grading" className="hover:text-foreground">Methodology</Link>
+          <Link href="/submit" prefetch={false} className="hover:text-foreground">Submit</Link>
+          <Link href="/trust/grading" prefetch={false} className="hover:text-foreground">Methodology</Link>
           <a href="#local-product" className="hover:text-foreground">Local product</a>
         </nav>
         <div className="flex items-center gap-2">
@@ -347,14 +354,13 @@ function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
           >
             <Search className="h-4 w-4" />
           </Button>
-          <Button
-            className="hidden sm:inline-flex"
-            onClick={() => {
-              window.location.href = "/sign-in";
-            }}
-          >
-            Sign in
-          </Button>
+          {accountState === "unavailable" ? (
+            <span aria-label="Account status unavailable" className="hidden h-10 items-center rounded-lg border border-warning/35 bg-warning/10 px-3 text-sm font-semibold text-muted-foreground sm:inline-flex">Account unavailable</span>
+          ) : (
+            <Link href={accountState === "authenticated" ? "/account" : "/sign-in"} prefetch={false} className="hidden h-10 items-center justify-center rounded-full border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lift transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:inline-flex">
+              {accountState === "authenticated" ? "Account" : "Sign in"}
+            </Link>
+          )}
         </div>
       </div>
     </header>

@@ -87,7 +87,7 @@ jobs:
           # daemon and are intentionally excluded from this database-only gate.
           supabase start --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector
           supabase db reset --local
-          supabase db lint --local --level warning
+          supabase db lint --local --schema api,private,public --level warning --fail-on warning
 
           # Rebuild from migrations, replay the application-data backup, and
           # only then run pgTAP and generated-type parity against the restored

@@ -62,7 +62,7 @@ Not implemented at this baseline:
 - automated hosted ingestion, audit, grade, publication, update, deprecation, revocation, or appeal
 - public audit and grade receipt detail
 - abuse reporting and public launch analytics
-- remote Supabase/Vercel projects, live OAuth, canonical domain, backup/restore receipt, deployment, or live acceptance
+- remote database/web projects, live OAuth, canonical domain, backup/restore receipt, deployment, or live acceptance
 
 Existing local validation is not deployment proof. The branch is ahead of its remote and retains user-owned uncommitted `.gitignore`, `.chunk/`, `.claude/`, and `.codex/` state that this program must not overwrite or commit.
 
@@ -108,11 +108,11 @@ SkillMap is ready to invite public users only when all of the following are true
 
 ### Operations
 
-- exact-candidate CI, dependency audits, migrations, RLS, contracts, type drift, browser, accessibility, responsive, performance, privacy, and secret-canary gates pass
+- the exact candidate passes both current Gitea authority lanes and the GitHub `hosted-web-browser` lane, plus dependency, migration, RLS, contract, type-drift, browser, accessibility, responsive, performance, privacy, and secret-canary gates; an unavailable required CI provider remains `NO-GO`
 - provider ownership, region, plan, cost boundary, OAuth app, domain, backup owner, incident owner, and rollback owner are recorded
 - backup and restore, revocation, worker replay, and web rollback are exercised
 - an exact commit is pushed, deployed, and verified live; those states are recorded separately
-- at least five external users complete the primary flow and at least four submit or save a skill without operator coaching
+- the dedicated five-seat hosted pilot passes: at least four participants finish uncoached and uncoached receipts cover browse/evidence, save/return, submit/status, and author follow-through through receipt-backed publication inspection
 
 ## Product scope
 
@@ -300,10 +300,27 @@ The first committed candidate exposed four locally actionable gaps under a fresh
 
 - server validation on `/submit` now returns a bounded field-local error without navigation, preserving every other safe input, both acknowledgements, and the stable idempotency request ID; the no-JavaScript fallback remains fail closed;
 - `SKILLMAP_RELEASE_STAGE` now selects truthful `local-candidate`, `private-alpha`, or `public-alpha` copy, while public indexing requires the exact independent pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`; `robots.txt` is request-time dynamic so a build cannot freeze the wrong directive;
-- the composed hosted browser gate now runs API, authenticated account, submission, report, export/deletion, no-row evidence, and real receipt-row rendering against a disposable local Supabase stack, and GitHub CI binds that gate explicitly;
+- the composed hosted browser gate now runs API, authenticated account, submission, report, export/deletion, no-row evidence, and real receipt-row rendering against a disposable local Supabase stack, treats synthetic cleanup/postcondition failure as fatal, emits pass only after zero auth/publisher/repository/skill/version rows remain, and is explicitly bound in GitHub CI;
 - the visual harness now guards only the generated workspace and revision labels during the two screenshot paints, proves a simulated late refresh is normalized before paint, and disconnects immediately after capture so later functional behavior remains observable.
 
 These fixes improve local candidate evidence only. They do not change the external provider, push, deploy, OAuth, restore, corpus, pilot, policy, or live-verification gates.
+
+### 2026-07-13 completion audit and launch-readiness remediation
+
+Three bounded audits covered the complete product journey, the audit/grading backend, and release/go-to-market operations. A separate integrated adversarial review then challenged the combined candidate. No P0 issue was found. Every locally actionable P1/P2 issue was accepted and closed in the working candidate:
+
+- public listings and evidence pages now bind the exact GitHub commit/path, publisher, lifecycle, publish/update timestamps, and owner follow-through links; audit and grade output is semantic first with bounded raw JSON available only as supporting detail;
+- report outcomes are database-verified or short-lived same-browser receipts rather than trusted query strings, field-local report errors preserve bounded input, and the streamed Next.js surface explicitly states its JavaScript requirement instead of claiming unsupported no-JavaScript continuity;
+- save/unsave now uses a native same-origin POST/303 route with owner/RLS enforcement and a validated public-origin redirect; speculative prefetch is disabled on high-cardinality operational links so catalog browsing cannot consume the same-browser request budget;
+- 320 px, 390 px, 200% zoom, keyboard, visible-focus, forced-colors, semantic-control, invalid-query-heading, Chromium, Firefox, and WebKit cases are enforced by the hosted frontend gate with nine deterministic zero-diff baselines and zero unexpected browser diagnostics;
+- completion-time collision evidence and publication eligibility are rechecked under advisory locks, a fifth expired claim dead-letters idempotently, collision disposition is immutable, and a blocked provisional grade may omit a compatibility digest only when the exact failed compatibility hard gate explains it;
+- operator CLI paths now expose dead-letter, collision-list, and collision-review workflows, with pgTAP and static contract coverage for their authority boundaries;
+- hosted synthetic cleanup is fatal and proves zero remaining auth, publisher, repository, skill, and version rows; both Gitea quality authority and the exact GitHub hosted-browser lane remain mandatory, with zero-cost-compatible infrastructure as a launch constraint rather than a paid fallback;
+- canonical social images, public support configuration, pilot workflow coverage, deployment/runbook language, launch cleanup, and candidate-binding documentation now agree with the implemented product.
+
+The integrated local acceptance result is: root tests `376/376`, contracts `34/34`, pgTAP `341/341`, hosted boundary tests `29/29`, release path `47/47`, production dependency audits with zero vulnerabilities, all three hosted auth browsers, the complete hosted launch flow, nine zero-diff hosted baselines, accessibility, forced-colors, responsive, performance, packaging, and post-cleanup database validation passed. These receipts are local evidence only until the containing clean commit passes authoritative remote CI and live deployment acceptance.
+
+The next locally actionable launch slice is the initial corpus: prepare at least 20 exact, license-evidenced skill versions across at least five useful comparison groups, then run each version through the same submission, audit, provisional-grade, and publication path. Provider ownership, domain, OAuth, public policy/support identity, hosted restore/rollback, named operators, five-seat pilot, push/deploy, and live verification remain external `NO-GO` gates.
 
 ### Batch 0 — plan and baseline reconciliation
 
@@ -446,8 +463,8 @@ Exit:
 
 Deliverables:
 
-- Gitea authoritative lanes for new contracts, worker, migrations/RLS, and end-to-end local hosted smoke
-- GitHub workflow parity where spending permits
+- Gitea authority lanes for root/web quality plus restored migrations/RLS/type parity
+- the exact-commit GitHub `hosted-web-browser` authority lane for the complete disposable Auth/PostgREST/API/submission/report/evidence workflow; inability to run it blocks release rather than weakening the gate
 - dependency, secret, migration-drift, backup/restore, worker-replay, and rollback gates
 - CSP, HSTS, cache, cookie, OAuth, RLS, cross-account, and lifecycle-leak probes
 - health, structured redacted logs, error-rate/run-lag/queue-depth metrics, and alert thresholds
@@ -460,7 +477,7 @@ Exit:
 
 ### Batch 9 — remote alpha deployment and external pilots
 
-This batch is blocked until the owner chooses and authorizes provider ownership, free/paid infrastructure limits, region, domain, and OAuth application ownership.
+This batch is blocked until the owner chooses and authorizes provider ownership, zero-cost-compatible infrastructure limits, region, domain, and OAuth application ownership. No paid provider resource may be created or attached for this launch.
 
 Deliverables after authorization:
 
@@ -468,12 +485,12 @@ Deliverables after authorization:
 - exact migrations, generated-type parity, secrets, OAuth callbacks, and indexing mode
 - exact-commit deployment receipt
 - anonymous, authenticated, cross-account, submission, worker, publish, report, revocation, accessibility, responsive, performance, and rollback live smokes
-- five external user sessions and at least one external-style publisher submission
+- the exact five-seat hosted pilot with three skill users, two authorized authors, and assigned mandatory workflow coverage
 - an initial corpus of at least 20 fully evidenced versions across at least five useful alternative or complement groups
 
 Exit:
 
-- at least four of five users complete browse/save/submit without operator coaching
+- at least four of five participants finish uncoached and uncoached receipts cover browse/evidence, save/return, submit/status, and author follow-through through receipt-backed publication inspection
 - every discovered issue is fixed, accepted as a documented limitation, or blocks launch
 
 ### Batch 10 — public launch and first-week operation
@@ -503,7 +520,7 @@ npm run check:web
 npm audit --omit=dev --audit-level=high
 npm --prefix apps/web audit --omit=dev --audit-level=high
 supabase db reset --local
-supabase db lint --local --level warning
+supabase db lint --local --schema api,private,public --level warning --fail-on warning
 supabase test db --local
 supabase gen types typescript --local --schema api
 npm --prefix apps/web run test:hosted-api
@@ -558,9 +575,9 @@ Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success al
 | Data | Migrations, forced RLS, pgTAP, generated types, disposable backup/reset/replay | No encrypted off-host hosted restore | `NO-GO` |
 | Security | No source execution, constrained worker, secret canary, cross-account isolation, bounded public projections, lifecycle removal | No provider-global abuse control or live secret inspection | `NO-GO` |
 | Reliability | Claim leases, idempotent completion/publication, replay, report disposition, lifecycle controls, web failure states | No hosted scheduler, monitoring, alert, rollback, or incident drill | `NO-GO` |
-| Quality | Root/web/contracts/database/browser/accessibility/performance/visual/release gates available and locally exercised | No exact deployed-commit browser receipt | `NO-GO` |
-| Operations | Runbooks, policy draft, GTM kit, and hosted-pilot protocol checked in | Owners, jurisdiction, retention approval, support identity, and backup destination unset | `NO-GO` |
-| Launch | Free/no-billing scope, stage/indexing gate, announcement and outreach copy | Domain, corpus of 20, five pilots, push/deploy, and public indexing absent | `NO-GO` |
+| Quality | Root `376/376`, contracts `34/34`, pgTAP `341/341`, hosted boundaries `29/29`, release path `47/47`, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, package, and dependency gates passed locally | No authoritative exact-commit CI or deployed-commit browser receipt | `NO-GO` |
+| Operations | Runbooks, policy draft, GTM kit, and hosted-pilot protocol checked in | Zero-cost-compatible host, remaining owners, jurisdiction, retention approval, support identity, and backup destination unset | `NO-GO` |
+| Launch | Free/no-billing scope, stage/indexing gate, announcement and outreach copy | Domain, corpus of 20, mandatory-workflow five-seat pilot, authoritative CI, push/deploy, and public indexing absent | `NO-GO` |
 
 ## Go-to-market plan
 
@@ -610,7 +627,7 @@ These metrics diagnose the launch; they do not affect grades or organic relevanc
 Local implementation may proceed without these choices. Public deployment may not.
 
 1. Supabase organization, project, region, plan, backup limitations, and owner.
-2. Web host/team and whether any recurring provider charge is approved. A free-to-user product does not imply unauthorized infrastructure spend.
+2. Web host/team with terms and limits compatible with this public product at zero recurring provider cost. If no reviewed zero-cost-compatible option exists, deployment remains blocked; this program does not authorize a paid fallback.
 3. Canonical web domain and whether API/status/docs use subdomains.
 4. GitHub OAuth application owner, homepage, callback, and secret custodian.
 5. Production service-role secret custodian and operator worker host/schedule.
@@ -621,7 +638,7 @@ Local implementation may proceed without these choices. Public deployment may no
 
 Stop and request owner direction if:
 
-- implementation requires paid infrastructure or a new external account without approval
+- implementation requires paid infrastructure, or a new external account without approval
 - a public grade would require fabricated, incomplete, or non-reproducible evidence
 - RLS cannot prove cross-user submission isolation
 - a browser user can influence operator-only receipt or publication fields
@@ -636,8 +653,8 @@ Stop and request owner direction if:
 
 - Mode: full worker run
 - Parent owner: primary Codex agent
-- Worker lanes: product/user journey, audit-and-grading backend, release/go-to-market readiness
-- Worker count: three bounded read-only discovery workers for Batch 0; later write scopes must remain disjoint
+- Worker lanes: product/user journey, audit-and-grading backend, release/go-to-market readiness, followed by an independent integrated adversarial review
+- Worker count: three bounded audit/remediation workers with disjoint write scopes plus one read-only integrated reviewer
 - No visible user-owned threads were created
 - High-assurance surfaces: migrations/RLS, auth, source fetching, receipt authority, operator mutation, deployment, and launch claims
 - Parent integration duties: canonical plan, schema/contract coherence, scope arbitration, testing, ledger, and final readiness verdict

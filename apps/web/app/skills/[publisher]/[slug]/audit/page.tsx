@@ -1,12 +1,14 @@
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import type { Metadata } from "next";
 import {
+  AuditCheckList,
+  AuditFindingSummary,
   EvidenceFact,
   EvidenceFacts,
   EvidencePageShell,
   EvidenceUnavailable,
-  JsonEvidence,
-  ProjectionBoundary
+  ProjectionBoundary,
+  ReasonCodeList
 } from "@/components/skillmap/public-evidence";
 import { EvidenceDataError, EvidenceQueryError, getPublicAuditEvidence } from "@/lib/evidence/repository.server";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
@@ -74,19 +76,15 @@ export default async function PublicAuditEvidencePage({ params }: { params: Prom
               <EvidenceFact label="Indicators" value={`scripts ${yesNo(evidence.permissionScripts)} · network ${yesNo(evidence.networkIndicators)} · tools ${yesNo(evidence.toolIndicators)}`} />
             </EvidenceFacts>
             <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-2">
-              <JsonEvidence title="Finding counts" value={evidence.findingCounts} />
-              <JsonEvidence title="Public checks" value={evidence.checks} />
+              <AuditFindingSummary value={evidence.findingCounts} />
+              <AuditCheckList checks={evidence.checks} />
             </div>
-            <ReasonCodes values={evidence.reasonCodes} />
+            <div className="mt-5"><h3 className="text-sm font-semibold">Reason codes</h3><ReasonCodeList values={evidence.reasonCodes} emptyLabel="No public reason codes were emitted." /></div>
           </section>
         ) : <EvidenceUnavailable kind="audit" />}
       </EvidencePageShell>
     </main>
   );
-}
-
-function ReasonCodes({ values }: { values: string[] }) {
-  return <div className="mt-5"><h3 className="text-sm font-semibold">Reason codes</h3>{values.length ? <div className="mt-3 flex flex-wrap gap-2">{values.map((value) => <span key={value} className="mono rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{value}</span>)}</div> : <p className="mt-2 text-sm text-muted-foreground">No public reason codes were emitted.</p>}</div>;
 }
 
 function EvidenceError({ kind }: { kind: string }) {

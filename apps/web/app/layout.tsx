@@ -67,7 +67,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   await connection();
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <noscript>
+          <div className="mx-auto my-8 max-w-2xl rounded-xl border border-warning/35 bg-warning/10 p-6 text-foreground" role="status">
+            <h1 className="text-xl font-semibold">JavaScript is required for hosted SkillMap workflows.</h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">The online catalog uses streamed server components and cannot expose authenticated save, submit, report, or account controls safely without JavaScript. The local CLI remains available independently.</p>
+          </div>
+        </noscript>
+        {children}
+      </body>
     </html>
   );
 }

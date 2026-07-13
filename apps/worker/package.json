@@ -9,8 +9,11 @@
   "scripts": {
     "audit:dry-run": "node src/audit-once.mjs",
     "queue:process-once": "node src/process-once.mjs",
+    "queue:dead-letter": "node src/dead-letter.mjs",
     "queue:publish": "node src/publish-once.mjs",
     "queue:requeue": "node src/requeue.mjs",
+    "collisions:list": "node src/collision-list.mjs",
+    "collisions:review": "node src/collision-review.mjs",
     "catalog:lifecycle": "node src/lifecycle.mjs",
     "reports:queue": "node src/report-queue.mjs",
     "reports:disposition": "node src/report-disposition.mjs"

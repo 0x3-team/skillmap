@@ -37,20 +37,25 @@ try {
     SKILLMAP_HOSTED_BASE_URL: baseUrl,
     SKILLMAP_WEB_BASE_URL: baseUrl
   };
-  for (const script of [
-    "hosted-api-smoke.mjs",
-    "hosted-auth-browser-smoke.mjs",
-    "launch-report-evidence-smoke.mjs"
-  ]) {
-    process.stdout.write(`[hosted-browser-gate] ${script}\n`);
-    await run(process.execPath, [join(appDir, "scripts", script)], gateEnvironment);
+  process.stdout.write("[hosted-browser-gate] hosted-api-smoke.mjs\n");
+  await run(process.execPath, [join(appDir, "scripts", "hosted-api-smoke.mjs")], gateEnvironment);
+  for (const browserName of ["chromium", "firefox", "webkit"]) {
+    process.stdout.write(`[hosted-browser-gate] hosted-auth-browser-smoke.mjs (${browserName})\n`);
+    await run(process.execPath, [join(appDir, "scripts", "hosted-auth-browser-smoke.mjs")], {
+      ...gateEnvironment,
+      SKILLMAP_HOSTED_BROWSER: browserName
+    });
   }
+  process.stdout.write("[hosted-browser-gate] launch-report-evidence-smoke.mjs\n");
+  await run(process.execPath, [join(appDir, "scripts", "launch-report-evidence-smoke.mjs")], gateEnvironment);
+  process.stdout.write("[hosted-browser-gate] hosted-frontend-qa.mjs\n");
+  await run(process.execPath, [join(appDir, "scripts", "hosted-frontend-qa.mjs")], gateEnvironment);
   const privateStopError = await stopServer(server);
   if (privateStopError) throw privateStopError;
   server = startWebServer("public-alpha", "public");
   await waitForServer(server, baseUrl);
   await assertPublicReleaseStage(baseUrl);
-  process.stdout.write(`${JSON.stringify({ result: "pass", gates: ["hosted-api", "hosted-auth", "hosted-launch", "public-stage-runtime"], releaseStages: ["private-alpha", "public-alpha"] })}\n`);
+  process.stdout.write(`${JSON.stringify({ result: "pass", gates: ["hosted-api", "hosted-auth-cross-browser", "hosted-launch", "hosted-frontend-a11y-visual", "public-stage-runtime"], releaseStages: ["private-alpha", "public-alpha"] })}\n`);
 } catch (error) {
   primaryError = error;
   throw error;
@@ -92,7 +97,7 @@ function startWebServer(releaseStage, indexingMode) {
   ], {
     cwd: appDir,
     env: {
-      ...process.env,
+      ...publicServerProcessEnvironment(),
       NEXT_PUBLIC_SITE_URL: baseUrl,
       NEXT_PUBLIC_SUPABASE_URL: local.API_URL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local.PUBLISHABLE_KEY,
@@ -102,6 +107,26 @@ function startWebServer(releaseStage, indexingMode) {
     },
     stdio: "inherit"
   });
+}
+
+function publicServerProcessEnvironment() {
+  const safeKeys = [
+    "CI",
+    "FORCE_COLOR",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "NEXT_TELEMETRY_DISABLED",
+    "NO_COLOR",
+    "PATH",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "TZ"
+  ];
+  return Object.fromEntries(
+    safeKeys.flatMap((key) => process.env[key] === undefined ? [] : [[key, process.env[key]]])
+  );
 }
 
 async function assertPublicReleaseStage(origin) {

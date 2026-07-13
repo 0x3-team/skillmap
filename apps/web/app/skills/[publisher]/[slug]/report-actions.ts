@@ -1,30 +1,39 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
-import { parseSkillReportForm, ReportValidationError } from "@/lib/reports/input";
-import { REPORT_PUBLIC_ID, reportStatusPath } from "@/lib/reports/status";
+import { parseSkillReportForm, ReportValidationError, type ReportField } from "@/lib/reports/input";
+import { createReportFlash, REPORT_FLASH_COOKIE, serializeReportFlash } from "@/lib/reports/flash";
+import { REPORT_PUBLIC_ID, reportStatusPath, type ReportSubmitStatus } from "@/lib/reports/status";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function reportSuspiciousListing(formData: FormData) {
+export interface ReportActionState {
+  status: Exclude<ReportSubmitStatus, "queued">;
+  field?: ReportField;
+  message?: string;
+  reportId?: string;
+}
+
+export async function reportSuspiciousListing(formData: FormData): Promise<ReportActionState> {
   let report: ReturnType<typeof parseSkillReportForm>;
   try {
     report = parseSkillReportForm(formData);
   } catch (error) {
-    const returnPath = readSafeReturnPath(formData);
     if (error instanceof ReportValidationError) {
-      redirect(reportStatusPath(returnPath, "invalid", { field: error.field }));
+      return { status: "invalid", field: error.field, message: error.message };
     }
-    redirect(reportStatusPath(returnPath, "service-unavailable"));
+    return { status: "service-unavailable" };
   }
 
   const context = await reportActionContext();
   if (context.state === "signed-out") redirect(`/sign-in?next=${encodeURIComponent(`${report.returnPath}#report-listing`)}`);
-  if (context.state === "unavailable") redirect(reportStatusPath(report.returnPath, "auth-unavailable"));
+  if (context.state === "unavailable") return { status: "auth-unavailable" };
 
   const { error } = await context.supabase.from("skill_reports").insert({
     skill_id: report.skill_id,
@@ -37,20 +46,36 @@ export async function reportSuspiciousListing(formData: FormData) {
   if (error) {
     if (error.code === "23505") {
       const existingId = await findReportId(context.supabase, report);
-      if (!existingId) redirect(reportStatusPath(report.returnPath, "service-unavailable"));
-      redirect(reportStatusPath(report.returnPath, "duplicate", { reportId: existingId }));
+      if (!existingId) return { status: "service-unavailable" };
+      return { status: "duplicate", reportId: existingId };
     }
-    if (error.code === "P0001") redirect(reportStatusPath(report.returnPath, "cooldown"));
-    if (error.code === "P0003") redirect(reportStatusPath(report.returnPath, "active-limit"));
-    if (error.code === "P0004") redirect(reportStatusPath(report.returnPath, "daily-limit"));
-    if (error.code === "23514") redirect(reportStatusPath(report.returnPath, "target-unavailable"));
-    redirect(reportStatusPath(report.returnPath, "service-unavailable"));
+    if (error.code === "P0001") return { status: "cooldown" };
+    if (error.code === "P0003") return { status: "active-limit" };
+    if (error.code === "P0004") return { status: "daily-limit" };
+    if (error.code === "23514") return { status: "target-unavailable" };
+    return { status: "service-unavailable" };
   }
 
   const reportId = await findReportId(context.supabase, report);
-  if (!reportId) redirect(reportStatusPath(report.returnPath, "service-unavailable"));
+  if (!reportId) return { status: "service-unavailable" };
   revalidatePath("/account/reports");
   redirect(reportStatusPath(report.returnPath, "queued", { reportId }));
+}
+
+export async function reportSuspiciousListingProgressive(formData: FormData): Promise<void> {
+  const result = await reportSuspiciousListing(formData);
+  const token = randomUUID();
+  const flash = createReportFlash(formData, result, token);
+  if (!flash) redirect("/skills");
+  const cookieStore = await cookies();
+  cookieStore.set(REPORT_FLASH_COOKIE, serializeReportFlash(flash), {
+    httpOnly: true,
+    maxAge: 120,
+    path: flash.returnPath,
+    sameSite: "strict",
+    secure: publicOriginUsesHttps()
+  });
+  redirect(`${flash.returnPath}?reportFlash=${encodeURIComponent(token)}#report-listing`);
 }
 
 async function findReportId(
@@ -71,9 +96,12 @@ async function findReportId(
   return data.report_id;
 }
 
-function readSafeReturnPath(formData: FormData): string {
-  const values = formData.getAll("returnPath");
-  return values.length === 1 && typeof values[0] === "string" ? values[0] : "/skills";
+function publicOriginUsesHttps(): boolean {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1").protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 type ReportActionContext =

@@ -4,7 +4,7 @@ This directory is the constrained Node worker boundary for hosted source ingesti
 
 ## Hard database preflight
 
-Do not start a worker until `20260713003000_launch_safety_reports_lifecycle.sql` is applied and the exact candidate has passed database lint, full pgTAP, and generated `api` type parity. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; worker-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
+Do not start a worker until `20260713020000_backend_completion_hardening.sql` and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, and generated `api` type parity. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication also requires the collision-evidence authority introduced by the final hardening migration. Worker-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
 
 The first executable slice is a non-mutating exact-commit audit rehearsal:
 
@@ -51,13 +51,27 @@ npm run hosted:queue:process-once -- \
   --execute --submission-id sub_... \
   --license-state confirmed --spdx MIT --disposition accepted
 
-# Publish reviewed metadata after the completion state is accepted.
+# Inspect the immutable completion-time and current-catalog collision subject.
+# A collision must receive an explicit reviewed disposition before publication.
+npm run hosted:collisions:list -- --execute --submission-id sub_...
+npm run hosted:collisions:review -- \
+  --execute --submission-id sub_... --disposition approved-distinct \
+  --reason-code independently-reviewed-source \
+  --operation-id 00000000-0000-4000-8000-000000000000
+
+# Publish reviewed metadata after the completion state and any collision are accepted.
 cp apps/worker/examples/reviewed-publication.example.json /tmp/reviewed-publication.json
 npm run hosted:queue:publish -- \
   --execute --submission-id sub_... --metadata /tmp/reviewed-publication.json
 
 # Requeue an eligible failed or changes-requested item.
 npm run hosted:queue:requeue -- --execute --submission-id sub_...
+
+# Terminalize one exact expired fifth-attempt claim. Use this only after the
+# queue alert identifies the exact submission and its lease is expired.
+npm run hosted:queue:dead-letter -- \
+  --execute --submission-id sub_... \
+  --operation-id 00000000-0000-4000-8000-000000000000
 
 # Quarantine or revoke a listing without editing rows by hand. Generate a new
 # operation UUID for each consequential operator decision; replay the same UUID

@@ -5,8 +5,10 @@ import {
   EvidenceFacts,
   EvidencePageShell,
   EvidenceUnavailable,
-  JsonEvidence,
-  ProjectionBoundary
+  GradeDimensionList,
+  GradeGateList,
+  ProjectionBoundary,
+  ReasonCodeList
 } from "@/components/skillmap/public-evidence";
 import { EvidenceDataError, EvidenceQueryError, getPublicGradeEvidence } from "@/lib/evidence/repository.server";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
@@ -72,14 +74,18 @@ export default async function PublicGradeEvidencePage({ params }: { params: Prom
               <EvidenceFact label="Graded" value={formatDate(evidence.gradedAt)} />
               <EvidenceFact label="Score / confidence" value={evidence.state === "provisional" ? `${evidence.totalScore?.toFixed(1)} / 100 · ${Math.round((evidence.confidence ?? 0) * 100)}% confidence` : "Blocked · score and confidence intentionally absent"} />
               <EvidenceFact label="Rubric / host / evaluator" value={`${evidence.rubricVersion} · ${evidence.hostProfileVersion} · ${evidence.evaluatorVersion}`} />
-              <EvidenceFact label="Compatibility evidence" value={evidence.compatibilityEvidenceDigest} mono />
+              <EvidenceFact
+                label="Compatibility evidence"
+                value={evidence.compatibilityEvidenceDigest ?? "Not bound · the compatibility hard gate did not pass"}
+                mono={Boolean(evidence.compatibilityEvidenceDigest)}
+              />
               <EvidenceFact label="Evaluation suite" value={evidence.evaluationSuiteDigest ?? "Not run / none recorded for this provisional evaluation"} mono={Boolean(evidence.evaluationSuiteDigest)} />
             </EvidenceFacts>
             <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-2">
-              <JsonEvidence title="Hard gates" value={evidence.hardGates} />
-              <JsonEvidence title="Dimensions" value={evidence.dimensions} />
+              <GradeGateList gates={evidence.hardGates} />
+              <GradeDimensionList dimensions={evidence.dimensions} />
             </div>
-            <div className="mt-5"><h3 className="text-sm font-semibold">Reason codes</h3><div className="mt-3 flex flex-wrap gap-2">{evidence.reasonCodes.map((value) => <span key={value} className="mono rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">{value}</span>)}</div></div>
+            <div className="mt-5"><h3 className="text-sm font-semibold">Why this grade has its current state</h3><ReasonCodeList values={evidence.reasonCodes} emptyLabel="No public grade reason codes were emitted." /></div>
           </section>
         ) : <EvidenceUnavailable kind="grade" />}
       </EvidencePageShell>

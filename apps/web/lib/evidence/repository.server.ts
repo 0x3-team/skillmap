@@ -3,11 +3,15 @@ import "server-only";
 import {
   parseDimensions,
   parseFindingCounts,
+  gradeCompatibilityBindingIsValid,
   parseHardGates,
   parseNullableBoundedNumber,
   parseNullableDigest,
   parsePublicChecks,
-  type ProjectionJson
+  type PublicAuditCheck,
+  type PublicFindingCounts,
+  type PublicGradeDimension,
+  type PublicGradeHardGate
 } from "@/lib/evidence/projection";
 import { createPublicCatalogClient } from "@/lib/supabase/catalog.server";
 
@@ -26,8 +30,8 @@ export type PublicAuditEvidence = {
   versionId: string;
   sourceCommit: string;
   state: "passed" | "warnings" | "blocked";
-  findingCounts: Record<string, ProjectionJson | undefined>;
-  checks: ProjectionJson[];
+  findingCounts: PublicFindingCounts;
+  checks: PublicAuditCheck[];
   reasonCodes: string[];
   policyVersion: string;
   hostProfileVersion: string;
@@ -51,13 +55,13 @@ export type PublicGradeEvidence = {
   state: "provisional" | "blocked";
   totalScore: number | null;
   confidence: number | null;
-  compatibilityEvidenceDigest: string;
+  compatibilityEvidenceDigest: string | null;
   evaluationSuiteDigest: string | null;
   rubricVersion: string;
   hostProfileVersion: string;
   evaluatorVersion: string;
-  hardGates: ProjectionJson[];
-  dimensions: ProjectionJson[];
+  hardGates: PublicGradeHardGate[];
+  dimensions: PublicGradeDimension[];
   reasonCodes: string[];
   gradedAt: string;
 };
@@ -134,6 +138,7 @@ function parseGradeEvidence(row: Record<string, unknown>): PublicGradeEvidence {
   const dimensions = parseDimensions(row.dimensions);
   const reasonCodes = boundedReasonCodes(row.reason_codes, 1);
   const evaluationSuiteDigest = parseNullableDigest(row.evaluation_suite_digest);
+  const compatibilityEvidenceDigest = parseNullableDigest(row.compatibility_evidence_digest);
   const state = text(row.state);
   const totalScore = parseNullableBoundedNumber(row.total_score, 0, 100);
   const confidence = parseNullableBoundedNumber(row.confidence, 0, 1);
@@ -146,7 +151,9 @@ function parseGradeEvidence(row: Record<string, unknown>): PublicGradeEvidence {
     || (state === "provisional" && (totalScore === null || confidence === null))
     || (state === "blocked" && (totalScore !== null || confidence !== null))
     || hardGates === null || dimensions === null || reasonCodes === null
-    || !DIGEST.test(text(row.compatibility_evidence_digest)) || evaluationSuiteDigest === undefined
+    || compatibilityEvidenceDigest === undefined
+    || !gradeCompatibilityBindingIsValid(state as "provisional" | "blocked", compatibilityEvidenceDigest, hardGates)
+    || evaluationSuiteDigest === undefined
     || !isBoundedText(row.rubric_version, 64) || !isBoundedText(row.host_profile_version, 64)
     || !isBoundedText(row.evaluator_version, 128) || !isTimestamp(row.graded_at)) throw new EvidenceDataError();
   return {
@@ -154,7 +161,7 @@ function parseGradeEvidence(row: Record<string, unknown>): PublicGradeEvidence {
     auditReceiptId: text(row.audit_receipt_id), auditReceiptDigest: text(row.audit_receipt_digest),
     skillId: text(row.skill_id), versionId: text(row.version_id), sourceCommit: text(row.source_commit),
     state: state as PublicGradeEvidence["state"], totalScore, confidence,
-    compatibilityEvidenceDigest: text(row.compatibility_evidence_digest),
+    compatibilityEvidenceDigest,
     evaluationSuiteDigest, rubricVersion: text(row.rubric_version),
     hostProfileVersion: text(row.host_profile_version), evaluatorVersion: text(row.evaluator_version),
     hardGates, dimensions, reasonCodes, gradedAt: text(row.graded_at)

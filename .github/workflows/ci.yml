@@ -357,14 +357,14 @@ jobs:
           version: 2.109.0
       - run: npm ci
         working-directory: apps/web
-      - name: Install pinned Chromium and host dependencies
-        run: npx playwright install --with-deps chromium
+      - name: Install pinned Chromium, Firefox, WebKit, and host dependencies
+        run: npx playwright install --with-deps chromium firefox webkit
         working-directory: apps/web
       - name: Start disposable hosted stack and validate database authority
         run: |
           supabase start
           supabase db reset --local
-          supabase db lint --local --level warning
+          supabase db lint --local --schema api,private,public --level warning --fail-on warning
           supabase test db --local
       - name: Build the hosted application against the disposable public configuration
         shell: bash
@@ -380,6 +380,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts/hosted-web
+          export SKILLMAP_HOSTED_ARTIFACTS="$PWD/artifacts/hosted-web/frontend-qa"
           npm run test:hosted-gates 2>&1 | tee artifacts/hosted-web/run.log
       - name: Upload hosted-browser evidence
         if: always()

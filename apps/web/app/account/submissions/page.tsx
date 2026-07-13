@@ -5,6 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { withdrawQueuedSubmission } from "@/app/account/submissions/actions";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
+import { buildCurrentPublicSkillLinks, type PublicSkillRoute } from "@/lib/registry/public-links";
+import { resolvePublicSkillRoutes } from "@/lib/registry/repository.server";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -89,6 +92,7 @@ export default async function AccountSubmissionsPage({
   if (parsed.some((submission) => submission === null)) return <SubmissionsUnavailable />;
   const hasMore = parsed.length > 50;
   const submissions = parsed.slice(0, 50) as SubmissionProjection[];
+  const publicRoutes = await loadCurrentPublicRoutes(submissions.map((submission) => submission.resultSkillId));
   const lastSubmission = submissions.at(-1);
   const nextCursor = hasMore && lastSubmission
     ? encodeSubmissionCursor({ createdAt: lastSubmission.createdAt, submissionId: lastSubmission.submissionId })
@@ -96,7 +100,7 @@ export default async function AccountSubmissionsPage({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -132,7 +136,7 @@ export default async function AccountSubmissionsPage({
             </div>
           ) : (
             <div className="mt-5 grid gap-4">
-              {submissions.map((submission) => <SubmissionCard key={submission.submissionId} submission={submission} />)}
+              {submissions.map((submission) => <SubmissionCard key={submission.submissionId} submission={submission} publicRoute={submission.resultSkillId ? publicRoutes.get(submission.resultSkillId) : undefined} />)}
             </div>
           )}
           {(cursor || nextCursor) ? (
@@ -147,8 +151,9 @@ export default async function AccountSubmissionsPage({
   );
 }
 
-function SubmissionCard({ submission }: { submission: SubmissionProjection }) {
+function SubmissionCard({ submission, publicRoute }: { submission: SubmissionProjection; publicRoute?: PublicSkillRoute }) {
   const state = submissionStateCopy(submission.state);
+  const publicLinks = buildCurrentPublicSkillLinks(publicRoute, submission.resultVersionId);
   return (
     <article className="min-w-0 rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -174,7 +179,7 @@ function SubmissionCard({ submission }: { submission: SubmissionProjection }) {
         <Coordinate label="Exact commit" value={submission.sourceCommit} mono />
         <Coordinate label="License claim" value={submission.licenseClaim ?? "No submitter claim"} />
       </dl>
-      <EvidenceSnapshot submission={submission} />
+      <EvidenceSnapshot submission={submission} publicLinks={publicLinks} />
       <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />Queued {formatDate(submission.createdAt)}</span>
         {submission.claimedAt ? <span className="inline-flex items-center gap-1.5"><GitCommitHorizontal className="h-3.5 w-3.5" />Claimed {formatDate(submission.claimedAt)}</span> : null}
@@ -184,7 +189,7 @@ function SubmissionCard({ submission }: { submission: SubmissionProjection }) {
   );
 }
 
-function EvidenceSnapshot({ submission }: { submission: SubmissionProjection }) {
+function EvidenceSnapshot({ submission, publicLinks }: { submission: SubmissionProjection; publicLinks: ReturnType<typeof buildCurrentPublicSkillLinks> }) {
   return (
     <div className="mt-5 border-t border-border pt-5">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -208,9 +213,28 @@ function EvidenceSnapshot({ submission }: { submission: SubmissionProjection }) 
           {submission.resultVersionId ? <span>Public version: <span className="mono text-foreground">{submission.resultVersionId}</span></span> : null}
         </div>
       ) : null}
+      {submission.state === "published" ? publicLinks ? (
+        <nav aria-label="Published submission result" className="mt-4 flex flex-wrap gap-2">
+          <Link href={publicLinks.detail} prefetch={false} className="inline-flex h-9 items-center rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground">View published listing</Link>
+          <Link href={publicLinks.audit} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">View audit evidence</Link>
+          <Link href={publicLinks.grade} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">View grade evidence</Link>
+        </nav>
+      ) : (
+        <p className="mt-4 rounded-xl border border-border bg-muted/35 p-3 text-xs leading-5 text-muted-foreground" role="status">This exact published result is not the current public route. SkillMap does not redirect it to a newer, hidden, or unavailable version.</p>
+      ) : null}
       <p className="mt-3 text-xs leading-5 text-muted-foreground">Policy {submission.submissionPolicyVersion}. Receipt states are version-bound and separate. This surface never upgrades a provisional or blocked grade to current.</p>
     </div>
   );
+}
+
+async function loadCurrentPublicRoutes(skillIds: Array<string | null>): Promise<Map<string, PublicSkillRoute>> {
+  try {
+    return await resolvePublicSkillRoutes(skillIds.filter((skillId): skillId is string => skillId !== null));
+  } catch (error) {
+    if (error instanceof CatalogInputError || error instanceof CatalogQueryError || error instanceof CatalogDataError
+      || error instanceof SupabaseConfigurationError) return new Map();
+    throw error;
+  }
 }
 
 function EvidenceState({ label, value, receipt }: { label: string; value: string; receipt: string | null }) {
@@ -319,7 +343,7 @@ function formatDate(value: string) {
 function SubmissionsUnavailable() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader />
+      <CatalogHeader accountState="unavailable" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-warning/35 bg-warning/10 p-6 sm:p-8" role="status">
           <h1 className="text-xl font-semibold">Your submission status is unavailable.</h1>
@@ -333,7 +357,7 @@ function SubmissionsUnavailable() {
 function InvalidSubmissionsPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-border bg-card p-8 text-center">
           <h1 className="text-xl font-semibold">That submission page link is invalid.</h1>

@@ -20,7 +20,10 @@ const reportMessage = "Potential issue: <img src=x onerror=alert(1)> appears in 
 const userIds = [];
 let browser;
 let smokeStage = "browser-start";
-let syntheticPublisherHandle = null;
+let syntheticCatalogIdentity = null;
+let passReceipt = null;
+let cleanupReceipt = null;
+let primaryError = null;
 
 try {
   browser = await chromium.launch({ headless: true });
@@ -36,6 +39,21 @@ try {
   assertNoOverflow(await dimensions(publicPage), "signed-out skill detail");
   await publicPage.goto(new URL(`${detailPath}?reportStatus=queued&report=rpt_${"f".repeat(32)}#report-listing`, baseUrl).toString(), { waitUntil: "load" });
   if (await publicPage.getByText("Private report queued").isVisible().catch(() => false)) throw new Error("Signed-out query parameters forged a queued report notice.");
+  for (const [status, title] of [
+    ["active-limit", "Queued-report limit reached"],
+    ["auth-unavailable", "Authentication could not be verified"],
+    ["cooldown", "Report cooldown is active"],
+    ["daily-limit", "Daily report limit reached"],
+    ["duplicate", "That report request already exists"],
+    ["invalid", "Report input was rejected"],
+    ["service-unavailable", "Reporting service unavailable"],
+    ["target-unavailable", "This exact listing cannot be reported"]
+  ]) {
+    await publicPage.goto(new URL(`${detailPath}?reportStatus=${status}&report=rpt_${"f".repeat(32)}#report-listing`, baseUrl).toString(), { waitUntil: "load" });
+    if (await publicPage.getByText(title, { exact: true }).isVisible().catch(() => false)) {
+      throw new Error(`Signed-out query parameters forged a ${status} report notice.`);
+    }
+  }
 
   await publicPage.goto(new URL(`${detailPath}/audit`, baseUrl).toString(), { waitUntil: "load" });
   await publicPage.getByRole("heading", { name: "Skill Audit audit evidence" }).waitFor();
@@ -56,7 +74,6 @@ try {
   smokeStage = "synthetic-account-setup";
   const primary = await createSyntheticUser("primary");
   const secondary = await createSyntheticUser("secondary");
-  userIds.push(primary.userId, secondary.userId);
   const primaryContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   const secondaryContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   await primaryContext.addCookies(toBrowserCookies(primary.cookies));
@@ -66,8 +83,14 @@ try {
   page.setDefaultTimeout(20_000);
   const diagnostics = collectDiagnostics(page);
   const publisherHandle = `browser-smoke-${marker}`;
-  syntheticPublisherHandle = publisherHandle;
   const syntheticRepositoryUrl = `https://github.com/${publisherHandle}/skills`;
+  syntheticCatalogIdentity = {
+    publisherHandle,
+    repositoryUrl: syntheticRepositoryUrl,
+    publisherId: null,
+    skillId: null,
+    versionId: null
+  };
 
   smokeStage = "submission-invalid-field";
   await page.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
@@ -168,15 +191,34 @@ try {
     p_permission_tools: []
   });
   if (publicationError || published?.[0]?.submission_state !== "published") throw publicationError ?? new Error("Receipt-backed browser fixture was not published.");
+  const publishedPublisherId = published[0].publisher_id;
   const publishedSkillId = published[0].skill_id;
-  if (!/^skl_[0-9a-f]{32}$/.test(publishedSkillId ?? "")) throw new Error("Receipt-backed publication omitted a canonical skill ID.");
+  const publishedVersionId = published[0].version_id;
+  if (!/^pub_[0-9a-f]{32}$/.test(publishedPublisherId ?? "")
+    || !/^skl_[0-9a-f]{32}$/.test(publishedSkillId ?? "")
+    || !/^skv_[0-9a-f]{32}$/.test(publishedVersionId ?? "")) {
+    throw new Error("Receipt-backed publication omitted canonical publisher, skill, or version IDs.");
+  }
+  Object.assign(syntheticCatalogIdentity, {
+    publisherId: publishedPublisherId,
+    skillId: publishedSkillId,
+    versionId: publishedVersionId
+  });
 
   const receiptDetailPath = `/skills/${publisherHandle}/${skillSlug}`;
+  await page.goto(new URL("/account/submissions", baseUrl).toString(), { waitUntil: "load" });
+  const publishedResult = page.getByRole("navigation", { name: "Published submission result" });
+  await publishedResult.getByRole("link", { name: "View published listing" }).waitFor();
+  if (await publishedResult.getByRole("link", { name: "View published listing" }).getAttribute("href") !== receiptDetailPath
+    || await publishedResult.getByRole("link", { name: "View audit evidence" }).getAttribute("href") !== `${receiptDetailPath}/audit`
+    || await publishedResult.getByRole("link", { name: "View grade evidence" }).getAttribute("href") !== `${receiptDetailPath}/grade`) {
+    throw new Error("Published submission history did not expose exact current listing, audit, and grade follow-through links.");
+  }
   await page.goto(new URL(`${receiptDetailPath}/audit`, baseUrl).toString(), { waitUntil: "load" });
   await page.getByRole("heading", { name: "Browser Evidence Rendering audit evidence" }).waitFor();
   await page.getByRole("heading", { name: "Audit result" }).waitFor();
   await page.getByText("passed", { exact: true }).waitFor();
-  await page.getByText("source-integrity", { exact: false }).waitFor();
+  await page.getByText("Source Integrity", { exact: true }).waitFor();
   const auditBody = await page.locator("body").innerText();
   if (auditBody.includes(digest("d"))) throw new Error("Public audit page exposed the private evidence digest.");
   const receiptAuditWidth = await dimensions(page);
@@ -187,7 +229,7 @@ try {
   await page.getByRole("heading", { name: "Grade result" }).waitFor();
   await page.getByText("provisional", { exact: true }).waitFor();
   await page.getByText("82.0 / 100 · 35% confidence", { exact: true }).waitFor();
-  await page.getByText("behavioral-evidence-incomplete", { exact: true }).waitFor();
+  await page.getByText("Behavioral Evidence Incomplete", { exact: true }).waitFor();
   const receiptGradeWidth = await dimensions(page);
   assertNoOverflow(receiptGradeWidth, "receipt-backed grade evidence");
 
@@ -210,16 +252,56 @@ try {
   await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
   await page.getByLabel("Concern category").selectOption("security");
   await page.getByLabel("What is wrong with this listing?").fill(reportMessage);
+  const cooldownRequestId = await page.getByLabel("Request ID").inputValue();
   await page.waitForTimeout(500);
   await submitForm(page.getByRole("button", { name: "Queue private report" }));
-  await waitForUrl(page, (url) => url.searchParams.get("reportStatus") === "cooldown", "report cooldown redirect");
   await page.getByText("Report cooldown is active").waitFor();
+  const cooldownUrl = new URL(page.url());
+  if (cooldownUrl.pathname !== detailPath || cooldownUrl.searchParams.has("reportStatus")) {
+    throw new Error(`Recoverable report cooldown navigated away from the editable form (${cooldownUrl.pathname}${cooldownUrl.search}).`);
+  }
+  const preservedCooldown = {
+    category: await page.getByLabel("Concern category").inputValue(),
+    message: await page.getByLabel("What is wrong with this listing?").inputValue(),
+    requestId: await page.getByLabel("Request ID").inputValue()
+  };
+  if (preservedCooldown.category !== "security"
+    || preservedCooldown.message !== reportMessage
+    || preservedCooldown.requestId !== cooldownRequestId) {
+    throw new Error(`Recoverable report cooldown did not preserve category, message, and request ID (${JSON.stringify(preservedCooldown)}).`);
+  }
+
+  smokeStage = "report-no-javascript-boundary";
+  const noJavaScriptContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: "light",
+    javaScriptEnabled: false
+  });
+  try {
+    await noJavaScriptContext.addCookies(toBrowserCookies(primary.cookies));
+    const noJavaScriptPage = await noJavaScriptContext.newPage();
+    await noJavaScriptPage.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+    await noJavaScriptPage.getByRole("heading", { level: 1, name: "JavaScript is required for hosted SkillMap workflows." }).waitFor();
+    await noJavaScriptPage.getByText(/cannot expose authenticated save, submit, report, or account controls safely without JavaScript/).waitFor();
+    if (await noJavaScriptPage.getByRole("button", { name: "Queue private report" }).isVisible().catch(() => false)) {
+      throw new Error("JavaScript-disabled page exposed a report control behind a non-interactive streaming shell.");
+    }
+  } finally {
+    await noJavaScriptContext.close();
+  }
 
   const accountResponse = await page.goto(new URL("/account/reports", baseUrl).toString(), { waitUntil: "load" });
   assertPrivateNoStore(accountResponse?.headers() ?? {}, "report history");
   await page.getByRole("heading", { name: "Your listing reports" }).waitFor();
   await page.getByText(reportMessage, { exact: true }).waitFor();
   await page.getByText("Queued", { exact: true }).waitFor();
+  const reportedEvidence = page.getByRole("navigation", { name: "Reported listing evidence" });
+  await reportedEvidence.getByRole("link", { name: "View reported listing" }).waitFor();
+  if (await reportedEvidence.getByRole("link", { name: "View reported listing" }).getAttribute("href") !== detailPath
+    || await reportedEvidence.getByRole("link", { name: "View current audit" }).getAttribute("href") !== `${detailPath}/audit`
+    || await reportedEvidence.getByRole("link", { name: "View current grade" }).getAttribute("href") !== `${detailPath}/grade`) {
+    throw new Error("Report history did not expose exact current listing, audit, and grade follow-through links.");
+  }
   if (await page.locator('img[src="x"]').count()) throw new Error("Report message was rendered as trusted HTML.");
   const historyWidth = await dimensions(page);
   assertNoOverflow(historyWidth, "queued report history");
@@ -262,7 +344,6 @@ try {
   if (remainingAuthCookies.length) throw new Error("Deleted account left auth cookies behind.");
   const { data: deletedUser } = await admin.auth.admin.getUserById(primary.userId);
   if (deletedUser.user) throw new Error("Account deletion left the primary auth row behind.");
-  userIds.splice(userIds.indexOf(primary.userId), 1);
   const deletedApiListing = await secondaryContext.request.get(new URL(`/api/v1/skills/${publishedSkillId}`, baseUrl).toString());
   if (deletedApiListing.status() !== 404) throw new Error(`Account deletion left the submission-derived listing public through the API (HTTP ${deletedApiListing.status()}).`);
   const deletedListing = await secondaryContext.request.get(new URL(receiptDetailPath, baseUrl).toString());
@@ -272,7 +353,7 @@ try {
   }
 
   if (diagnostics.length) throw new Error(`Authenticated browser diagnostics:\n${diagnostics.join("\n")}`);
-  process.stdout.write(`${JSON.stringify({
+  passReceipt = {
     result: "pass",
     submissionValidation: { fieldLocal: true, valuesPreserved: true, invalidRows: 0, correctedRows: 1, responsive: "390px" },
     publicEvidence: {
@@ -286,7 +367,7 @@ try {
     accountDeletion: "user-session-report-submission-and-derived-public-listing-removed",
     responsive: { historyWidth },
     diagnostics: 0
-  })}\n`);
+  };
 } catch (error) {
   const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? ` (${error.code})`
@@ -296,21 +377,50 @@ try {
     : error && typeof error === "object" && "message" in error && typeof error.message === "string"
       ? error.message
       : String(error);
-  throw new Error(`Hosted launch smoke failed at ${smokeStage}${code}: ${message || "provider returned an empty error"}`);
+  primaryError = new Error(`Hosted launch smoke failed at ${smokeStage}${code}: ${message || "provider returned an empty error"}`);
 } finally {
-  await browser?.close().catch(() => {});
-  for (const userId of userIds) {
-    const { error } = await admin.auth.admin.deleteUser(userId);
-    if (error && !/not found/i.test(error.message)) process.stderr.write(`Cleanup warning: ${error.message}\n`);
+  const cleanupErrors = [];
+  try {
+    await browser?.close();
+  } catch (error) {
+    cleanupErrors.push(error);
   }
-  if (syntheticPublisherHandle) cleanupPublishedFixture(syntheticPublisherHandle);
+  let authUsersRemaining = userIds.length;
+  try {
+    authUsersRemaining = await deleteAndVerifySyntheticUsers(userIds);
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  let catalogRowsRemaining = { publishers: 0, repositories: 0, skills: 0, versions: 0 };
+  if (syntheticCatalogIdentity) {
+    try {
+      catalogRowsRemaining = cleanupPublishedFixture(syntheticCatalogIdentity);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  cleanupReceipt = {
+    verified: cleanupErrors.length === 0 && authUsersRemaining === 0,
+    authUsersRemaining,
+    catalogRowsRemaining
+  };
+  if (cleanupErrors.length) {
+    primaryError = primaryError
+      ? new AggregateError([primaryError, ...cleanupErrors], "Hosted launch smoke and cleanup failed.")
+      : new AggregateError(cleanupErrors, "Hosted launch smoke cleanup failed.");
+  }
 }
+
+if (primaryError) throw primaryError;
+if (!passReceipt || !cleanupReceipt?.verified) throw new Error("Hosted launch smoke ended without a verified cleanup receipt.");
+process.stdout.write(`${JSON.stringify({ ...passReceipt, cleanup: cleanupReceipt })}\n`);
 
 async function createSyntheticUser(role) {
   const email = `report-prod-${role}-${marker}@skillmap.invalid`;
   const password = `Local-smoke-${crypto.randomUUID()}!`;
   const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   if (createError || !created.user) throw createError ?? new Error(`Could not create ${role} user.`);
+  userIds.push(created.user.id);
   const cookieJar = new Map();
   const auth = createServerClient(supabaseUrl, publishableKey, {
     db: { schema: "api" },
@@ -382,23 +492,74 @@ function digest(character) {
   return `sha256:${character.repeat(64)}`;
 }
 
-function cleanupPublishedFixture(publisherHandle) {
-  if (!/^browser-smoke-[0-9]{10,16}$/.test(publisherHandle)) throw new Error("Refusing non-canonical browser publisher cleanup.");
+async function deleteAndVerifySyntheticUsers(ids) {
+  const failures = [];
+  for (const userId of ids) {
+    try {
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error && !/not found/i.test(error.message)) failures.push(error);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  for (const userId of ids) {
+    try {
+      const { data, error } = await admin.auth.admin.getUserById(userId);
+      if (data?.user) failures.push(new Error(`Synthetic auth user remained after cleanup (${userId}).`));
+      if (error && !/not found/i.test(error.message)) failures.push(error);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) throw new AggregateError(failures, "Synthetic auth-user cleanup failed.");
+  return 0;
+}
+
+function cleanupPublishedFixture(identity) {
+  const { publisherHandle, repositoryUrl, publisherId, skillId, versionId } = identity;
+  if (!/^browser-smoke-[0-9]{10,16}$/.test(publisherHandle)
+    || repositoryUrl !== `https://github.com/${publisherHandle}/skills`
+    || (publisherId !== null && !/^pub_[0-9a-f]{32}$/.test(publisherId))
+    || (skillId !== null && !/^skl_[0-9a-f]{32}$/.test(skillId))
+    || (versionId !== null && !/^skv_[0-9a-f]{32}$/.test(versionId))) {
+    throw new Error("Refusing non-canonical browser catalog cleanup.");
+  }
+  const publisherIdPredicate = publisherId ? `or public_id = '${publisherId}'` : "";
+  const skillIdPredicate = skillId ? `or public_id = '${skillId}'` : "";
+  const versionIdPredicate = versionId ? `or public_id = '${versionId}'` : "";
   const sql = `
     begin;
     update private.skills skill set current_version_id = null
-      where skill.publisher_id in (select id from private.publishers where handle = '${publisherHandle}');
+      where skill.publisher_id in (select id from private.publishers where handle = '${publisherHandle}' ${publisherIdPredicate});
     delete from private.skill_versions version
       where version.skill_id in (select id from private.skills where publisher_id in
-        (select id from private.publishers where handle = '${publisherHandle}'));
+        (select id from private.publishers where handle = '${publisherHandle}' ${publisherIdPredicate}))
+        ${versionId ? `or version.public_id = '${versionId}'` : ""};
     delete from private.skills skill
       where skill.publisher_id in (select id from private.publishers where handle = '${publisherHandle}');
     delete from private.source_repositories repository
-      where repository.publisher_id in (select id from private.publishers where handle = '${publisherHandle}');
-    delete from private.publishers where handle = '${publisherHandle}';
+      where repository.publisher_id in (select id from private.publishers where handle = '${publisherHandle}' ${publisherIdPredicate})
+        or repository.repository_url = '${repositoryUrl}';
+    delete from private.publishers where handle = '${publisherHandle}' ${publisherIdPredicate};
     commit;
+    select json_build_object(
+      'publishers', (select count(*)::integer from private.publishers where handle = '${publisherHandle}' ${publisherIdPredicate}),
+      'repositories', (select count(*)::integer from private.source_repositories where repository_url = '${repositoryUrl}'),
+      'skills', (select count(*)::integer from private.skills where false ${skillIdPredicate}),
+      'versions', (select count(*)::integer from private.skill_versions where false ${versionIdPredicate})
+    )::text;
   `;
-  execFileSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-c", sql], { stdio: "pipe" });
+  const output = execFileSync(
+    "psql",
+    [databaseUrl, "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+  ).trim();
+  const counts = JSON.parse(output.split(/\r?\n/).at(-1) ?? "{}");
+  if (Object.keys(counts).sort().join(",") !== "publishers,repositories,skills,versions"
+    || Object.values(counts).some((value) => value !== 0)) {
+    throw new Error(`Synthetic catalog cleanup left rows behind (${JSON.stringify(counts)}).`);
+  }
+  return counts;
 }
 
 function toBrowserCookies(cookies) {

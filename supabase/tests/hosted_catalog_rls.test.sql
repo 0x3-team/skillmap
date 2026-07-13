@@ -53,8 +53,10 @@ select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef and p.proname not in (
       'claim_skill_submission', 'complete_skill_submission', 'requeue_skill_submission',
+      'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
-      'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue'
+      'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
+      'list_skill_submission_collisions', 'review_skill_submission_collisions'
     )),
     0::bigint,
     'no security-definer function exists outside the explicit hosted operator allowlist'

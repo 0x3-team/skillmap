@@ -10,7 +10,7 @@ Record these values before any remote mutation:
 | --- | --- |
 | Exact source commit | reviewed full SHA |
 | Supabase owner/project/region/plan | owner-approved target and free-tier limits |
-| Web owner/project/plan | owner-approved target and recurring-cost boundary |
+| Web owner/project/plan | owner-approved zero-cost-compatible target, limits, deploy command, and rollback command |
 | Canonical origin | exact HTTPS origin |
 | GitHub OAuth owner | organization, app, callback, secret custodian |
 | Worker host/schedule | server-only environment and operator |
@@ -47,7 +47,7 @@ npm --prefix apps/web audit --omit=dev --audit-level=high
 
 supabase start
 supabase db reset --local
-supabase db lint --local --level warning
+supabase db lint --local --schema api,private,public --level warning --fail-on warning
 supabase test db --local
 
 tmp_types=$(mktemp)
@@ -69,22 +69,24 @@ npm pack --dry-run
 git diff --check
 ```
 
+The hosted launch smoke emits its pass receipt only after every synthetic auth user is absent and the exact synthetic publisher, repository, skill, and version row counts are all zero. Any cleanup or postcondition failure makes the gate fail; a warning-only cleanup is not acceptance evidence.
+
 Record each gate separately. A skipped browser, auth, database, backup, or live check is blocked, not passed.
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, or any queue consumer until migration `20260713003000_launch_safety_reports_lifecycle.sql` is applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`; worker-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing.
+Do not start `hosted:queue:process-once`, a scheduler, or any queue consumer until migration `20260713020000_backend_completion_hardening.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, and publication relies on the final migration's completion-time collision evidence, immutable collision disposition, and exact publication recheck. Worker-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing or bypass the reviewed collision boundary.
 
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713003000 is present in both the local and remote columns.
+# Verify 20260713020000 is present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
 supabase db reset --local
-supabase db lint --local --level warning
+supabase db lint --local --schema api,private,public --level warning --fail-on warning
 supabase test db --local
 tmp_types=$(mktemp)
 supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
@@ -103,6 +105,7 @@ The web deployment receives only:
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SKILLMAP_RELEASE_STAGE=private-alpha` until the public gate passes
 - `SKILLMAP_INDEXING_MODE=private-alpha` until public acceptance
+- `SKILLMAP_SUPPORT_URL` only after the owner approves one reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
 - reviewed public rate-limit tuning values
 
 The operator worker receives, from a root-only runtime secret source:
@@ -127,8 +130,8 @@ supabase gen types typescript --linked --schema api | sed -e '${/^$/d;}' > "$tmp
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 
-# Use the approved host command and record its deployment ID and exact commit.
-vercel deploy --prod --cwd apps/web
+# From apps/web, use the zero-cost provider command recorded in the production
+# decision record and retain its immutable deployment ID plus exact commit.
 ```
 
 Do not push local-only Supabase auth configuration. Configure the production Site URL, one exact application callback, GitHub provider callback, exposed `api` schema, and provider secrets deliberately in the production dashboard.
@@ -147,16 +150,32 @@ Do not push local-only Supabase auth configuration. Configure the production Sit
    ```
 
 5. Inspect the redacted completion receipt. Static evidence may create a provisional numeric score with no band; it cannot create a current letter.
-6. Copy and review the publication metadata template outside the repository.
-7. Publish transactionally:
+6. Load the bounded collision subject. It contains both completion-time and current-catalog evidence and never authorizes publication by itself:
+
+   ```bash
+   npm run hosted:collisions:list -- --execute --submission-id sub_...
+   ```
+
+7. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop:
+
+   ```bash
+   npm run hosted:collisions:review -- \
+     --execute --submission-id sub_... --disposition approved-distinct \
+     --reason-code independently-reviewed-source \
+     --operation-id 00000000-0000-4000-8000-000000000000
+   ```
+
+   Publication recomputes the subject under advisory locks. A new or changed collision invalidates the old approval and fails closed.
+8. Copy and review the publication metadata template outside the repository.
+9. Publish transactionally:
 
    ```bash
    npm run hosted:queue:publish -- \
      --execute --submission-id sub_... --metadata /tmp/reviewed-publication.json
    ```
 
-8. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
-9. Delete the temporary metadata file if it contains operator-only notes. The template must contain public fields only.
+10. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
+11. Delete the temporary metadata file if it contains operator-only notes. The template must contain public fields only.
 
 For unresolved evidence, omit confirmed license authority. The worker records changes-requested or failed truthfully. Requeue only after remediation:
 
@@ -204,7 +223,15 @@ Alert on:
 - unexpected queue growth, auth failure, rate limiting, or report volume; and
 - any private schema, service credential, or hidden lifecycle disclosure.
 
-Reclaim only expired leases through the reviewed claim RPC. Never rewrite claim IDs, receipt rows, review rows, or public pointers manually.
+Reclaim only expired leases through the reviewed claim RPC. When an exact fifth-attempt claim expires, it is no longer reclaimable and must be terminalized through the service-only dead-letter receipt path:
+
+```bash
+npm run hosted:queue:dead-letter -- \
+  --execute --submission-id sub_... \
+  --operation-id 00000000-0000-4000-8000-000000000000
+```
+
+The command accepts only an expired processing claim at the attempt ceiling, records a cancelled worker run, moves the submission to a truthful terminal failure, and is idempotent only for the exact operation UUID and payload. Never rewrite claim IDs, receipt rows, review rows, collision decisions, or public pointers manually.
 
 ## Backup and restore
 

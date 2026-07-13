@@ -1,19 +1,44 @@
 export type ProjectionJson = string | number | boolean | null | { [key: string]: ProjectionJson | undefined } | ProjectionJson[];
 
+export type EvidenceSeverity = "critical" | "high" | "medium" | "low" | "info";
+export type AuditCheckOutcome = "passed" | "warning" | "blocked" | "not-applicable";
+
+export type PublicFindingCounts = Record<EvidenceSeverity, number>;
+
+export interface PublicAuditCheck {
+  code: string;
+  evidenceDigest: string | null;
+  outcome: AuditCheckOutcome;
+  severity: EvidenceSeverity;
+}
+
+export interface PublicGradeHardGate {
+  code: string;
+  evidenceDigest: string | null;
+  passed: boolean;
+}
+
+export interface PublicGradeDimension {
+  code: string;
+  evidenceDigest: string;
+  score: number;
+  weight: number;
+}
+
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const CODE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FINDING_KEYS = ["critical", "high", "info", "low", "medium"];
 
-export function parseFindingCounts(value: unknown): Record<string, ProjectionJson | undefined> | null {
+export function parseFindingCounts(value: unknown): PublicFindingCounts | null {
   if (!isExactRecord(value, FINDING_KEYS)) return null;
   for (const key of FINDING_KEYS) {
     const count = value[key];
     if (!Number.isInteger(count) || (count as number) < 0 || (count as number) > 10_000) return null;
   }
-  return value as Record<string, ProjectionJson | undefined>;
+  return value as PublicFindingCounts;
 }
 
-export function parsePublicChecks(value: unknown): ProjectionJson[] | null {
+export function parsePublicChecks(value: unknown): PublicAuditCheck[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > 100 || jsonBytes(value) > 32_768) return null;
   const codes = new Set<string>();
   for (const item of value) {
@@ -24,10 +49,10 @@ export function parsePublicChecks(value: unknown): ProjectionJson[] | null {
     if (item.evidenceDigest !== null && (typeof item.evidenceDigest !== "string" || !DIGEST.test(item.evidenceDigest))) return null;
     codes.add(item.code);
   }
-  return value as ProjectionJson[];
+  return value as PublicAuditCheck[];
 }
 
-export function parseHardGates(value: unknown): ProjectionJson[] | null {
+export function parseHardGates(value: unknown): PublicGradeHardGate[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > 50 || jsonBytes(value) > 16_384) return null;
   const codes = new Set<string>();
   for (const item of value) {
@@ -38,10 +63,10 @@ export function parseHardGates(value: unknown): ProjectionJson[] | null {
     if (item.passed && item.evidenceDigest === null) return null;
     codes.add(item.code);
   }
-  return value as ProjectionJson[];
+  return value as PublicGradeHardGate[];
 }
 
-export function parseDimensions(value: unknown): ProjectionJson[] | null {
+export function parseDimensions(value: unknown): PublicGradeDimension[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > 20 || jsonBytes(value) > 16_384) return null;
   const codes = new Set<string>();
   for (const item of value) {
@@ -52,7 +77,7 @@ export function parseDimensions(value: unknown): ProjectionJson[] | null {
     if (typeof item.evidenceDigest !== "string" || !DIGEST.test(item.evidenceDigest)) return null;
     codes.add(item.code);
   }
-  return value as ProjectionJson[];
+  return value as PublicGradeDimension[];
 }
 
 export function parseNullableBoundedNumber(value: unknown, minimum: number, maximum: number): number | null | undefined {
@@ -63,6 +88,19 @@ export function parseNullableBoundedNumber(value: unknown, minimum: number, maxi
 export function parseNullableDigest(value: unknown): string | null | undefined {
   if (value === null) return null;
   return typeof value === "string" && DIGEST.test(value) ? value : undefined;
+}
+
+export function gradeCompatibilityBindingIsValid(
+  state: "provisional" | "blocked",
+  digest: string | null,
+  hardGates: PublicGradeHardGate[]
+): boolean {
+  if (digest !== null) return true;
+  if (state !== "blocked") return false;
+  const compatibilityGates = hardGates.filter((gate) => gate.code === "compatibility-evidence-bound");
+  return compatibilityGates.length === 1
+    && compatibilityGates[0].passed === false
+    && compatibilityGates[0].evidenceDigest === null;
 }
 
 function isExactRecord(value: unknown, keys: string[]): value is Record<string, unknown> {

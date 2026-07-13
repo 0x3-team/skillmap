@@ -34,6 +34,11 @@ import {
   reportStatusPath
 } from "../lib/reports/status.ts";
 import {
+  createReportFlash,
+  parseReportFlash,
+  serializeReportFlash
+} from "../lib/reports/flash.ts";
+import {
   decodeReportCursor,
   encodeReportCursor,
   ReportCursorError
@@ -41,6 +46,7 @@ import {
 import {
   parseDimensions,
   parseFindingCounts,
+  gradeCompatibilityBindingIsValid,
   parseHardGates,
   parseNullableBoundedNumber,
   parseNullableDigest,
@@ -64,6 +70,10 @@ import {
   CatalogQueryError,
   MAX_PUBLIC_SKILL_RELATIONSHIPS
 } from "../lib/registry/errors.ts";
+import {
+  buildCurrentPublicSkillLinks,
+  buildExactGitHubSourceUrl
+} from "../lib/registry/public-links.ts";
 import {
   CatalogFetchAbortError,
   createBoundedCatalogFetch
@@ -210,7 +220,120 @@ test("submission server action mints attestations only after acknowledgement val
   assert.match(formSource, /aria-invalid=\{Boolean\(errorFor\("sourcePath"\)\)\}/);
 });
 
+test("public source and owner-result links stay exact, encoded, and current-version bound", () => {
+  const commit = "a".repeat(40);
+  assert.equal(
+    buildExactGitHubSourceUrl({
+      repositoryUrl: "https://github.com/0x3-team/skillmap",
+      commit,
+      path: "skills/example skill/SKILL.md"
+    }),
+    `https://github.com/0x3-team/skillmap/blob/${commit}/skills/example%20skill/SKILL.md`
+  );
+  for (const source of [
+    { repositoryUrl: "https://user@github.com/0x3-team/skillmap", commit, path: "SKILL.md" },
+    { repositoryUrl: "https://github.com/0x3-team/skillmap?ref=main", commit, path: "SKILL.md" },
+    { repositoryUrl: "https://github.com/0x3-team/skillmap", commit: "main", path: "SKILL.md" },
+    { repositoryUrl: "https://github.com/0x3-team/skillmap", commit, path: "../SKILL.md" }
+  ]) assert.equal(buildExactGitHubSourceUrl(source), null);
+
+  const versionId = `skv_${"b".repeat(32)}`;
+  const route = { publisherHandle: "0x3-team", slug: "skill-audit", versionId };
+  assert.deepEqual(buildCurrentPublicSkillLinks(route, versionId), {
+    detail: "/skills/0x3-team/skill-audit",
+    audit: "/skills/0x3-team/skill-audit/audit",
+    grade: "/skills/0x3-team/skill-audit/grade"
+  });
+  assert.equal(buildCurrentPublicSkillLinks(route, `skv_${"c".repeat(32)}`), null);
+  assert.equal(buildCurrentPublicSkillLinks({ ...route, publisherHandle: "../owner" }, versionId), null);
+});
+
+test("hosted product surfaces expose truthful trust, route, auth, and semantic evidence affordances", async () => {
+  const [detail, submissions, reports, evidence, header, landing] = await Promise.all([
+    readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/submissions/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/reports/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/skillmap/public-evidence.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/skillmap/catalog-header.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8")
+  ]);
+  assert.match(detail, /buildExactGitHubSourceUrl\(skill[.]source\)/);
+  assert.match(detail, /skill[.]source[.]path/);
+  assert.match(detail, /skill[.]publisher[.]verificationState/);
+  assert.match(detail, /skill[.]lifecycleState/);
+  assert.match(detail, /skill[.]currentVersion[.]publishedAt/);
+  assert.match(detail, /skill[.]updatedAt/);
+  assert.match(detail, /View exact source at commit/);
+  assert.match(submissions, /buildCurrentPublicSkillLinks/);
+  assert.match(submissions, /View published listing/);
+  assert.match(submissions, /View audit evidence/);
+  assert.match(submissions, /View grade evidence/);
+  assert.match(reports, /buildCurrentPublicSkillLinks/);
+  assert.match(reports, /View reported listing/);
+  assert.match(evidence, /Every gate must pass before this version can receive a current letter grade/);
+  assert.match(evidence, /Rubric dimensions/);
+  assert.match(evidence, /<details/);
+  assert.match(evidence, /Show machine \{title\}/);
+  assert.match(header, /resolveHostedAccountState/);
+  assert.match(header, /Account status unavailable/);
+  assert.match(landing, /accountState === "authenticated" \? "Account" : "Sign in"/);
+});
+
+test("report form preserves safe values and request identity for recoverable failures", async () => {
+  const [form, action] = await Promise.all([
+    readFile(new URL("../app/skills/[publisher]/[slug]/report-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/skills/[publisher]/[slug]/report-actions.ts", import.meta.url), "utf8")
+  ]);
+  assert.match(form, /event[.]preventDefault\(\)/);
+  assert.match(form, /new FormData\(event[.]currentTarget\)/);
+  assert.match(form, /value=\{requestId\}/);
+  assert.match(form, /catch \{/);
+  assert.match(form, /actionResult = \{ status: "service-unavailable" \}/);
+  assert.match(form, /finally \{\s*setPending\(false\)/);
+  assert.match(form, /setResult\(actionResult\)/);
+  assert.match(form, /aria-invalid=\{invalidField === "message"\}/);
+  assert.match(form, /Your category, message, and request ID remain in this form/);
+  assert.match(action, /return \{ status: "invalid", field: error[.]field, message: error[.]message \}/);
+  assert.match(action, /return \{ status: "cooldown" \}/);
+  assert.match(action, /reportSuspiciousListingProgressive/);
+  assert.match(action, /createReportFlash\(formData, result, token\)/);
+  assert.match(action, /httpOnly: true/);
+  assert.match(action, /sameSite: "strict"/);
+  assert.doesNotMatch(action, /if \(error[.]code === "P0001"\) redirect/);
+});
+
+test("progressive report flash is same-browser, bounded, and preserves safe retry state", () => {
+  const form = validReportForm();
+  const token = "123e4567-e89b-42d3-a456-426614174000";
+  const flash = createReportFlash(form, { status: "cooldown" }, token);
+  assert.deepEqual(flash, {
+    token,
+    status: "cooldown",
+    field: null,
+    reportId: null,
+    category: "security",
+    message: "The current listing requests an unexpected high-risk permission.",
+    requestId: "123e4567-e89b-42d3-a456-426614174000",
+    returnPath: "/skills/0x3-team/skill-audit"
+  });
+  const serialized = serializeReportFlash(flash);
+  assert.deepEqual(parseReportFlash(serialized, token, flash.returnPath), flash);
+  assert.equal(parseReportFlash(serialized, "223e4567-e89b-42d3-a456-426614174000", flash.returnPath), null);
+  assert.equal(parseReportFlash(serialized, token, "/skills/other-team/other-skill"), null);
+  assert.equal(parseReportFlash(JSON.stringify({ ...flash, forged: true }), token, flash.returnPath), null);
+});
+
 test("account submission mutation and export stay owner-filtered and bounded", async () => {
+  const savedMutation = await readFile(new URL("../app/account/saved/action/route.ts", import.meta.url), "utf8");
+  assert.match(savedMutation, /publicOrigin = getSiteUrl\(\)/);
+  assert.match(savedMutation, /requestOrigin !== publicOrigin && fetchSite !== "same-origin"/);
+  assert.match(savedMutation, /auth[.]getClaims\(\)/);
+  assert.match(savedMutation, /operation !== "save" && operation !== "remove"/);
+  assert.match(savedMutation, /user_id: auth[.]userId/);
+  assert.match(savedMutation, /[.]eq\("user_id", auth[.]userId\)[.]eq\("skill_id", skillId\)/);
+  assert.match(savedMutation, /status: 303/);
+  assert.doesNotMatch(savedMutation, /formData[.]get\("user|service_role|SUPABASE_SERVICE_ROLE/);
+
   const withdrawal = await readFile(new URL("../app/account/submissions/actions.ts", import.meta.url), "utf8");
   assert.match(withdrawal, /\.update\(\{ state: "withdrawn" \}\)/);
   assert.match(withdrawal, /\.eq\("public_id", submissionId\)/);
@@ -313,6 +436,15 @@ test("public evidence projection shapes reject extra keys and invalid nullable v
   assert.equal(parseNullableBoundedNumber(Number.NaN, 0, 100), undefined);
   assert.equal(parseNullableDigest(null), null, "provisional evaluation suite may be absent");
   assert.equal(parseNullableDigest("not-a-digest"), undefined);
+  assert.equal(gradeCompatibilityBindingIsValid("provisional", null, [
+    { code: "compatibility-evidence-bound", passed: false, evidenceDigest: null }
+  ]), false, "a provisional grade cannot omit compatibility evidence");
+  assert.equal(gradeCompatibilityBindingIsValid("blocked", null, [
+    { code: "compatibility-evidence-bound", passed: false, evidenceDigest: null }
+  ]), true, "a blocked grade may explain the exact failed compatibility gate");
+  assert.equal(gradeCompatibilityBindingIsValid("blocked", null, [
+    { code: "source-identity", passed: false, evidenceDigest: null }
+  ]), false, "an unrelated failed gate cannot authorize a missing compatibility digest");
 });
 
 test("report action and public evidence pages preserve database authority boundaries", async () => {
@@ -321,9 +453,10 @@ test("report action and public evidence pages preserve database authority bounda
   assert.match(action, /from\("skill_reports"\)\.insert\(\{/);
   assert.match(action, /idempotency_key: report\.idempotency_key/);
   assert.match(action, /error\.code === "P0003"/);
-  assert.match(action, /reportStatusPath\(report\.returnPath, "active-limit"\)/);
+  assert.match(action, /return \{ status: "active-limit" \}/);
   assert.match(action, /error\.code === "P0004"/);
-  assert.match(action, /reportStatusPath\(report\.returnPath, "daily-limit"\)/);
+  assert.match(action, /return \{ status: "daily-limit" \}/);
+  assert.match(action, /redirect\(`\$\{flash\.returnPath\}\?reportFlash=/);
   assert.doesNotMatch(action, /reporter_user_id\s*:|disposition_code\s*:|\bstate\s*:\s*"(?:queued|resolved)"/);
   assert.doesNotMatch(action, /service_role|SUPABASE_SERVICE_ROLE/);
 
@@ -342,6 +475,8 @@ test("report action and public evidence pages preserve database authority bounda
   assert.match(detail, /\.eq\("version_id", skill\.currentVersion\.versionId\)/);
   assert.match(detail, /requestedReportStatus !== "queued" \|\| reportRow\.state === "queued"/);
   assert.match(detail, /verifiedReportStatus = requestedReportStatus/);
+  assert.match(detail, /parseReportFlash/);
+  assert.doesNotMatch(detail, /verifiedReportStatus[^;]*requestedReportStatus === "queued"[^;]*\? null\s*:\s*requestedReportStatus/);
 
   const smoke = await readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8");
   assert.match(smoke, /rpc\("claim_skill_submission"/);

@@ -3,10 +3,8 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, Github, LockKeyhole, ScanSearch } from "lucide-react";
 import { SubmissionForm } from "@/app/submit/submission-form";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
-import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { resolveHostedAccountState } from "@/lib/auth/account-state.server";
 import { buildPublicPageMetadata } from "@/lib/metadata";
-import { SupabaseConfigurationError } from "@/lib/supabase/config";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseSubmissionPublicId, parseSubmitStatus, type SubmitStatus } from "@/lib/submissions/status";
 
 export const dynamic = "force-dynamic";
@@ -32,11 +30,11 @@ export default async function SubmitPage({
   const field = typeof params.field === "string" && /^[a-z][A-Za-z]{0,39}$/.test(params.field)
     ? params.field
     : null;
-  const authState = await getSubmitAuthState();
+  const authState = await resolveHostedAccountState();
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account={authState === "authenticated"} />
+      <CatalogHeader accountState={authState} />
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Free curated trust alpha</p>
@@ -128,15 +126,4 @@ function SubmissionStatusNotice({ status, submissionId, field }: { status: Submi
 
 function humanizeField(value: string) {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
-}
-
-async function getSubmitAuthState(): Promise<"authenticated" | "signed-out" | "unavailable"> {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.auth.getClaims();
-    return classifyVerifiedClaims(data, error).state;
-  } catch (error) {
-    if (!(error instanceof SupabaseConfigurationError)) throw error;
-    return "unavailable";
-  }
 }

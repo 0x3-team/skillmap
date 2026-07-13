@@ -3,6 +3,9 @@ import { AlertTriangle, ArrowLeft, Clock3, FileWarning, ShieldCheck } from "luci
 import { redirect } from "next/navigation";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
+import { buildCurrentPublicSkillLinks, type PublicSkillRoute } from "@/lib/registry/public-links";
+import { resolvePublicSkillRoutes } from "@/lib/registry/repository.server";
 import { decodeReportCursor, encodeReportCursor, ReportCursorError } from "@/lib/reports/cursor";
 import { REPORT_CATEGORY_COPY, REPORT_CATEGORIES, type ReportCategory } from "@/lib/reports/input";
 import { REPORT_PUBLIC_ID } from "@/lib/reports/status";
@@ -70,12 +73,13 @@ export default async function AccountReportsPage({
   if (parsed.some((report) => report === null)) return <ReportsUnavailable />;
   const hasMore = parsed.length > 50;
   const reports = parsed.slice(0, 50) as ReportProjection[];
+  const publicRoutes = await loadCurrentPublicRoutes(reports.map((report) => report.skillId));
   const last = reports.at(-1);
   const nextCursor = hasMore && last ? encodeReportCursor({ createdAt: last.createdAt, reportId: last.reportId }) : null;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -101,7 +105,7 @@ export default async function AccountReportsPage({
               <Link href="/skills" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Browse public skills</Link>
             </div>
           ) : (
-            <div className="mt-5 grid gap-4">{reports.map((report) => <ReportCard key={report.reportId} report={report} />)}</div>
+            <div className="mt-5 grid gap-4">{reports.map((report) => <ReportCard key={report.reportId} report={report} publicRoute={publicRoutes.get(report.skillId)} />)}</div>
           )}
           {(cursor || nextCursor) ? (
             <nav aria-label="Report history pages" className="mt-6 flex flex-wrap gap-3">
@@ -115,8 +119,9 @@ export default async function AccountReportsPage({
   );
 }
 
-function ReportCard({ report }: { report: ReportProjection }) {
+function ReportCard({ report, publicRoute }: { report: ReportProjection; publicRoute?: PublicSkillRoute }) {
   const category = REPORT_CATEGORY_COPY[report.category];
+  const publicLinks = buildCurrentPublicSkillLinks(publicRoute, report.versionId);
   return (
     <article className="min-w-0 rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -133,6 +138,13 @@ function ReportCard({ report }: { report: ReportProjection }) {
         <Coordinate label="Skill" value={report.skillId} />
         <Coordinate label="Exact version" value={report.versionId} />
       </dl>
+      {publicLinks ? (
+        <nav aria-label="Reported listing evidence" className="mt-4 flex flex-wrap gap-2">
+          <Link href={publicLinks.detail} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">View reported listing</Link>
+          <Link href={publicLinks.audit} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">View current audit</Link>
+          <Link href={publicLinks.grade} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">View current grade</Link>
+        </nav>
+      ) : null}
       {report.state === "resolved" ? (
         <div className="mt-5 rounded-xl border border-border bg-muted/35 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Operator disposition · {humanize(report.dispositionCode ?? "resolved")}</p>
@@ -145,6 +157,16 @@ function ReportCard({ report }: { report: ReportProjection }) {
       <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />Submitted {formatDate(report.createdAt)}{report.resolvedAt ? ` · resolved ${formatDate(report.resolvedAt)}` : ""}</p>
     </article>
   );
+}
+
+async function loadCurrentPublicRoutes(skillIds: string[]): Promise<Map<string, PublicSkillRoute>> {
+  try {
+    return await resolvePublicSkillRoutes(skillIds);
+  } catch (error) {
+    if (error instanceof CatalogInputError || error instanceof CatalogQueryError || error instanceof CatalogDataError
+      || error instanceof SupabaseConfigurationError) return new Map();
+    throw error;
+  }
 }
 
 function Coordinate({ label, value }: { label: string; value: string }) {
@@ -207,9 +229,9 @@ function humanize(value: string): string {
 }
 
 function ReportsUnavailable() {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader account /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><FileWarning className="mx-auto h-7 w-7 text-warning" /><h1 className="mt-4 text-xl font-semibold">Report history unavailable</h1><p className="mt-2 text-sm text-muted-foreground">Authentication or the owner-filtered report projection could not be verified. No public or fixture fallback was substituted.</p></div></section></main>;
+  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader accountState="unavailable" /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><FileWarning className="mx-auto h-7 w-7 text-warning" /><h1 className="mt-4 text-xl font-semibold">Report history unavailable</h1><p className="mt-2 text-sm text-muted-foreground">Authentication or the owner-filtered report projection could not be verified. No public or fixture fallback was substituted.</p></div></section></main>;
 }
 
 function InvalidReportsPage() {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader account /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-xl font-semibold">That report-history page link is invalid.</h1><Link href="/account/reports" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Return to report history</Link></div></section></main>;
+  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-xl font-semibold">That report-history page link is invalid.</h1><Link href="/account/reports" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Return to report history</Link></div></section></main>;
 }

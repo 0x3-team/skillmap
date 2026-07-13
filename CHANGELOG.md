@@ -2,9 +2,9 @@
 
 ## Unreleased — experimental local alpha
 
-This worktree is not committed, tagged, published, or deployed. The entries
-below describe local implementation work and do not constitute release
-evidence.
+These entries describe committed and in-progress local implementation work. They
+do not prove push, authoritative CI, tag, publication, deployment, live OAuth,
+public indexing, or verified-live status.
 
 - Added qualified skill identity, explicit canonical duplicate decisions, and
   fail-closed routing from one exact approved workspace revision.
@@ -30,9 +30,20 @@ evidence.
   deterministic visual-diff infrastructure, performance budgets, and a clean
   tarball-consumer dashboard smoke.
 - Added local install/update/uninstall/rollback, support, privacy, security,
-  provenance, browser-QA, and external-pilot runbooks. Hosted accounts, team
-  sync, billing, external pilot evidence, npm publication, and deployment are
-  not included.
+  provenance, browser-QA, and separate local-product/hosted-pilot runbooks.
+- Added the locally validated hosted trust-alpha candidate: free-account saves,
+  exact-commit submission/status/withdrawal, bounded inert static audit,
+  letterless provisional grades, service-only review/publication, authenticated
+  reports, lifecycle actions, export, deletion, and current-version public
+  evidence projections.
+- Added receipt-backed fifth-attempt dead-letter recovery, explainable blocked
+  grades without fabricated compatibility evidence, and fail-closed immutable
+  source/content collision review before publication.
+- Added fail-closed private/public release-stage and indexing controls plus a
+  composed disposable hosted-browser gate. Team sync, billing, package
+  mirroring/loading, TUF distribution, current-letter behavioral grading,
+  remote worker scheduling, authoritative current-commit CI, external hosted
+  pilot evidence, npm publication, and deployment are not included.
 
 ## 0.1.0-alpha
 
