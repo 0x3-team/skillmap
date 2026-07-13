@@ -17,6 +17,7 @@ Record these values before any remote mutation:
 | Backup/restore owner | named operator and off-host encrypted target |
 | Incident/rollback owner | named operator and contact path |
 | Support/security/license owner | named people or explicit single-owner assignment |
+| Public support intake | approved reachable HTTPS page configured as `SKILLMAP_SUPPORT_URL`, including appeal and confidential security-report instructions |
 | Retention/policy version | approved public text and effective date |
 
 Free to users means no product billing. It does not authorize an infrastructure charge.
@@ -53,6 +54,10 @@ tmp_types=$(mktemp)
 supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
+
+# Starts one production Next.js server and runs API, authenticated account,
+# non-destructive submission, report, receipt-row, export, and deletion smokes.
+npm run test:hosted-gates
 
 npm run test:cross-browser
 npm run test:a11y
@@ -96,6 +101,7 @@ The web deployment receives only:
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SKILLMAP_RELEASE_STAGE=private-alpha` until the public gate passes
 - `SKILLMAP_INDEXING_MODE=private-alpha` until public acceptance
 - reviewed public rate-limit tuning values
 
@@ -105,6 +111,8 @@ The operator worker receives, from a root-only runtime secret source:
 - `SKILLMAP_SUPABASE_SERVICE_ROLE_KEY`
 
 The service-role value must never enter the web deployment, client bundle, shell history, screenshots, logs, CI artifacts, or GitHub source requests. GitHub ingestion remains unauthenticated and public-only.
+
+Release copy and indexing are independently fail-closed. A private pilot uses `SKILLMAP_RELEASE_STAGE=private-alpha` with `SKILLMAP_INDEXING_MODE=private-alpha`. After every live gate, initial-corpus gate, policy approval, and external-pilot gate passes, change both values together to `public-alpha` and `public`. Setting indexing to `public` alone leaves robots private; setting the release stage alone changes truthful product copy but does not enable indexing.
 
 ## Migration and deployment
 
@@ -227,6 +235,7 @@ supabase test db --local
 With indexing still disabled, verify:
 
 - landing, catalog, detail, trust, privacy, security, support, submit, and account routes;
+- the signed-out `/support` route reaches the approved `SKILLMAP_SUPPORT_URL`; a private-repository-only tracker or missing URL blocks public alpha;
 - malformed API input, hidden/not-found parity, no-store, global/provider rate limits, and CSP/security headers;
 - GitHub OAuth, callback, session refresh, logout, two-account isolation, save/unsave, submit/status/withdraw, export, and self-delete;
 - benign accepted publication, license-unresolved remediation, hostile-source blocking, retry/reclaim, and idempotent publish replay;

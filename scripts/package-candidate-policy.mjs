@@ -22,6 +22,7 @@ export const PUBLIC_DOC_PATHS = new Set([
   'docs/host-compatibility.md',
   'docs/local-app-browser-testing.md',
   'docs/launch/free-public-alpha-go-to-market.md',
+  'docs/launch/hosted-alpha-pilot-runbook.md',
   'docs/launch/public-alpha-policy-pack.md',
   'docs/operations/free-public-alpha-runbook.md',
   'docs/operations/hosted-alpha-deploy.md',

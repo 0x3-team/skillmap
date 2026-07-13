@@ -134,7 +134,7 @@ try {
   page.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
 
   await page.goto(new URL("/", baseUrl).toString(), { waitUntil: "load" });
-  await page.getByRole("button", { name: "Browse skill library" }).waitFor();
+  await page.getByRole("button", { name: "Search skill library" }).waitFor();
   await page.getByRole("button", { name: "Run recorded demo" }).click();
   await page.getByText(/Recorded fixture selected:/).waitFor();
 

@@ -1,5 +1,6 @@
 import { BoundaryList, TrustPage, TrustSection } from "@/components/skillmap/trust-page";
 import { buildPublicPageMetadata } from "@/lib/metadata";
+import { getReleaseStage, isHostedReleaseStage } from "@/lib/security/policy";
 
 export const metadata = buildPublicPageMetadata({
   title: "Skill grading methodology | SkillMap",
@@ -8,11 +9,14 @@ export const metadata = buildPublicPageMetadata({
 });
 
 export default function GradingMethodologyPage() {
+  const hosted = isHostedReleaseStage(getReleaseStage());
   return (
     <TrustPage
       eyebrow="Grade methodology"
       title="A grade is a receipt, not a popularity badge."
-      intro="SkillMap is building reproducible, version-bound grades for a curated free trust alpha. The current hosted seed versions are ungraded, and no letter grade is presented until the required package, audit, compatibility, evaluation, and receipt gates exist."
+      intro={hosted
+        ? "SkillMap produces deterministic, version-bound provisional scores from reviewed evidence. No letter grade is presented until the required package, audit, compatibility, behavioral evaluation, and signed receipt gates pass."
+        : "SkillMap has a locally validated deterministic, version-bound provisional grading workflow. Checked-in seed versions remain ungraded, and no letter grade is presented until the required package, audit, compatibility, behavioral evaluation, and signed receipt gates pass."}
     >
       <TrustSection title="Independent evidence, kept separate">
         <BoundaryList
@@ -53,13 +57,15 @@ export default function GradingMethodologyPage() {
 
       <TrustSection title="Free and non-promotional">
         <p>
-          Public accounts, submissions, audit summaries, and grade evidence are planned to remain free. SkillMap has no billing, checkout, subscription, entitlement, paid-placement, or publisher-payment path in this launch. A publisher cannot buy a better grade, and popularity cannot change one.
+          Public accounts, submissions, audit summaries, and grade evidence remain free. SkillMap has no billing, checkout, subscription, entitlement, paid-placement, or publisher-payment path in this launch. A publisher cannot buy a better grade, and popularity cannot change one.
         </p>
       </TrustSection>
 
       <TrustSection title="Current alpha boundary">
         <p>
-          The versioned rubric, evaluator, receipt engine, operator review, and public receipt pages are not yet accepted as a deployed service. Catalog entries must remain visibly ungraded or otherwise incomplete until the corresponding implementation and live evidence exist.
+          {hosted
+            ? "The static workflow can issue a provisional integer score with no letter. A current letter remains forbidden unless a trusted signer binds the exact normalized package, audit, compatibility profile, frozen suite, baseline, evaluator, rubric, and repeated behavioral evidence."
+            : "The versioned rubric, receipt engine, operator review, and public evidence pages pass local acceptance but are not claimed as a live deployed service. Catalog entries remain visibly ungraded, provisional, or blocked according to the evidence actually present."}
         </p>
       </TrustSection>
     </TrustPage>

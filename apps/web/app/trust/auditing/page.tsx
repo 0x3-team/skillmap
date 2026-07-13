@@ -1,5 +1,6 @@
 import { BoundaryList, TrustPage, TrustSection } from "@/components/skillmap/trust-page";
 import { buildPublicPageMetadata } from "@/lib/metadata";
+import { getReleaseStage, isHostedReleaseStage } from "@/lib/security/policy";
 
 export const metadata = buildPublicPageMetadata({
   title: "Skill auditing methodology | SkillMap",
@@ -8,13 +9,16 @@ export const metadata = buildPublicPageMetadata({
 });
 
 export default function AuditingMethodologyPage() {
+  const hosted = isHostedReleaseStage(getReleaseStage());
   return (
     <TrustPage
       eyebrow="Audit methodology"
       title="Inspect untrusted skill material without executing it."
-      intro="SkillMap is building a bounded static-audit workflow for a curated free trust alpha. The current hosted catalog can display an audit state, but its checked-in seed versions are still marked not run. No remote audit service or public submission queue is claimed to be live."
+      intro={hosted
+        ? "SkillMap performs a bounded static audit over one exact public source version and publishes only operator-reviewed evidence. A version without a canonical receipt remains marked not run."
+        : "SkillMap has a locally validated bounded static-audit workflow for a curated free trust alpha. Checked-in seed versions remain marked not run, and no remote audit service or public submission queue is claimed live from this checkout."}
     >
-      <TrustSection title="What the audit will inspect">
+      <TrustSection title="What the audit inspects">
         <BoundaryList
           items={[
             "An exact public GitHub repository, immutable commit, and relative SKILL.md path supplied by the submitter.",
@@ -49,7 +53,9 @@ export default function AuditingMethodologyPage() {
 
       <TrustSection title="Current alpha boundary">
         <p>
-          Audit automation, receipt publication, publisher submissions, and operator review are implementation work in progress. Until those gates pass locally and against an exact live deployment, catalog pages must continue to show truthful states such as “not run.”
+          {hosted
+            ? "A submission creates no public listing or safety claim. The constrained worker fetches exact public bytes without credentials or execution; an operator must review license, findings, and publication metadata before any public evidence appears."
+            : "Audit automation, receipt publication, publisher submission, and operator review pass local acceptance. Until an exact hosted deployment passes its own live gates, catalog pages must continue to show only the evidence actually present, including “not run.”"}
         </p>
       </TrustSection>
     </TrustPage>

@@ -340,6 +340,58 @@ jobs:
           path: artifacts/browser-visual
           if-no-files-found: error
 
+  hosted-web-browser:
+    name: Hosted web / API, auth, submission, reports, evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.0
+      - run: npm ci
+        working-directory: apps/web
+      - name: Install pinned Chromium and host dependencies
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - name: Start disposable hosted stack and validate database authority
+        run: |
+          supabase start
+          supabase db reset --local
+          supabase db lint --local --level warning
+          supabase test db --local
+      - name: Build the hosted application against the disposable public configuration
+        shell: bash
+        run: |
+          eval "$(supabase status -o env 2>/dev/null)"
+          NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3108 \
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+          SKILLMAP_RELEASE_STAGE=private-alpha \
+          SKILLMAP_INDEXING_MODE=private-alpha \
+          npm --prefix apps/web run build
+      - name: Exercise hosted API, authenticated account, submission, report, and evidence gates
+        shell: bash
+        run: |
+          mkdir -p artifacts/hosted-web
+          npm run test:hosted-gates 2>&1 | tee artifacts/hosted-web/run.log
+      - name: Upload hosted-browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-web-browser
+          path: artifacts/hosted-web
+          if-no-files-found: error
+      - name: Stop the disposable hosted stack
+        if: always()
+        run: supabase stop --no-backup
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest

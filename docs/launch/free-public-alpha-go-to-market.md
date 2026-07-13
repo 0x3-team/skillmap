@@ -18,6 +18,7 @@ The public announcement may be sent only when all boxes are checked:
 
 - [ ] Exact candidate commit is pushed, reviewed, and accepted by authoritative CI.
 - [ ] Production Supabase, web, OAuth, domain, worker, backup, incident, and support owners are recorded.
+- [ ] `SKILLMAP_SUPPORT_URL` opens an approved public HTTPS page with support, formal-appeal, and confidential security-report instructions; `/support` links to it while signed out.
 - [ ] Production migrations, generated types, secrets, callback URLs, and indexing mode are verified.
 - [ ] Anonymous browse/search/detail and public evidence pages pass live smoke checks.
 - [ ] Two-account sign-in, save, submit, status, withdrawal, export, and deletion pass live smoke checks.
@@ -48,7 +49,7 @@ Each group should include alternatives or complements that make comparison usefu
 4. Open the grade explanation: “A static scan can be provisional or blocked; a current letter needs package-, audit-, host-, rubric-, suite-, baseline-, and evaluator-bound evidence.”
 5. Sign in, save the skill, then submit a public GitHub URL with a full commit and canonical path.
 6. Show the account-owned queued state and withdraw control.
-7. Run the operator command, show the bounded receipt, approve and publish, then open the permanent public page.
+7. Run the operator command, show the bounded receipt, approve and publish, then open the canonical current-version public page.
 8. Close with: “Accounts and submissions are free. There is no checkout, subscription, entitlement, or billing system.”
 
 ## Announcement copy
@@ -94,6 +95,8 @@ Ask each participant to complete one primary task:
 Record only task completion, elapsed time, route names, bounded error codes, and volunteered feedback. Do not record raw prompts, private repository data, tokens, or submitted skill bodies in analytics or research notes.
 
 Pass target: four of five participants complete their task without operator coaching. Every failure is fixed, explicitly accepted as a known limitation, or blocks launch.
+
+Run and record these sessions with the dedicated [hosted alpha pilot runbook](./hosted-alpha-pilot-runbook.md). The similarly named root `docs/external-pilot-runbook.md` belongs to the local tarball/dashboard product and is not evidence for this hosted public-alpha gate.
 
 ## Feedback survey
 
@@ -150,4 +153,4 @@ On any trust, privacy, credential, or data-integrity incident: pause submissions
 
 **Can an author buy a better result?** No. There is no billing path, and product analytics do not affect grades or organic relevance.
 
-**How do I challenge a listing or finding?** Use the public report/appeal workflow. The operator can quarantine or revoke a listing while preserving the evidence history.
+**How do I challenge a listing or finding?** Use the authenticated suspicious-listing report workflow. The operator can quarantine or revoke a listing while preserving evidence history; formal appeals remain a support-managed alpha process rather than a separate product workflow.

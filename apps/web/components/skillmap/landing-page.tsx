@@ -22,49 +22,15 @@ import { Card } from "@/components/ui/card";
 import { CommandPalette, type CommandItem } from "@/components/ui/command-palette";
 import { AnimatedNumber } from "@/components/ui/number";
 import { getDashboardSnapshot } from "@/lib/fixtures";
+import type { ReleaseStage } from "@/lib/security/policy";
 import { cn } from "@/lib/utils";
 
 const snapshot = getDashboardSnapshot("release-ready");
 
-const trustCells = [
-  {
-    state: "catalog now",
-    status: "info" as const,
-    title: "Exact source identity",
-    text: "Current seed records bind a public repository, immutable commit, relative path, version, and entrypoint digest.",
-    icon: <GitBranch className="h-4 w-4" />
-  },
-  {
-    state: "catalog now",
-    status: "info" as const,
-    title: "Evidence stays separate",
-    text: "Publisher, provenance, license, audit, compatibility, lifecycle, and grade states never collapse into one safety badge.",
-    icon: <ShieldCheck className="h-4 w-4" />
-  },
-  {
-    state: "coming next",
-    status: "warning" as const,
-    title: "Submit, audit, grade",
-    text: "The free trust-alpha workflow is being built around exact-commit submission, bounded static audit, reproducible grades, and operator review.",
-    icon: <BadgeCheck className="h-4 w-4" />
-  },
-  {
-    state: "safety boundary",
-    status: "success" as const,
-    title: "Submitted code stays inert",
-    text: "Review treats skill text, links, and scripts as untrusted evidence. The planned hosted audit does not execute bundled code.",
-    icon: <LockKeyhole className="h-4 w-4" />
-  },
-  {
-    state: "launch rule",
-    status: "success" as const,
-    title: "Free without billing",
-    text: "The public launch contains no price, checkout, subscription, entitlement, metering, paywall, or Stripe dependency.",
-    icon: <CheckCircle2 className="h-4 w-4" />
-  }
-];
-
-export function LandingPage() {
+export function LandingPage({ releaseStage = "local-candidate" }: { releaseStage?: ReleaseStage }) {
+  const hosted = releaseStage !== "local-candidate";
+  const publicAlpha = releaseStage === "public-alpha";
+  const trustCells = trustCellsFor(releaseStage);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [demoTraceId, setDemoTraceId] = useState(snapshot.recentRouteTraces[0]?.id ?? "");
   const [demoAnnouncement, setDemoAnnouncement] = useState(
@@ -146,13 +112,19 @@ export function LandingPage() {
         <div className="mx-auto grid min-h-[calc(100dvh-4rem)] max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.04fr_0.96fr] lg:px-8">
           <div className="max-w-2xl">
             <AnimatedBadge status="warning" size="md" className="mb-5">
-              Free curated trust alpha · pre-deployment
+              {publicAlpha
+                ? "Free curated trust alpha · public alpha"
+                : hosted
+                  ? "Free curated trust alpha · private pilot"
+                  : "Free curated trust alpha · local candidate"}
             </AnimatedBadge>
             <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] tracking-normal text-foreground sm:text-5xl lg:text-6xl">
               Find agent skills you can inspect before you trust.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
-              Search source-bound skill records, inspect separate evidence states, and save useful skills with a free account. The hosted spine is validated locally; no public deployment or live OAuth path is claimed yet.
+              {hosted
+                ? "Search source-bound skill records, inspect separate evidence states, save useful skills, and submit exact public GitHub versions with a free account."
+                : "Search source-bound skill records, inspect separate evidence states, and save useful skills with a free account. The complete hosted workflow is validated locally; no public deployment or live OAuth path is claimed yet."}
             </p>
             <form action="/skills" method="get" className="mt-8 rounded-2xl border border-border bg-card p-3 shadow-sm">
               <label className="relative block">
@@ -176,11 +148,13 @@ export function LandingPage() {
               <Link href="/trust/grading" className="text-muted-foreground hover:text-foreground">Read methodology</Link>
             </nav>
             <p className="mt-5 max-w-xl text-xs leading-5 text-muted-foreground">
-              Free means no billing, checkout, subscription, entitlement, paywall, or Stripe dependency. Submission, audit, and grade workflows remain implementation work until their evidence gates pass.
+              {hosted
+                ? "Free means no billing, checkout, subscription, entitlement, paywall, or Stripe dependency. Submission enters an operator-reviewed queue; static evidence can remain provisional or blocked."
+                : "Free means no billing, checkout, subscription, entitlement, paywall, or Stripe dependency. Submission, audit, grade, reporting, and lifecycle workflows are implemented locally and remain unavailable online until deployment acceptance passes."}
             </p>
           </div>
 
-          <AlphaBoundaryPreview />
+          <AlphaBoundaryPreview releaseStage={releaseStage} />
         </div>
       </section>
 
@@ -188,7 +162,9 @@ export function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <SectionIntro
             title="A trust workflow with visible boundaries."
-            text="The current catalog proves the data spine and evidence vocabulary. Exact-commit submission, bounded audit, reproducible grading, and operator review are the next gated steps—not features hidden behind optimistic copy."
+            text={hosted
+              ? "Exact-commit submission, bounded audit, provisional grading, and operator review are active parts of this hosted alpha. Every public claim remains tied to explicit evidence and lifecycle state."
+              : "The local candidate proves the catalog, account, exact-commit submission, bounded audit, provisional grading, reporting, and operator lifecycle workflow. Hosted availability remains a separate deployment gate."}
           />
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             {trustCells.map((cell, index) => (
@@ -276,7 +252,7 @@ export function LandingPage() {
               icon={<ShieldCheck />}
               eyebrow="Audit methodology"
               title="Inspect untrusted material without executing it."
-              text="The planned audit binds exact source bytes, inventories files and permissions, and publishes bounded findings. Static analysis can surface risk; it cannot prove universal safety."
+              text="The audit binds exact source bytes, inventories files and permissions, and publishes bounded findings after operator review. Static analysis can surface risk; it cannot prove universal safety."
               href="/trust/auditing"
               linkLabel="Read auditing methodology"
             />
@@ -291,10 +267,12 @@ export function LandingPage() {
             <Card className="p-5 lg:col-span-2">
               <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
                 <div>
-                  <AnimatedBadge status="warning">pre-deployment boundary</AnimatedBadge>
-                  <h3 className="mt-3 text-lg font-semibold text-foreground">Implementation evidence comes before public invitations.</h3>
+                  <AnimatedBadge status="warning">{hosted ? "hosted alpha boundary" : "pre-deployment boundary"}</AnimatedBadge>
+                  <h3 className="mt-3 text-lg font-semibold text-foreground">{hosted ? "Hosted availability does not erase evidence gates." : "Implementation evidence comes before public invitations."}</h3>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                    Remote Supabase and web projects, live GitHub OAuth, submission processing, public receipts, backups, monitoring, and rollback still need exact-deployment acceptance. Local tests do not prove those states.
+                    {hosted
+                      ? "A listing becomes public only through the reviewed operator path. Static scores remain provisional and letterless unless all signed behavioral-evidence gates pass; reports and lifecycle actions remain separate authorities."
+                      : "Remote Supabase and web projects, live GitHub OAuth, backups, monitoring, and rollback still need exact-deployment acceptance. Local tests do not prove those states."}
                   </p>
                 </div>
                 <Link href="/release-status" className="inline-flex h-10 items-center justify-center rounded-full border border-border px-4 text-sm font-semibold text-foreground hover:bg-accent">
@@ -311,7 +289,9 @@ export function LandingPage() {
           <div>
             <h2 className="text-2xl font-semibold">Start with the evidence, then follow the alpha openly.</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-background/72">
-              Browse the locally validated catalog boundary now. Public submission, bounded audit, reproducible grading, operator review, and remote deployment remain visible implementation gates. The product stays free with no billing path.
+              {hosted
+                ? "Browse exact-source evidence, save useful skills, or submit one immutable public GitHub version for review. The product stays free with no billing path."
+                : "Browse the locally validated catalog boundary now. The complete hosted workflow remains unavailable online until deployment acceptance. The product stays free with no billing path."}
             </p>
           </div>
           <Link
@@ -381,7 +361,52 @@ function SiteHeader({ onOpenPalette }: { onOpenPalette: () => void }) {
   );
 }
 
-function AlphaBoundaryPreview() {
+function trustCellsFor(releaseStage: ReleaseStage) {
+  const hosted = releaseStage !== "local-candidate";
+  return [
+    {
+      state: hosted ? "hosted alpha" : "catalog candidate",
+      status: "info" as const,
+      title: "Exact source identity",
+      text: "Every record binds a public repository, immutable commit, relative path, version, and entrypoint digest.",
+      icon: <GitBranch className="h-4 w-4" />
+    },
+    {
+      state: hosted ? "hosted alpha" : "catalog candidate",
+      status: "info" as const,
+      title: "Evidence stays separate",
+      text: "Publisher, provenance, license, audit, compatibility, lifecycle, and grade states never collapse into one safety badge.",
+      icon: <ShieldCheck className="h-4 w-4" />
+    },
+    {
+      state: hosted ? "available under review" : "validated locally",
+      status: hosted ? "info" as const : "success" as const,
+      title: "Submit, audit, grade",
+      text: hosted
+        ? "Free accounts can submit exact public GitHub versions. A bounded static audit and provisional grade feed operator review before publication."
+        : "The exact-commit submission, bounded static audit, provisional grading, and operator-review workflow passed local acceptance.",
+      icon: <BadgeCheck className="h-4 w-4" />
+    },
+    {
+      state: "safety boundary",
+      status: "success" as const,
+      title: "Submitted code stays inert",
+      text: "Review treats skill text, links, and scripts as untrusted evidence. The hosted audit never executes bundled code.",
+      icon: <LockKeyhole className="h-4 w-4" />
+    },
+    {
+      state: "launch rule",
+      status: "success" as const,
+      title: "Free without billing",
+      text: "The public launch contains no price, checkout, subscription, entitlement, metering, paywall, or Stripe dependency.",
+      icon: <CheckCircle2 className="h-4 w-4" />
+    }
+  ];
+}
+
+function AlphaBoundaryPreview({ releaseStage }: { releaseStage: ReleaseStage }) {
+  const hosted = releaseStage !== "local-candidate";
+  const publicAlpha = releaseStage === "public-alpha";
   return (
     <Card className="relative overflow-hidden p-5 sm:p-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,hsl(var(--accent)),transparent)]" />
@@ -389,26 +414,28 @@ function AlphaBoundaryPreview() {
         <AnimatedBadge status="info">current hosted boundary</AnimatedBadge>
         <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">Know what is proven before you rely on it.</h2>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          The catalog and free saved-skill account spine have strong local acceptance. The rest remains named work with explicit release gates.
+          {hosted
+            ? "This hosted alpha accepts exact-source submissions and publishes bounded evidence only through operator review. A static audit is never a universal safety claim."
+            : "The catalog, free account, submission, audit, provisional grade, report, and operator workflow have strong local acceptance. Remote deployment remains an explicit gate."}
         </p>
       </div>
       <dl className="relative mt-6 grid gap-3">
         <BoundaryRow
           icon={<BookOpen />}
           label="Catalog and account spine"
-          value="validated locally"
+          value={publicAlpha ? "public alpha" : hosted ? "private hosted alpha" : "validated locally"}
           tone="success"
         />
         <BoundaryRow
           icon={<BadgeCheck />}
           label="Submission, audit, and grades"
-          value="implementation in progress"
-          tone="warning"
+          value={hosted ? "active under review" : "validated locally"}
+          tone="success"
         />
         <BoundaryRow
           icon={<DatabaseZap />}
-          label="Remote deployment and live OAuth"
-          value="not verified"
+          label={hosted ? "Public indexing" : "Remote deployment and live OAuth"}
+          value={publicAlpha ? "operator enabled" : hosted ? "disabled for pilot" : "not verified"}
           tone="warning"
         />
         <BoundaryRow

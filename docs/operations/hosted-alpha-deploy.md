@@ -1,6 +1,8 @@
 # Hosted Alpha Deployment and Recovery Runbook
 
-Status: pre-deployment. This runbook governs the Phase 1 private hosted alpha only. It does not authorize public release, third-party ingestion, package loading, grading, advanced routing, billing, or Stripe.
+Status: pre-deployment. This is the canonical provider, deployment, recovery, and live-acceptance handoff for the free hosted trust alpha. It permits reviewed third-party metadata-only submissions, inert static audit, provisional numeric grading, operator review, and receipt-backed publication after the gates below pass. It never authorizes submitted-code execution, package mirroring/loading, billing, checkout, paid placement, or Stripe. Private pilot comes first; public alpha and indexing require the later promotion gate.
+
+Use this runbook together with `docs/operations/free-public-alpha-runbook.md`, which is authoritative for worker migration compatibility, submission review, publication, reports, lifecycle actions, monitoring, and daily operations.
 
 ## Ownership and approval gate
 
@@ -27,7 +29,9 @@ Vercel receives only:
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SKILLMAP_RELEASE_STAGE=private-alpha`
 - `SKILLMAP_INDEXING_MODE=private-alpha`
+- `SKILLMAP_SUPPORT_URL` only after the owner approves a reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
 - optional bounded rate-limit tuning values documented by the application
 
 The GitHub OAuth client secret belongs only in Supabase Auth. Store database and backup credentials in the operator password manager and a root-only runtime secret file when automation is approved.
@@ -71,7 +75,8 @@ The GitHub-to-Supabase callback above is distinct from the application callback 
 1. Install the Vercel GitHub App for `0x3-team/skillmap` only.
 2. Create `skillmap` in the approved 0x3 team with Root Directory `apps/web`, Next.js detection, and Node 24.x.
 3. Leave Preview variables unset. Add the production variables from the secret boundary using stdin or the dashboard so values do not enter shell history.
-4. Keep `SKILLMAP_INDEXING_MODE=private-alpha` until the read-only public-preview gate explicitly changes it.
+4. Keep `SKILLMAP_RELEASE_STAGE=private-alpha` and `SKILLMAP_INDEXING_MODE=private-alpha` until the public gate explicitly changes both. Indexing requires the exact pair `public-alpha` and `public`.
+5. Before public alpha, configure `SKILLMAP_SUPPORT_URL` to the approved reachable intake page, open it from the deployed `/support` page while signed out, and verify that its public and confidential reporting instructions match the approved policy. A private repository issue URL is not a public support route.
 
 ## Migration and first deployment
 
@@ -114,11 +119,22 @@ Capture evidence against the exact deployment commit:
 - direct anonymous access to `private` and hidden lifecycle records fails
 - GitHub sign-in, callback normalization, profile creation, save, saved projection, unsave, logout, and cookie clearing pass
 - two distinct accounts cannot read or mutate each other's profile or saved skills
+- an author can submit an authorized public GitHub `SKILL.md` at one immutable full commit; an invalid path preserves the safe form values and creates no row
+- the server-only worker can claim the exact queued row, fetch inert bounded source bytes, emit audit and provisional-grade receipts, and never expose its service credential to the web process
+- an operator can review and publish the receipt-bound metadata; the public detail, audit, and grade routes show the exact current version, findings, safe reason codes, and a visibly letterless provisional score
+- a second account can submit a suspicious-listing report, see only its own immutable report history, and receive a bounded operator disposition without directly changing catalog state
+- deprecate, quarantine, revoke, and receipt-backed restore actions preserve public lifecycle history and cannot be performed by the browser or ordinary authenticated role
+- withdrawing a queued owner submission works, and deleting an account removes its private rows plus any derived public projection covered by the deletion contract
 - auth cookies are `Secure`, `HttpOnly`, and appropriately `SameSite`
+- `/support` exposes the approved reachable support, appeal, and confidential security-intake page; no private-repository-only link is treated as public support
 - no secret/service-role key appears in HTML, JavaScript, logs, screenshots, or deployment metadata
 - desktop and 390px browser checks, a hydrated landing-page interaction with zero CSP console violations, accessibility checks, performance budgets, and Vercel error logs pass
 
-The application limiter is a per-instance private-alpha safeguard. A provider-level/global abuse control is still required before public preview.
+Run the composed local browser contract with `npm run test:hosted-gates`, then reproduce the submission-to-publication, report, lifecycle, deletion, and support checks against the exact deployment using redacted live receipts. The application limiter is a per-instance private-alpha safeguard. A provider-level/global abuse control is still required before public alpha.
+
+## Promotion from private pilot to public alpha
+
+Do not change either indexing variable until all live acceptance items pass, the encrypted off-host restore and web rollback are proven, the reviewed initial corpus is public, the policy/retention version and owners are approved, `SKILLMAP_SUPPORT_URL` is reachable, and the hosted pilot satisfies its mandatory workflow matrix. Record that decision against the exact deployment commit and IDs. Then set the exact pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`, redeploy, and verify page-level robots metadata, the absence of `X-Robots-Tag: noindex`, and `robots.txt` allowing `/`. Any mismatch returns the decision to `NO_GO` and the private pair.
 
 ## Rollback and incident response
 

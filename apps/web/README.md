@@ -41,11 +41,17 @@ supabase status
 
 Copy `.env.example` to `.env.local` and set the local API URL and publishable key printed by `supabase status`. GitHub OAuth is intentionally disabled in local `supabase/config.toml`; configure the hosted GitHub provider and exact callback URL only through the remote-alpha runbook.
 
+`SKILLMAP_RELEASE_STAGE` is a fail-closed public-copy contract. Keep the default `local-candidate` in a checkout, use `private-alpha` only for an accepted hosted pilot, and use `public-alpha` only after the public gate passes. Search indexing requires both `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`; either missing or malformed value keeps the site private.
+
+`SKILLMAP_SUPPORT_URL` must be the approved public HTTPS page for support, appeal, and confidential security-intake instructions before public alpha. It is rendered only after strict URL validation; malformed, credential-bearing, query-bearing, fragment-bearing, or non-loopback HTTP values fail closed. A private pilot may instead use its separately recorded participant contact.
+
 The browser bundle uses only the Supabase publishable key. A service-role or secret key must never be added to this application.
 
 Remote provisioning, deployment, backup, rollback, OAuth, and live-acceptance steps are controlled by [`docs/operations/hosted-alpha-deploy.md`](../../docs/operations/hosted-alpha-deploy.md). Do not push the local-only `supabase/config.toml` to a hosted project.
 
 The required Gitea hosted-database lane starts an isolated database service, runs reset/lint/pgTAP, and checks generated API types. The full public API and authenticated browser smokes remain manually run local acceptance gates because the rootless Gitea job intentionally excludes Auth, PostgREST, and the other optional Supabase services. With a full disposable local stack and production Next.js server running, `npm run test:hosted-api` proves the public boundary and `npm run test:hosted-auth` creates and deletes a synthetic account while proving account access, concurrent-safe save, saved projection, unsave, mobile navigation naming, and 390px containment. Only the auth-smoke process receives the local service-role key; the Next.js process never does.
+
+After an optimized build and a clean `supabase db reset --local`, run `npm run test:hosted-gates` from the repository root to compose the API, authenticated account, non-destructive submission, report, real receipt-row rendering, export, deletion, and cleanup checks behind one production server. The GitHub hosted-browser CI job runs this same command against a disposable full Supabase stack; the server process receives only public configuration.
 
 ## Local Snapshot Mode
 

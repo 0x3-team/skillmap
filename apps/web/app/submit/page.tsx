@@ -1,14 +1,12 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { AlertTriangle, ArrowRight, Check, FileKey2, Github, LockKeyhole, ScanSearch } from "lucide-react";
-import { submitSkill } from "@/app/submit/actions";
+import { AlertTriangle, ArrowRight, Check, Github, LockKeyhole, ScanSearch } from "lucide-react";
+import { SubmissionForm } from "@/app/submit/submission-form";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { buildPublicPageMetadata } from "@/lib/metadata";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { APPROVED_ALPHA_SPDX_IDENTIFIERS } from "@/lib/submissions/input";
 import { parseSubmissionPublicId, parseSubmitStatus, type SubmitStatus } from "@/lib/submissions/status";
 
 export const dynamic = "force-dynamic";
@@ -78,90 +76,6 @@ export default async function SubmitPage({
         </div>
       </div>
     </main>
-  );
-}
-
-function SubmissionForm({ requestId }: { requestId: string }) {
-  const inputClass = "mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-  return (
-    <form action={submitSkill} className="surface min-w-0 rounded-2xl p-5 sm:p-8">
-      <div className="flex items-start gap-3 border-b border-border pb-6">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><FileKey2 className="h-5 w-5" /></span>
-        <div>
-          <h2 className="text-xl font-semibold">Immutable source coordinates</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">Every field is validated again on the server before an account-owned queued row can be inserted.</p>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-5">
-        <Field label="Public GitHub repository URL" hint="Lowercase owner and repository; no .git suffix, trailing slash, query, or fragment." htmlFor="repositoryUrl">
-          <input id="repositoryUrl" name="repositoryUrl" type="url" required maxLength={226} autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-describedby="repositoryUrl-hint" placeholder="https://github.com/owner/repository" className={inputClass} />
-        </Field>
-
-        <Field label="Exact commit" hint="Full lowercase 40- or 64-character commit digest. Branches and tags are rejected." htmlFor="sourceCommit">
-          <input id="sourceCommit" name="sourceCommit" type="text" required minLength={40} maxLength={64} pattern="(?:[0-9a-f]{40}|[0-9a-f]{64})" autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-describedby="sourceCommit-hint" placeholder="0123456789abcdef…" className={`${inputClass} mono`} />
-        </Field>
-
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Relative skill path" hint="Normalized path ending in SKILL.md." htmlFor="sourcePath">
-            <input id="sourcePath" name="sourcePath" type="text" required minLength={8} maxLength={500} autoCapitalize="none" autoCorrect="off" spellCheck={false} aria-describedby="sourcePath-hint" placeholder="skills/example/SKILL.md" className={`${inputClass} mono`} />
-          </Field>
-          <Field label="Version label" hint="The submitter's version label; not a verified release claim." htmlFor="versionLabel">
-            <input id="versionLabel" name="versionLabel" type="text" required maxLength={100} autoCorrect="off" aria-describedby="versionLabel-hint" placeholder="v1.0.0" className={inputClass} />
-          </Field>
-        </div>
-
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="License claim" hint="Optional claim only; operator evidence determines license status." htmlFor="licenseClaim">
-            <select id="licenseClaim" name="licenseClaim" defaultValue="" aria-describedby="licenseClaim-hint" className={inputClass}>
-              <option value="">No license claim</option>
-              {APPROVED_ALPHA_SPDX_IDENTIFIERS.map((identifier) => <option key={identifier} value={identifier}>{identifier}</option>)}
-            </select>
-          </Field>
-          <Field label="Request ID" hint="Generated once for idempotent submission retries." htmlFor="idempotencyKey">
-            <input id="idempotencyKey" name="idempotencyKey" type="text" readOnly value={requestId} aria-describedby="idempotencyKey-hint" className={`${inputClass} mono bg-muted/50 text-xs`} />
-          </Field>
-        </div>
-      </div>
-
-      <fieldset className="mt-7 border-t border-border pt-6">
-        <legend className="text-sm font-semibold">Required acknowledgements</legend>
-        <div className="mt-3 grid gap-3">
-          <Acknowledgement name="authorizationAcknowledgement">
-            I am authorized by the repository owner or applicable license to request review and a public metadata listing.
-          </Acknowledgement>
-          <Acknowledgement name="untrustedContentAcknowledgement">
-            I understand SkillMap treats every submitted file as untrusted, performs static inspection only, and may reject or withdraw the submission.
-          </Acknowledgement>
-        </div>
-      </fieldset>
-
-      <div className="mt-7 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-5 text-muted-foreground">Policy public-alpha-draft/v1 · free submission · no billing · operator review required · max 3 active and 10 new requests per rolling 24 hours</p>
-        <button type="submit" className="press inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground hover:brightness-95">
-          Queue submission <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function Field({ label, hint, htmlFor, children }: { label: string; hint: string; htmlFor: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <label htmlFor={htmlFor} className="text-sm font-semibold">{label}</label>
-      <p id={`${htmlFor}-hint`} className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</p>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function Acknowledgement({ name, children }: { name: string; children: ReactNode }) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background/70 p-4 text-sm leading-6 hover:border-primary/35">
-      <input type="checkbox" name={name} value="acknowledged" required className="mt-1 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]" />
-      <span>{children}</span>
-    </label>
   );
 }
 

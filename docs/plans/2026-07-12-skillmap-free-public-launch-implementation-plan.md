@@ -294,6 +294,17 @@ The implemented launch candidate uses a one-shot queue command intended for a re
 
 Authenticated report intake, the owner report history, service-only queue/disposition, and lifecycle controls are in the local candidate. Anonymous intake, formal appeal/legal-hold case management, production-global rate limiting, aggregate visitor analytics, hosted alerts, encrypted off-host restore, and provider rollback remain deployment/policy work. The public alpha may use truthful provisional numeric grades with no letter; any current letter remains blocked until the required signed compatibility and behavioral evidence path is operated.
 
+### 2026-07-13 launch-gap closure
+
+The first committed candidate exposed four locally actionable gaps under a fresh adversarial and pilot-readiness pass. The current working candidate closes them without changing the public trust boundary:
+
+- server validation on `/submit` now returns a bounded field-local error without navigation, preserving every other safe input, both acknowledgements, and the stable idempotency request ID; the no-JavaScript fallback remains fail closed;
+- `SKILLMAP_RELEASE_STAGE` now selects truthful `local-candidate`, `private-alpha`, or `public-alpha` copy, while public indexing requires the exact independent pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`; `robots.txt` is request-time dynamic so a build cannot freeze the wrong directive;
+- the composed hosted browser gate now runs API, authenticated account, submission, report, export/deletion, no-row evidence, and real receipt-row rendering against a disposable local Supabase stack, and GitHub CI binds that gate explicitly;
+- the visual harness now guards only the generated workspace and revision labels during the two screenshot paints, proves a simulated late refresh is normalized before paint, and disconnects immediately after capture so later functional behavior remains observable.
+
+These fixes improve local candidate evidence only. They do not change the external provider, push, deploy, OAuth, restore, corpus, pilot, policy, or live-verification gates.
+
 ### Batch 0 — plan and baseline reconciliation
 
 Deliverables:
@@ -497,6 +508,7 @@ supabase test db --local
 supabase gen types typescript --local --schema api
 npm --prefix apps/web run test:hosted-api
 npm --prefix apps/web run test:hosted-auth
+npm run test:hosted-gates
 npm run test:cross-browser
 npm run test:a11y
 npm run test:visual
@@ -537,6 +549,18 @@ The final gate must publish one verdict per area:
 | Launch | domain, OAuth, indexing, announcement, pilot results |
 
 Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success alone cannot produce `GO` for a public launch.
+
+### Current readiness snapshot
+
+| Area | Validated locally | Verified live | Current verdict |
+| --- | --- | --- | --- |
+| Product | Discovery, save, exact-source submission, field-local remediation, owner status, audit/grade evidence, reporting, and deletion workflows | No production origin or OAuth account selected | `NO-GO` for public launch |
+| Data | Migrations, forced RLS, pgTAP, generated types, disposable backup/reset/replay | No encrypted off-host hosted restore | `NO-GO` |
+| Security | No source execution, constrained worker, secret canary, cross-account isolation, bounded public projections, lifecycle removal | No provider-global abuse control or live secret inspection | `NO-GO` |
+| Reliability | Claim leases, idempotent completion/publication, replay, report disposition, lifecycle controls, web failure states | No hosted scheduler, monitoring, alert, rollback, or incident drill | `NO-GO` |
+| Quality | Root/web/contracts/database/browser/accessibility/performance/visual/release gates available and locally exercised | No exact deployed-commit browser receipt | `NO-GO` |
+| Operations | Runbooks, policy draft, GTM kit, and hosted-pilot protocol checked in | Owners, jurisdiction, retention approval, support identity, and backup destination unset | `NO-GO` |
+| Launch | Free/no-billing scope, stage/indexing gate, announcement and outreach copy | Domain, corpus of 20, five pilots, push/deploy, and public indexing absent | `NO-GO` |
 
 ## Go-to-market plan
 

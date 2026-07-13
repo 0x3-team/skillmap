@@ -9,8 +9,10 @@ const sources = Object.fromEntries(
       "app/layout.tsx",
       "app/privacy/page.tsx",
       "app/release-status/page.tsx",
+      "app/robots.ts",
       "app/security/page.tsx",
       "app/submit/page.tsx",
+      "app/submit/submission-form.tsx",
       "app/support/page.tsx",
       "app/trust/auditing/page.tsx",
       "app/trust/grading/page.tsx",
@@ -59,7 +61,9 @@ const landing = sources["components/skillmap/landing-page.tsx"];
 for (const boundary of [
   /action="\/skills" method="get"/i,
   /name="q"/i,
-  /Free curated trust alpha · pre-deployment/i,
+  /Free curated trust alpha · local candidate/i,
+  /Free curated trust alpha · private pilot/i,
+  /Free curated trust alpha · public alpha/i,
   /no billing, checkout, subscription, entitlement, paywall, or Stripe dependency/i,
   /recorded local fixture/i,
   /not live catalog data/i
@@ -82,10 +86,16 @@ for (const boundary of [/Supabase-backed public catalog/i, /validated locally an
   if (!boundary.test(releaseStatus)) failures.push(`app/release-status/page.tsx: missing hosted release boundary ${boundary}`);
 }
 
+const robots = sources["app/robots.ts"];
+for (const boundary of [/revalidate\s*=\s*0/, /isPublicIndexingEnabled\(\)/, /allow:\s*"\/"/, /disallow:\s*"\/"/]) {
+  if (!boundary.test(robots)) failures.push(`app/robots.ts: missing runtime indexing boundary ${boundary}`);
+}
+
 for (const [file, boundaries] of Object.entries({
-  "app/submit/page.tsx": [/does not execute repository content/i, /does not.*publish a listing.*current grade/i, /operator review required/i, /no billing/i],
-  "app/trust/auditing/page.tsx": [/seed versions are still marked not run/i, /No remote audit service/i, /does not follow instructions found in a skill/i],
-  "app/trust/grading/page.tsx": [/current hosted seed versions are ungraded/i, /no letter grade is presented/i, /popularity or payment/i]
+  "app/submit/page.tsx": [/does not execute repository content/i, /does not.*publish a listing.*current grade/i, /no billing/i],
+  "app/submit/submission-form.tsx": [/Correct the highlighted field/i, /other entries and request ID remain/i, /aria-invalid/i, /operator review required/i, /no billing/i],
+  "app/trust/auditing/page.tsx": [/seed versions remain marked not run/i, /No remote audit service/i, /does not follow instructions found in a skill/i],
+  "app/trust/grading/page.tsx": [/seed versions remain ungraded/i, /no letter grade is presented/i, /popularity or payment/i]
 })) {
   for (const boundary of boundaries) {
     if (!boundary.test(sources[file])) failures.push(`${file}: missing methodology truth boundary ${boundary}`);

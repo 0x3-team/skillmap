@@ -208,15 +208,22 @@ export async function createVisualGate({ appDir, repoDir, artifactDir, browserVe
 }
 
 async function captureNormalizedScreenshot(page, targetPath, resources, routedPages) {
-  await stabilizeVisualPage(page, resources, routedPages);
-  // A screenshot forces Chromium to rasterize rounded borders. Under CPU-heavy
-  // suites the first raster after identifier-width normalization can differ by
-  // one color channel at a few antialiased corner pixels. Warm that exact paint,
-  // then require two more frames before retaining the comparison artifact.
-  // This keeps the pixel threshold at zero and preserves the reviewed styling.
-  await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  return page.screenshot({ path: targetPath, animations: "disabled", caret: "hide", scale: "css" });
+  try {
+    await stabilizeVisualPage(page, resources, routedPages);
+    // A screenshot forces Chromium to rasterize rounded borders. Under CPU-heavy
+    // suites the first raster after identifier-width normalization can differ by
+    // one color channel at a few antialiased corner pixels. Warm that exact paint,
+    // then require two more frames before retaining the comparison artifact.
+    // This keeps the pixel threshold at zero and preserves the reviewed styling.
+    await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    return await page.screenshot({ path: targetPath, animations: "disabled", caret: "hide", scale: "css" });
+  } finally {
+    await page.evaluate(() => {
+      globalThis.__skillmapQaChromeObserver?.disconnect();
+      delete globalThis.__skillmapQaChromeObserver;
+    }).catch(() => {});
+  }
 }
 
 export async function writeQaReport({ artifactDir, browserName, browserVersion, playwrightVersion, runtimePackage, modes, budgets, metrics, assets, visuals, status, error }) {
@@ -357,15 +364,30 @@ async function stabilizeVisualPage(page, resources, routedPages) {
         walker.currentNode.parentElement.dataset.skillmapQaRuntimeIdentifier = "true";
       }
     }
-    const workspace = document.querySelector("#workspace-button");
-    if (workspace) {
-      workspace.textContent = "QA workspace";
-      workspace.dataset.skillmapQaRuntimeIdentifier = "true";
-    }
-    const revision = document.querySelector("#revision-short");
-    if (revision) {
-      revision.textContent = "r0000000000000";
-      revision.dataset.skillmapQaRuntimeIdentifier = "true";
+    const normalizedChrome = [
+      ["#workspace-button", "QA workspace"],
+      ["#revision-short", "r0000000000000"]
+    ];
+    const enforceNormalizedChrome = () => {
+      for (const [selector, value] of normalizedChrome) {
+        const element = document.querySelector(selector);
+        if (!element) continue;
+        if (element.textContent !== value) element.textContent = value;
+        element.dataset.skillmapQaRuntimeIdentifier = "true";
+      }
+    };
+    enforceNormalizedChrome();
+    globalThis.__skillmapQaChromeObserver?.disconnect();
+    globalThis.__skillmapQaChromeObserver = new MutationObserver(enforceNormalizedChrome);
+    for (const [selector] of normalizedChrome) {
+      const element = document.querySelector(selector);
+      if (element) {
+        globalThis.__skillmapQaChromeObserver.observe(element, {
+          subtree: true,
+          childList: true,
+          characterData: true
+        });
+      }
     }
     document.querySelector("#toast-region")?.replaceChildren();
   });
@@ -375,6 +397,15 @@ async function stabilizeVisualPage(page, resources, routedPages) {
     // settled before independently created workspaces are compared pixel-for-pixel.
     document.documentElement.getBoundingClientRect();
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    // Prove an asynchronous chrome refresh cannot race the screenshot after
+    // normalization. MutationObserver delivery occurs before the next paint.
+    document.querySelector("#workspace-button").textContent = "Late workspace refresh";
+    document.querySelector("#revision-short").textContent = "late-revision";
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (document.querySelector("#workspace-button")?.textContent !== "QA workspace"
+      || document.querySelector("#revision-short")?.textContent !== "r0000000000000") {
+      throw new Error("Visual QA chrome normalization did not survive an asynchronous refresh.");
+    }
   });
 }
 

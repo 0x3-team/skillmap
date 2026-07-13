@@ -72,8 +72,12 @@ import {
   PRIVATE_ALPHA_ROBOTS_VALUE,
   buildContentSecurityPolicy,
   buildResponseSecurityHeaders,
+  getApprovedSupportUrl,
+  getReleaseStage,
   getSupabaseConnectSources,
-  isPublicIndexingEnabled
+  isHostedReleaseStage,
+  isPublicIndexingEnabled,
+  releaseStageLabel
 } from "../lib/security/policy.ts";
 import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-errors.ts";
 import {
@@ -190,12 +194,20 @@ test("submission pagination cursors are canonical, bounded, and account-free", (
 
 test("submission server action mints attestations only after acknowledgement validation", async () => {
   const source = await readFile(new URL("../app/submit/actions.ts", import.meta.url), "utf8");
+  const formSource = await readFile(new URL("../app/submit/submission-form.tsx", import.meta.url), "utf8");
   assert.match(source, /parseSkillSubmissionForm\(formData\)/);
+  assert.match(source, /return \{ status: "invalid", field: error[.]field, message: error[.]message \}/);
   assert.match(source, /submission_policy_version:\s*"public-alpha-draft\/v1"/);
   assert.match(source, /authority_confirmed:\s*true/);
   assert.match(source, /untrusted_processing_accepted:\s*true/);
   assert.doesNotMatch(source, /submitter_user_id\s*:/);
   assert.doesNotMatch(source, /\bstate\s*:\s*"(?:queued|processing|withdrawn)"/);
+  assert.match(formSource, /event[.]preventDefault\(\)/);
+  assert.match(formSource, /new FormData\(form\)/);
+  assert.match(formSource, /setValidation\(result\)/);
+  assert.match(formSource, /Your other entries and request ID remain in this form/);
+  assert.match(formSource, /value=\{requestId\}/);
+  assert.match(formSource, /aria-invalid=\{Boolean\(errorFor\("sourcePath"\)\)\}/);
 });
 
 test("account submission mutation and export stay owner-filtered and bounded", async () => {
@@ -330,6 +342,15 @@ test("report action and public evidence pages preserve database authority bounda
   assert.match(detail, /\.eq\("version_id", skill\.currentVersion\.versionId\)/);
   assert.match(detail, /requestedReportStatus !== "queued" \|\| reportRow\.state === "queued"/);
   assert.match(detail, /verifiedReportStatus = requestedReportStatus/);
+
+  const smoke = await readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8");
+  assert.match(smoke, /rpc\("claim_skill_submission"/);
+  assert.match(smoke, /rpc\("complete_skill_submission"/);
+  assert.match(smoke, /rpc\("publish_skill_submission"/);
+  assert.match(smoke, /receiptDetailPath}\/audit/);
+  assert.match(smoke, /receiptDetailPath}\/grade/);
+  assert.match(smoke, /Public audit page exposed the private evidence digest/);
+  assert.match(smoke, /deletedApiListing[.]status\(\) !== 404/);
 });
 
 test("verified claims distinguish terminal sessions from retryable auth failures", () => {
@@ -461,11 +482,28 @@ test("public skill relationships fail closed before exceeding the detail contrac
   );
 });
 
-test("private-alpha indexing fails closed and requires one exact public opt-in", () => {
-  for (const value of [undefined, "", "private", "PUBLIC", " public ", "true", "1"]) {
-    assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: value }), false, String(value));
+test("release stage and public indexing fail closed and require two exact public opt-ins", () => {
+  for (const value of [undefined, "", "local", "PUBLIC-ALPHA", " public-alpha ", "true", "1"]) {
+    assert.equal(getReleaseStage({ SKILLMAP_RELEASE_STAGE: value }), "local-candidate", String(value));
   }
-  assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: "public" }), true);
+  assert.equal(getReleaseStage({ SKILLMAP_RELEASE_STAGE: "private-alpha" }), "private-alpha");
+  assert.equal(getReleaseStage({ SKILLMAP_RELEASE_STAGE: "public-alpha" }), "public-alpha");
+  assert.equal(isHostedReleaseStage("local-candidate"), false);
+  assert.equal(isHostedReleaseStage("private-alpha"), true);
+  assert.equal(releaseStageLabel("public-alpha"), "public alpha");
+
+  for (const value of [undefined, "", "private", "PUBLIC", " public ", "true", "1"]) {
+    assert.equal(isPublicIndexingEnabled({ SKILLMAP_RELEASE_STAGE: "public-alpha", SKILLMAP_INDEXING_MODE: value }), false, String(value));
+  }
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: "public" }), false);
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_RELEASE_STAGE: "private-alpha", SKILLMAP_INDEXING_MODE: "public" }), false);
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_RELEASE_STAGE: "public-alpha", SKILLMAP_INDEXING_MODE: "public" }), true);
+
+  for (const value of [undefined, "", " https://support.example/alpha", "javascript:alert(1)", "http://support.example/alpha", "https://user:pass@support.example/alpha", "https://support.example/alpha?case=1", "https://support.example/alpha#form"]) {
+    assert.equal(getApprovedSupportUrl({ SKILLMAP_SUPPORT_URL: value }), null, String(value));
+  }
+  assert.equal(getApprovedSupportUrl({ SKILLMAP_SUPPORT_URL: "https://support.example/alpha" }), "https://support.example/alpha");
+  assert.equal(getApprovedSupportUrl({ SKILLMAP_SUPPORT_URL: "http://127.0.0.1:3108/support" }), "http://127.0.0.1:3108/support");
 
   const privateHeaders = buildResponseSecurityHeaders({
     contentSecurityPolicy: "default-src 'self';",
