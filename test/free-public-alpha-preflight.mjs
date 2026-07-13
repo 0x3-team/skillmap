@@ -37,10 +37,14 @@ test('local and public launch verdicts cannot be collapsed', () => {
   assert.match(receipt.launchBoundary, /not push, deployment, live OAuth/i);
 });
 
-test('static preflight binds worker lease renewal to its required migration', () => {
+test('static preflight binds worker lease renewal and completion hardening to their required migrations', () => {
   const source = readFileSync(new URL('../scripts/free-public-alpha-preflight.mjs', import.meta.url), 'utf8');
   assert.match(source, /20260713003000_launch_safety_reports_lifecycle\.sql/);
+  assert.match(source, /20260713020000_backend_completion_hardening\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
+  assert.match(source, /dead_letter_expired_skill_submission/);
+  assert.match(source, /list_skill_submission_collisions/);
+  assert.match(source, /review_skill_submission_collisions/);
   assert.match(source, /worker-migration-compatibility/);
 });
 

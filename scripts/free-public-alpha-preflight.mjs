@@ -111,18 +111,28 @@ function staticGates(requireClean) {
   });
 
   const leaseMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713003000_launch_safety_reports_lifecycle.sql'), 'utf8');
+  const completionHardeningMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713020000_backend_completion_hardening.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
   const rpcSource = readFileSync(path.join(repo, 'apps/worker/src/supabase-rpc.mjs'), 'utf8');
   const workerMigrationBound = /create function api\.renew_skill_submission_claim\s*\(/i.test(leaseMigration)
     && /grant execute on function api\.renew_skill_submission_claim\(text, uuid, text, integer\) to service_role/i.test(leaseMigration)
     && /renewClaimLease\(/.test(workerSource)
-    && /'renew_skill_submission_claim'/.test(rpcSource);
+    && /'renew_skill_submission_claim'/.test(rpcSource)
+    && /create function api\.dead_letter_expired_skill_submission\s*\(/i.test(completionHardeningMigration)
+    && /create function api\.list_skill_submission_collisions\s*\(/i.test(completionHardeningMigration)
+    && /create function api\.review_skill_submission_collisions\s*\(/i.test(completionHardeningMigration)
+    && /grant execute on function api\.dead_letter_expired_skill_submission\(text, text\) to service_role/i.test(completionHardeningMigration)
+    && /grant execute on function api\.list_skill_submission_collisions\(text\) to service_role/i.test(completionHardeningMigration)
+    && /grant execute on function api\.review_skill_submission_collisions\(text, text, text, text\) to service_role/i.test(completionHardeningMigration)
+    && /'dead_letter_expired_skill_submission'/.test(rpcSource)
+    && /'list_skill_submission_collisions'/.test(rpcSource)
+    && /'review_skill_submission_collisions'/.test(rpcSource);
   gates.push({
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker lease renewal is source-bound to migration 20260713003000; applying and verifying that migration remains a database gate before worker start.'
-      : 'Worker lease renewal is not bound to the required migration and service-role grant.'
+      ? 'Worker lease renewal and completion hardening are source-bound to migrations 20260713003000 and 20260713020000; applying and verifying both remains a database gate before worker start.'
+      : 'Worker lease renewal or completion hardening is not bound to every required migration, RPC, and service-role grant.'
   });
 
   const diffCheck = run('git', ['diff', '--check']);
