@@ -78,7 +78,7 @@ export async function proxy(request: NextRequest) {
     // configuration must never trigger fixture fallback.
   }
 
-  if (/^\/(?:account|sign-in|auth)(?:\/|$)/.test(request.nextUrl.pathname)) setPrivateNoStore(response);
+  if (/^\/(?:account|sign-in|auth|submit)(?:\/|$)/.test(request.nextUrl.pathname)) setPrivateNoStore(response);
   if (rateLimit) applyRateLimitHeaders(response, rateLimit);
   return applySecurityHeaders(response, responseSecurityHeaders);
 }

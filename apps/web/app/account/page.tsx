@@ -1,14 +1,18 @@
 import Link from "next/link";
-import { Bookmark, LogOut } from "lucide-react";
+import { cookies } from "next/headers";
+import { Bookmark, Download, FileClock, FileWarning, LogOut, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
+import { SaveStatusNotice } from "@/components/skillmap/save-status-notice";
 import { signOut } from "@/app/sign-in/actions";
-import { unsaveSkill } from "@/app/account/actions";
+import { deleteMyAccount } from "@/app/account/data-actions";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account/deletion.server";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { listSavedSkills } from "@/lib/registry/repository.server";
+import { parseSaveFlash, SAVE_FLASH_COOKIE, type SaveFlashStatus } from "@/lib/registry/save-flash";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -18,11 +22,16 @@ export const dynamic = "force-dynamic";
 export default async function AccountPage({
   searchParams
 }: {
-  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[] }>;
+  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[]; accountStatus?: string | string[]; saveFlash?: string | string[] }>;
 }) {
   const params = await searchParams;
   if (params.error === "auth-unavailable") return <AccountUnavailable />;
   const cursor = typeof params.cursor === "string" ? params.cursor : null;
+  const saveFlash = parseSaveFlash(
+    (await cookies()).get(SAVE_FLASH_COOKIE)?.value,
+    params.saveFlash,
+    "/account"
+  );
 
   let supabase: SupabaseClient<Database>;
   try {
@@ -49,10 +58,23 @@ export default async function AccountPage({
   if (!accountData) return <AccountUnavailable />;
   const { profile, savedPage } = accountData;
   const savedSkills = savedPage.items;
+  let verifiedSaveStatus: SaveFlashStatus | null = saveFlash?.status === "unavailable" ? "unavailable" : null;
+  if (saveFlash && saveFlash.status !== "unavailable") {
+    const { data: savedRow, error: savedStatusError } = await supabase
+      .from("saved_skills")
+      .select("skill_id")
+      .eq("user_id", auth.userId)
+      .eq("skill_id", saveFlash.skillId)
+      .maybeSingle();
+    if (savedStatusError) return <AccountUnavailable />;
+    const isSaved = savedRow?.skill_id === saveFlash.skillId;
+    if (saveFlash.status === "saved" && isSaved) verifiedSaveStatus = "saved";
+    if (saveFlash.status === "removed" && !isSaved) verifiedSaveStatus = "removed";
+  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -62,12 +84,19 @@ export default async function AccountPage({
               {profile?.created_at ? `Account active since ${new Date(profile.created_at).toLocaleDateString("en", { dateStyle: "medium" })}.` : "Account profile is active."}
             </p>
           </div>
-          <form action={signOut}>
-            <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent">
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/account/submissions" prefetch={false} className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileClock className="h-4 w-4" /> Submissions</Link>
+            <Link href="/account/reports" prefetch={false} className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileWarning className="h-4 w-4" /> Reports</Link>
+            <a href="/account/export" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><Download className="h-4 w-4" /> Export JSON</a>
+            <form action={signOut}>
+              <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent">
+                <LogOut className="h-4 w-4" /> Sign out
+              </button>
+            </form>
+          </div>
         </div>
+
+        {verifiedSaveStatus ? <SaveStatusNotice status={verifiedSaveStatus} /> : null}
 
         <section className="py-8" id="saved">
           {savedSkills.length === 0 ? (
@@ -77,7 +106,7 @@ export default async function AccountPage({
               <p className="mt-2 text-sm text-muted-foreground">
                 {cursor ? "The saved list changed or this page is now empty. Return to the first page." : "Browse the public library and save the skills worth returning to."}
               </p>
-              <Link href={cursor ? "/account#saved" : "/skills"} className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
+              <Link href={cursor ? "/account#saved" : "/skills"} prefetch={false} className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
                 {cursor ? "Return to first page" : "Browse library"}
               </Link>
             </div>
@@ -87,11 +116,13 @@ export default async function AccountPage({
                 <article key={skill.skillId} className="grid gap-4 rounded-xl border border-border bg-card p-5 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{skill.publisher.handle}</p>
-                    <Link href={`/skills/${skill.publisher.handle}/${skill.slug}`} className="mt-1 block text-lg font-semibold hover:text-primary">{skill.displayName}</Link>
+                    <Link href={`/skills/${skill.publisher.handle}/${skill.slug}`} prefetch={false} className="mt-1 block text-lg font-semibold hover:text-primary">{skill.displayName}</Link>
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{skill.summary}</p>
                   </div>
-                  <form action={unsaveSkill}>
+                  <form action="/account/saved/action" method="post">
                     <input type="hidden" name="skillId" value={skill.skillId} />
+                    <input type="hidden" name="operation" value="remove" />
+                    <input type="hidden" name="returnPath" value="/account" />
                     <button type="submit" className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground">Remove</button>
                   </form>
                 </article>
@@ -100,10 +131,38 @@ export default async function AccountPage({
           )}
           {(cursor || savedPage.hasMore) && (
             <nav aria-label="Saved skills pages" className="mt-6 flex flex-wrap gap-3">
-              {cursor && <Link href="/account#saved" className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">First page</Link>}
-              {savedPage.nextCursor && <Link href={`/account?cursor=${encodeURIComponent(savedPage.nextCursor)}#saved`} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">Next saved skills</Link>}
+              {cursor && <Link href="/account#saved" prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">First page</Link>}
+              {savedPage.nextCursor && <Link href={`/account?cursor=${encodeURIComponent(savedPage.nextCursor)}#saved`} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">Next saved skills</Link>}
             </nav>
           )}
+        </section>
+
+        <section className="scroll-mt-20 border-t border-border py-8" id="account-data" aria-labelledby="account-data-heading">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Data controls</p>
+            <h2 id="account-data-heading" className="mt-2 text-xl font-semibold">Export or delete account data</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">The bounded export contains your SkillMap profile, saved skill IDs, owner-filtered submission projection, and owner-filtered listing reports. It does not include Supabase provider secrets or private operator evidence.</p>
+          </div>
+          {params.accountStatus === "delete-confirmation" ? <p className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">Type the exact confirmation phrase before deleting the account. No data was changed.</p> : null}
+          {params.accountStatus === "delete-unavailable" ? <p className="mt-5 rounded-xl border border-warning/35 bg-warning/10 p-4 text-sm text-foreground" role="status">Account deletion could not be confirmed. The session remains active and SkillMap does not claim that data was deleted.</p> : null}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-card p-5">
+              <Download className="h-5 w-5 text-primary" />
+              <h3 className="mt-3 font-semibold">Download account JSON</h3>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Generated on demand, owner-filtered, capped, and returned with private no-store headers.</p>
+              <a href="/account/export" className="mt-4 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground">Export JSON</a>
+            </div>
+            <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-5">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              <h3 className="mt-3 font-semibold">Delete SkillMap account</h3>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes the authenticated account, profile, saved IDs, submissions, submission evidence, and account-owned listing reports. A narrow terminal consent-withdrawal record survives: exact public repository URL, commit, path, claimed publisher handle, and opaque evidence digests, without an account ID, email, or provider identity. It is retained only under the approved retention and legal basis to prevent revoked public source from being resubmitted under another account or handle. Published catalog metadata may remain, but its submission-backed evidence is detached and reset. This clears the current browser session; already-issued tokens on other devices may remain cryptographically valid until expiry, without the deleted account rows. Source repositories and provider backups are outside this RPC.</p>
+              <form action={deleteMyAccount} className="mt-4">
+                <label htmlFor="delete-account-confirmation" className="block text-xs font-semibold">Type “{ACCOUNT_DELETION_CONFIRMATION}”</label>
+                <input id="delete-account-confirmation" name="confirmation" type="text" required autoComplete="off" maxLength={ACCOUNT_DELETION_CONFIRMATION.length} placeholder={ACCOUNT_DELETION_CONFIRMATION} className="mt-2 h-9 w-full rounded-lg border border-destructive/25 bg-background px-3 text-xs text-foreground" />
+                <button type="submit" className="mt-3 inline-flex h-9 items-center rounded-full border border-destructive/35 px-4 text-xs font-semibold text-destructive hover:bg-destructive/10">Delete account permanently</button>
+              </form>
+            </div>
+          </div>
         </section>
       </div>
     </main>
@@ -122,7 +181,7 @@ async function loadAccountData(supabase: SupabaseClient<Database>, userId: strin
 function AccountUnavailable() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader />
+      <CatalogHeader accountState="unavailable" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6"><CatalogUnavailable /></section>
     </main>
   );
@@ -131,7 +190,7 @@ function AccountUnavailable() {
 function InvalidSavedSkillsPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <CatalogHeader account />
+      <CatalogHeader accountState="authenticated" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-border bg-card p-8 text-center">
           <h1 className="text-xl font-semibold">That saved-skills page link is invalid.</h1>

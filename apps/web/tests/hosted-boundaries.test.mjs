@@ -13,6 +13,56 @@ import {
 } from "../lib/auth/errors.ts";
 import { safeNextPath } from "../lib/auth/paths.ts";
 import {
+  APPROVED_ALPHA_SPDX_IDENTIFIERS,
+  parseSkillSubmissionForm,
+  SubmissionValidationError
+} from "../lib/submissions/input.ts";
+import {
+  submissionListStatusPath,
+  submitStatusPath
+} from "../lib/submissions/status.ts";
+import {
+  decodeSubmissionCursor,
+  encodeSubmissionCursor,
+  SubmissionCursorError
+} from "../lib/submissions/cursor.ts";
+import {
+  parseSkillReportForm,
+  ReportValidationError
+} from "../lib/reports/input.ts";
+import {
+  reportStatusPath
+} from "../lib/reports/status.ts";
+import {
+  createReportFlash,
+  parseReportFlash,
+  serializeReportFlash
+} from "../lib/reports/flash.ts";
+import {
+  createSaveFlash,
+  parseSaveFlash,
+  serializeSaveFlash
+} from "../lib/registry/save-flash.ts";
+import {
+  createAccountDeletionFlash,
+  parseAccountDeletionFlash,
+  serializeAccountDeletionFlash
+} from "../lib/account/deletion-flash.ts";
+import {
+  decodeReportCursor,
+  encodeReportCursor,
+  ReportCursorError
+} from "../lib/reports/cursor.ts";
+import {
+  parseDimensions,
+  parseFindingCounts,
+  gradeCompatibilityBindingIsValid,
+  parseHardGates,
+  parseNullableBoundedNumber,
+  parseNullableDigest,
+  parsePublicChecks
+} from "../lib/evidence/projection.ts";
+import {
   SupabaseConfigurationError,
   getPublicSupabaseConfig,
   getSiteUrl
@@ -31,6 +81,10 @@ import {
   MAX_PUBLIC_SKILL_RELATIONSHIPS
 } from "../lib/registry/errors.ts";
 import {
+  buildCurrentPublicSkillLinks,
+  buildExactGitHubSourceUrl
+} from "../lib/registry/public-links.ts";
+import {
   CatalogFetchAbortError,
   createBoundedCatalogFetch
 } from "../lib/security/bounded-fetch.ts";
@@ -38,8 +92,12 @@ import {
   PRIVATE_ALPHA_ROBOTS_VALUE,
   buildContentSecurityPolicy,
   buildResponseSecurityHeaders,
+  getApprovedSupportUrl,
+  getReleaseStage,
   getSupabaseConnectSources,
-  isPublicIndexingEnabled
+  isHostedReleaseStage,
+  isPublicIndexingEnabled,
+  releaseStageLabel
 } from "../lib/security/policy.ts";
 import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-errors.ts";
 import {
@@ -83,6 +141,437 @@ test("safe next paths remain same-origin after URL normalization", () => {
     assert.equal(new URL(sanitized, APP_ORIGIN).origin, APP_ORIGIN, hostile);
   }
   assert.equal(safeNextPath("https://evil.example/", "https://evil.example/"), "/account");
+});
+
+test("submission input admits one exact canonical public-source intent", () => {
+  const form = validSubmissionForm();
+  form.set("state", "published");
+  form.set("submitter_user_id", "attacker-controlled");
+  assert.deepEqual(parseSkillSubmissionForm(form), {
+    repository_url: "https://github.com/0x3-team/skillmap",
+    source_commit: "a".repeat(40),
+    source_path: "skills/example/SKILL.md",
+    version_label: "v1.0.0",
+    license_claim: "MIT",
+    idempotency_key: "123e4567-e89b-42d3-a456-426614174000"
+  });
+  assert.equal(APPROVED_ALPHA_SPDX_IDENTIFIERS.includes("MIT"), true);
+  assert.equal(APPROVED_ALPHA_SPDX_IDENTIFIERS.includes("Definitely-Not-SPDX"), false);
+});
+
+test("submission input rejects mutable, ambiguous, duplicated, and unacknowledged values before mutation", () => {
+  const cases = [
+    ["repositoryUrl", (form) => form.set("repositoryUrl", "https://github.com/0x3-team/SkillMap")],
+    ["repositoryUrl", (form) => form.set("repositoryUrl", "https://github.com/0x3-team/skillmap.git")],
+    ["repositoryUrl", (form) => form.set("repositoryUrl", "https://github.com/0x3-team/skillmap?ref=main")],
+    ["sourceCommit", (form) => form.set("sourceCommit", "main")],
+    ["sourcePath", (form) => form.set("sourcePath", "../SKILL.md")],
+    ["sourcePath", (form) => form.set("sourcePath", "skills//SKILL.md")],
+    ["licenseClaim", (form) => form.set("licenseClaim", "MIT OR Apache-2.0")],
+    ["idempotencyKey", (form) => form.set("idempotencyKey", "not-a-uuid")],
+    ["authorizationAcknowledgement", (form) => form.delete("authorizationAcknowledgement")],
+    ["untrustedContentAcknowledgement", (form) => form.delete("untrustedContentAcknowledgement")],
+    ["sourceCommit", (form) => form.append("sourceCommit", "b".repeat(40))]
+  ];
+  for (const [field, mutate] of cases) {
+    const form = validSubmissionForm();
+    mutate(form);
+    assert.throws(
+      () => parseSkillSubmissionForm(form),
+      (error) => error instanceof SubmissionValidationError && error.field === field,
+      field
+    );
+  }
+});
+
+test("submission redirect builders emit bounded same-origin statuses only", () => {
+  assert.equal(
+    submitStatusPath("invalid", { field: "sourceCommit", submissionId: "javascript:alert(1)" }),
+    "/submit?status=invalid&field=sourceCommit"
+  );
+  assert.equal(
+    submissionListStatusPath("queued", `sub_${"a".repeat(32)}`),
+    `/account/submissions?status=queued&submission=sub_${"a".repeat(32)}`
+  );
+});
+
+test("submission pagination cursors are canonical, bounded, and account-free", () => {
+  const cursor = encodeSubmissionCursor({
+    createdAt: "2026-07-12T22:30:00.123456+00:00",
+    submissionId: `sub_${"a".repeat(32)}`
+  });
+  assert.deepEqual(decodeSubmissionCursor(cursor), {
+    kind: "skill-submissions",
+    v: 1,
+    createdAt: "2026-07-12T22:30:00.123456Z",
+    submissionId: `sub_${"a".repeat(32)}`
+  });
+  assert.doesNotMatch(Buffer.from(cursor, "base64url").toString("utf8"), /user|email|account/i);
+  for (const malformed of ["not+a+cursor", "a".repeat(513), "e30"]) {
+    assert.throws(() => decodeSubmissionCursor(malformed), SubmissionCursorError);
+  }
+});
+
+test("submission server action mints attestations only after acknowledgement validation", async () => {
+  const source = await readFile(new URL("../app/submit/actions.ts", import.meta.url), "utf8");
+  const formSource = await readFile(new URL("../app/submit/submission-form.tsx", import.meta.url), "utf8");
+  assert.match(source, /parseSkillSubmissionForm\(formData\)/);
+  assert.match(source, /return \{ status: "invalid", field: error[.]field, message: error[.]message \}/);
+  assert.match(source, /submission_policy_version:\s*"public-alpha-draft\/v1"/);
+  assert.match(source, /authority_confirmed:\s*true/);
+  assert.match(source, /untrusted_processing_accepted:\s*true/);
+  assert.doesNotMatch(source, /submitter_user_id\s*:/);
+  assert.doesNotMatch(source, /\bstate\s*:\s*"(?:queued|processing|withdrawn)"/);
+  assert.match(formSource, /event[.]preventDefault\(\)/);
+  assert.match(formSource, /new FormData\(form\)/);
+  assert.match(formSource, /setValidation\(result\)/);
+  assert.match(formSource, /import \{ unstable_rethrow \} from "next\/navigation"/);
+  assert.match(formSource, /catch \(error\) \{\s*unstable_rethrow\(error\);\s*setValidation\(/);
+  assert.match(formSource, /status: "service-unavailable"/);
+  assert.match(formSource, /finally \{\s*setPending\(false\)/);
+  assert.match(formSource, /noticeRef[.]current[?][.]focus\(\)/);
+  assert.match(formSource, /Your other entries and request ID remain in this form/);
+  assert.match(formSource, /Your entries and request ID remain in this form so you can retry safely/);
+  assert.match(formSource, /value=\{requestId\}/);
+  assert.match(formSource, /aria-invalid=\{Boolean\(errorFor\("sourcePath"\)\)\}/);
+});
+
+test("public source and owner-result links stay exact, encoded, and current-version bound", () => {
+  const commit = "a".repeat(40);
+  assert.equal(
+    buildExactGitHubSourceUrl({
+      repositoryUrl: "https://github.com/0x3-team/skillmap",
+      commit,
+      path: "skills/example skill/SKILL.md"
+    }),
+    `https://github.com/0x3-team/skillmap/blob/${commit}/skills/example%20skill/SKILL.md`
+  );
+  for (const source of [
+    { repositoryUrl: "https://user@github.com/0x3-team/skillmap", commit, path: "SKILL.md" },
+    { repositoryUrl: "https://github.com/0x3-team/skillmap?ref=main", commit, path: "SKILL.md" },
+    { repositoryUrl: "https://github.com/0x3-team/skillmap", commit: "main", path: "SKILL.md" },
+    { repositoryUrl: "https://github.com/0x3-team/skillmap", commit, path: "../SKILL.md" }
+  ]) assert.equal(buildExactGitHubSourceUrl(source), null);
+
+  const versionId = `skv_${"b".repeat(32)}`;
+  const route = { publisherHandle: "0x3-team", slug: "skill-audit", versionId };
+  assert.deepEqual(buildCurrentPublicSkillLinks(route, versionId), {
+    detail: "/skills/0x3-team/skill-audit",
+    audit: "/skills/0x3-team/skill-audit/audit",
+    grade: "/skills/0x3-team/skill-audit/grade"
+  });
+  assert.equal(buildCurrentPublicSkillLinks(route, `skv_${"c".repeat(32)}`), null);
+  assert.equal(buildCurrentPublicSkillLinks({ ...route, publisherHandle: "../owner" }, versionId), null);
+});
+
+test("hosted product surfaces expose truthful trust, route, auth, and semantic evidence affordances", async () => {
+  const [detail, submissions, reports, evidence, header, landing] = await Promise.all([
+    readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/submissions/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/reports/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/skillmap/public-evidence.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/skillmap/catalog-header.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8")
+  ]);
+  assert.match(detail, /buildExactGitHubSourceUrl\(skill[.]source\)/);
+  assert.match(detail, /skill[.]source[.]path/);
+  assert.match(detail, /skill[.]publisher[.]verificationState/);
+  assert.match(detail, /skill[.]lifecycleState/);
+  assert.match(detail, /skill[.]currentVersion[.]publishedAt/);
+  assert.match(detail, /skill[.]updatedAt/);
+  assert.match(detail, /View exact source at commit/);
+  assert.match(submissions, /buildCurrentPublicSkillLinks/);
+  assert.match(submissions, /View published listing/);
+  assert.match(submissions, /View audit evidence/);
+  assert.match(submissions, /View grade evidence/);
+  assert.match(reports, /buildCurrentPublicSkillLinks/);
+  assert.match(reports, /View reported listing/);
+  assert.match(evidence, /Every gate must pass before this version can receive a current letter grade/);
+  assert.match(evidence, /Rubric dimensions/);
+  assert.match(evidence, /<details/);
+  assert.match(evidence, /Show machine \{title\}/);
+  assert.match(header, /resolveHostedAccountState/);
+  assert.match(header, /Account status unavailable/);
+  assert.match(landing, /accountState === "authenticated" \? "Account" : "Sign in"/);
+});
+
+test("report form preserves safe values and request identity for recoverable failures", async () => {
+  const [form, action] = await Promise.all([
+    readFile(new URL("../app/skills/[publisher]/[slug]/report-form.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/skills/[publisher]/[slug]/report-actions.ts", import.meta.url), "utf8")
+  ]);
+  assert.match(form, /event[.]preventDefault\(\)/);
+  assert.match(form, /new FormData\(event[.]currentTarget\)/);
+  assert.match(form, /value=\{requestId\}/);
+  assert.match(form, /import \{ unstable_rethrow \} from "next\/navigation"/);
+  assert.match(form, /catch \(error\) \{\s*unstable_rethrow\(error\);\s*actionResult = \{ status: "service-unavailable" \}/);
+  assert.match(form, /actionResult = \{ status: "service-unavailable" \}/);
+  assert.match(form, /finally \{\s*setPending\(false\)/);
+  assert.match(form, /setResult\(actionResult\)/);
+  assert.match(form, /aria-invalid=\{invalidField === "message"\}/);
+  assert.match(form, /Your category, message, and request ID remain in this form/);
+  assert.match(action, /return \{ status: "invalid", field: error[.]field, message: error[.]message \}/);
+  assert.match(action, /return \{ status: "cooldown" \}/);
+  assert.match(action, /reportSuspiciousListingProgressive/);
+  assert.match(action, /createReportFlash\(formData, result, token\)/);
+  assert.match(action, /httpOnly: true/);
+  assert.match(action, /sameSite: "strict"/);
+  assert.doesNotMatch(action, /if \(error[.]code === "P0001"\) redirect/);
+});
+
+test("progressive report flash is same-browser, bounded, and preserves safe retry state", () => {
+  const form = validReportForm();
+  const token = "123e4567-e89b-42d3-a456-426614174000";
+  const flash = createReportFlash(form, { status: "cooldown" }, token);
+  assert.deepEqual(flash, {
+    token,
+    status: "cooldown",
+    field: null,
+    reportId: null,
+    category: "security",
+    message: "The current listing requests an unexpected high-risk permission.",
+    requestId: "123e4567-e89b-42d3-a456-426614174000",
+    returnPath: "/skills/0x3-team/skill-audit"
+  });
+  const serialized = serializeReportFlash(flash);
+  assert.deepEqual(parseReportFlash(serialized, token, flash.returnPath), flash);
+  assert.equal(parseReportFlash(serialized, "223e4567-e89b-42d3-a456-426614174000", flash.returnPath), null);
+  assert.equal(parseReportFlash(serialized, token, "/skills/other-team/other-skill"), null);
+  assert.equal(parseReportFlash(JSON.stringify({ ...flash, forged: true }), token, flash.returnPath), null);
+});
+
+test("saved-skill and account-deletion flashes are exact same-browser receipts", () => {
+  const token = "123e4567-e89b-42d3-a456-426614174000";
+  const saveFlash = createSaveFlash("saved", SKILL_ID, "/skills/0x3-team/skill-audit", token);
+  assert.deepEqual(saveFlash, {
+    returnPath: "/skills/0x3-team/skill-audit",
+    skillId: SKILL_ID,
+    status: "saved",
+    token
+  });
+  const serializedSave = serializeSaveFlash(saveFlash);
+  assert.deepEqual(parseSaveFlash(serializedSave, token, saveFlash.returnPath), saveFlash);
+  assert.equal(parseSaveFlash(serializedSave, "223e4567-e89b-42d3-a456-426614174000", saveFlash.returnPath), null);
+  assert.equal(parseSaveFlash(serializedSave, token, "/account"), null);
+  assert.equal(parseSaveFlash(JSON.stringify({ ...saveFlash, forged: true }), token, saveFlash.returnPath), null);
+
+  const deletionFlash = createAccountDeletionFlash(token);
+  assert.deepEqual(deletionFlash, { status: "account-deleted", token });
+  const serializedDeletion = serializeAccountDeletionFlash(deletionFlash);
+  assert.deepEqual(parseAccountDeletionFlash(serializedDeletion, token), deletionFlash);
+  assert.equal(parseAccountDeletionFlash(serializedDeletion, "223e4567-e89b-42d3-a456-426614174000"), null);
+  assert.equal(parseAccountDeletionFlash(JSON.stringify({ ...deletionFlash, forged: true }), token), null);
+});
+
+test("account submission mutation and export stay owner-filtered and bounded", async () => {
+  const savedMutation = await readFile(new URL("../app/account/saved/action/route.ts", import.meta.url), "utf8");
+  assert.match(savedMutation, /publicOrigin = getSiteUrl\(\)/);
+  assert.match(savedMutation, /requestOrigin !== publicOrigin && fetchSite !== "same-origin"/);
+  assert.match(savedMutation, /auth[.]getClaims\(\)/);
+  assert.match(savedMutation, /operation !== "save" && operation !== "remove"/);
+  assert.match(savedMutation, /user_id: auth[.]userId/);
+  assert.match(savedMutation, /[.]eq\("user_id", auth[.]userId\)[.]eq\("skill_id", skillId\)/);
+  assert.match(savedMutation, /status: 303/);
+  assert.match(savedMutation, /createSaveFlash\(status, skillId, returnPath, token\)/);
+  assert.match(savedMutation, /httpOnly: true/);
+  assert.match(savedMutation, /sameSite: "strict"/);
+  assert.doesNotMatch(savedMutation, /formData[.]get\("user|service_role|SUPABASE_SERVICE_ROLE/);
+
+  const [accountPage, detailPage, submitPage, submissionsPage, signInPage, launchSmoke] = await Promise.all([
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/submit/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/submissions/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/sign-in/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8")
+  ]);
+  assert.match(accountPage, /parseSaveFlash/);
+  assert.match(accountPage, /from\("saved_skills"\)/);
+  assert.match(detailPage, /saveFlash[?][.]skillId === skill[.]skillId/);
+  assert.match(submitPage, /from\("my_skill_submissions"\)/);
+  assert.match(submitPage, /data[?][.]submission_id === submissionId/);
+  assert.match(submitPage, /That exact source already has a submission record/);
+  assert.match(submitPage, /Open submission history/);
+  assert.doesNotMatch(submitPage, /That exact source is already in your queue/);
+  assert.match(launchSmoke, /smokeStage = "terminal-submission-duplicate"/);
+  assert.match(launchSmoke, /url[.]searchParams[.]get\("submission"\) === withdrawalId/);
+  assert.match(launchSmoke, /A terminal duplicate was mislabeled as still queued/);
+  assert.match(submissionsPage, /data[.]state === status/);
+  assert.match(signInPage, /parseAccountDeletionFlash/);
+  assert.doesNotMatch(signInPage, /browser session was cleared defensively/);
+  assert.match(signInPage, /does not claim that account data or a browser session changed/);
+
+  const withdrawal = await readFile(new URL("../app/account/submissions/actions.ts", import.meta.url), "utf8");
+  assert.match(withdrawal, /\.update\(\{ state: "withdrawn" \}\)/);
+  assert.match(withdrawal, /\.eq\("public_id", submissionId\)/);
+  assert.match(withdrawal, /\.eq\("state", "queued"\)/);
+  assert.doesNotMatch(withdrawal, /service_role|SUPABASE_SERVICE_ROLE/);
+
+  const accountExport = await readFile(new URL("../app/account/export/route.ts", import.meta.url), "utf8");
+  assert.match(accountExport, /auth\.getClaims\(\)/);
+  assert.match(accountExport, /from\("saved_skills"\)/);
+  assert.match(accountExport, /from\("my_skill_submissions"\)/);
+  assert.match(accountExport, /from\("my_skill_reports"\)/);
+  assert.match(accountExport, /MAX_EXPORT_BYTES/);
+  assert.match(accountExport, /private, no-store/);
+  assert.doesNotMatch(accountExport, /service_role|SUPABASE_SERVICE_ROLE/);
+
+  const deletion = await readFile(new URL("../app/account/data-actions.ts", import.meta.url), "utf8");
+  assert.match(deletion, /hasExactAccountDeletionConfirmation\(formData\)/);
+  assert.match(deletion, /\.rpc\("delete_my_account"\)/);
+  assert.match(deletion, /signOut\(\{ scope: "local" \}\)/);
+  assert.match(deletion, /createAccountDeletionFlash\(token\)/);
+  assert.match(deletion, /httpOnly: true/);
+  assert.match(deletion, /sameSite: "strict"/);
+  assert.doesNotMatch(deletion, /userId|user_id|service_role|SUPABASE_SERVICE_ROLE/);
+});
+
+test("account deletion copy discloses the narrow terminal revocation retention boundary", async () => {
+  const [account, privacy, policy] = await Promise.all([
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../../docs/launch/public-alpha-policy-pack.md", import.meta.url), "utf8")
+  ]);
+  for (const source of [account, privacy, policy]) {
+    assert.match(source, /terminal consent-withdrawal/i);
+    assert.match(source, /repository URL[\s\S]+commit[\s\S]+path[\s\S]+publisher handle/i);
+    assert.match(source, /retention[\s\S]+legal basis/i);
+    assert.match(source, /account|auth user/i);
+  }
+  assert.match(privacy, /another account or handle/i);
+  assert.match(policy, /another account or publisher handle/i);
+});
+
+test("suspicious-listing reports admit only one canonical same-origin account intent", () => {
+  const form = validReportForm();
+  form.set("reporter_user_id", "attacker-controlled");
+  form.set("state", "resolved");
+  assert.deepEqual(parseSkillReportForm(form), {
+    skill_id: `skl_${"a".repeat(32)}`,
+    version_id: `skv_${"b".repeat(32)}`,
+    category: "security",
+    message: "The current listing requests an unexpected high-risk permission.",
+    idempotency_key: "123e4567-e89b-42d3-a456-426614174000",
+    returnPath: "/skills/0x3-team/skill-audit"
+  });
+  assert.equal(
+    reportStatusPath("/skills/0x3-team/skill-audit", "queued", { reportId: `rpt_${"c".repeat(32)}` }),
+    `/skills/0x3-team/skill-audit?reportStatus=queued&report=rpt_${"c".repeat(32)}#report-listing`
+  );
+  assert.equal(reportStatusPath("//evil.example/steal", "queued"), "/skills");
+  assert.equal(reportStatusPath("/skills/0x3-team/skill-audit", "active-limit"), "/skills/0x3-team/skill-audit?reportStatus=active-limit#report-listing");
+  assert.equal(reportStatusPath("/skills/0x3-team/skill-audit", "daily-limit"), "/skills/0x3-team/skill-audit?reportStatus=daily-limit#report-listing");
+});
+
+test("suspicious-listing reports reject ambiguous IDs, categories, messages, paths, and duplicate fields", () => {
+  const cases = [
+    ["skillId", (form) => form.set("skillId", "skl_invalid")],
+    ["versionId", (form) => form.set("versionId", "skv_invalid")],
+    ["category", (form) => form.set("category", "urgent")],
+    ["message", (form) => form.set("message", "too short")],
+    ["message", (form) => form.set("message", " This report has leading whitespace.")],
+    ["message", (form) => form.set("message", "This report contains\na forbidden line break.")],
+    ["message", (form) => form.set("message", "This report contains a forbidden control.\u007f")],
+    ["idempotencyKey", (form) => form.set("idempotencyKey", "not-a-uuid")],
+    ["returnPath", (form) => form.set("returnPath", "https://evil.example/skills/a/b")],
+    ["returnPath", (form) => form.set("returnPath", "/skills/0x3-team/skill-audit?next=evil")],
+    ["category", (form) => form.append("category", "privacy")]
+  ];
+  for (const [field, mutate] of cases) {
+    const form = validReportForm();
+    mutate(form);
+    assert.throws(
+      () => parseSkillReportForm(form),
+      (error) => error instanceof ReportValidationError && error.field === field,
+      field
+    );
+  }
+});
+
+test("report history cursors are canonical, bounded, and account-free", () => {
+  const cursor = encodeReportCursor({
+    createdAt: "2026-07-13T00:30:00.123456+00:00",
+    reportId: `rpt_${"d".repeat(32)}`
+  });
+  assert.deepEqual(decodeReportCursor(cursor), {
+    kind: "skill-reports",
+    v: 1,
+    createdAt: "2026-07-13T00:30:00.123456Z",
+    reportId: `rpt_${"d".repeat(32)}`
+  });
+  assert.doesNotMatch(Buffer.from(cursor, "base64url").toString("utf8"), /user|email|account/i);
+  for (const malformed of ["not+a+cursor", "a".repeat(513), "e30"]) {
+    assert.throws(() => decodeReportCursor(malformed), ReportCursorError);
+  }
+});
+
+test("public evidence projection shapes reject extra keys and invalid nullable values", () => {
+  const digest = `sha256:${"a".repeat(64)}`;
+  assert.deepEqual(parseFindingCounts({ critical: 0, high: 0, medium: 1, low: 0, info: 2 }), {
+    critical: 0, high: 0, medium: 1, low: 0, info: 2
+  });
+  assert.equal(parseFindingCounts({ critical: 0, high: 0, medium: 0, low: 0, info: 0, private: 1 }), null);
+  assert.notEqual(parsePublicChecks([{ code: "static-audit-complete", outcome: "passed", severity: "info", evidenceDigest: null }]), null);
+  assert.equal(parsePublicChecks([{ code: "check", outcome: "passed", severity: "info", evidenceDigest: null, raw: "private" }]), null);
+  assert.notEqual(parseHardGates([{ code: "source-identity", passed: true, evidenceDigest: digest }]), null);
+  assert.equal(parseHardGates([{ code: "source-identity", passed: true, evidenceDigest: null }]), null);
+  assert.notEqual(parseDimensions([{ code: "instruction-quality", weight: 1, score: 75, evidenceDigest: digest }]), null);
+  assert.equal(parseDimensions([{ code: "instruction-quality", weight: 1, score: "75", evidenceDigest: digest }]), null);
+  assert.equal(parseNullableBoundedNumber(null, 0, 100), null);
+  assert.equal(parseNullableBoundedNumber("0", 0, 100), undefined);
+  assert.equal(parseNullableBoundedNumber(Number.NaN, 0, 100), undefined);
+  assert.equal(parseNullableDigest(null), null, "provisional evaluation suite may be absent");
+  assert.equal(parseNullableDigest("not-a-digest"), undefined);
+  assert.equal(gradeCompatibilityBindingIsValid("provisional", null, [
+    { code: "compatibility-evidence-bound", passed: false, evidenceDigest: null }
+  ]), false, "a provisional grade cannot omit compatibility evidence");
+  assert.equal(gradeCompatibilityBindingIsValid("blocked", null, [
+    { code: "compatibility-evidence-bound", passed: false, evidenceDigest: null }
+  ]), true, "a blocked grade may explain the exact failed compatibility gate");
+  assert.equal(gradeCompatibilityBindingIsValid("blocked", null, [
+    { code: "source-identity", passed: false, evidenceDigest: null }
+  ]), false, "an unrelated failed gate cannot authorize a missing compatibility digest");
+});
+
+test("report action and public evidence pages preserve database authority boundaries", async () => {
+  const action = await readFile(new URL("../app/skills/[publisher]/[slug]/report-actions.ts", import.meta.url), "utf8");
+  assert.match(action, /parseSkillReportForm\(formData\)/);
+  assert.match(action, /from\("skill_reports"\)\.insert\(\{/);
+  assert.match(action, /idempotency_key: report\.idempotency_key/);
+  assert.match(action, /error\.code === "P0003"/);
+  assert.match(action, /return \{ status: "active-limit" \}/);
+  assert.match(action, /error\.code === "P0004"/);
+  assert.match(action, /return \{ status: "daily-limit" \}/);
+  assert.match(action, /redirect\(`\$\{flash\.returnPath\}\?reportFlash=/);
+  assert.doesNotMatch(action, /reporter_user_id\s*:|disposition_code\s*:|\bstate\s*:\s*"(?:queued|resolved)"/);
+  assert.doesNotMatch(action, /service_role|SUPABASE_SERVICE_ROLE/);
+
+  const repository = await readFile(new URL("../lib/evidence/repository.server.ts", import.meta.url), "utf8");
+  assert.match(repository, /from\("catalog_audit_evidence"\)/);
+  assert.match(repository, /from\("catalog_grade_evidence"\)/);
+  assert.doesNotMatch(repository, /from\("skill_(?:audit|grade)_receipts"\)/);
+  const history = await readFile(new URL("../app/account/reports/page.tsx", import.meta.url), "utf8");
+  assert.match(history, /from\("my_skill_reports"\)/);
+  assert.doesNotMatch(history, /dangerouslySetInnerHTML/);
+  const detail = await readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8");
+  assert.match(detail, /requestedReportStatus === "queued" \|\| requestedReportStatus === "duplicate"/);
+  assert.match(detail, /from\("my_skill_reports"\)/);
+  assert.match(detail, /\.eq\("report_id", requestedReportId\)/);
+  assert.match(detail, /\.eq\("skill_id", skill\.skillId\)/);
+  assert.match(detail, /\.eq\("version_id", skill\.currentVersion\.versionId\)/);
+  assert.match(detail, /requestedReportStatus !== "queued" \|\| reportRow\.state === "queued"/);
+  assert.match(detail, /verifiedReportStatus = requestedReportStatus/);
+  assert.match(detail, /parseReportFlash/);
+  assert.doesNotMatch(detail, /verifiedReportStatus[^;]*requestedReportStatus === "queued"[^;]*\? null\s*:\s*requestedReportStatus/);
+
+  const smoke = await readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8");
+  assert.match(smoke, /rpc\("claim_skill_submission"/);
+  assert.match(smoke, /rpc\("complete_skill_submission"/);
+  assert.match(smoke, /rpc\("publish_skill_submission"/);
+  assert.match(smoke, /receiptDetailPath}\/audit/);
+  assert.match(smoke, /receiptDetailPath}\/grade/);
+  assert.match(smoke, /Public audit page exposed the private evidence digest/);
+  assert.match(smoke, /deletedApiListing[.]status\(\) !== 404/);
 });
 
 test("verified claims distinguish terminal sessions from retryable auth failures", () => {
@@ -214,11 +703,28 @@ test("public skill relationships fail closed before exceeding the detail contrac
   );
 });
 
-test("private-alpha indexing fails closed and requires one exact public opt-in", () => {
-  for (const value of [undefined, "", "private", "PUBLIC", " public ", "true", "1"]) {
-    assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: value }), false, String(value));
+test("release stage and public indexing fail closed and require two exact public opt-ins", () => {
+  for (const value of [undefined, "", "local", "PUBLIC-ALPHA", " public-alpha ", "true", "1"]) {
+    assert.equal(getReleaseStage({ SKILLMAP_RELEASE_STAGE: value }), "local-candidate", String(value));
   }
-  assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: "public" }), true);
+  assert.equal(getReleaseStage({ SKILLMAP_RELEASE_STAGE: "private-alpha" }), "private-alpha");
+  assert.equal(getReleaseStage({ SKILLMAP_RELEASE_STAGE: "public-alpha" }), "public-alpha");
+  assert.equal(isHostedReleaseStage("local-candidate"), false);
+  assert.equal(isHostedReleaseStage("private-alpha"), true);
+  assert.equal(releaseStageLabel("public-alpha"), "public alpha");
+
+  for (const value of [undefined, "", "private", "PUBLIC", " public ", "true", "1"]) {
+    assert.equal(isPublicIndexingEnabled({ SKILLMAP_RELEASE_STAGE: "public-alpha", SKILLMAP_INDEXING_MODE: value }), false, String(value));
+  }
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_INDEXING_MODE: "public" }), false);
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_RELEASE_STAGE: "private-alpha", SKILLMAP_INDEXING_MODE: "public" }), false);
+  assert.equal(isPublicIndexingEnabled({ SKILLMAP_RELEASE_STAGE: "public-alpha", SKILLMAP_INDEXING_MODE: "public" }), true);
+
+  for (const value of [undefined, "", " https://support.example/alpha", "javascript:alert(1)", "http://support.example/alpha", "https://user:pass@support.example/alpha", "https://support.example/alpha?case=1", "https://support.example/alpha#form"]) {
+    assert.equal(getApprovedSupportUrl({ SKILLMAP_SUPPORT_URL: value }), null, String(value));
+  }
+  assert.equal(getApprovedSupportUrl({ SKILLMAP_SUPPORT_URL: "https://support.example/alpha" }), "https://support.example/alpha");
+  assert.equal(getApprovedSupportUrl({ SKILLMAP_SUPPORT_URL: "http://127.0.0.1:3108/support" }), "http://127.0.0.1:3108/support");
 
   const privateHeaders = buildResponseSecurityHeaders({
     contentSecurityPolicy: "default-src 'self';",
@@ -248,6 +754,7 @@ test("nonce CSP is strict, environment-aware, and rejects malformed sources", ()
   assert.match(production, new RegExp(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`));
   assert.match(production, new RegExp(`style-src 'self' 'nonce-${nonce}'`));
   assert.match(production, new RegExp(`style-src-elem 'self' 'nonce-${nonce}'`));
+  assert.match(production, /sha256-47DEQpj8HBSa\+\/TImW\+5JCeuQeRkm5NMpJWZG3hSuFU=/);
   assert.match(production, /style-src-attr 'unsafe-inline'/);
   assert.match(production, /connect-src 'self' https:\/\/project\.supabase\.co wss:\/\/project\.supabase\.co/);
   assert.match(production, /frame-ancestors 'none'/);
@@ -427,6 +934,30 @@ test("public catalog failures distinguish retryable upstream 503 from unexpected
     retryable: true
   });
 });
+
+function validSubmissionForm() {
+  const form = new FormData();
+  form.set("repositoryUrl", "https://github.com/0x3-team/skillmap");
+  form.set("sourceCommit", "a".repeat(40));
+  form.set("sourcePath", "skills/example/SKILL.md");
+  form.set("versionLabel", "v1.0.0");
+  form.set("licenseClaim", "MIT");
+  form.set("idempotencyKey", "123e4567-e89b-42d3-a456-426614174000");
+  form.set("authorizationAcknowledgement", "acknowledged");
+  form.set("untrustedContentAcknowledgement", "acknowledged");
+  return form;
+}
+
+function validReportForm() {
+  const form = new FormData();
+  form.set("skillId", `skl_${"a".repeat(32)}`);
+  form.set("versionId", `skv_${"b".repeat(32)}`);
+  form.set("category", "security");
+  form.set("message", "The current listing requests an unexpected high-risk permission.");
+  form.set("idempotencyKey", "123e4567-e89b-42d3-a456-426614174000");
+  form.set("returnPath", "/skills/0x3-team/skill-audit");
+  return form;
+}
 
 function withEnvironment(values, callback) {
   const keys = Object.keys(values);

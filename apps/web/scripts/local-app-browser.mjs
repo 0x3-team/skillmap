@@ -89,6 +89,7 @@ try {
   }
   if (modes.has("visual")) {
     visualGate = await createVisualGate({ appDir, repoDir, artifactDir: options.artifactDir, browserVersion, playwrightVersion, options });
+    visuals.push(await assertVisualWorkspaceRepeatability(browser, visualGate));
   }
   await exerciseLocalApp({ browser, dashboard: dashboard.startup, workspace, setup, alternateWorkspace, alternateSetup, newWorkspaceCandidate, modes, budgets, metrics, visualGate, visuals });
   await exercisePartialLegacyAdoption(browser, { modes, browserName });
@@ -182,6 +183,45 @@ skills:
     workspaceId: initialized.workspaceId,
     revisionId
   };
+}
+
+async function assertVisualWorkspaceRepeatability(browserType, gate) {
+  const workspaces = await Promise.all([
+    mkdtemp(path.join(tmpdir(), "skillmap-visual-repeatability-a-")),
+    mkdtemp(path.join(tmpdir(), "skillmap-visual-repeatability-b-"))
+  ]);
+  const dashboards = [];
+  const contexts = [];
+  try {
+    for (const candidate of workspaces) {
+      await prepareWorkspace(candidate, 1, { policyReviewReady: true });
+      dashboards.push(await startDashboard(candidate));
+    }
+    const pages = [];
+    for (const candidate of dashboards) {
+      const context = await browserType.newContext(qaContextOptions(VISUAL_VIEWPORT));
+      contexts.push(context);
+      await installFixedClock(context);
+      const page = await context.newPage();
+      const response = await page.goto(candidate.startup.bootstrapUrl, { waitUntil: "domcontentloaded" });
+      assert.equal(response?.status(), 200, "visual repeatability workspace did not load");
+      await heading(page, "Overview");
+      await page.locator("#connection-label").getByText("Connected", { exact: true }).waitFor();
+      pages.push(page);
+    }
+    return await gate.assertRepeatable(pages[0], pages[1], "overview-ready");
+  } finally {
+    await Promise.all(contexts.map(context => context.close().catch(() => undefined)));
+    for (const candidate of dashboards) {
+      const exit = await candidate.stop().catch(() => null);
+      if (exit) {
+        assert.equal(exit.signal, null, `visual repeatability dashboard terminated by ${exit.signal}`);
+        assert.equal(exit.code, 0, `visual repeatability dashboard exited ${exit.code}:\n${candidate.stderr()}`);
+        assert.equal(candidate.stderr().trim(), "", `visual repeatability dashboard wrote stderr:\n${candidate.stderr()}`);
+      }
+    }
+    await Promise.all(workspaces.map(candidate => rm(candidate, { recursive: true, force: true })));
+  }
 }
 
 function policyV1WithoutSecurityReview(skillCount) {

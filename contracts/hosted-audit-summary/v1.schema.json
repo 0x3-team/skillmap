@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json",
+  "title": "SkillMap Hosted Audit Summary v1",
+  "description": "A bounded audit state that never claims safety or exposes private findings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "state", "receipt", "findingCounts", "reasonCodes"],
+  "properties": {
+    "kind": { "const": "skillmap.hosted-audit-summary" },
+    "schemaVersion": { "const": 1 },
+    "state": { "enum": ["not-run", "passed", "warnings", "stale", "blocked"] },
+    "receipt": {
+      "oneOf": [
+        { "$ref": "#/$defs/ReceiptRef" },
+        { "type": "null" }
+      ]
+    },
+    "findingCounts": { "$ref": "#/$defs/FindingCounts" },
+    "reasonCodes": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "state": { "const": "not-run" },
+        "receipt": { "type": "null" },
+        "reasonCodes": { "type": "array", "minItems": 1 },
+        "findingCounts": {
+          "properties": {
+            "critical": { "const": 0 },
+            "high": { "const": 0 },
+            "medium": { "const": 0 },
+            "low": { "const": 0 },
+            "info": { "const": 0 }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "passed" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "reasonCodes": { "type": "array", "maxItems": 0 },
+        "findingCounts": {
+          "properties": {
+            "critical": { "const": 0 },
+            "high": { "const": 0 },
+            "medium": { "const": 0 },
+            "low": { "const": 0 },
+            "info": { "const": 0 }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "warnings" },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "reasonCodes": { "type": "array", "minItems": 1 },
+        "findingCounts": { "properties": { "critical": { "const": 0 } } }
+      }
+    },
+    {
+      "properties": {
+        "state": { "enum": ["stale", "blocked"] },
+        "receipt": { "$ref": "#/$defs/ReceiptRef" },
+        "reasonCodes": { "type": "array", "minItems": 1 }
+      }
+    }
+  ],
+  "$defs": {
+    "ReceiptRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receiptId", "receiptDigest", "auditedAt", "policyVersion", "hostProfileVersion"],
+      "properties": {
+        "receiptId": { "type": "string", "pattern": "^aud_[0-9a-f]{32}$" },
+        "receiptDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "auditedAt": { "type": "string", "format": "date-time" },
+        "policyVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "hostProfileVersion": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "FindingCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["critical", "high", "medium", "low", "info"],
+      "properties": {
+        "critical": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "high": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "medium": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "low": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "info": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    }
+  }
+}

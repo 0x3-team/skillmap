@@ -29,6 +29,7 @@ assert.equal(landingResponse.headers.get("x-content-type-options"), "nosniff");
 assert.equal(landingResponse.headers.get("x-frame-options"), "DENY");
 assert.match(landingResponse.headers.get("x-robots-tag") ?? "", /noindex/);
 const landingHtml = await landingResponse.text();
+assert.match(landingHtml, /Free curated trust alpha · private pilot/);
 const nonce = contentSecurityPolicy.match(/'nonce-([^']+)'/)?.[1];
 assert.equal(typeof nonce, "string");
 assert.match(landingHtml, new RegExp(`nonce=["']${escapeRegExp(nonce)}["']`));

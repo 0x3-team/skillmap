@@ -23,7 +23,7 @@ export function SkillCard({ skill }: { skill: HostedSkillSummaryV1 }) {
           <ShieldAlert className="h-3.5 w-3.5" />
           Compatibility {humanize(skill.currentVersion.compatibilityState)}
         </span>
-        <Link href={`/skills/${skill.publisher.handle}/${skill.slug}`} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+        <Link href={`/skills/${skill.publisher.handle}/${skill.slug}`} prefetch={false} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
           Inspect <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
       </div>

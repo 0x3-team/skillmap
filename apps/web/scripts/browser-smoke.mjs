@@ -47,8 +47,17 @@ function captureDiagnostics(page, label) {
   });
   page.on("pageerror", (error) => errors.push(`${label} pageerror: ${error.message}`));
   page.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    const errorText = request.failure()?.errorText ?? "unknown";
+    // Next cancels speculative same-origin RSC prefetches when a full
+    // navigation supersedes them. Do not suppress any cross-origin, document,
+    // mutation, or non-prefetch failure.
+    const requestHeaders = request.headers();
+    if (request.method() === "GET" && errorText === "net::ERR_ABORTED"
+      && url.origin === new URL(baseUrl).origin && url.searchParams.has("_rsc")
+      && requestHeaders["next-router-prefetch"] === "1") return;
     errors.push(
-      `${label} requestfailed: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? "unknown"}`
+      `${label} requestfailed: ${request.method()} ${request.url()} ${errorText}`
     );
   });
   page.on("response", (response) => {
@@ -82,7 +91,20 @@ async function runCriticalFlow(name, browserType) {
 
     await page.goto(new URL("/", baseUrl).toString(), { waitUntil: "networkidle" });
     await assertNoHorizontalOverflow(page, `${name} landing 390`);
-    await assertTextVisible(page, /Local-first skill intelligence/i, `${name} product-state badge`);
+    await assertTextVisible(page, /Free curated trust alpha/i, `${name} product-state badge`);
+    const librarySearch = page.getByRole("textbox", { name: "Search the skill library" });
+    assert(await librarySearch.isVisible(), `${name} hosted library search is hidden`);
+    assert(
+      (await librarySearch.getAttribute("name")) === "q",
+      `${name} hosted library search does not submit the canonical q parameter`
+    );
+    const librarySearchForm = librarySearch.locator("xpath=ancestor::form");
+    assert(
+      (await librarySearchForm.getAttribute("action")) === "/skills"
+        && (await librarySearchForm.getAttribute("method"))?.toLowerCase() === "get",
+      `${name} hosted library search does not use GET /skills`
+    );
+    await assertTextVisible(page, /not live catalog data/i, `${name} fixture-metric boundary`);
     const initialDemoPrompt = await page.locator("#recorded-route-result").textContent();
     await page.getByRole("button", { name: "Run recorded demo" }).click();
     await page.waitForFunction(() => document.activeElement?.id === "recorded-route-result");

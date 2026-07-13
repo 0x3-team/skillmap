@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      hosted_web_runner:
+        description: Runner label for the hosted browser gate
+        required: true
+        default: ubuntu-latest
+        type: choice
+        options:
+          - ubuntu-latest
+          - skillmap-gitea-oneshot
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -143,6 +152,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Verify exact-candidate release and secret boundaries
+        run: |
+          receipt="${RUNNER_TEMP}/skillmap-public-alpha-static-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          npm run preflight:public-alpha:static -- --require-clean --output "$receipt"
+          mkdir -p artifacts/package
+          install -m 600 "$receipt" artifacts/package/free-public-alpha-preflight.json
       - name: Build exact non-published candidate
         id: verify_candidate
         run: |
@@ -333,6 +348,69 @@ jobs:
           name: browser-chromium-visual
           path: artifacts/browser-visual
           if-no-files-found: error
+
+  hosted-web-browser:
+    name: Hosted web / API, auth, submission, reports, evidence
+    # PRs and pushes stay on GitHub-hosted infrastructure. An authorized manual
+    # dispatch can route only this gate to an isolated one-shot runner.
+    runs-on: ${{ inputs.hosted_web_runner || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.109.0
+      - name: Ensure PostgreSQL client is available
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends postgresql-client
+          fi
+          psql --version
+      - run: npm ci
+        working-directory: apps/web
+      - name: Install pinned Chromium, Firefox, WebKit, and host dependencies
+        run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: apps/web
+      - name: Start disposable hosted stack and validate database authority
+        run: |
+          supabase start
+          supabase db reset --local
+          supabase db lint --local --schema api,private,public --level warning --fail-on warning
+          supabase test db --local
+      - name: Build the hosted application against the disposable public configuration
+        shell: bash
+        run: |
+          eval "$(supabase status -o env 2>/dev/null)"
+          NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3108 \
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+          SKILLMAP_RELEASE_STAGE=private-alpha \
+          SKILLMAP_INDEXING_MODE=private-alpha \
+          npm --prefix apps/web run build
+      - name: Exercise hosted API, authenticated account, submission, report, and evidence gates
+        shell: bash
+        run: |
+          mkdir -p artifacts/hosted-web
+          export SKILLMAP_HOSTED_ARTIFACTS="$PWD/artifacts/hosted-web/frontend-qa"
+          npm run test:hosted-gates 2>&1 | tee artifacts/hosted-web/run.log
+      - name: Upload hosted-browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-web-browser
+          path: artifacts/hosted-web
+          if-no-files-found: error
+      - name: Stop the disposable hosted stack
+        if: always()
+        run: supabase stop --no-backup
 
   dependency-audit:
     name: Dependency audit

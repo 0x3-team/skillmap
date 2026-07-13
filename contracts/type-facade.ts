@@ -15,6 +15,9 @@ export type HostedPublisherId = `pub_${string}`;
 export type HostedSkillId = `skl_${string}`;
 export type HostedSkillVersionId = `skv_${string}`;
 export type HostedGradeReceiptId = `grd_${string}`;
+export type HostedAuditReceiptId = `aud_${string}`;
+export type HostedSubmissionId = `sub_${string}`;
+export type HostedReviewCaseId = `rev_${string}`;
 
 export type HostedGradeState = "ungraded" | "provisional" | "current" | "stale" | "blocked" | "revoked";
 export type HostedGradeBand = "A" | "B" | "C" | "D" | "F";
@@ -40,6 +43,125 @@ export interface HostedGradeSummaryV1 {
   receipt: HostedGradeReceiptRefV1 | null;
   invalidatedAt: IsoTimestamp | null;
   reasonCodes: string[];
+}
+
+export interface HostedFindingCountsV1 {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+}
+
+export interface HostedAuditReceiptRefV1 {
+  receiptId: HostedAuditReceiptId;
+  receiptDigest: Sha256Digest;
+  projectionDigest: Sha256Digest;
+  auditedAt: IsoTimestamp;
+  policyVersion: string;
+  hostProfileVersion: string;
+}
+
+export interface HostedAuditSummaryV1 {
+  kind: "skillmap.hosted-audit-summary";
+  schemaVersion: 1;
+  state: "not-run" | "passed" | "warnings" | "stale" | "blocked";
+  receipt: HostedAuditReceiptRefV1 | null;
+  findingCounts: HostedFindingCountsV1;
+  reasonCodes: string[];
+}
+
+export interface HostedAuditCheckV1 {
+  code: string;
+  outcome: "passed" | "warning" | "blocked" | "not-applicable";
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  evidenceDigest: Sha256Digest | null;
+}
+
+export interface HostedAuditReceiptV1 {
+  kind: "skillmap.hosted-audit-receipt";
+  schemaVersion: 1;
+  receiptId: HostedAuditReceiptId;
+  receiptDigest: Sha256Digest;
+  skillVersionId: HostedSkillVersionId;
+  sourceCommit: string;
+  sourceContentDigest: Sha256Digest;
+  normalizedContentDigest: Sha256Digest;
+  state: "passed" | "warnings" | "blocked";
+  findingCounts: HostedFindingCountsV1;
+  checks: HostedAuditCheckV1[];
+  reasonCodes: string[];
+  policyVersion: string;
+  hostProfileVersion: string;
+  workerVersion: string;
+  auditedAt: IsoTimestamp;
+}
+
+export interface HostedGradeHardGateV1 {
+  code: string;
+  passed: boolean;
+  evidenceDigest: Sha256Digest | null;
+}
+
+export interface HostedGradeDimensionV1 {
+  code: string;
+  weight: number;
+  score: number;
+  evidenceDigest: Sha256Digest;
+}
+
+export interface HostedGradeReceiptV1 {
+  kind: "skillmap.hosted-grade-receipt";
+  schemaVersion: 1;
+  receiptId: HostedGradeReceiptId;
+  receiptDigest: Sha256Digest;
+  projectionDigest: Sha256Digest;
+  skillVersionId: HostedSkillVersionId;
+  normalizedContentDigest: Sha256Digest;
+  auditReceiptId: HostedAuditReceiptId;
+  auditReceiptDigest: Sha256Digest;
+  compatibilityEvidenceDigest: Sha256Digest | null;
+  evaluationSuiteDigest: Sha256Digest | null;
+  rubricVersion: string;
+  hostProfileVersion: string;
+  evaluatorVersion: string;
+  state: "provisional" | "current" | "blocked";
+  band: HostedGradeBand | null;
+  totalScore: number | null;
+  confidence: number | null;
+  hardGates: HostedGradeHardGateV1[];
+  dimensions: HostedGradeDimensionV1[];
+  reasonCodes: string[];
+  gradedAt: IsoTimestamp;
+}
+
+export interface HostedReviewStateV1 {
+  kind: "skillmap.hosted-review-state";
+  schemaVersion: 1;
+  state: "not-started" | "pending" | "changes-requested" | "approved" | "rejected" | "published" | "withdrawn";
+  reviewCaseId: HostedReviewCaseId | null;
+  reasonCodes: string[];
+  message: string | null;
+  reviewedAt: IsoTimestamp | null;
+}
+
+export interface HostedSubmissionV1 {
+  kind: "skillmap.hosted-submission";
+  schemaVersion: 1;
+  submissionId: HostedSubmissionId;
+  source: { repositoryUrl: string; commit: string; path: string };
+  versionLabel: string;
+  licenseClaim: string | null;
+  state: "queued" | "processing" | "changes-requested" | "accepted" | "published" | "rejected" | "failed" | "withdrawn";
+  audit: HostedAuditSummaryV1;
+  grade: HostedGradeSummaryV1;
+  review: HostedReviewStateV1;
+  publicResult: { skillId: HostedSkillId; versionId: HostedSkillVersionId } | null;
+  remediation: { code: string; message: string } | null;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+  claimedAt: IsoTimestamp | null;
+  completedAt: IsoTimestamp | null;
 }
 
 export interface HostedPublisherSummaryV1 {

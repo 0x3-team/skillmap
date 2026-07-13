@@ -1,0 +1,17 @@
+{
+  "publisherHandle": "example-author",
+  "publisherDisplayName": "Example Author",
+  "skillSlug": "focused-review",
+  "skillDisplayName": "Focused Review",
+  "summary": "Review a bounded implementation against explicit acceptance evidence.",
+  "description": "A metadata-only public listing for one exact reviewed skill version.",
+  "capabilities": [
+    "code.review",
+    "quality.acceptance"
+  ],
+  "licenseState": "confirmed",
+  "spdxExpression": "MIT",
+  "permissionScripts": false,
+  "permissionNetwork": [],
+  "permissionTools": []
+}
