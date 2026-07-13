@@ -162,8 +162,8 @@ select is((select jsonb_array_length(worker_runs) || ':' || jsonb_array_length(t
 select ok((select claim_expired and dead_letter_ready
   from api.get_skill_submission_operator_detail('sub_f1000000000000000000000000000003')),
   'detail derives expired and dead-letter-ready flags from one snapshot');
-select ok((select position('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1' in to_jsonb(detail)::text) = 0
-    and position('phase1-a@skillmap.invalid' in to_jsonb(detail)::text) = 0
+select ok((select position('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2' in to_jsonb(detail)::text) = 0
+    and position('phase1-b@skillmap.invalid' in to_jsonb(detail)::text) = 0
     and position('f1000000-0000-4000-8000-000000000023' in to_jsonb(detail)::text) = 0
     and position('private_evidence_digest' in to_jsonb(detail)::text) = 0
   from api.get_skill_submission_operator_detail(

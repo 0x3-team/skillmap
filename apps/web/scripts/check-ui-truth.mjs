@@ -83,8 +83,28 @@ for (const boundary of [/application schema stores the authenticated account ide
 }
 
 const releaseStatus = sources["app/release-status/page.tsx"];
-for (const boundary of [/Supabase-backed public catalog/i, /validated locally and is not deployed/i, /pushed, merged, and accepted by scoped remote CI/i, /Pushed source, a merge, local validation, and scoped remote CI are not deployment, live OAuth/i, /no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency/i]) {
-  if (!boundary.test(releaseStatus)) failures.push(`app/release-status/page.tsx: missing hosted release boundary ${boundary}`);
+if (!/Supabase-backed public catalog/i.test(releaseStatus)) {
+  failures.push("app/release-status/page.tsx: missing implemented hosted catalog boundary");
+}
+
+const releaseTitleBranches = /title=\{hosted\s*\?\s*`(?<hosted>[\s\S]*?)`\s*:\s*"(?<local>[^"]+)"\}/.exec(releaseStatus)?.groups;
+const releaseIntroBranches = /intro=\{hosted\s*\?\s*`(?<hosted>[\s\S]*?)`\s*:\s*"(?<local>[^"]+)"\}/.exec(releaseStatus)?.groups;
+const releaseDeploymentBranches = /<p>\{hosted\s*\?\s*"(?<hosted>[^"]+)"\s*:\s*"(?<local>[^"]+)"\}<\/p>/.exec(releaseStatus)?.groups;
+if (!releaseTitleBranches || !releaseIntroBranches || !releaseDeploymentBranches) {
+  failures.push("app/release-status/page.tsx: hosted and local release branches are not independently inspectable");
+} else {
+  for (const [branch, value, boundaries] of [
+    ["hosted title", releaseTitleBranches.hosted, [/configured as a.*releaseStageLabel/i]],
+    ["local title", releaseTitleBranches.local, [/validated locally and is not deployed/i]],
+    ["hosted intro", releaseIntroBranches.hosted, [/operator deployment receipt remains the authority/i, /exact migration, OAuth, backup, and live-smoke state/i]],
+    ["local intro", releaseIntroBranches.local, [/pushed, merged, and accepted by scoped remote CI/i, /No remote Supabase or web deployment, live OAuth path, hosted backup, public indexing, or open-user launch is claimed/i]],
+    ["hosted deployment", releaseDeploymentBranches.hosted, [/exact verified-live state belongs to a deployment receipt/i, /source merge\/CI receipts are not backup-retention, cross-account, worker, rollback, pilot, or indexing proof/i, /no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency/i]],
+    ["local deployment", releaseDeploymentBranches.local, [/Pushed source, a merge, local validation, and scoped remote CI are not deployment, live OAuth/i, /no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency/i]]
+  ]) {
+    for (const boundary of boundaries) {
+      if (!boundary.test(value)) failures.push(`app/release-status/page.tsx: missing ${branch} boundary ${boundary}`);
+    }
+  }
 }
 
 const robots = sources["app/robots.ts"];

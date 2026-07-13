@@ -84,6 +84,8 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migration `20260713060000_operator_submission_read_plane.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck, and queue inspection relies on the final read-plane RPCs. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, or leave the operator without the supported redacted read boundary.
 
+Migration `20260713060000` creates its queue index inside the migration transaction. Apply it before accepting submissions. If the target is already populated, use a maintenance window and record the pre-migration row count plus index-build duration because the non-concurrent build can block writes. A second index for the default multi-state listing is deferred until target `EXPLAIN` output, queue growth, or measured latency justifies its write and storage cost.
+
 Before the first worker start and after every database deploy:
 
 ```bash

@@ -57,7 +57,9 @@ test('canonical release truth does not collapse source acceptance into deploymen
 
 test('go-to-market checklist records source integration without claiming external gates', () => {
   const checklist = sources['docs/launch/free-public-alpha-go-to-market.md'];
-  assert.match(checklist, /- \[x\].*merged/i);
+  assert.match(checklist, /- \[x\].*Baseline-only candidate `67129297d08f7f7bc88800015b336a2a7bb1b139`/i);
+  assert.match(checklist, /does not cover later Unreleased operator-read-plane changes[^.]+subsequent candidate and merge receipt/i);
+  assert.match(checklist, /- \[ \].*operator-read-plane changes have their own candidate and merge receipt recorded in the release ledger/i);
   assert.match(checklist, /- \[ \].*Production Supabase, web, OAuth/i);
   assert.match(checklist, /- \[ \].*pilot/i);
   assert.match(checklist, /- \[ \].*index/i);
@@ -75,7 +77,9 @@ test('operator documentation, commands, and application types bind the final rea
     assert.match(source, /after-updated-at/, file);
     assert.match(source, /licref_[0-9a-f]{32}/, file);
     assert.match(source, /sha256:[0-9a-f]{64}/, file);
-    assert.doesNotMatch(source, /sha256:[.]{3}/, file);
+    const digestTokens = [...source.matchAll(/sha256:[^\s`"'<>]*/gi)].map(match => match[0]);
+    assert.ok(digestTokens.length > 0, `${file}: no SHA-256 token found`);
+    for (const token of digestTokens) assert.match(token, /^sha256:[0-9a-f]{64}$/i, file);
   }
   const scripts = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).scripts;
   const workerScripts = JSON.parse(readFileSync(

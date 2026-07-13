@@ -254,11 +254,14 @@ test('operator commands refuse credential use before loading environment secrets
   ]) {
     const result = spawnSync(process.execPath, [script, ...args], {
       encoding: 'utf8',
+      timeout: 5000,
       env: {
         ...process.env,
         SKILLMAP_SUPABASE_SERVICE_ROLE_KEY: 'PRIVATE-CANARY-SERVICE-ROLE-KEY-DO-NOT-PRINT'
       }
     });
+    assert.notEqual(result.error?.code, 'ETIMEDOUT', `${script} timed out before the execute guard`);
+    assert.equal(result.error, undefined, `${script} failed to start`);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /without the explicit --execute flag/i);
     assert.doesNotMatch(result.stdout + result.stderr, /PRIVATE-CANARY/);
