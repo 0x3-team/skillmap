@@ -392,10 +392,16 @@ test('hosted submission, review, audit, and grade receipts accept bounded public
   passedWithBlockedCheck.checks = [{ code: 'secret-material', outcome: 'blocked', severity: 'critical', evidenceDigest: SHA_A }];
   assertInvalid(IDS.auditReceipt, passedWithBlockedCheck, /oneOf|allowed values/);
 
-  const fabricatedPublished = structuredClone(submission);
-  fabricatedPublished.state = 'published';
-  fabricatedPublished.publicResult = { skillId: SKILL_ID, versionId: VERSION_ID };
-  assertInvalid(IDS.submission, fabricatedPublished, /must be equal to constant|allowed values/);
+  const publishedProvisional = structuredClone(submission);
+  publishedProvisional.state = 'published';
+  publishedProvisional.review.state = 'published';
+  publishedProvisional.publicResult = { skillId: SKILL_ID, versionId: VERSION_ID };
+  assertValid(IDS.submission, publishedProvisional);
+
+  const fabricatedCurrentPublished = structuredClone(publishedProvisional);
+  fabricatedCurrentPublished.grade.state = 'current';
+  fabricatedCurrentPublished.grade.band = 'B';
+  assertInvalid(IDS.submission, fabricatedCurrentPublished, /must be equal to constant|allowed values/);
 
   const forgedBand = structuredClone(gradeReceipt);
   forgedBand.state = 'current';

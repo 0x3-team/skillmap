@@ -1,6 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { assertHostedSkillId } from "@/lib/registry/query";
+import {
+  createSaveFlash,
+  SAVE_FLASH_COOKIE,
+  serializeSaveFlash,
+  type SaveFlashStatus
+} from "@/lib/registry/save-flash";
 import { getSiteUrl, SupabaseConfigurationError } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -44,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     supabase = await createSupabaseServerClient();
   } catch (error) {
     if (!(error instanceof SupabaseConfigurationError)) throw error;
-    return redirectWithStatus(publicOrigin, returnPath, "unavailable");
+    return redirectWithStatus(publicOrigin, returnPath, "unavailable", skillId);
   }
   const { data, error: claimsError } = await supabase.auth.getClaims();
   const auth = classifyVerifiedClaims(data, claimsError);
@@ -54,7 +61,7 @@ export async function POST(request: Request): Promise<Response> {
       signIn.searchParams.set("next", returnPath);
       return NextResponse.redirect(signIn, { status: 303 });
     }
-    return redirectWithStatus(publicOrigin, returnPath, "unavailable");
+    return redirectWithStatus(publicOrigin, returnPath, "unavailable", skillId);
   }
 
   const result = operation === "save"
@@ -63,14 +70,30 @@ export async function POST(request: Request): Promise<Response> {
         { onConflict: "user_id,skill_id", ignoreDuplicates: true }
       )
     : await supabase.from("saved_skills").delete().eq("user_id", auth.userId).eq("skill_id", skillId);
-  if (result.error) return redirectWithStatus(publicOrigin, returnPath, "unavailable");
-  return redirectWithStatus(publicOrigin, returnPath, operation === "save" ? "saved" : "removed");
+  if (result.error) return redirectWithStatus(publicOrigin, returnPath, "unavailable", skillId);
+  return redirectWithStatus(publicOrigin, returnPath, operation === "save" ? "saved" : "removed", skillId);
 }
 
-function redirectWithStatus(publicOrigin: string, returnPath: string, status: "saved" | "removed" | "unavailable") {
+function redirectWithStatus(
+  publicOrigin: string,
+  returnPath: string,
+  status: SaveFlashStatus,
+  skillId: string
+) {
+  const token = randomUUID();
+  const flash = createSaveFlash(status, skillId, returnPath, token);
+  if (!flash) return new Response("Saved-skill receipt unavailable.", { status: 500, headers: { "Cache-Control": "private, no-store" } });
   const target = new URL(returnPath, publicOrigin);
-  target.searchParams.set("saveStatus", status);
-  return NextResponse.redirect(target, { status: 303, headers: { "Cache-Control": "private, no-store" } });
+  target.searchParams.set("saveFlash", token);
+  const response = NextResponse.redirect(target, { status: 303, headers: { "Cache-Control": "private, no-store" } });
+  response.cookies.set(SAVE_FLASH_COOKIE, serializeSaveFlash(flash), {
+    httpOnly: true,
+    maxAge: 120,
+    path: returnPath,
+    sameSite: "strict",
+    secure: new URL(publicOrigin).protocol === "https:"
+  });
+  return response;
 }
 
 function readSingle(formData: FormData, name: string, maximumLength: number): string | null {

@@ -8,6 +8,7 @@ import { ReportForm, ReportStatusNotice } from "@/app/skills/[publisher]/[slug]/
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
 import { GradePill, humanize } from "@/components/skillmap/skill-card";
+import { SaveStatusNotice } from "@/components/skillmap/save-status-notice";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { buildPublicPageMetadata, buildUnavailableMetadata } from "@/lib/metadata";
@@ -18,6 +19,7 @@ import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { HostedAccountState } from "@/lib/auth/account-state";
 import { buildExactGitHubSourceUrl } from "@/lib/registry/public-links";
+import { parseSaveFlash, SAVE_FLASH_COOKIE, type SaveFlashStatus } from "@/lib/registry/save-flash";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +63,7 @@ export default async function SkillDetailPage({
   searchParams
 }: {
   params: Promise<{ publisher: string; slug: string }>;
-  searchParams: Promise<{ reportStatus?: string | string[]; reportField?: string | string[]; report?: string | string[]; reportFlash?: string | string[] }>;
+  searchParams: Promise<{ reportStatus?: string | string[]; reportField?: string | string[]; report?: string | string[]; reportFlash?: string | string[]; saveFlash?: string | string[] }>;
 }) {
   const { publisher, slug } = await params;
   const query = await searchParams;
@@ -79,9 +81,15 @@ export default async function SkillDetailPage({
   }
   if (!skill) notFound();
   const detailPath = `/skills/${publisher}/${slug}`;
+  const cookieStore = await cookies();
   const reportFlash = parseReportFlash(
-    (await cookies()).get(REPORT_FLASH_COOKIE)?.value,
+    cookieStore.get(REPORT_FLASH_COOKIE)?.value,
     query.reportFlash,
+    detailPath
+  );
+  const saveFlash = parseSaveFlash(
+    cookieStore.get(SAVE_FLASH_COOKIE)?.value,
+    query.saveFlash,
     detailPath
   );
 
@@ -91,6 +99,7 @@ export default async function SkillDetailPage({
   let verifiedReportStatus: ReportSubmitStatus | null = null;
   let verifiedReportId: string | null = null;
   let verifiedReportField: string | null = null;
+  let verifiedSaveStatus: SaveFlashStatus | null = saveFlash?.status === "unavailable" ? "unavailable" : null;
   try {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.getClaims();
@@ -105,6 +114,10 @@ export default async function SkillDetailPage({
         .maybeSingle();
       if (savedError) accountUnavailable = true;
       else saved = Boolean(savedRow);
+      if (!savedError && saveFlash?.skillId === skill.skillId) {
+        if (saveFlash.status === "saved" && saved) verifiedSaveStatus = "saved";
+        if (saveFlash.status === "removed" && !saved) verifiedSaveStatus = "removed";
+      }
       if ((requestedReportStatus === "queued" || requestedReportStatus === "duplicate") && requestedReportId) {
         const { data: reportRow, error: reportError } = await supabase
           .from("my_skill_reports")
@@ -138,6 +151,7 @@ export default async function SkillDetailPage({
   return (
     <DetailShell accountState={accountState}>
       <Link href="/skills" prefetch={false} className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to library</Link>
+      {verifiedSaveStatus ? <SaveStatusNotice status={verifiedSaveStatus} /> : null}
       <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <article className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

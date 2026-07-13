@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, FileKey2 } from "lucide-react";
 import {
   submitSkill,
@@ -12,8 +12,9 @@ import { APPROVED_ALPHA_SPDX_IDENTIFIERS, type SubmissionField } from "@/lib/sub
 export function SubmissionForm({ requestId }: { requestId: string }) {
   const [validation, setValidation] = useState<SubmissionActionState | null>(null);
   const [pending, setPending] = useState(false);
+  const noticeRef = useRef<HTMLDivElement>(null);
   const inputClass = "mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
-  const errorFor = (field: SubmissionField) => validation?.field === field ? validation.message : null;
+  const errorFor = (field: SubmissionField) => validation?.status === "invalid" && validation.field === field ? validation.message : null;
   const describedBy = (field: SubmissionField) => `${field}-hint${errorFor(field) ? ` ${field}-error` : ""}`;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -23,12 +24,22 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
     setValidation(null);
     setPending(true);
     void (async () => {
-      const result = await submitSkill(formData);
-      setValidation(result);
-      setPending(false);
-      window.requestAnimationFrame(() => {
-        document.getElementById(result.field)?.focus();
-      });
+      try {
+        const result = await submitSkill(formData);
+        setValidation(result);
+        window.requestAnimationFrame(() => {
+          if (result.status === "invalid") document.getElementById(result.field)?.focus();
+          else noticeRef.current?.focus();
+        });
+      } catch {
+        setValidation({
+          status: "service-unavailable",
+          message: "The request could not be confirmed. Your entries and request ID remain in this form so you can retry safely."
+        });
+        window.requestAnimationFrame(() => noticeRef.current?.focus());
+      } finally {
+        setPending(false);
+      }
     })();
   }
 
@@ -43,9 +54,9 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
       </div>
 
       {validation ? (
-        <div className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 p-4" role="alert" aria-live="polite">
-          <p className="font-semibold">Correct the highlighted field</p>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">Your other entries and request ID remain in this form. No submission was created.</p>
+        <div ref={noticeRef} tabIndex={-1} className={`mt-5 rounded-xl border p-4 outline-none focus:ring-2 focus:ring-primary/30 ${validation.status === "invalid" ? "border-destructive/30 bg-destructive/10" : "border-warning/35 bg-warning/10"}`} role="alert" aria-live="polite">
+          <p className="font-semibold">{validation.status === "invalid" ? "Correct the highlighted field" : "Submission service unavailable"}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{validation.status === "invalid" ? "Your other entries and request ID remain in this form. No submission was created." : validation.message}</p>
         </div>
       ) : null}
 

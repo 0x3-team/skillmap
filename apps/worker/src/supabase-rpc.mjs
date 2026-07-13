@@ -7,6 +7,8 @@ const ALLOWED_RPC = new Set([
   'publish_skill_submission',
   'list_skill_submission_collisions',
   'review_skill_submission_collisions',
+  'record_skill_submission_publisher_authorization',
+  'record_skill_submission_license_evidence',
   'disposition_skill_report',
   'list_skill_report_queue',
   'control_catalog_lifecycle'

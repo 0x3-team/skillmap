@@ -35,6 +35,7 @@ jobs:
         run: |
           receipt="${RUNNER_TEMP:-/tmp}/skillmap-public-alpha-static-${GITHUB_RUN_ID:-$$}.json"
           npm run preflight:public-alpha:static -- --require-clean --output "$receipt"
+          node scripts/emit-ci-gate-receipt.mjs --kind static-preflight --receipt "$receipt"
 
       - name: Typecheck the CLI
         run: npm run typecheck
@@ -94,6 +95,7 @@ jobs:
           # exact candidate.
           receipt="${RUNNER_TEMP:-/tmp}/skillmap-public-alpha-recovery-${GITHUB_RUN_ID:-$$}.json"
           npm run preflight:public-alpha:recovery -- --execute --output "$receipt"
+          node scripts/emit-ci-gate-receipt.mjs --kind database-recovery --receipt "$receipt"
 
           # `supabase test db` bind-mounts the checkout into pg_prove. In
           # rootless DinD the checkout belongs to the job container, so copy it

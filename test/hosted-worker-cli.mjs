@@ -80,9 +80,10 @@ test('hosted audit worker rejects repository redirects and non-200 responses', a
 });
 
 test('hosted audit worker cannot opt content fetching into GitHub authorization', async () => {
-  const workerSource = readFileSync(script, 'utf8');
-  assert.doesNotMatch(workerSource, /process\.env\.GITHUB_TOKEN/);
-  assert.doesNotMatch(workerSource, /\btoken\s*:/);
+  for (const workerSource of [readFileSync(script, 'utf8'), readFileSync(queueScript, 'utf8')]) {
+    assert.doesNotMatch(workerSource, /process\.env\.GITHUB_TOKEN/);
+    assert.doesNotMatch(workerSource, /\btoken\s*:/);
+  }
 
   let observedRequest;
   await assert.rejects(fetchGithubSkillTree('example/skills', 'a'.repeat(40), '.', {
@@ -133,6 +134,7 @@ test('hosted queue worker is mutation-explicit and documents server-only authori
   assert.match(help.stdout, /service-role-only RPCs/i);
   assert.match(help.stdout, /Mutation requires: --execute/i);
   assert.match(help.stdout, /never a current letter grade/i);
+  assert.match(help.stdout, /explicit root or enclosing files at the claimed exact commit/i);
 
   const refused = spawnSync(process.execPath, [queueScript], {
     encoding: 'utf8',
@@ -141,6 +143,41 @@ test('hosted queue worker is mutation-explicit and documents server-only authori
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /without the explicit --execute flag/i);
   assert.doesNotMatch(refused.stderr + refused.stdout, /PRIVATE-CANARY/);
+
+  const missingLicenseEvidence = spawnSync(process.execPath, [
+    queueScript, '--license-state', 'confirmed', '--spdx', 'MIT'
+  ], { encoding: 'utf8' });
+  assert.equal(missingLicenseEvidence.status, 1);
+  assert.match(missingLicenseEvidence.stderr, /license-review-reference is required/i);
+
+  const reviewedButNotExecuted = spawnSync(process.execPath, [
+    queueScript, '--license-state', 'confirmed', '--spdx', 'MIT',
+    '--license-review-reference', `licref_${'1'.repeat(32)}`,
+    '--license-review-evidence-digest', `sha256:${'2'.repeat(64)}`,
+    '--license-evidence-path', 'LICENSE'
+  ], { encoding: 'utf8' });
+  assert.equal(reviewedButNotExecuted.status, 1);
+  assert.match(reviewedButNotExecuted.stderr, /without the explicit --execute flag/i);
+
+  for (const [args, pattern] of [
+    [['--license-evidence-path', 'LICENSE'], /accepted only with a confirmed license/i],
+    [[
+      '--license-state', 'confirmed', '--spdx', 'MIT',
+      '--license-review-reference', `licref_${'1'.repeat(32)}`,
+      '--license-review-evidence-digest', `sha256:${'2'.repeat(64)}`,
+      '--license-evidence-path', '../LICENSE'
+    ], /safe relative LICENSE or COPYING file/i],
+    [[
+      '--license-state', 'confirmed', '--spdx', 'MIT',
+      '--license-review-reference', `licref_${'1'.repeat(32)}`,
+      '--license-review-evidence-digest', `sha256:${'2'.repeat(64)}`,
+      '--license-evidence-path', 'LICENSE', '--license-evidence-path', 'LICENSE'
+    ], /values must be unique/i]
+  ]) {
+    const invalidEvidence = spawnSync(process.execPath, [queueScript, ...args], { encoding: 'utf8' });
+    assert.equal(invalidEvidence.status, 1);
+    assert.match(invalidEvidence.stderr, pattern);
+  }
 });
 
 test('catalog lifecycle and report disposition commands are mutation-explicit', () => {

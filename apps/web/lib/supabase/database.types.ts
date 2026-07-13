@@ -1082,6 +1082,40 @@ export type Database = {
           version_id: string
         }[]
       }
+      record_skill_submission_license_evidence: {
+        Args: {
+          p_audit_receipt_digest: string
+          p_claim_id: string
+          p_evidence: Json
+          p_idempotency_digest: string
+          p_review_evidence_digest: string
+          p_review_reference: string
+          p_spdx_expression: string
+          p_submission_id: string
+          p_worker_version: string
+        }
+        Returns: {
+          audit_receipt_digest: string
+          license_evidence_receipt_id: string
+        }[]
+      }
+      record_skill_submission_publisher_authorization: {
+        Args: {
+          p_authorization_basis: string
+          p_decision: string
+          p_evidence_digest: string
+          p_evidence_reference: string
+          p_expires_at: string
+          p_idempotency_digest: string
+          p_publisher_handle: string
+          p_submission_id: string
+        }
+        Returns: {
+          authorization_decision: string
+          authorization_expires_at: string
+          authorization_receipt_id: string
+        }[]
+      }
       renew_skill_submission_claim: {
         Args: {
           p_claim_id: string
@@ -1109,6 +1143,9 @@ export type Database = {
           p_idempotency_digest: string
           p_reason_code: string
           p_submission_id: string
+          p_target_publisher_id: string
+          p_target_skill_id: string
+          p_target_version_id: string
         }
         Returns: {
           collision_review_id: string

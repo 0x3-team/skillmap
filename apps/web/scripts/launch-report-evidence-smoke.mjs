@@ -54,6 +54,14 @@ try {
       throw new Error(`Signed-out query parameters forged a ${status} report notice.`);
     }
   }
+  await publicPage.goto(new URL("/sign-in?status=account-deleted", baseUrl).toString(), { waitUntil: "load" });
+  if (await publicPage.getByText("Your SkillMap account was deleted and this browser session was cleared.", { exact: true }).isVisible().catch(() => false)) {
+    throw new Error("Query parameters forged an account-deletion success notice.");
+  }
+  await publicPage.goto(new URL("/sign-in?status=account-delete-unconfirmed", baseUrl).toString(), { waitUntil: "load" });
+  if ((await publicPage.locator("body").innerText()).includes("browser session was cleared defensively")) {
+    throw new Error("Query parameters forged an unconfirmed browser-session mutation claim.");
+  }
 
   await publicPage.goto(new URL(`${detailPath}/audit`, baseUrl).toString(), { waitUntil: "load" });
   await publicPage.getByRole("heading", { name: "Skill Audit audit evidence" }).waitFor();
@@ -91,6 +99,66 @@ try {
     skillId: null,
     versionId: null
   };
+
+  smokeStage = "forged-submission-statuses";
+  const forgedSubmissionId = `sub_${"f".repeat(32)}`;
+  await page.goto(new URL(`/submit?status=duplicate&submission=${forgedSubmissionId}`, baseUrl).toString(), { waitUntil: "load" });
+  if (await page.getByText("That exact source already has a submission record", { exact: true }).isVisible().catch(() => false)) {
+    throw new Error("Query parameters forged a duplicate-submission notice without an owner row.");
+  }
+  for (const [status, title] of [["queued", "Submission queued"], ["withdrawn", "Queued submission withdrawn"]]) {
+    await page.goto(new URL(`/account/submissions?status=${status}&submission=${forgedSubmissionId}`, baseUrl).toString(), { waitUntil: "load" });
+    if (await page.getByText(title, { exact: true }).isVisible().catch(() => false)) {
+      throw new Error(`Query parameters forged a ${status} submission notice without an owner row.`);
+    }
+  }
+
+  smokeStage = "submission-transport-failure";
+  const transportPage = await primaryContext.newPage();
+  try {
+    let transportAborted = false;
+    await transportPage.route("**/submit", async (route) => {
+      if (!transportAborted && route.request().method() === "POST") {
+        transportAborted = true;
+        await route.abort("failed");
+      } else await route.continue();
+    });
+    await transportPage.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
+    await transportPage.getByLabel("Public GitHub repository URL").fill(syntheticRepositoryUrl);
+    await transportPage.getByLabel("Exact commit").fill("c".repeat(40));
+    await transportPage.getByLabel("Relative skill path").fill("skills/transport/SKILL.md");
+    await transportPage.getByLabel("Version label").fill(`transport-${marker}`);
+    await transportPage.getByLabel("License claim").selectOption("MIT");
+    await transportPage.locator("#authorizationAcknowledgement").check();
+    await transportPage.locator("#untrustedContentAcknowledgement").check();
+    const transportRequestId = await transportPage.getByLabel("Request ID").inputValue();
+    await submitForm(transportPage.getByRole("button", { name: "Queue submission" }));
+    await transportPage.getByText("Submission service unavailable", { exact: true }).waitFor();
+    const transportPreserved = {
+      repository: await transportPage.getByLabel("Public GitHub repository URL").inputValue(),
+      commit: await transportPage.getByLabel("Exact commit").inputValue(),
+      path: await transportPage.getByLabel("Relative skill path").inputValue(),
+      version: await transportPage.getByLabel("Version label").inputValue(),
+      license: await transportPage.getByLabel("License claim").inputValue(),
+      requestId: await transportPage.getByLabel("Request ID").inputValue(),
+      authority: await transportPage.locator("#authorizationAcknowledgement").isChecked(),
+      untrusted: await transportPage.locator("#untrustedContentAcknowledgement").isChecked()
+    };
+    if (!transportAborted
+      || transportPreserved.repository !== syntheticRepositoryUrl
+      || transportPreserved.commit !== "c".repeat(40)
+      || transportPreserved.path !== "skills/transport/SKILL.md"
+      || transportPreserved.version !== `transport-${marker}`
+      || transportPreserved.license !== "MIT"
+      || transportPreserved.requestId !== transportRequestId
+      || !transportPreserved.authority
+      || !transportPreserved.untrusted
+      || await transportPage.getByRole("button", { name: "Queue submission" }).isDisabled()) {
+      throw new Error(`Transport failure did not preserve a retryable submission form (${JSON.stringify(transportPreserved)}).`);
+    }
+  } finally {
+    await transportPage.close();
+  }
 
   smokeStage = "submission-invalid-field";
   await page.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
@@ -158,6 +226,25 @@ try {
   }
   const auditReceipt = auditReceiptPayload(workerVersion);
   const gradeReceipt = gradeReceiptPayload(auditReceipt.receiptDigest);
+  const { data: licenseEvidence, error: licenseEvidenceError } = await admin.rpc("record_skill_submission_license_evidence", {
+    p_submission_id: submissionId,
+    p_claim_id: claims[0].claim_id,
+    p_worker_version: workerVersion,
+    p_audit_receipt_digest: auditReceipt.receiptDigest,
+    p_spdx_expression: "MIT",
+    p_evidence: [{
+      repositoryUrl: syntheticRepositoryUrl,
+      sourceCommit: "a".repeat(40),
+      path: "LICENSE",
+      contentDigest: digest("5")
+    }],
+    p_review_reference: `licref_${marker.toString(16).padStart(32, "0")}`,
+    p_review_evidence_digest: digest("6"),
+    p_idempotency_digest: digest("5")
+  });
+  if (licenseEvidenceError || !/^lic_[0-9a-f]{32}$/.test(licenseEvidence?.[0]?.license_evidence_receipt_id ?? "")) {
+    throw licenseEvidenceError ?? new Error("Receipt-backed browser fixture did not record exact-commit license evidence.");
+  }
   const { data: completed, error: completionError } = await admin.rpc("complete_skill_submission", {
     p_submission_id: submissionId,
     p_claim_id: claims[0].claim_id,
@@ -172,6 +259,20 @@ try {
     p_idempotency_digest: digest("3")
   });
   if (completionError || completed?.[0]?.submission_state !== "accepted") throw completionError ?? new Error("Receipt-backed browser fixture was not accepted.");
+
+  const { data: authorization, error: authorizationError } = await admin.rpc("record_skill_submission_publisher_authorization", {
+    p_submission_id: submissionId,
+    p_publisher_handle: publisherHandle,
+    p_decision: "authorized",
+    p_authorization_basis: "publisher-consent",
+    p_evidence_reference: `authref_${marker.toString(16).padStart(32, "0")}`,
+    p_evidence_digest: digest("6"),
+    p_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(),
+    p_idempotency_digest: digest("0")
+  });
+  if (authorizationError || authorization?.[0]?.authorization_decision !== "authorized") {
+    throw authorizationError ?? new Error("Receipt-backed browser fixture did not record exact-source publisher authorization.");
+  }
 
   const skillSlug = "evidence-rendering";
   const { data: published, error: publicationError } = await admin.rpc("publish_skill_submission", {
@@ -232,6 +333,77 @@ try {
   await page.getByText("Behavioral Evidence Incomplete", { exact: true }).waitFor();
   const receiptGradeWidth = await dimensions(page);
   assertNoOverflow(receiptGradeWidth, "receipt-backed grade evidence");
+
+  smokeStage = "submission-withdrawal";
+  const withdrawalPath = "skills/withdrawal/SKILL.md";
+  await page.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Public GitHub repository URL").fill(syntheticRepositoryUrl);
+  await page.getByLabel("Exact commit").fill("b".repeat(40));
+  await page.getByLabel("Relative skill path").fill(withdrawalPath);
+  await page.getByLabel("Version label").fill(`withdraw-${marker}`);
+  await page.getByLabel("License claim").selectOption("MIT");
+  await page.locator("#authorizationAcknowledgement").check();
+  await page.locator("#untrustedContentAcknowledgement").check();
+  await submitForm(page.getByRole("button", { name: "Queue submission" }));
+  await waitForUrl(page, (url) => url.pathname === "/account/submissions" && url.searchParams.get("status") === "queued", "withdrawal fixture redirect");
+  const withdrawalId = new URL(page.url()).searchParams.get("submission");
+  if (!withdrawalId || !/^sub_[0-9a-f]{32}$/.test(withdrawalId)) throw new Error("Withdrawal fixture omitted a canonical submission ID.");
+  await page.getByText("Submission queued", { exact: true }).waitFor();
+
+  const submissionIsolationPage = await secondaryContext.newPage();
+  try {
+    await submissionIsolationPage.goto(new URL("/account/submissions", baseUrl).toString(), { waitUntil: "load" });
+    await submissionIsolationPage.getByRole("heading", { name: "No submissions yet" }).waitFor();
+    if ((await submissionIsolationPage.locator("body").innerText()).includes(withdrawalId)) {
+      throw new Error("Queued submission leaked into another account projection.");
+    }
+  } finally {
+    await submissionIsolationPage.close();
+  }
+
+  const withdrawalCard = page.locator("article").filter({ hasText: withdrawalPath });
+  await withdrawalCard.getByRole("button", { name: "Withdraw queued request" }).waitFor();
+  await submitForm(withdrawalCard.getByRole("button", { name: "Withdraw queued request" }));
+  await waitForUrl(page, (url) => url.pathname === "/account/submissions"
+    && url.searchParams.get("status") === "withdrawn"
+    && url.searchParams.get("submission") === withdrawalId, "withdrawal redirect");
+  await page.getByText("Queued submission withdrawn", { exact: true }).waitFor();
+  const withdrawnCard = page.locator("article").filter({ hasText: withdrawalPath });
+  await withdrawnCard.getByText("Withdrawn", { exact: true }).first().waitFor();
+  if (await withdrawnCard.getByRole("button", { name: "Withdraw queued request" }).isVisible().catch(() => false)) {
+    throw new Error("Withdrawn submission still exposed the queued-only withdrawal control.");
+  }
+  const { data: withdrawnProjection, error: withdrawnProjectionError } = await primary.client
+    .from("my_skill_submissions")
+    .select("submission_id,state")
+    .eq("submission_id", withdrawalId)
+    .maybeSingle();
+  if (withdrawnProjectionError || withdrawnProjection?.submission_id !== withdrawalId || withdrawnProjection.state !== "withdrawn") {
+    throw withdrawnProjectionError ?? new Error("Owner projection did not confirm the queued-to-withdrawn transition.");
+  }
+
+  smokeStage = "terminal-submission-duplicate";
+  await page.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Public GitHub repository URL").fill(syntheticRepositoryUrl);
+  await page.getByLabel("Exact commit").fill("b".repeat(40));
+  await page.getByLabel("Relative skill path").fill(withdrawalPath);
+  await page.getByLabel("Version label").fill(`withdrawn-duplicate-${marker}`);
+  await page.getByLabel("License claim").selectOption("MIT");
+  await page.locator("#authorizationAcknowledgement").check();
+  await page.locator("#untrustedContentAcknowledgement").check();
+  await submitForm(page.getByRole("button", { name: "Queue submission" }));
+  await waitForUrl(page, (url) => url.pathname === "/submit"
+    && url.searchParams.get("status") === "duplicate"
+    && url.searchParams.get("submission") === withdrawalId, "terminal duplicate redirect");
+  await page.getByText("That exact source already has a submission record", { exact: true }).waitFor();
+  await page.getByText(`Submission ${withdrawalId} is retained in your account history. Inspect its current state before deciding what to do next.`, { exact: true }).waitFor();
+  const submissionHistoryLink = page.getByRole("link", { name: "Open submission history" });
+  if (await submissionHistoryLink.getAttribute("href") !== "/account/submissions") {
+    throw new Error("Terminal duplicate notice did not point to owner submission history.");
+  }
+  if (await page.getByText("That exact source is already in your queue", { exact: true }).isVisible().catch(() => false)) {
+    throw new Error("A terminal duplicate was mislabeled as still queued.");
+  }
 
   smokeStage = "report-queue-and-cooldown";
   await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
@@ -339,7 +511,8 @@ try {
   await page.goto(new URL("/account#account-data", baseUrl).toString(), { waitUntil: "load" });
   await page.getByLabel(/Type “delete my skillmap account”/).fill("delete my skillmap account");
   await submitForm(page.getByRole("button", { name: "Delete account permanently" }));
-  await waitForUrl(page, (url) => url.pathname === "/sign-in" && url.searchParams.get("status") === "account-deleted", "account deletion redirect");
+  await waitForUrl(page, (url) => url.pathname === "/sign-in" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("accountFlash") ?? ""), "account deletion redirect");
+  await page.getByText("Your SkillMap account was deleted and this browser session was cleared.", { exact: true }).waitFor();
   const remainingAuthCookies = (await primaryContext.cookies()).filter((cookie) => /auth-token/i.test(cookie.name));
   if (remainingAuthCookies.length) throw new Error("Deleted account left auth cookies behind.");
   const { data: deletedUser } = await admin.auth.admin.getUserById(primary.userId);
@@ -355,7 +528,9 @@ try {
   if (diagnostics.length) throw new Error(`Authenticated browser diagnostics:\n${diagnostics.join("\n")}`);
   passReceipt = {
     result: "pass",
-    submissionValidation: { fieldLocal: true, valuesPreserved: true, invalidRows: 0, correctedRows: 1, responsive: "390px" },
+    submissionValidation: { fieldLocal: true, valuesPreserved: true, transportFailurePreserved: true, invalidRows: 0, correctedRows: 1, responsive: "390px" },
+    submissionWithdrawal: { submissionId: withdrawalId, ownerState: "withdrawn", secondAccountIsolated: true },
+    forgedPositiveNotices: "rejected",
     publicEvidence: {
       noRow: { audit: "bounded-no-row-state", grade: "bounded-no-row-state", auditWidth, gradeWidth },
       receiptRows: { audit: "rendered", grade: "rendered-provisional-letterless", receiptAuditWidth, receiptGradeWidth, privateDigest: "absent" }
@@ -433,7 +608,7 @@ async function createSyntheticUser(role) {
   if (signInError) throw signInError;
   const { error: profileError } = await auth.from("profiles").insert({ user_id: created.user.id });
   if (profileError) throw profileError;
-  return { userId: created.user.id, cookies: [...cookieJar.values()] };
+  return { userId: created.user.id, cookies: [...cookieJar.values()], client: auth };
 }
 
 function auditReceiptPayload(workerVersion) {

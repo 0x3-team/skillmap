@@ -102,7 +102,7 @@
           "publicResult": { "type": "object" },
           "remediation": { "type": "null" },
           "audit": { "properties": { "state": { "enum": ["passed", "warnings"] } } },
-          "grade": { "properties": { "state": { "const": "current" } } },
+          "grade": { "properties": { "state": { "const": "provisional" }, "band": { "type": "null" } } },
           "review": { "properties": { "state": { "const": "published" } } }
         }
       }

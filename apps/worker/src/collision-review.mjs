@@ -19,6 +19,9 @@ try {
     submissionId: options.submissionId,
     disposition: options.disposition,
     reasonCode: options.reasonCode,
+    targetPublisherId: options.targetPublisherId,
+    targetSkillId: options.targetSkillId,
+    targetVersionId: options.targetVersionId,
     operationId: options.operationId
   });
   const rpc = createSupabaseRpcClientFromEnvironment();
@@ -26,6 +29,9 @@ try {
     p_submission_id: options.submissionId,
     p_disposition: options.disposition,
     p_reason_code: options.reasonCode,
+    p_target_publisher_id: options.targetPublisherId,
+    p_target_skill_id: options.targetSkillId,
+    p_target_version_id: options.targetVersionId,
     p_idempotency_digest: idempotencyDigest
   });
   process.stdout.write(`${JSON.stringify({
@@ -47,7 +53,8 @@ export function parseArguments(args) {
       execute = true;
       continue;
     }
-    if (!['--submission-id', '--disposition', '--reason-code', '--operation-id'].includes(argument)) {
+    if (!['--submission-id', '--disposition', '--reason-code', '--target-publisher-id',
+      '--target-skill-id', '--target-version-id', '--operation-id'].includes(argument)) {
       throw new Error(`Unknown option: ${argument}`);
     }
     if (values[argument] !== undefined) throw new Error(`Option may be supplied only once: ${argument}`);
@@ -58,6 +65,18 @@ export function parseArguments(args) {
   }
   if (!/^sub_[0-9a-f]{32}$/.test(values['--submission-id'] ?? '')) throw new Error('--submission-id is required and invalid.');
   if (!DISPOSITIONS.has(values['--disposition'])) throw new Error('--disposition is invalid.');
+  const targetPublisherId = values['--target-publisher-id'] ?? null;
+  const targetSkillId = values['--target-skill-id'] ?? null;
+  const targetVersionId = values['--target-version-id'] ?? null;
+  if (values['--disposition'] === 'approved-update') {
+    if (!/^pub_[0-9a-f]{32}$/.test(targetPublisherId ?? '')
+      || !/^skl_[0-9a-f]{32}$/.test(targetSkillId ?? '')
+      || !/^skv_[0-9a-f]{32}$/.test(targetVersionId ?? '')) {
+      throw new Error('approved-update requires exact target publisher, skill, and version IDs.');
+    }
+  } else if (targetPublisherId || targetSkillId || targetVersionId) {
+    throw new Error('Only approved-update accepts a target identity.');
+  }
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values['--reason-code'] ?? '') || values['--reason-code'].length > 64) {
     throw new Error('--reason-code is required and invalid.');
   }
@@ -70,6 +89,9 @@ export function parseArguments(args) {
     submissionId: values['--submission-id'],
     disposition: values['--disposition'],
     reasonCode: values['--reason-code'],
+    targetPublisherId,
+    targetSkillId,
+    targetVersionId,
     operationId: values['--operation-id']
   };
 }
@@ -84,5 +106,7 @@ function help() {
     `Record an immutable disposition over the current bounded collision evidence.\n` +
     `Mutation requires --execute. Reuse an operation UUID only for an exact retry.\n\n` +
     `Usage: node apps/worker/src/collision-review.mjs --execute --submission-id sub_... ` +
-    `--disposition approved-distinct|approved-update|blocked-duplicate --reason-code CODE --operation-id UUID\n`;
+    `--disposition approved-distinct|approved-update|blocked-duplicate --reason-code CODE ` +
+    `[--target-publisher-id pub_... --target-skill-id skl_... --target-version-id skv_...] ` +
+    `--operation-id UUID\n`;
 }

@@ -1,9 +1,14 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { Github, LockKeyhole } from "lucide-react";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { safeNextPath } from "@/lib/auth/paths";
 import { SupabaseConfigurationError, getPublicSupabaseConfig } from "@/lib/supabase/config";
 import { signInWithGitHub } from "@/app/sign-in/actions";
+import {
+  ACCOUNT_DELETION_FLASH_COOKIE,
+  parseAccountDeletionFlash
+} from "@/lib/account/deletion-flash";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +19,15 @@ export default async function SignInPage({
     next?: string | string[];
     error?: string | string[];
     status?: string | string[];
+    accountFlash?: string | string[];
   }>;
 }) {
   const params = await searchParams;
   const next = safeNextPath(typeof params.next === "string" ? params.next : undefined);
+  const deletionFlash = parseAccountDeletionFlash(
+    (await cookies()).get(ACCOUNT_DELETION_FLASH_COOKIE)?.value,
+    params.accountFlash
+  );
   let configured = true;
   try {
     getPublicSupabaseConfig();
@@ -50,14 +60,14 @@ export default async function SignInPage({
               Sign-in could not be completed. Please try again.
             </p>
           ) : null}
-          {params.status === "account-deleted" ? (
+          {deletionFlash ? (
             <p className="mt-4 rounded-lg border border-success/30 bg-success/10 p-3 text-sm text-foreground" role="status">
               Your SkillMap account was deleted and this browser session was cleared.
             </p>
           ) : null}
           {params.status === "account-delete-unconfirmed" ? (
             <p className="mt-4 rounded-lg border border-warning/35 bg-warning/10 p-3 text-sm text-foreground" role="status">
-              Account deletion could not be confirmed, so this browser session was cleared defensively. Sign in again to verify whether the account still exists before retrying.
+              Account deletion could not be confirmed. Sign in to verify whether the account still exists before retrying. SkillMap does not claim that account data or a browser session changed.
             </p>
           ) : null}
           {configured ? (

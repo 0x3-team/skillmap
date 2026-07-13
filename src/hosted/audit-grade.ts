@@ -1,4 +1,5 @@
 import { createHash, verify as verifySignature } from 'node:crypto';
+import path from 'node:path';
 import { TextDecoder } from 'node:util';
 import { canonicalJson } from '../core/canonical-payload.js';
 import { parseFrontmatter } from '../core/frontmatter.js';
@@ -69,11 +70,19 @@ export interface HostedAuditFinding {
   path: string;
 }
 
+export interface HostedLicenseEvidence {
+  repositoryUrl: string;
+  sourceCommit: string;
+  path: string;
+  contentDigest: string;
+}
+
 export interface HostedAuditOptions {
   sourcePath: string;
   license: {
     state: 'confirmed' | 'noassertion' | 'restricted';
     spdxExpression?: string;
+    evidence?: HostedLicenseEvidence[];
   };
 }
 
@@ -108,6 +117,7 @@ export interface HostedAuditReceiptCore {
     state: 'confirmed' | 'noassertion' | 'restricted';
     spdxExpression: string | null;
     evidenceFiles: string[];
+    evidence: HostedLicenseEvidence[];
   };
   metrics: {
     entrypointBytes: number;
@@ -289,10 +299,23 @@ export function auditHostedSkillSnapshot(
   const networkIndicators = decodedFiles.some((file) => NETWORK_INDICATOR.test(file.text));
   const toolIndicators = decodedFiles.some((file) => TOOL_INDICATOR.test(file.text));
 
-  const licenseFiles = snapshot.files
-    .map((file) => qualifySnapshotPath(snapshot.subtree, file.path))
-    .filter((filePath) => /(?:^|\/)(?:licen[cs]e|copying)(?:\.[a-z0-9_-]+)?$/i.test(filePath))
-    .sort(compareText);
+  const snapshotLicenseEvidence = snapshot.files
+    .map((file) => ({
+      repositoryUrl: `https://github.com/${snapshot.repository}`,
+      sourceCommit: snapshot.resolvedCommit,
+      path: qualifySnapshotPath(snapshot.subtree, file.path),
+      contentDigest: file.contentDigest
+    }))
+    .filter((item) => /(?:^|\/)(?:licen[cs]e|copying)(?:\.[a-z0-9_-]+)?$/i.test(item.path))
+    .filter((item) => isEnclosingLicensePath(item.path, sourcePath));
+  const licenseEvidence = mergeLicenseEvidence(
+    snapshotLicenseEvidence,
+    options.license.evidence,
+    snapshot,
+    sourcePath,
+    options.license.state
+  );
+  const licenseFiles = licenseEvidence.map((item) => item.path);
   const spdxExpression = normalizeSpdx(options.license.spdxExpression);
   if (options.license.state === 'restricted') add('restricted-license', 'critical', 'The reviewed license disposition blocks publication.');
   if (options.license.state !== 'confirmed') add('license-unresolved', 'high', 'A reviewed redistribution license has not been confirmed.');
@@ -341,7 +364,8 @@ export function auditHostedSkillSnapshot(
     license: {
       state: options.license.state,
       spdxExpression,
-      evidenceFiles: licenseFiles
+      evidenceFiles: licenseFiles,
+      evidence: licenseEvidence
     },
     metrics: {
       entrypointBytes: entrypoint.size,
@@ -622,6 +646,65 @@ function normalizeSourcePath(value: string): string {
     throw new Error('sourcePath must be a safe relative path ending in SKILL.md.');
   }
   return value;
+}
+
+function mergeLicenseEvidence(
+  snapshotEvidence: HostedLicenseEvidence[],
+  additionalEvidence: HostedLicenseEvidence[] | undefined,
+  snapshot: GithubSourceSnapshot,
+  sourcePath: string,
+  licenseState: HostedAuditOptions['license']['state']
+): HostedLicenseEvidence[] {
+  if (additionalEvidence !== undefined && licenseState !== 'confirmed') {
+    throw new Error('Exact external license evidence is accepted only for a confirmed license review.');
+  }
+  if (additionalEvidence !== undefined && (!Array.isArray(additionalEvidence) || additionalEvidence.length > 20)) {
+    throw new Error('Exact external license evidence must contain at most 20 files.');
+  }
+  const expectedRepositoryUrl = `https://github.com/${snapshot.repository}`;
+  const byPath = new Map<string, HostedLicenseEvidence>();
+  const addEvidence = (item: HostedLicenseEvidence, external: boolean): void => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('Exact external license evidence must use the supported object schema.');
+    }
+    if (external) {
+      assertExactKeys(item, ['repositoryUrl', 'sourceCommit', 'path', 'contentDigest'], 'external license evidence');
+    }
+    if (item.repositoryUrl !== expectedRepositoryUrl || item.sourceCommit !== snapshot.resolvedCommit) {
+      throw new Error('Exact external license evidence must match the audited repository and immutable commit.');
+    }
+    if (typeof item.path !== 'string' || item.path.length > 500) {
+      throw new Error('Exact external license evidence path is invalid.');
+    }
+    try {
+      assertSnapshotPath(item.path);
+    } catch {
+      throw new Error('Exact external license evidence path is invalid.');
+    }
+    if (!/(?:^|\/)(?:licen[cs]e|copying)(?:\.[a-z0-9_-]+)?$/i.test(item.path)
+      || !isEnclosingLicensePath(item.path, sourcePath)) {
+      throw new Error('Exact external license evidence must be a root or enclosing license file for the submitted skill.');
+    }
+    if (typeof item.contentDigest !== 'string' || !DIGEST.test(item.contentDigest)) {
+      throw new Error('Exact external license evidence contentDigest must be a lowercase sha256 digest.');
+    }
+    const existing = byPath.get(item.path);
+    if (existing && existing.contentDigest !== item.contentDigest) {
+      throw new Error('Exact external license evidence conflicts with the fetched skill snapshot.');
+    }
+    byPath.set(item.path, { ...item });
+  };
+  for (const item of snapshotEvidence) addEvidence(item, false);
+  for (const item of additionalEvidence ?? []) addEvidence(item, true);
+  if (byPath.size > 20) throw new Error('Confirmed license evidence must contain at most 20 exact files.');
+  return [...byPath.values()].sort((left, right) => compareText(left.path, right.path));
+}
+
+function isEnclosingLicensePath(licensePath: string, sourcePath: string): boolean {
+  const licenseDirectory = path.posix.dirname(licensePath);
+  const sourceDirectory = path.posix.dirname(sourcePath);
+  if (licenseDirectory === '.') return true;
+  return sourceDirectory === licenseDirectory || sourceDirectory.startsWith(`${licenseDirectory}/`);
 }
 
 function decodeEntrypoint(bytes: Uint8Array): string {

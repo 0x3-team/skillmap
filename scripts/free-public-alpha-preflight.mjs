@@ -112,7 +112,10 @@ function staticGates(requireClean) {
 
   const leaseMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713003000_launch_safety_reports_lifecycle.sql'), 'utf8');
   const completionHardeningMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713020000_backend_completion_hardening.sql'), 'utf8');
+  const operatorAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260712233000_hosted_operator_publication_authority.sql'), 'utf8');
+  const authorityCompletionMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713050000_submission_authority_completion.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
+  const authorizationSource = readFileSync(path.join(repo, 'apps/worker/src/authorization.mjs'), 'utf8');
   const rpcSource = readFileSync(path.join(repo, 'apps/worker/src/supabase-rpc.mjs'), 'utf8');
   const workerMigrationBound = /create function api\.renew_skill_submission_claim\s*\(/i.test(leaseMigration)
     && /grant execute on function api\.renew_skill_submission_claim\(text, uuid, text, integer\) to service_role/i.test(leaseMigration)
@@ -124,15 +127,58 @@ function staticGates(requireClean) {
     && /grant execute on function api\.dead_letter_expired_skill_submission\(text, text\) to service_role/i.test(completionHardeningMigration)
     && /grant execute on function api\.list_skill_submission_collisions\(text\) to service_role/i.test(completionHardeningMigration)
     && /grant execute on function api\.review_skill_submission_collisions\(text, text, text, text\) to service_role/i.test(completionHardeningMigration)
+    && /drop function api\.review_skill_submission_collisions\(text, text, text, text\)/i.test(authorityCompletionMigration)
+    && /create function api\.review_skill_submission_collisions\s*\([\s\S]+p_target_publisher_id text[\s\S]+p_target_skill_id text[\s\S]+p_target_version_id text/i.test(authorityCompletionMigration)
+    && /grant execute on function api\.review_skill_submission_collisions\(\s*text, text, text, text, text, text, text\s*\) to service_role/i.test(authorityCompletionMigration)
+    && /create function api\.record_skill_submission_license_evidence\s*\(/i.test(authorityCompletionMigration)
+    && /grant execute on function api\.record_skill_submission_license_evidence\(\s*text, uuid, text, text, text, jsonb, text, text, text\s*\) to service_role/i.test(authorityCompletionMigration)
+    && /create function api\.record_skill_submission_publisher_authorization\s*\(/i.test(authorityCompletionMigration)
+    && /grant execute on function api\.record_skill_submission_publisher_authorization\(\s*text, text, text, text, text, text, timestamptz, text\s*\) to service_role/i.test(authorityCompletionMigration)
+    && /create function private\.version_has_current_publisher_authorization\(version_uuid uuid\)/i.test(authorityCompletionMigration)
+    && /receipt\.expires_at > clock_timestamp\(\)/i.test(authorityCompletionMigration)
+    && /create function private\.collision_subject_is_complete\(value jsonb\)/i.test(authorityCompletionMigration)
+    && /total_matches <> jsonb_array_length\(evidence_value -> 'matches'\)/i.test(authorityCompletionMigration)
+    && /partial collision evidence cannot authorize publication/i.test(authorityCompletionMigration)
+    && /publication requires complete untruncated collision evidence/i.test(authorityCompletionMigration)
+    && /published authorization renewal must match the exact source publisher version/i.test(authorityCompletionMigration)
+    && /published authorization renewal requires an active non-revoked exact source version/i.test(authorityCompletionMigration)
+    && /create table private\.publisher_authorization_revocation_tombstones/i.test(authorityCompletionMigration)
+    && /unique \(repository_url, source_commit, source_path\)/i.test(authorityCompletionMigration)
+    && /create function private\.lock_exact_source_authority/i.test(authorityCompletionMigration)
+    && /pg_advisory_xact_lock/i.test(authorityCompletionMigration)
+    && /publisher authorization revocation is terminal for the exact source/i.test(authorityCompletionMigration)
+    && /prior_row\.expires_at <= clock_timestamp\(\)/i.test(authorityCompletionMigration)
+    && /authorization_row\.expires_at <= clock_timestamp\(\)/i.test(authorityCompletionMigration)
+    && /jsonb_typeof\(item -> 'repositoryUrl'\) is distinct from 'string'/i.test(authorityCompletionMigration)
+    && /jsonb_typeof\(item -> 'sourceCommit'\) is distinct from 'string'/i.test(authorityCompletionMigration)
+    && /jsonb_typeof\(item -> 'path'\) is distinct from 'string'/i.test(authorityCompletionMigration)
+    && /jsonb_typeof\(item -> 'contentDigest'\) is distinct from 'string'/i.test(authorityCompletionMigration)
+    && /valid_submission_audit_receipt\(p_audit_receipt, p_worker_version\) is not true/i.test(operatorAuthorityMigration)
+    && /valid_submission_grade_receipt\(p_grade_receipt, p_audit_receipt\) is not true/i.test(operatorAuthorityMigration)
+    && /jsonb_typeof\(check_row -> 'outcome'\) is distinct from 'string'/i.test(operatorAuthorityMigration)
+    && /jsonb_typeof\(check_row -> 'severity'\) is distinct from 'string'/i.test(operatorAuthorityMigration)
+    && /jsonb_typeof\(gate_row -> 'evidenceDigest'\) = 'null'[\s\S]+sha256:/i.test(operatorAuthorityMigration)
+    && /perform private\.lock_exact_source_authority\([\s\S]+if submission_row\.state = 'published'/i.test(operatorAuthorityMigration)
+    && /publication replay no longer has current exact-source authority/i.test(operatorAuthorityMigration)
+    && /skill_row\.current_version_id is distinct from version_row\.id/i.test(operatorAuthorityMigration)
+    && /skill_row\.visibility_state <> 'public'[\s\S]+skill_row\.lifecycle_state not in \('published', 'deprecated'\)[\s\S]+skill_row\.revoked_at is not null/i.test(operatorAuthorityMigration)
+    && /publisher_row\.catalog_state <> 'published'[\s\S]+publisher_row\.revoked_at is not null/i.test(operatorAuthorityMigration)
+    && /repository_row\.catalog_state <> 'published'[\s\S]+repository_row\.revoked_at is not null/i.test(operatorAuthorityMigration)
+    && /version_row\.source_commit is distinct from submission_row\.source_commit[\s\S]+version_row\.source_path is distinct from submission_row\.source_path/i.test(operatorAuthorityMigration)
+    && /set publication_state = 'blocked'[\s\S]+revoked_at = coalesce/i.test(authorityCompletionMigration)
+    && /rpc\.call\('record_skill_submission_license_evidence'/.test(workerSource)
+    && /rpc\.call\('record_skill_submission_publisher_authorization'/.test(authorizationSource)
     && /'dead_letter_expired_skill_submission'/.test(rpcSource)
     && /'list_skill_submission_collisions'/.test(rpcSource)
-    && /'review_skill_submission_collisions'/.test(rpcSource);
+    && /'review_skill_submission_collisions'/.test(rpcSource)
+    && /'record_skill_submission_license_evidence'/.test(rpcSource)
+    && /'record_skill_submission_publisher_authorization'/.test(rpcSource);
   gates.push({
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker lease renewal and completion hardening are source-bound to migrations 20260713003000 and 20260713020000; applying and verifying both remains a database gate before worker start.'
-      : 'Worker lease renewal or completion hardening is not bound to every required migration, RPC, and service-role grant.'
+      ? 'Worker lease renewal, completion hardening, and exact-source publication authority are source-bound through migration 20260713050000; applying and verifying every migration remains a database gate before worker start.'
+      : 'Worker lease renewal, completion hardening, or exact-source publication authority is not bound to every required migration, RPC, and service-role grant.'
   });
 
   const diffCheck = run('git', ['diff', '--check']);

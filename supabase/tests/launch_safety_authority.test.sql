@@ -84,6 +84,16 @@ update api.skill_submissions set state = 'accepted', active_claim_id = null,
   last_worker_run_id = '90000000-0000-4000-8000-000000000003',
   last_transition_digest = 'sha256:' || repeat('6', 64)
 where id = '90000000-0000-4000-8000-000000000001';
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select authorization_receipt_id as lifecycle_authorization_receipt_id
+from api.record_skill_submission_publisher_authorization(
+  'sub_90000000000000000000000000000001','0x3-team','authorized',
+  'publisher-owner-approval','authref_' || repeat('a',32),
+  'sha256:' || repeat('a',64),now() + interval '30 days',
+  'sha256:' || repeat('a',64)
+) \gset
+reset role;
 update private.skill_versions set
   source_submission_id = '90000000-0000-4000-8000-000000000001',
   submission_audit_receipt_id = '91000000-0000-4000-8000-000000000001',
@@ -124,7 +134,7 @@ select ok(not has_function_privilege('authenticated', 'api.control_catalog_lifec
 select is((select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'api' and c.relname in ('catalog_audit_evidence', 'catalog_grade_evidence') and c.reloptions @> array['security_invoker=true','security_barrier=true']), 2::bigint, 'evidence views are security-invoker and security-barrier');
 select is((select count(*) from information_schema.columns where table_schema = 'api' and table_name in ('catalog_audit_evidence','catalog_grade_evidence') and column_name in ('submission_id','submitter_user_id','reporter_user_id','private_evidence_digest')), 0::bigint, 'evidence projections omit submission, account, and private-evidence identifiers');
 select ok(not has_column_privilege('anon', 'private.skill_audit_receipts', 'private_evidence_digest', 'select'), 'anonymous roles cannot select the private evidence digest');
-select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef), 12::bigint, 'API security-definer surface remains the exact twelve-function allowlist');
+select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef), 14::bigint, 'API security-definer surface remains the exact fourteen-function allowlist');
 
 set local role anon;
 select is((select count(*) from api.catalog_audit_evidence where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'anonymous users can see audit evidence only for a current public version');

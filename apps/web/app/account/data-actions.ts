@@ -1,9 +1,16 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hasExactAccountDeletionConfirmation } from "@/lib/account/deletion.server";
+import {
+  ACCOUNT_DELETION_FLASH_COOKIE,
+  createAccountDeletionFlash,
+  serializeAccountDeletionFlash
+} from "@/lib/account/deletion-flash";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
@@ -26,7 +33,26 @@ export async function deleteMyAccount(formData: FormData) {
   revalidatePath("/account");
   revalidatePath("/account/submissions");
   if (error || data !== true) redirect("/sign-in?status=account-delete-unconfirmed");
-  redirect("/sign-in?status=account-deleted");
+  const token = randomUUID();
+  const flash = createAccountDeletionFlash(token);
+  if (!flash) redirect("/sign-in?status=account-delete-unconfirmed");
+  const cookieStore = await cookies();
+  cookieStore.set(ACCOUNT_DELETION_FLASH_COOKIE, serializeAccountDeletionFlash(flash), {
+    httpOnly: true,
+    maxAge: 120,
+    path: "/sign-in",
+    sameSite: "strict",
+    secure: publicOriginUsesHttps()
+  });
+  redirect(`/sign-in?accountFlash=${encodeURIComponent(token)}`);
+}
+
+function publicOriginUsesHttps(): boolean {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1").protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 type DeletionActionContext =

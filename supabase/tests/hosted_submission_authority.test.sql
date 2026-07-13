@@ -426,8 +426,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  12::bigint,
-  'the exposed API contains exactly twelve reviewed security-definer RPCs'
+  14::bigint,
+  'the exposed API contains exactly fourteen reviewed security-definer RPCs'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -436,9 +436,11 @@ select is(
       'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
-      'list_skill_submission_collisions', 'review_skill_submission_collisions'
+      'list_skill_submission_collisions', 'review_skill_submission_collisions',
+      'record_skill_submission_publisher_authorization',
+      'record_skill_submission_license_evidence'
     )),
-  12::bigint,
+  14::bigint,
   'the reviewed allowlist names every exposed security-definer RPC'
 );
 

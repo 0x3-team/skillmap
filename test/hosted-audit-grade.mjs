@@ -107,6 +107,43 @@ test('nested audits bind the full submitted path and recomputed manifest', () =>
   }), /manifest and file metadata must match exactly/);
 });
 
+test('nested audits accept only exact root or enclosing license evidence at the audited commit', () => {
+  const snapshot = sourceSnapshot({ 'SKILL.md': validSkill() }, {
+    subtree: 'skills/focused-review'
+  });
+  const rootEvidence = {
+    repositoryUrl: 'https://github.com/example/skills',
+    sourceCommit: COMMIT,
+    path: 'LICENSE',
+    contentDigest: SHA('7')
+  };
+  const first = auditHostedSkillSnapshot(snapshot, {
+    sourcePath: 'skills/focused-review/SKILL.md',
+    license: { state: 'confirmed', spdxExpression: 'MIT', evidence: [rootEvidence] }
+  });
+  const second = auditHostedSkillSnapshot(snapshot, {
+    sourcePath: 'skills/focused-review/SKILL.md',
+    license: { state: 'confirmed', spdxExpression: 'MIT', evidence: [rootEvidence] }
+  });
+  assert.deepEqual(first, second);
+  assert.deepEqual(first.license.evidenceFiles, ['LICENSE']);
+  assert.deepEqual(first.license.evidence, [rootEvidence]);
+  assert.equal(first.findings.some((finding) => finding.code === 'license-file-missing'), false);
+
+  for (const [evidence, pattern] of [
+    [{ ...rootEvidence, repositoryUrl: 'https://github.com/other/skills' }, /repository and immutable commit/],
+    [{ ...rootEvidence, sourceCommit: 'b'.repeat(40) }, /repository and immutable commit/],
+    [{ ...rootEvidence, path: '../LICENSE' }, /path is invalid/],
+    [{ ...rootEvidence, path: 'skills/other/LICENSE' }, /root or enclosing license file/],
+    [{ ...rootEvidence, extra: true }, /fields do not match/]
+  ]) {
+    assert.throws(() => auditHostedSkillSnapshot(snapshot, {
+      sourcePath: 'skills/focused-review/SKILL.md',
+      license: { state: 'confirmed', spdxExpression: 'MIT', evidence: [evidence] }
+    }), pattern);
+  }
+});
+
 test('confirmed redistribution fails closed for fake or compound SPDX claims', () => {
   const snapshot = sourceSnapshot({ 'SKILL.md': validSkill(), 'LICENSE': 'MIT License\n' });
   for (const spdxExpression of ['Definitely-Not-SPDX', 'MIT OR']) {

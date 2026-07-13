@@ -251,15 +251,15 @@ declare
   warning_seen boolean := false;
   blocked_seen boolean := false;
 begin
-  if not private.jsonb_exact_keys(value, array[
+  if private.jsonb_exact_keys(value, array[
       'state', 'receiptDigest', 'sourceContentDigest', 'normalizedContentDigest',
       'policyVersion', 'hostProfileVersion', 'workerVersion', 'findingCounts',
       'publicChecks', 'reasonCodes', 'privateEvidenceDigest', 'licenseState',
       'spdxExpression', 'permissionScripts', 'networkIndicators', 'toolIndicators'
-    ]) then return false; end if;
+    ]) is not true then return false; end if;
   counts := value -> 'findingCounts';
   checks := value -> 'publicChecks';
-  if not private.jsonb_exact_keys(counts, array['critical', 'high', 'medium', 'low', 'info'])
+  if private.jsonb_exact_keys(counts, array['critical', 'high', 'medium', 'low', 'info']) is not true
     or jsonb_typeof(checks) is distinct from 'array'
     or jsonb_typeof(value -> 'reasonCodes') is distinct from 'array'
     or jsonb_array_length(checks) not between 1 and 100
@@ -268,7 +268,11 @@ begin
   end if;
   if exists (
     select 1 from jsonb_each(counts) item
-    where jsonb_typeof(item.value) <> 'number' or item.value #>> '{}' !~ '^[0-9]+$'
+    where jsonb_typeof(item.value) is distinct from 'number'
+      or item.value #>> '{}' !~ '^[0-9]+$'
+  ) or exists (
+    select 1 from jsonb_array_elements(value -> 'reasonCodes') item
+    where jsonb_typeof(item) is distinct from 'string'
   ) then return false; end if;
   critical_count := (counts ->> 'critical')::integer;
   high_count := (counts ->> 'high')::integer;
@@ -276,7 +280,16 @@ begin
   low_count := (counts ->> 'low')::integer;
   info_count := (counts ->> 'info')::integer;
   reasons := private.jsonb_text_array(value -> 'reasonCodes');
-  if not private.valid_text_array(reasons, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$')
+  if private.valid_text_array(reasons, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$') is not true
+    or jsonb_typeof(value -> 'state') is distinct from 'string'
+    or jsonb_typeof(value -> 'receiptDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'sourceContentDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'normalizedContentDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'privateEvidenceDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'workerVersion') is distinct from 'string'
+    or jsonb_typeof(value -> 'policyVersion') is distinct from 'string'
+    or jsonb_typeof(value -> 'hostProfileVersion') is distinct from 'string'
+    or jsonb_typeof(value -> 'licenseState') is distinct from 'string'
     or (value ->> 'state') not in ('passed', 'warnings', 'blocked')
     or (value ->> 'receiptDigest') !~ '^sha256:[0-9a-f]{64}$'
     or (value ->> 'sourceContentDigest') !~ '^sha256:[0-9a-f]{64}$'
@@ -291,7 +304,7 @@ begin
     or jsonb_typeof(value -> 'toolIndicators') is distinct from 'boolean'
     or ((value ->> 'licenseState') = 'confirmed' and (
       jsonb_typeof(value -> 'spdxExpression') is distinct from 'string'
-      or not private.valid_public_alpha_spdx(value ->> 'spdxExpression')))
+      or private.valid_public_alpha_spdx(value ->> 'spdxExpression') is not true))
     or ((value ->> 'licenseState') in ('noassertion', 'restricted') and (
       jsonb_typeof(value -> 'spdxExpression') is distinct from 'null'
       or (value ->> 'state') <> 'blocked')) then
@@ -302,7 +315,11 @@ begin
     return false;
   end if;
   for check_row in select item from jsonb_array_elements(checks) item loop
-    if not private.jsonb_exact_keys(check_row, array['code', 'outcome', 'severity', 'evidenceDigest'])
+    if jsonb_typeof(check_row) is distinct from 'object'
+      or private.jsonb_exact_keys(check_row, array['code', 'outcome', 'severity', 'evidenceDigest']) is not true
+      or jsonb_typeof(check_row -> 'code') is distinct from 'string'
+      or jsonb_typeof(check_row -> 'outcome') is distinct from 'string'
+      or jsonb_typeof(check_row -> 'severity') is distinct from 'string'
       or (check_row ->> 'code') !~ '^[a-z0-9]+(-[a-z0-9]+)*$'
       or length(check_row ->> 'code') > 64
       or (check_row ->> 'outcome') not in ('passed', 'warning', 'blocked', 'not-applicable')
@@ -346,12 +363,14 @@ declare
   behavioral_failed boolean := false;
   license_gate_passed boolean;
 begin
-  if not private.jsonb_exact_keys(value, array[
+  if private.jsonb_exact_keys(value, array[
       'state', 'receiptDigest', 'totalScore', 'confidence', 'normalizedContentDigest',
       'auditReceiptDigest', 'compatibilityEvidenceDigest', 'evaluationSuiteDigest',
       'rubricVersion', 'hostProfileVersion', 'evaluatorVersion', 'hardGates',
       'dimensions', 'reasonCodes'
-    ]) then return false; end if;
+    ]) is not true or jsonb_typeof(audit_value) is distinct from 'object' then
+    return false;
+  end if;
   gates := value -> 'hardGates';
   dimensions := value -> 'dimensions';
   if jsonb_typeof(gates) is distinct from 'array'
@@ -361,14 +380,31 @@ begin
     or pg_column_size(gates) > 16384 or pg_column_size(dimensions) > 16384 then
     return false;
   end if;
+  if exists (
+    select 1 from jsonb_array_elements(value -> 'reasonCodes') item
+    where jsonb_typeof(item) is distinct from 'string'
+  ) then return false; end if;
   reasons := private.jsonb_text_array(value -> 'reasonCodes');
-  if not private.valid_text_array(reasons, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$')
+  if private.valid_text_array(reasons, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$') is not true
     or cardinality(reasons) = 0
+    or jsonb_typeof(value -> 'state') is distinct from 'string'
+    or jsonb_typeof(value -> 'receiptDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'normalizedContentDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'auditReceiptDigest') is distinct from 'string'
+    or jsonb_typeof(value -> 'rubricVersion') is distinct from 'string'
+    or jsonb_typeof(value -> 'hostProfileVersion') is distinct from 'string'
+    or jsonb_typeof(value -> 'evaluatorVersion') is distinct from 'string'
     or (value ->> 'state') not in ('provisional', 'blocked')
     or (value ->> 'receiptDigest') !~ '^sha256:[0-9a-f]{64}$'
     or (value ->> 'normalizedContentDigest') is distinct from (audit_value ->> 'normalizedContentDigest')
     or (value ->> 'auditReceiptDigest') is distinct from (audit_value ->> 'receiptDigest')
-    or (value ->> 'compatibilityEvidenceDigest') !~ '^sha256:[0-9a-f]{64}$'
+    or not (
+      jsonb_typeof(value -> 'compatibilityEvidenceDigest') = 'null'
+      or (jsonb_typeof(value -> 'compatibilityEvidenceDigest') = 'string'
+        and (value ->> 'compatibilityEvidenceDigest') ~ '^sha256:[0-9a-f]{64}$')
+    )
+    or ((value ->> 'state') = 'provisional'
+      and jsonb_typeof(value -> 'compatibilityEvidenceDigest') is distinct from 'string')
     or not (
       jsonb_typeof(value -> 'evaluationSuiteDigest') = 'null'
       or (jsonb_typeof(value -> 'evaluationSuiteDigest') = 'string'
@@ -383,12 +419,19 @@ begin
     return false;
   end if;
   for gate_row in select item from jsonb_array_elements(gates) item loop
-    if not private.jsonb_exact_keys(gate_row, array['code', 'passed', 'evidenceDigest'])
+    if jsonb_typeof(gate_row) is distinct from 'object'
+      or private.jsonb_exact_keys(gate_row, array['code', 'passed', 'evidenceDigest']) is not true
+      or jsonb_typeof(gate_row -> 'code') is distinct from 'string'
       or (gate_row ->> 'code') not in (
         'source-identity', 'audit-acceptable', 'license-confirmed',
         'compatibility-evidence-bound', 'behavioral-evidence-bound'
       )
-      or jsonb_typeof(gate_row -> 'passed') <> 'boolean' then return false; end if;
+      or jsonb_typeof(gate_row -> 'passed') is distinct from 'boolean'
+      or not (
+        jsonb_typeof(gate_row -> 'evidenceDigest') = 'null'
+        or (jsonb_typeof(gate_row -> 'evidenceDigest') = 'string'
+          and (gate_row ->> 'evidenceDigest') ~ '^sha256:[0-9a-f]{64}$')
+      ) then return false; end if;
     if (gate_row ->> 'code') = 'behavioral-evidence-bound' then
       behavioral_failed := (gate_row ->> 'passed')::boolean = false;
       if behavioral_failed and jsonb_typeof(gate_row -> 'evidenceDigest') <> 'null' then return false; end if;
@@ -412,10 +455,12 @@ begin
     return false;
   end if;
   for dimension_row in select item from jsonb_array_elements(dimensions) item loop
-    if not private.jsonb_exact_keys(dimension_row, array['code', 'weight', 'score', 'evidenceDigest'])
-      or jsonb_typeof(dimension_row -> 'weight') <> 'number'
-      or jsonb_typeof(dimension_row -> 'score') <> 'number'
-      or jsonb_typeof(dimension_row -> 'evidenceDigest') <> 'string'
+    if jsonb_typeof(dimension_row) is distinct from 'object'
+      or private.jsonb_exact_keys(dimension_row, array['code', 'weight', 'score', 'evidenceDigest']) is not true
+      or jsonb_typeof(dimension_row -> 'code') is distinct from 'string'
+      or jsonb_typeof(dimension_row -> 'weight') is distinct from 'number'
+      or jsonb_typeof(dimension_row -> 'score') is distinct from 'number'
+      or jsonb_typeof(dimension_row -> 'evidenceDigest') is distinct from 'string'
       or (dimension_row ->> 'evidenceDigest') !~ '^sha256:[0-9a-f]{64}$'
       or (dimension_row ->> 'score')::double precision not between 0 and 100 then
       return false;
@@ -809,18 +854,18 @@ begin
     return;
   end if;
 
-  if p_audit_receipt is null or not private.jsonb_exact_keys(p_audit_receipt, array[
+  if p_audit_receipt is null or private.jsonb_exact_keys(p_audit_receipt, array[
       'state', 'receiptDigest', 'sourceContentDigest', 'normalizedContentDigest',
       'policyVersion', 'hostProfileVersion', 'workerVersion', 'findingCounts',
       'publicChecks', 'reasonCodes', 'privateEvidenceDigest', 'licenseState',
       'spdxExpression', 'permissionScripts', 'networkIndicators', 'toolIndicators'
-    ])
-    or p_grade_receipt is null or not private.jsonb_exact_keys(p_grade_receipt, array[
+    ]) is not true
+    or p_grade_receipt is null or private.jsonb_exact_keys(p_grade_receipt, array[
       'state', 'receiptDigest', 'totalScore', 'confidence', 'normalizedContentDigest',
       'auditReceiptDigest', 'compatibilityEvidenceDigest', 'evaluationSuiteDigest',
       'rubricVersion', 'hostProfileVersion', 'evaluatorVersion', 'hardGates',
       'dimensions', 'reasonCodes'
-    ]) then
+    ]) is not true then
     raise exception 'receipt payload shape is invalid' using errcode = '22023';
   end if;
   if jsonb_typeof(p_audit_receipt -> 'reasonCodes') <> 'array'
@@ -831,8 +876,8 @@ begin
     or jsonb_typeof(p_grade_receipt -> 'dimensions') <> 'array' then
     raise exception 'receipt payload types are invalid' using errcode = '22023';
   end if;
-  if not private.valid_submission_audit_receipt(p_audit_receipt, p_worker_version)
-    or not private.valid_submission_grade_receipt(p_grade_receipt, p_audit_receipt) then
+  if private.valid_submission_audit_receipt(p_audit_receipt, p_worker_version) is not true
+    or private.valid_submission_grade_receipt(p_grade_receipt, p_audit_receipt) is not true then
     raise exception 'receipt payload contradicts the public-alpha audit or grade authority' using errcode = '22023';
   end if;
 
@@ -846,7 +891,7 @@ begin
     or (p_audit_receipt ->> 'workerVersion') is distinct from p_worker_version
     or length(p_audit_receipt ->> 'policyVersion') not between 1 and 64
     or length(p_audit_receipt ->> 'hostProfileVersion') not between 1 and 64
-    or not private.valid_text_array(audit_reason_codes, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$')
+    or private.valid_text_array(audit_reason_codes, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$') is not true
     or jsonb_array_length(p_audit_receipt -> 'publicChecks') not between 1 and 100
     or pg_column_size(p_audit_receipt -> 'findingCounts') > 2048
     or pg_column_size(p_audit_receipt -> 'publicChecks') > 32768 then
@@ -863,7 +908,7 @@ begin
     or length(p_grade_receipt ->> 'rubricVersion') not between 1 and 64
     or length(p_grade_receipt ->> 'hostProfileVersion') not between 1 and 64
     or length(p_grade_receipt ->> 'evaluatorVersion') not between 1 and 128
-    or not private.valid_text_array(grade_reason_codes, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$')
+    or private.valid_text_array(grade_reason_codes, 20, 64, '^[a-z0-9]+(-[a-z0-9]+)*$') is not true
     or cardinality(grade_reason_codes) = 0
     or jsonb_array_length(p_grade_receipt -> 'hardGates') not between 1 and 50
     or jsonb_array_length(p_grade_receipt -> 'dimensions') not between 1 and 20
@@ -1137,6 +1182,11 @@ begin
   if submission_row.id is null then
     raise exception 'submission was not found' using errcode = 'P0002';
   end if;
+  -- Serialize the publication/replay decision with authorization renewal and
+  -- revocation for the same immutable source coordinates.
+  perform private.lock_exact_source_authority(
+    submission_row.repository_url, submission_row.source_commit, submission_row.source_path
+  );
   if submission_row.state = 'published' then
     if submission_row.publication_digest is distinct from p_publication_digest then
       raise exception 'publication replay conflicts with the authoritative digest' using errcode = '23505';
@@ -1145,6 +1195,31 @@ begin
     select * into publisher_row from private.publishers where id = skill_row.publisher_id;
     select * into repository_row from private.source_repositories where id = skill_row.source_repository_id;
     select * into version_row from private.skill_versions where public_id = submission_row.result_version_id;
+    if skill_row.id is null
+      or publisher_row.id is null
+      or repository_row.id is null
+      or version_row.id is null
+      or version_row.skill_id is distinct from skill_row.id
+      or skill_row.publisher_id is distinct from publisher_row.id
+      or skill_row.source_repository_id is distinct from repository_row.id
+      or skill_row.current_version_id is distinct from version_row.id
+      or skill_row.visibility_state <> 'public'
+      or skill_row.lifecycle_state not in ('published', 'deprecated')
+      or skill_row.revoked_at is not null
+      or publisher_row.catalog_state <> 'published'
+      or publisher_row.revoked_at is not null
+      or repository_row.catalog_state <> 'published'
+      or repository_row.revoked_at is not null
+      or repository_row.repository_url is distinct from submission_row.repository_url
+      or version_row.source_commit is distinct from submission_row.source_commit
+      or version_row.source_path is distinct from submission_row.source_path
+      or version_row.publication_state <> 'published'
+      or version_row.quarantined_at is not null
+      or version_row.revoked_at is not null
+      or private.version_has_current_publisher_authorization(version_row.id) is not true then
+      raise exception 'publication replay no longer has current exact-source authority'
+        using errcode = '55000';
+    end if;
     if publisher_row.handle is distinct from p_publisher_handle
       or publisher_row.display_name is distinct from p_publisher_display_name
       or repository_row.repository_url is distinct from submission_row.repository_url

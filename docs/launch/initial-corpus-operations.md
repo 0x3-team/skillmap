@@ -58,9 +58,24 @@ After publisher consent and the external hosting/policy owner gates close:
 3. Run the service-role worker for exactly one submission with the reviewed license disposition.
 4. Inspect the bounded audit and provisional-grade receipts. A static score is not a safety badge or current letter.
 5. Load collision evidence. If a match exists, record one immutable reviewed disposition before publication.
-6. Prepare public metadata from reviewed evidence. Treat upstream names and descriptions as untrusted source material; verify the publisher handle, skill slug/display name, summary, capabilities, license state, script presence, network domains, and tool requirements.
-7. Publish through the receipt-backed service RPC, then verify the account result, public listing, exact source link, audit route, grade route, lifecycle state, and timestamps.
-8. Reproduce one source/audit digest before advancing to the next version.
+6. Record current publisher authorization with the service-only `hosted:publisher:authorization` command. Bind the exact submission and publisher handle to the retained consent reference and evidence digest, choose an expiry no more than 366 days ahead, and use one fresh canonical operation UUID. Never copy private consent text or contact details into the command or ledger.
+7. Prepare public metadata from reviewed evidence. Treat upstream names and descriptions as untrusted source material; verify the publisher handle, skill slug/display name, summary, capabilities, license state, script presence, network domains, and tool requirements.
+8. Publish through the receipt-backed service RPC, then verify the account result, public listing, exact source link, audit route, grade route, lifecycle state, authorization expiry, and timestamps.
+9. Reproduce one source/audit digest before advancing to the next version.
+
+Authorization is not implied by an open-source license or a submitter acknowledgement. Expiry hides the listing until fresh evidence renews the exact active version. A publisher revocation is terminal for the exact repository, commit, and path across accounts and publisher handles, blocks every matching published version, and cannot be bypassed by resubmission; a future identity-transfer exception requires a separate reviewed authority design.
+
+Use this mutation-explicit template for step 6, replacing every placeholder from the retained consent receipt and generating a fresh operation UUID for each version:
+
+```bash
+npm run hosted:publisher:authorization -- \
+  --execute --submission-id "$SUBMISSION_ID" --publisher-handle "$REVIEWED_PUBLISHER_HANDLE" \
+  --decision authorized --basis publisher-owner-approval \
+  --evidence-reference "$AUTHORIZATION_REFERENCE" \
+  --evidence-digest "$AUTHORIZATION_EVIDENCE_DIGEST" \
+  --expires-at "$AUTHORIZATION_EXPIRES_AT" \
+  --operation-id "$FRESH_OPERATION_UUID"
+```
 
 Do not bulk-approve, fabricate consent, copy private evidence into public metadata, bypass collision review, or hand-edit rows. The free launch has no checkout, subscription, billing, paid placement, or paid fast path.
 

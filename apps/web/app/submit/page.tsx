@@ -5,6 +5,8 @@ import { SubmissionForm } from "@/app/submit/submission-form";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { resolveHostedAccountState } from "@/lib/auth/account-state.server";
 import { buildPublicPageMetadata } from "@/lib/metadata";
+import { SupabaseConfigurationError } from "@/lib/supabase/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseSubmissionPublicId, parseSubmitStatus, type SubmitStatus } from "@/lib/submissions/status";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +33,11 @@ export default async function SubmitPage({
     ? params.field
     : null;
   const authState = await resolveHostedAccountState();
+  const verifiedStatus = status === "duplicate"
+    ? authState === "authenticated" && submissionId && await ownsSubmission(submissionId)
+      ? status
+      : null
+    : status;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -44,7 +51,7 @@ export default async function SubmitPage({
           </p>
         </div>
 
-        {status ? <SubmissionStatusNotice status={status} submissionId={submissionId} field={field} /> : null}
+        {verifiedStatus ? <SubmissionStatusNotice status={verifiedStatus} submissionId={submissionId} field={field} /> : null}
 
         <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
           {authState === "authenticated" ? (
@@ -113,17 +120,41 @@ function SubmissionBoundary() {
 function SubmissionStatusNotice({ status, submissionId, field }: { status: SubmitStatus; submissionId: string | null; field: string | null }) {
   const messages: Record<SubmitStatus, { title: string; body: string; tone: string }> = {
     "auth-unavailable": { title: "Authentication could not be verified", body: "No submission was created. Try again after the hosted auth service recovers.", tone: "border-warning/35 bg-warning/10" },
-    duplicate: { title: "That exact source is already in your queue", body: submissionId ? `Existing submission ${submissionId} remains the source of truth.` : "Open your submissions to inspect the existing request.", tone: "border-warning/35 bg-warning/10" },
+    duplicate: { title: "That exact source already has a submission record", body: submissionId ? `Submission ${submissionId} is retained in your account history. Inspect its current state before deciding what to do next.` : "Open your submission history to inspect the existing record and its current state.", tone: "border-warning/35 bg-warning/10" },
     "idempotency-conflict": { title: "Request ID already used", body: "No second row was created. Reload this form to generate a new request ID, then verify the source coordinates before retrying.", tone: "border-warning/35 bg-warning/10" },
     invalid: { title: "Submission input was rejected", body: field ? `The ${humanizeField(field)} field was not canonical or exceeded its boundary. No database mutation occurred.` : "One or more fields were invalid. No database mutation occurred.", tone: "border-destructive/30 bg-destructive/10" },
     quota: { title: "Submission quota reached", body: "This account has 3 active submissions or already created 10 submissions in the rolling 24-hour window. No new row was created.", tone: "border-warning/35 bg-warning/10" },
-    queued: { title: "Submission queued", body: "The account-owned request is queued for review; it is not public and has no current grade.", tone: "border-primary/30 bg-primary/10" },
     "service-unavailable": { title: "Submission service unavailable", body: "The request could not be confirmed, so SkillMap does not claim that a submission was created.", tone: "border-warning/35 bg-warning/10" }
   };
   const message = messages[status];
-  return <div className={`mt-7 rounded-xl border p-4 ${message.tone}`} role="status"><p className="font-semibold">{message.title}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{message.body}</p></div>;
+  return (
+    <div className={`mt-7 rounded-xl border p-4 ${message.tone}`} role="status">
+      <p className="font-semibold">{message.title}</p>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{message.body}</p>
+      {status === "duplicate" ? (
+        <Link href="/account/submissions" className="mt-3 inline-flex text-sm font-semibold text-primary underline underline-offset-4">
+          Open submission history
+        </Link>
+      ) : null}
+    </div>
+  );
 }
 
 function humanizeField(value: string) {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+}
+
+async function ownsSubmission(submissionId: string): Promise<boolean> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("my_skill_submissions")
+      .select("submission_id")
+      .eq("submission_id", submissionId)
+      .maybeSingle();
+    return !error && data?.submission_id === submissionId;
+  } catch (error) {
+    if (error instanceof SupabaseConfigurationError) return false;
+    throw error;
+  }
 }

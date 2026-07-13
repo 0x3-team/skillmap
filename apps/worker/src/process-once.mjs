@@ -7,7 +7,10 @@ import {
   createHostedDeclaredCompatibilityReceiptDigest,
   gradeHostedSkill
 } from '../../../dist/hosted/audit-grade.js';
-import { fetchGithubSkillTree } from '../../../dist/network/github-source-fetcher.js';
+import {
+  fetchGithubExactSourceFile,
+  fetchGithubSkillTree
+} from '../../../dist/network/github-source-fetcher.js';
 import { buildOperatorReceiptPayloads, canonicalDigest } from './operator-receipts.mjs';
 import { renewClaimLease } from './claim-lease.mjs';
 import { assertPublicGithubRepository } from './public-github-repository.mjs';
@@ -39,6 +42,9 @@ try {
   claimed = validateClaim(claims[0]);
 
   const repository = repositoryFromUrl(claimed.repository_url);
+  for (const evidencePath of options.licenseEvidencePaths) {
+    assertEnclosingLicenseEvidencePath(evidencePath, claimed.source_path);
+  }
   await assertPublicGithubRepository(repository);
   await renewClaimLease(rpc, claimed, { workerVersion: WORKER_VERSION, leaseSeconds: 300 });
   const sourceDirectory = path.posix.dirname(claimed.source_path);
@@ -59,13 +65,44 @@ try {
     }
   );
   if (snapshot.resolvedCommit !== claimed.source_commit) throw new Error('GitHub did not resolve the claimed immutable commit exactly.');
+  const externalLicenseEvidence = [];
+  for (let index = 0; index < options.licenseEvidencePaths.length; index += 4) {
+    const batch = options.licenseEvidencePaths.slice(index, index + 4);
+    const files = await Promise.all(batch.map((evidencePath) => fetchGithubExactSourceFile(
+      repository,
+      claimed.source_commit,
+      evidencePath,
+      {
+        timeoutMs: 10_000,
+        maxResponseBytes: 256 * 1024,
+        maxTotalBytes: 256 * 1024,
+        maxEntries: 1,
+        concurrency: 1,
+        maxRetries: 2,
+        userAgent: 'skillmap-hosted-audit-worker/1',
+        signal: sourcePhaseSignal
+      }
+    )));
+    for (const file of files) {
+      if (file.repository !== repository || file.resolvedCommit !== claimed.source_commit) {
+        throw new Error('Exact license evidence did not match the claimed immutable source identity.');
+      }
+      externalLicenseEvidence.push({
+        repositoryUrl: claimed.repository_url,
+        sourceCommit: claimed.source_commit,
+        path: file.path,
+        contentDigest: file.contentDigest
+      });
+    }
+  }
   await renewClaimLease(rpc, claimed, { workerVersion: WORKER_VERSION, leaseSeconds: 300 });
 
   const auditReceipt = auditHostedSkillSnapshot(snapshot, {
     sourcePath: claimed.source_path,
     license: {
       state: options.licenseState,
-      ...(options.spdx ? { spdxExpression: options.spdx } : {})
+      ...(options.spdx ? { spdxExpression: options.spdx } : {}),
+      ...(externalLicenseEvidence.length > 0 ? { evidence: externalLicenseEvidence } : {})
     }
   });
   const hostProfileVersion = 'codex-host/v1';
@@ -82,7 +119,9 @@ try {
     auditReceipt,
     gradeEvaluation,
     compatibilityReceiptDigest,
-    workerVersion: WORKER_VERSION
+    workerVersion: WORKER_VERSION,
+    licenseReviewReference: options.licenseReviewReference,
+    licenseReviewEvidenceDigest: options.licenseReviewEvidenceDigest
   });
   const eligible = auditReceipt.state !== 'blocked' && gradeEvaluation.state === 'provisional';
   const disposition = resolveDisposition(options.disposition, eligible);
@@ -109,6 +148,24 @@ try {
     submissionId: claimed.submission_id, claimId: claimed.claim_id,
     workerVersion: WORKER_VERSION, inputDigest, resultDigest, disposition
   });
+  if (receipts.license) {
+    const licenseIdempotencyDigest = canonicalDigest({
+      kind: 'skillmap.hosted-license-evidence-request', schemaVersion: 1,
+      submissionId: claimed.submission_id, claimId: claimed.claim_id,
+      workerVersion: WORKER_VERSION, license: receipts.license
+    });
+    await rpc.call('record_skill_submission_license_evidence', {
+      p_submission_id: claimed.submission_id,
+      p_claim_id: claimed.claim_id,
+      p_worker_version: WORKER_VERSION,
+      p_audit_receipt_digest: receipts.license.auditReceiptDigest,
+      p_spdx_expression: receipts.license.spdxExpression,
+      p_evidence: receipts.license.evidence,
+      p_review_reference: receipts.license.reviewReference,
+      p_review_evidence_digest: receipts.license.reviewEvidenceDigest,
+      p_idempotency_digest: licenseIdempotencyDigest
+    });
+  }
   const completed = await rpc.call('complete_skill_submission', {
     p_submission_id: claimed.submission_id,
     p_claim_id: claimed.claim_id,
@@ -157,6 +214,7 @@ try {
 
 function parseArguments(args) {
   const values = Object.create(null);
+  const licenseEvidencePaths = [];
   let execute = false;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -166,12 +224,21 @@ function parseArguments(args) {
       execute = true;
       continue;
     }
-    if (!['--submission-id', '--license-state', '--spdx', '--disposition', '--public-message'].includes(argument)) {
+    if (!['--submission-id', '--license-state', '--spdx', '--license-review-reference',
+      '--license-review-evidence-digest', '--license-evidence-path', '--disposition', '--public-message'].includes(argument)) {
       throw new Error(`Unknown option: ${argument}`);
     }
-    if (values[argument] !== undefined) throw new Error(`Option may be supplied only once: ${argument}`);
     const value = args[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`Option requires a value: ${argument}`);
+    if (argument === '--license-evidence-path') {
+      if (licenseEvidencePaths.length >= 20) throw new Error('--license-evidence-path may be supplied at most 20 times.');
+      const normalizedPath = validateLicenseEvidencePath(value);
+      if (licenseEvidencePaths.includes(normalizedPath)) throw new Error('--license-evidence-path values must be unique.');
+      licenseEvidencePaths.push(normalizedPath);
+      index += 1;
+      continue;
+    }
+    if (values[argument] !== undefined) throw new Error(`Option may be supplied only once: ${argument}`);
     values[argument] = value;
     index += 1;
   }
@@ -179,13 +246,52 @@ function parseArguments(args) {
   if (!['confirmed', 'noassertion', 'restricted'].includes(licenseState)) throw new Error('--license-state is invalid.');
   if (licenseState === 'confirmed' && !values['--spdx']) throw new Error('--spdx is required when confirming a license.');
   if (licenseState !== 'confirmed' && values['--spdx']) throw new Error('--spdx is accepted only with a confirmed license.');
+  const licenseReviewReference = values['--license-review-reference'];
+  const licenseReviewEvidenceDigest = values['--license-review-evidence-digest'];
+  if (licenseState === 'confirmed' && !/^licref_[0-9a-f]{32}$/.test(licenseReviewReference ?? '')) {
+    throw new Error('--license-review-reference is required when confirming a license.');
+  }
+  if (licenseState === 'confirmed' && !/^sha256:[0-9a-f]{64}$/.test(licenseReviewEvidenceDigest ?? '')) {
+    throw new Error('--license-review-evidence-digest is required when confirming a license.');
+  }
+  if (licenseState !== 'confirmed' && (licenseReviewReference || licenseReviewEvidenceDigest)) {
+    throw new Error('License review evidence is accepted only with a confirmed license.');
+  }
+  if (licenseState !== 'confirmed' && licenseEvidencePaths.length > 0) {
+    throw new Error('--license-evidence-path is accepted only with a confirmed license.');
+  }
   const disposition = values['--disposition'] ?? 'auto';
   if (!['auto', 'accepted', 'changes-requested', 'rejected'].includes(disposition)) throw new Error('--disposition is invalid.');
   const submissionId = values['--submission-id'];
   if (submissionId && !/^sub_[0-9a-f]{32}$/.test(submissionId)) throw new Error('--submission-id is invalid.');
   const publicMessage = values['--public-message'];
   if (publicMessage && (publicMessage.length > 500 || /[\u0000-\u001f\u007f]/.test(publicMessage))) throw new Error('--public-message is invalid.');
-  return { help: false, execute, submissionId, licenseState, spdx: values['--spdx'], disposition, publicMessage };
+  return {
+    help: false, execute, submissionId, licenseState, spdx: values['--spdx'],
+    licenseReviewReference, licenseReviewEvidenceDigest, licenseEvidencePaths,
+    disposition, publicMessage
+  };
+}
+
+function validateLicenseEvidencePath(value) {
+  const components = typeof value === 'string' ? value.split('/') : [];
+  if (typeof value !== 'string' || value !== value.trim() || value.length < 1 || value.length > 500
+    || value !== value.normalize('NFC') || value.startsWith('/') || value.endsWith('/')
+    || value.includes('\\') || /[\u0000-\u001f\u007f]/.test(value)
+    || components.some(component => !component || component === '.' || component === '..')
+    || !/(?:^|\/)(?:licen[cs]e|copying)(?:\.[a-z0-9_-]+)?$/i.test(value)) {
+    throw new Error('--license-evidence-path must name a safe relative LICENSE or COPYING file.');
+  }
+  return value;
+}
+
+function assertEnclosingLicenseEvidencePath(evidencePath, sourcePath) {
+  const evidenceDirectory = path.posix.dirname(evidencePath);
+  const sourceDirectory = path.posix.dirname(sourcePath);
+  if (evidenceDirectory !== '.' && sourceDirectory !== evidenceDirectory
+    && !sourceDirectory.startsWith(`${evidenceDirectory}/`)) {
+    throw new Error('--license-evidence-path must be at the repository root or enclose the submitted SKILL.md.');
+  }
 }
 
 function validateClaim(value) {
@@ -240,6 +346,10 @@ function help() {
     `Mutation requires: --execute\n\n` +
     `Usage:\n` +
     `  node apps/worker/src/process-once.mjs --execute [--submission-id sub_...] [--license-state noassertion|restricted]\n` +
-    `  node apps/worker/src/process-once.mjs --execute --license-state confirmed --spdx MIT [--disposition auto|accepted|changes-requested|rejected]\n` +
+    `  node apps/worker/src/process-once.mjs --execute --license-state confirmed --spdx MIT ` +
+    `--license-review-reference licref_... --license-review-evidence-digest sha256:... ` +
+    `[--license-evidence-path LICENSE] ` +
+    `[--disposition auto|accepted|changes-requested|rejected]\n` +
+    `Repeat --license-evidence-path at most 20 times for explicit root or enclosing files at the claimed exact commit.\n` +
     `Static evidence may produce a provisional numeric score but never a current letter grade.\n`;
 }

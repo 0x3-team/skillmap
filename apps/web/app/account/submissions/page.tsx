@@ -97,6 +97,7 @@ export default async function AccountSubmissionsPage({
   const nextCursor = hasMore && lastSubmission
     ? encodeSubmissionCursor({ createdAt: lastSubmission.createdAt, submissionId: lastSubmission.submissionId })
     : null;
+  const verifiedStatus = await verifyListStatus(supabase, status, statusSubmissionId);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -116,7 +117,7 @@ export default async function AccountSubmissionsPage({
           </div>
         </div>
 
-        {status ? <ListStatusNotice status={status} submissionId={statusSubmissionId} /> : null}
+        {verifiedStatus ? <ListStatusNotice status={verifiedStatus} submissionId={statusSubmissionId} /> : null}
 
         <section className="py-8" aria-labelledby="submission-list-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -260,6 +261,21 @@ function ListStatusNotice({ status, submissionId }: { status: SubmissionListStat
   };
   const message = copy[status];
   return <div className={`mt-7 rounded-xl border p-4 ${message.tone}`} role="status"><p className="font-semibold">{message.title}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{message.body}</p></div>;
+}
+
+async function verifyListStatus(
+  supabase: SupabaseClient<Database>,
+  status: SubmissionListStatus | null,
+  submissionId: string | null
+): Promise<SubmissionListStatus | null> {
+  if (status !== "queued" && status !== "withdrawn") return status;
+  if (!submissionId) return null;
+  const { data, error } = await supabase
+    .from("my_skill_submissions")
+    .select("submission_id,state")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  return !error && data?.submission_id === submissionId && data.state === status ? status : null;
 }
 
 function submissionStateCopy(state: SubmissionProjection["state"]) {

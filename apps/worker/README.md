@@ -4,7 +4,7 @@ This directory is the constrained Node worker boundary for hosted source ingesti
 
 ## Hard database preflight
 
-Do not start a worker until `20260713020000_backend_completion_hardening.sql` and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, and generated `api` type parity. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication also requires the collision-evidence authority introduced by the final hardening migration. Worker-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
+Do not start a worker until `20260713050000_submission_authority_completion.sql` and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, and generated `api` type parity. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication also requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority introduced by the final authority migration. Worker-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
 
 The first executable slice is a non-mutating exact-commit audit rehearsal:
 
@@ -49,7 +49,15 @@ npm run hosted:queue:process-once -- --execute --submission-id sub_...
 # Accept only after an operator verifies the license disposition.
 npm run hosted:queue:process-once -- \
   --execute --submission-id sub_... \
-  --license-state confirmed --spdx MIT --disposition accepted
+  --license-state confirmed --spdx MIT \
+  --license-review-reference licref_0123456789abcdef0123456789abcdef \
+  --license-review-evidence-digest sha256:... \
+  --license-evidence-path LICENSE \
+  --disposition accepted
+
+# --license-evidence-path is optional when the bounded submitted directory
+# already contains its license. Repeat it at most 20 times only for exact root
+# or enclosing LICENSE/COPYING files reviewed at the submitted immutable commit.
 
 # Inspect the immutable completion-time and current-catalog collision subject.
 # A collision must receive an explicit reviewed disposition before publication.
@@ -58,6 +66,30 @@ npm run hosted:collisions:review -- \
   --execute --submission-id sub_... --disposition approved-distinct \
   --reason-code independently-reviewed-source \
   --operation-id 00000000-0000-4000-8000-000000000000
+
+# Append the redacted publisher authorization after the exact submission is
+# accepted and the evidence reference/digest have been independently retained.
+# The same authorized command, with fresh evidence and expiry, renews an expired
+# or expiring exact still-published source version without a new submission.
+# Expiry automatically hides the listing; renewal restores it. A revoked,
+# blocked, or quarantined exact version cannot be renewed. Revocation records a
+# private redacted tombstone and is terminal for the exact repository, commit,
+# and path across accounts and publisher handles.
+npm run hosted:publisher:authorization -- \
+  --execute --submission-id sub_... --publisher-handle publisher-handle \
+  --decision authorized --basis publisher-owner-approval \
+  --evidence-reference authref_0123456789abcdef0123456789abcdef \
+  --evidence-digest sha256:... --expires-at 2026-10-01T00:00:00.000Z \
+  --operation-id 00000000-0000-4000-8000-000000000000
+
+# Consent withdrawal is a terminal append-only decision. It accepts no basis or
+# expiry and atomically blocks every version at the exact source coordinates.
+npm run hosted:publisher:authorization -- \
+  --execute --submission-id sub_... --publisher-handle publisher-handle \
+  --decision revoked \
+  --evidence-reference authref_fedcba9876543210fedcba9876543210 \
+  --evidence-digest sha256:... \
+  --operation-id 11111111-1111-4111-8111-111111111111
 
 # Publish reviewed metadata after the completion state and any collision are accepted.
 cp apps/worker/examples/reviewed-publication.example.json /tmp/reviewed-publication.json

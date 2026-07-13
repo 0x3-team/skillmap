@@ -37,14 +37,30 @@ test('local and public launch verdicts cannot be collapsed', () => {
   assert.match(receipt.launchBoundary, /not push, deployment, live OAuth/i);
 });
 
-test('static preflight binds worker lease renewal and completion hardening to their required migrations', () => {
+test('static preflight binds worker lease, completion, receipt validation, and exact-source authority to the required migrations', () => {
   const source = readFileSync(new URL('../scripts/free-public-alpha-preflight.mjs', import.meta.url), 'utf8');
   assert.match(source, /20260713003000_launch_safety_reports_lifecycle\.sql/);
   assert.match(source, /20260713020000_backend_completion_hardening\.sql/);
+  assert.match(source, /20260713050000_submission_authority_completion\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
   assert.match(source, /dead_letter_expired_skill_submission/);
   assert.match(source, /list_skill_submission_collisions/);
   assert.match(source, /review_skill_submission_collisions/);
+  assert.match(source, /record_skill_submission_license_evidence/);
+  assert.match(source, /record_skill_submission_publisher_authorization/);
+  assert.match(source, /collision_subject_is_complete/);
+  assert.match(source, /partial collision evidence cannot authorize publication/);
+  assert.match(source, /published authorization renewal must match the exact source publisher version/);
+  assert.match(source, /publisher_authorization_revocation_tombstones/);
+  assert.match(source, /lock_exact_source_authority/);
+  assert.match(source, /prior_row\\\.expires_at <= clock_timestamp/);
+  assert.match(source, /authorization_row\\\.expires_at <= clock_timestamp/);
+  assert.match(source, /contentDigest/);
+  assert.match(source, /operatorAuthorityMigration/);
+  assert.match(source, /valid_submission_audit_receipt/);
+  assert.match(source, /valid_submission_grade_receipt/);
+  assert.match(source, /publication replay no longer has current exact-source authority/);
+  assert.match(source, /skill_row\\\.current_version_id is distinct from version_row\\\.id/);
   assert.match(source, /worker-migration-compatibility/);
 });
 

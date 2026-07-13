@@ -84,7 +84,7 @@ begin
 end;
 $$;
 
-select plan(78);
+select plan(79);
 
 select ok(has_function_privilege('service_role', 'api.complete_skill_submission(text,uuid,text,text,text,text,jsonb,jsonb,text[],text,text)', 'execute'), 'service role can complete a claim');
 select ok(has_function_privilege('service_role', 'api.requeue_skill_submission(text,text)', 'execute'), 'service role can requeue an eligible submission');
@@ -109,8 +109,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  12::bigint,
-  'the API security-definer boundary contains exactly twelve reviewed functions'
+  14::bigint,
+  'the API security-definer boundary contains exactly fourteen reviewed functions'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -119,8 +119,10 @@ select is(
       'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
-      'list_skill_submission_collisions', 'review_skill_submission_collisions')),
-  12::bigint,
+      'list_skill_submission_collisions', 'review_skill_submission_collisions',
+      'record_skill_submission_publisher_authorization',
+      'record_skill_submission_license_evidence')),
+  14::bigint,
   'all API security-definer functions are on the reviewed allowlist'
 );
 
@@ -173,14 +175,21 @@ where repository_url = 'https://github.com/launch-owner/launch-skill' \gset
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is(
-  (select count(*) from api.claim_skill_submission(
-    'skillmap-worker/1.0.0',
-    :'launch_submission_id',
-    300)),
-  1::bigint,
-  'service authority claims the queued source exactly once'
-);
+select claim_id as launch_claim_id
+from api.claim_skill_submission('skillmap-worker/1.0.0', :'launch_submission_id', 300) \gset
+select ok(:'launch_claim_id'::uuid is not null, 'service authority claims the queued source exactly once');
+select license_evidence_receipt_id as launch_license_receipt_id
+from api.record_skill_submission_license_evidence(
+  :'launch_submission_id',
+  :'launch_claim_id'::uuid,
+  'skillmap-worker/1.0.0', 'sha256:' || repeat('2', 64), 'MIT',
+  jsonb_build_array(jsonb_build_object(
+    'repositoryUrl', 'https://github.com/launch-owner/launch-skill',
+    'sourceCommit', repeat('3', 40), 'path', 'LICENSE',
+    'contentDigest', 'sha256:' || repeat('a', 64)
+  )), 'licref_' || repeat('1', 32), 'sha256:' || repeat('b', 64),
+  'sha256:' || repeat('c', 64)
+) \gset
 
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
@@ -360,6 +369,13 @@ select throws_ok(
   23503, null, 'review cases cannot forge a cross-submission receipt chain'
 );
 
+select authorization_receipt_id as launch_authorization_receipt_id
+from api.record_skill_submission_publisher_authorization(
+  :'launch_submission_id', 'launch-owner', 'authorized', 'publisher-consent',
+  'authref_' || repeat('1', 32), 'sha256:' || repeat('d', 64),
+  now() + interval '30 days', 'sha256:' || repeat('e', 64)
+) \gset
+
 select throws_ok(
   $$select * from api.publish_skill_submission(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
@@ -470,8 +486,10 @@ where repository_url = 'https://github.com/lease-owner/reclaimable-skill' \gset
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/1.0.0',
-  :'lease_submission_id', 300)), 1::bigint, 'the lease fixture receives its first claim');
+select claim_id as expired_claim_id from api.claim_skill_submission(
+  'skillmap-worker/1.0.0', :'lease_submission_id', 300
+) \gset
+select ok(:'expired_claim_id'::uuid is not null, 'the lease fixture receives its first claim');
 select is((select count(*) from api.claim_skill_submission('skillmap-worker/2.0.0',
   :'lease_submission_id', 300)), 0::bigint, 'a live lease cannot be stolen');
 reset role;
@@ -490,6 +508,8 @@ select is((select row(attempt_count, current_worker_version, state)::text from a
 select is((select count(*) from private.submission_events where submission_id = (
   select id from api.skill_submissions where repository_url = 'https://github.com/lease-owner/reclaimable-skill')
   and from_state = 'processing' and to_state = 'processing'), 1::bigint, 'expired-lease reclaim emits an explicit processing receipt');
+select is((select outcome || ':' || error_code from private.worker_runs where id = :'expired_claim_id'::uuid),
+  'cancelled:CLAIM_LEASE_EXPIRED', 'expired-lease reclaim appends a durable cancelled worker-run receipt');
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);

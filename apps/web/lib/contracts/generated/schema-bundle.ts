@@ -7822,7 +7822,10 @@ export const CONTRACT_SCHEMAS = [
             "grade": {
               "properties": {
                 "state": {
-                  "const": "current"
+                  "const": "provisional"
+                },
+                "band": {
+                  "type": "null"
                 }
               }
             },

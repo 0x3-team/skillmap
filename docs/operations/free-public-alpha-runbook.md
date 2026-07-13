@@ -75,13 +75,13 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, or any queue consumer until migration `20260713020000_backend_completion_hardening.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, and publication relies on the final migration's completion-time collision evidence, immutable collision disposition, and exact publication recheck. Worker-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing or bypass the reviewed collision boundary.
+Do not start `hosted:queue:process-once`, a scheduler, or any queue consumer until migration `20260713050000_submission_authority_completion.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, while publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck. Worker-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, or bypass the reviewed license, publisher, or collision boundary.
 
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713020000 is present in both the local and remote columns.
+# Verify 20260713050000 is present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
@@ -94,7 +94,7 @@ cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Record the exact migration version, pgTAP verdict, and type digest in the deployment receipt. An unverified migration list, skipped pgTAP, or type mismatch blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Record migration `20260713050000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, and target-bound collision authority. An unverified migration list, skipped pgTAP, type mismatch, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -165,17 +165,29 @@ Do not push local-only Supabase auth configuration. Configure the production Sit
      --operation-id 00000000-0000-4000-8000-000000000000
    ```
 
-   Publication recomputes the subject under advisory locks. A new or changed collision invalidates the old approval and fails closed.
-8. Copy and review the publication metadata template outside the repository.
-9. Publish transactionally:
+   Publication recomputes the subject under advisory locks. A new or changed collision invalidates the old approval and fails closed. If either evidence snapshot reports `truncated: true`, its bounded matches are only an operator sample: `approved-distinct` and `approved-update` both fail closed, and publication remains blocked until the complete collision set can be reviewed.
+8. Record current exact-publisher authorization with a redacted evidence reference, digest, and bounded expiry:
+
+   ```bash
+   npm run hosted:publisher:authorization -- \
+     --execute --submission-id sub_... --publisher-handle publisher-handle \
+     --decision authorized --basis publisher-owner-approval \
+     --evidence-reference authref_0123456789abcdef0123456789abcdef \
+     --evidence-digest sha256:... --expires-at 2026-10-01T00:00:00.000Z \
+     --operation-id 00000000-0000-4000-8000-000000000000
+   ```
+
+   Expiry hides the listing at the public RLS boundary. Run the same command with fresh retained evidence, a new operation ID, and a future expiry to renew the exact still-published source version; it becomes visible again without a new submission. Wrong-handle renewal rolls back. A blocked or quarantined version cannot be renewed. Explicit revocation is terminal: it atomically blocks every published version at the exact repository URL, commit, and path and writes a private redacted tombstone. That tombstone survives submission/account deletion and remains effective across accounts and publisher handles; no identity-transfer exception exists in this launch. A stale authorized replay fails rather than reporting current authority.
+9. Copy and review the publication metadata template outside the repository.
+10. Publish transactionally:
 
    ```bash
    npm run hosted:queue:publish -- \
      --execute --submission-id sub_... --metadata /tmp/reviewed-publication.json
    ```
 
-10. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
-11. Delete the temporary metadata file if it contains operator-only notes. The template must contain public fields only.
+11. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
+12. Delete the temporary metadata file if it contains operator-only notes. The template must contain public fields only.
 
 For unresolved evidence, omit confirmed license authority. The worker records changes-requested or failed truthfully. Requeue only after remediation:
 

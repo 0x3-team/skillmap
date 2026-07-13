@@ -173,18 +173,53 @@ try {
   }
   await page.getByRole("heading", { name: "No saved skills yet" }).waitFor();
 
+  smokeStage = "forged-save-status";
+  const forgedSaveToken = "123e4567-e89b-42d3-a456-426614174000";
+  await gotoSettled(page, new URL(`/skills/0x3-team/skill-audit?saveFlash=${forgedSaveToken}`, baseUrl).toString());
+  for (const title of ["Skill saved", "Skill removed", "Saved-skill action unavailable"]) {
+    if (await page.getByText(title, { exact: true }).isVisible().catch(() => false)) {
+      throw new Error(`A query-only save flash forged the ${title} notice.`);
+    }
+  }
+
+  smokeStage = "save-unavailable";
+  await gotoSettled(page, new URL("/account", baseUrl).toString());
+  await page.evaluate(() => {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = "/account/saved/action";
+    for (const [name, value] of [
+      ["skillId", `skl_${"f".repeat(32)}`],
+      ["operation", "save"],
+      ["returnPath", "/account"]
+    ]) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.append(input);
+    }
+    document.body.append(form);
+    form.requestSubmit();
+  });
+  await waitForPageUrl(page, (url) => url.pathname === "/account" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
+  await page.getByText("Saved-skill action unavailable", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "No saved skills yet" }).waitFor();
+
   smokeStage = "save-detail";
   await gotoSettled(page, new URL("/skills/0x3-team/skill-audit", baseUrl).toString());
   await page.getByRole("button", { name: "Save skill" }).waitFor();
   await page.locator('form[action="/account/saved/action"]').evaluate((form) => form.requestSubmit());
-  await waitForPageUrl(page, (url) => url.pathname === "/skills/0x3-team/skill-audit" && url.searchParams.get("saveStatus") === "saved");
+  await waitForPageUrl(page, (url) => url.pathname === "/skills/0x3-team/skill-audit" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
+  await page.getByText("Skill saved", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Remove from saved" }).waitFor();
 
   smokeStage = "unsave-account";
   await gotoSettled(page, new URL("/account", baseUrl).toString());
   await page.getByRole("link", { name: "Skill Audit" }).waitFor();
   await page.locator('form[action="/account/saved/action"]').evaluate((form) => form.requestSubmit());
-  await waitForPageUrl(page, (url) => url.pathname === "/account" && url.searchParams.get("saveStatus") === "removed");
+  await waitForPageUrl(page, (url) => url.pathname === "/account" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
+  await page.getByText("Skill removed", { exact: true }).waitFor();
   await page.getByRole("heading", { name: "No saved skills yet" }).waitFor();
 
   smokeStage = "pagination-fixture";
@@ -251,7 +286,9 @@ try {
     browser: browserName,
     account: "authenticated",
     concurrentSave: "idempotent-single-row",
-    save: "passed",
+    save: "authoritative-flash-passed",
+    saveUnavailable: "truthful-flash-passed",
+    forgedSaveFlash: "rejected",
     savedProjection: "passed",
     unsave: "passed",
     savedPagination: "52-rows-no-gaps-or-duplicates",

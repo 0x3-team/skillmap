@@ -8,6 +8,7 @@ Use this runbook together with `docs/operations/free-public-alpha-runbook.md`, w
 
 - Source and review: private `0x3-team/skillmap` on GitHub, mirrored to private Gitea.
 - CI authority: the exact candidate commit must pass both jobs in `.gitea/workflows/ci.yml` **and** the `hosted-web-browser` job in `.github/workflows/ci.yml`. The Gitea lanes prove root/web quality plus restored database/RLS/type authority; the GitHub lane proves the complete disposable Auth/PostgREST/API/submission/report/evidence browser workflow. If either provider cannot run the required lane, the release remains `NO-GO`; a local transcript is useful evidence but is not a substitute for authoritative exact-commit CI.
+- Gitea evidence retention: the static-preflight and recovery steps emit one bounded `skillmap-ci-retained-gate-receipt/v1` envelope into the retained job log. Copy its run ID, job, exact commit/tree, and receipt SHA-256 into the release decision record; a temporary runner path alone is not evidence.
 - Incident and rollback owner: Masih Hedayati, acting as the `0x3-team` owner.
 - Database target: an isolated 0x3-owned alpha project in an owner-approved region and plan whose recurring provider cost is zero for this launch. Free-tier pausing, quotas, and the absence of managed backups must remain visible limitations.
 - Web target: an owner-approved provider/project that can run the reviewed Next.js application from `apps/web` at zero recurring provider cost and under terms compatible with this public product. No paid team or plan is the canonical target.
@@ -15,6 +16,10 @@ Use this runbook together with `docs/operations/free-public-alpha-runbook.md`, w
 - Repository gate: do not migrate or deploy until the hosted-foundation change is merged and the resulting exact `main` commit has passed both Gitea authority lanes and the GitHub `hosted-web-browser` lane.
 
 Preview deployments must remain unconfigured until a separate preview Supabase project exists. A preview must never receive production Supabase credentials.
+
+### Policy-version promotion gate
+
+`public-alpha-draft/v1` is an implementation-only consent identifier, not launch-approved legal authority. Before inviting any external submitter, the product owner must approve the support identity, governing jurisdiction, age/geography boundary, retention/deletion/legal-hold periods, terms, acceptable-use rules, privacy text, takedown/appeal process, and effective date. Publish reachable versioned terms and acceptable-use pages, update the submission consent surface to link that exact version, introduce a reviewed migration and application change that replace the draft identifier consistently, and rerun the database, contract, browser, export, and deletion gates. Record the approved policy ID, URLs, content digests, effective date, and owner in the production decision receipt. Until that receipt exists, deployment may be exercised only as private operator evidence and public invitations remain `NO-GO`.
 
 ## Secret boundary
 
@@ -40,7 +45,7 @@ The GitHub OAuth client secret belongs only in Supabase Auth. Store database and
 
 ### Supabase project
 
-1. Create `skillmap-alpha` in the approved isolated organization and `us-east-1`.
+1. Create `skillmap-alpha` in the approved isolated organization and the exact `APPROVED_REGION` recorded in the production provider decision receipt. Do not substitute a default region in this runbook.
 2. Store the generated database password outside the repository.
 3. Link the clean candidate worktree:
 

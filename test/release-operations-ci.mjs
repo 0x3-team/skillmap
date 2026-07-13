@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import YAML from 'yaml';
 
@@ -31,6 +33,38 @@ test('Gitea database authority runs pgTAP and type parity against the restored c
   assert.ok(steps[recovery].run.indexOf('preflight:public-alpha:recovery') < steps[recovery].run.indexOf('pg_prove'), 'recovery replay must finish before pgTAP starts');
   assert.match(steps[recovery].run, /--execute/);
   assert.match(steps[recovery].run, /--output/);
+});
+
+test('Gitea retains exact-commit static and recovery receipts in bounded job logs', () => {
+  const jobs = workflow('.gitea/workflows/ci.yml').jobs;
+  const commands = Object.values(jobs).flatMap(job => (job.steps ?? []).map(step => step.run).filter(run => typeof run === 'string'));
+  const staticGate = commands.find(command => command.includes('preflight:public-alpha:static'));
+  const recoveryGate = commands.find(command => command.includes('preflight:public-alpha:recovery'));
+  assert.match(staticGate, /emit-ci-gate-receipt[.]mjs --kind static-preflight --receipt "\$receipt"/);
+  assert.match(recoveryGate, /emit-ci-gate-receipt[.]mjs --kind database-recovery --receipt "\$receipt"/);
+
+  const scratch = mkdtempSync(path.join(tmpdir(), 'skillmap-ci-receipt-test-'));
+  try {
+    const commit = 'a'.repeat(40);
+    const tree = 'b'.repeat(40);
+    const receiptPath = path.join(scratch, 'receipt.json');
+    writeFileSync(receiptPath, `${JSON.stringify({ sourceCommit: commit, sourceTree: tree, verdict: 'passed' })}\n`, { mode: 0o600 });
+    const result = spawnSync(process.execPath, [
+      path.join(repo, 'scripts/emit-ci-gate-receipt.mjs'),
+      '--kind', 'database-recovery', '--receipt', receiptPath
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, GITHUB_SHA: commit, GITHUB_RUN_ID: '42', GITHUB_JOB: 'hosted-database' }
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const retained = JSON.parse(result.stdout);
+    assert.equal(retained.sourceCommit, commit);
+    assert.equal(retained.sourceTree, tree);
+    assert.equal(retained.receipt.verdict, 'passed');
+    assert.match(retained.receiptSha256, /^sha256:[0-9a-f]{64}$/);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 test('GitHub retained package candidate carries the exact-commit preflight receipt', () => {

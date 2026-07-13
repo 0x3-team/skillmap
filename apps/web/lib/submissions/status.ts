@@ -6,7 +6,6 @@ export type SubmitStatus =
   | "idempotency-conflict"
   | "invalid"
   | "quota"
-  | "queued"
   | "service-unavailable";
 
 export type SubmissionListStatus = "not-withdrawable" | "queued" | "service-unavailable" | "withdrawn";
@@ -17,7 +16,6 @@ const SUBMIT_STATUSES = new Set<SubmitStatus>([
   "idempotency-conflict",
   "invalid",
   "quota",
-  "queued",
   "service-unavailable"
 ]);
 const LIST_STATUSES = new Set<SubmissionListStatus>([

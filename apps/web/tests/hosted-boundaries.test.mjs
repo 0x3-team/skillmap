@@ -39,6 +39,16 @@ import {
   serializeReportFlash
 } from "../lib/reports/flash.ts";
 import {
+  createSaveFlash,
+  parseSaveFlash,
+  serializeSaveFlash
+} from "../lib/registry/save-flash.ts";
+import {
+  createAccountDeletionFlash,
+  parseAccountDeletionFlash,
+  serializeAccountDeletionFlash
+} from "../lib/account/deletion-flash.ts";
+import {
   decodeReportCursor,
   encodeReportCursor,
   ReportCursorError
@@ -215,7 +225,12 @@ test("submission server action mints attestations only after acknowledgement val
   assert.match(formSource, /event[.]preventDefault\(\)/);
   assert.match(formSource, /new FormData\(form\)/);
   assert.match(formSource, /setValidation\(result\)/);
+  assert.match(formSource, /catch \{/);
+  assert.match(formSource, /status: "service-unavailable"/);
+  assert.match(formSource, /finally \{\s*setPending\(false\)/);
+  assert.match(formSource, /noticeRef[.]current[?][.]focus\(\)/);
   assert.match(formSource, /Your other entries and request ID remain in this form/);
+  assert.match(formSource, /Your entries and request ID remain in this form so you can retry safely/);
   assert.match(formSource, /value=\{requestId\}/);
   assert.match(formSource, /aria-invalid=\{Boolean\(errorFor\("sourcePath"\)\)\}/);
 });
@@ -323,6 +338,29 @@ test("progressive report flash is same-browser, bounded, and preserves safe retr
   assert.equal(parseReportFlash(JSON.stringify({ ...flash, forged: true }), token, flash.returnPath), null);
 });
 
+test("saved-skill and account-deletion flashes are exact same-browser receipts", () => {
+  const token = "123e4567-e89b-42d3-a456-426614174000";
+  const saveFlash = createSaveFlash("saved", SKILL_ID, "/skills/0x3-team/skill-audit", token);
+  assert.deepEqual(saveFlash, {
+    returnPath: "/skills/0x3-team/skill-audit",
+    skillId: SKILL_ID,
+    status: "saved",
+    token
+  });
+  const serializedSave = serializeSaveFlash(saveFlash);
+  assert.deepEqual(parseSaveFlash(serializedSave, token, saveFlash.returnPath), saveFlash);
+  assert.equal(parseSaveFlash(serializedSave, "223e4567-e89b-42d3-a456-426614174000", saveFlash.returnPath), null);
+  assert.equal(parseSaveFlash(serializedSave, token, "/account"), null);
+  assert.equal(parseSaveFlash(JSON.stringify({ ...saveFlash, forged: true }), token, saveFlash.returnPath), null);
+
+  const deletionFlash = createAccountDeletionFlash(token);
+  assert.deepEqual(deletionFlash, { status: "account-deleted", token });
+  const serializedDeletion = serializeAccountDeletionFlash(deletionFlash);
+  assert.deepEqual(parseAccountDeletionFlash(serializedDeletion, token), deletionFlash);
+  assert.equal(parseAccountDeletionFlash(serializedDeletion, "223e4567-e89b-42d3-a456-426614174000"), null);
+  assert.equal(parseAccountDeletionFlash(JSON.stringify({ ...deletionFlash, forged: true }), token), null);
+});
+
 test("account submission mutation and export stay owner-filtered and bounded", async () => {
   const savedMutation = await readFile(new URL("../app/account/saved/action/route.ts", import.meta.url), "utf8");
   assert.match(savedMutation, /publicOrigin = getSiteUrl\(\)/);
@@ -332,7 +370,34 @@ test("account submission mutation and export stay owner-filtered and bounded", a
   assert.match(savedMutation, /user_id: auth[.]userId/);
   assert.match(savedMutation, /[.]eq\("user_id", auth[.]userId\)[.]eq\("skill_id", skillId\)/);
   assert.match(savedMutation, /status: 303/);
+  assert.match(savedMutation, /createSaveFlash\(status, skillId, returnPath, token\)/);
+  assert.match(savedMutation, /httpOnly: true/);
+  assert.match(savedMutation, /sameSite: "strict"/);
   assert.doesNotMatch(savedMutation, /formData[.]get\("user|service_role|SUPABASE_SERVICE_ROLE/);
+
+  const [accountPage, detailPage, submitPage, submissionsPage, signInPage, launchSmoke] = await Promise.all([
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/submit/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/submissions/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/sign-in/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8")
+  ]);
+  assert.match(accountPage, /parseSaveFlash/);
+  assert.match(accountPage, /from\("saved_skills"\)/);
+  assert.match(detailPage, /saveFlash[?][.]skillId === skill[.]skillId/);
+  assert.match(submitPage, /from\("my_skill_submissions"\)/);
+  assert.match(submitPage, /data[?][.]submission_id === submissionId/);
+  assert.match(submitPage, /That exact source already has a submission record/);
+  assert.match(submitPage, /Open submission history/);
+  assert.doesNotMatch(submitPage, /That exact source is already in your queue/);
+  assert.match(launchSmoke, /smokeStage = "terminal-submission-duplicate"/);
+  assert.match(launchSmoke, /url[.]searchParams[.]get\("submission"\) === withdrawalId/);
+  assert.match(launchSmoke, /A terminal duplicate was mislabeled as still queued/);
+  assert.match(submissionsPage, /data[.]state === status/);
+  assert.match(signInPage, /parseAccountDeletionFlash/);
+  assert.doesNotMatch(signInPage, /browser session was cleared defensively/);
+  assert.match(signInPage, /does not claim that account data or a browser session changed/);
 
   const withdrawal = await readFile(new URL("../app/account/submissions/actions.ts", import.meta.url), "utf8");
   assert.match(withdrawal, /\.update\(\{ state: "withdrawn" \}\)/);
@@ -353,7 +418,26 @@ test("account submission mutation and export stay owner-filtered and bounded", a
   assert.match(deletion, /hasExactAccountDeletionConfirmation\(formData\)/);
   assert.match(deletion, /\.rpc\("delete_my_account"\)/);
   assert.match(deletion, /signOut\(\{ scope: "local" \}\)/);
+  assert.match(deletion, /createAccountDeletionFlash\(token\)/);
+  assert.match(deletion, /httpOnly: true/);
+  assert.match(deletion, /sameSite: "strict"/);
   assert.doesNotMatch(deletion, /userId|user_id|service_role|SUPABASE_SERVICE_ROLE/);
+});
+
+test("account deletion copy discloses the narrow terminal revocation retention boundary", async () => {
+  const [account, privacy, policy] = await Promise.all([
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../../docs/launch/public-alpha-policy-pack.md", import.meta.url), "utf8")
+  ]);
+  for (const source of [account, privacy, policy]) {
+    assert.match(source, /terminal consent-withdrawal/i);
+    assert.match(source, /repository URL[\s\S]+commit[\s\S]+path[\s\S]+publisher handle/i);
+    assert.match(source, /retention[\s\S]+legal basis/i);
+    assert.match(source, /account|auth user/i);
+  }
+  assert.match(privacy, /another account or handle/i);
+  assert.match(policy, /another account or publisher handle/i);
 });
 
 test("suspicious-listing reports admit only one canonical same-origin account intent", () => {

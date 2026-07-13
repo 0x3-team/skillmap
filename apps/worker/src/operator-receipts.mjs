@@ -23,7 +23,9 @@ export function buildOperatorReceiptPayloads({
   auditReceipt,
   gradeEvaluation,
   compatibilityReceiptDigest,
-  workerVersion
+  workerVersion,
+  licenseReviewReference,
+  licenseReviewEvidenceDigest
 }) {
   assertDigest(auditReceipt?.receiptDigest, 'audit receipt');
   assertDigest(auditReceipt?.subject?.entrypointContentDigest, 'entrypoint content');
@@ -66,6 +68,26 @@ export function buildOperatorReceiptPayloads({
     ? ['behavioral-evidence-incomplete']
     : [...new Set([...gradeEvaluation.hardGateReasonCodes, 'grade-blocked'])].sort();
 
+  let license = null;
+  if (auditReceipt.license.state === 'confirmed') {
+    if (!/^licref_[0-9a-f]{32}$/.test(licenseReviewReference ?? '')) {
+      throw new Error('A confirmed license requires an opaque license review reference.');
+    }
+    assertDigest(licenseReviewEvidenceDigest, 'license review evidence');
+    if (!Array.isArray(auditReceipt.license.evidence)
+      || auditReceipt.license.evidence.length < 1
+      || auditReceipt.license.evidence.length > 20) {
+      throw new Error('A confirmed license requires bounded exact-file evidence.');
+    }
+    license = {
+      auditReceiptDigest: auditReceipt.receiptDigest,
+      spdxExpression: auditReceipt.license.spdxExpression,
+      reviewReference: licenseReviewReference,
+      reviewEvidenceDigest: licenseReviewEvidenceDigest,
+      evidence: auditReceipt.license.evidence.map((item) => ({ ...item }))
+    };
+  }
+
   return {
     audit: {
       state: auditReceipt.state,
@@ -100,7 +122,8 @@ export function buildOperatorReceiptPayloads({
       hardGates,
       dimensions,
       reasonCodes: gradeReasonCodes
-    }
+    },
+    license
   };
 }
 

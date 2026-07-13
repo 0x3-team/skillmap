@@ -43,6 +43,7 @@
     "hosted:queue:requeue": "npm run build && node apps/worker/src/requeue.mjs",
     "hosted:collisions:list": "npm run build && node apps/worker/src/collision-list.mjs",
     "hosted:collisions:review": "npm run build && node apps/worker/src/collision-review.mjs",
+    "hosted:publisher:authorization": "npm run build && node apps/worker/src/authorization.mjs",
     "hosted:catalog:lifecycle": "npm run build && node apps/worker/src/lifecycle.mjs",
     "hosted:reports:queue": "npm run build && node apps/worker/src/report-queue.mjs",
     "hosted:reports:disposition": "npm run build && node apps/worker/src/report-disposition.mjs",

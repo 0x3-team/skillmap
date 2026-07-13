@@ -14,6 +14,7 @@
     "queue:requeue": "node src/requeue.mjs",
     "collisions:list": "node src/collision-list.mjs",
     "collisions:review": "node src/collision-review.mjs",
+    "publisher:authorization": "node src/authorization.mjs",
     "catalog:lifecycle": "node src/lifecycle.mjs",
     "reports:queue": "node src/report-queue.mjs",
     "reports:disposition": "node src/report-disposition.mjs"

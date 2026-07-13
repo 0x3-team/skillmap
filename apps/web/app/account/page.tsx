@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Bookmark, Download, FileClock, FileWarning, LogOut, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
+import { SaveStatusNotice } from "@/components/skillmap/save-status-notice";
 import { signOut } from "@/app/sign-in/actions";
 import { deleteMyAccount } from "@/app/account/data-actions";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account/deletion.server";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { listSavedSkills } from "@/lib/registry/repository.server";
+import { parseSaveFlash, SAVE_FLASH_COOKIE, type SaveFlashStatus } from "@/lib/registry/save-flash";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,11 +22,16 @@ export const dynamic = "force-dynamic";
 export default async function AccountPage({
   searchParams
 }: {
-  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[]; accountStatus?: string | string[] }>;
+  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[]; accountStatus?: string | string[]; saveFlash?: string | string[] }>;
 }) {
   const params = await searchParams;
   if (params.error === "auth-unavailable") return <AccountUnavailable />;
   const cursor = typeof params.cursor === "string" ? params.cursor : null;
+  const saveFlash = parseSaveFlash(
+    (await cookies()).get(SAVE_FLASH_COOKIE)?.value,
+    params.saveFlash,
+    "/account"
+  );
 
   let supabase: SupabaseClient<Database>;
   try {
@@ -50,6 +58,19 @@ export default async function AccountPage({
   if (!accountData) return <AccountUnavailable />;
   const { profile, savedPage } = accountData;
   const savedSkills = savedPage.items;
+  let verifiedSaveStatus: SaveFlashStatus | null = saveFlash?.status === "unavailable" ? "unavailable" : null;
+  if (saveFlash && saveFlash.status !== "unavailable") {
+    const { data: savedRow, error: savedStatusError } = await supabase
+      .from("saved_skills")
+      .select("skill_id")
+      .eq("user_id", auth.userId)
+      .eq("skill_id", saveFlash.skillId)
+      .maybeSingle();
+    if (savedStatusError) return <AccountUnavailable />;
+    const isSaved = savedRow?.skill_id === saveFlash.skillId;
+    if (saveFlash.status === "saved" && isSaved) verifiedSaveStatus = "saved";
+    if (saveFlash.status === "removed" && !isSaved) verifiedSaveStatus = "removed";
+  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -74,6 +95,8 @@ export default async function AccountPage({
             </form>
           </div>
         </div>
+
+        {verifiedSaveStatus ? <SaveStatusNotice status={verifiedSaveStatus} /> : null}
 
         <section className="py-8" id="saved">
           {savedSkills.length === 0 ? (
@@ -132,7 +155,7 @@ export default async function AccountPage({
             <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-5">
               <Trash2 className="h-5 w-5 text-destructive" />
               <h3 className="mt-3 font-semibold">Delete SkillMap account</h3>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes the authenticated account, profile, saved IDs, submissions, submission evidence, and account-owned listing reports. Published catalog metadata may remain, but its submission-backed evidence is detached and reset. This clears the current browser session; already-issued tokens on other devices may remain cryptographically valid until expiry, without the deleted account rows. Source repositories and provider backups are outside this RPC.</p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes the authenticated account, profile, saved IDs, submissions, submission evidence, and account-owned listing reports. A narrow terminal consent-withdrawal record survives: exact public repository URL, commit, path, claimed publisher handle, and opaque evidence digests, without an account ID, email, or provider identity. It is retained only under the approved retention and legal basis to prevent revoked public source from being resubmitted under another account or handle. Published catalog metadata may remain, but its submission-backed evidence is detached and reset. This clears the current browser session; already-issued tokens on other devices may remain cryptographically valid until expiry, without the deleted account rows. Source repositories and provider backups are outside this RPC.</p>
               <form action={deleteMyAccount} className="mt-4">
                 <label htmlFor="delete-account-confirmation" className="block text-xs font-semibold">Type “{ACCOUNT_DELETION_CONFIRMATION}”</label>
                 <input id="delete-account-confirmation" name="confirmation" type="text" required autoComplete="off" maxLength={ACCOUNT_DELETION_CONFIRMATION.length} placeholder={ACCOUNT_DELETION_CONFIRMATION} className="mt-2 h-9 w-full rounded-lg border border-destructive/25 bg-background px-3 text-xs text-foreground" />

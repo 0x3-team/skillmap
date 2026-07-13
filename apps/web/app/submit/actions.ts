@@ -18,11 +18,9 @@ import {
   submitStatusPath
 } from "@/lib/submissions/status";
 
-export interface SubmissionActionState {
-  status: "invalid";
-  field: SubmissionField;
-  message: string;
-}
+export type SubmissionActionState =
+  | { status: "invalid"; field: SubmissionField; message: string }
+  | { status: "service-unavailable"; message: string };
 
 export async function submitSkill(formData: FormData): Promise<SubmissionActionState> {
   let submission: ReturnType<typeof parseSkillSubmissionForm>;
@@ -80,7 +78,7 @@ export async function submitSkill(formData: FormData): Promise<SubmissionActionS
  */
 export async function submitSkillProgressive(formData: FormData): Promise<void> {
   const result = await submitSkill(formData);
-  redirect(submitStatusPath(result.status, { field: result.field }));
+  redirect(submitStatusPath(result.status, result.status === "invalid" ? { field: result.field } : undefined));
 }
 
 async function findSubmissionId(
