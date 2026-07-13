@@ -75,6 +75,8 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   assert.match(source, /supabase start(?:\s|$)/, 'hosted browser CI does not start the complete disposable stack');
   assert.match(source, /supabase db reset --local/, 'hosted browser CI does not rebuild from migrations and seed');
   assert.match(source, /supabase test db --local/, 'hosted browser CI omits database authority tests');
+  assert.match(source, /command -v psql/, 'hosted browser CI does not install its PostgreSQL client dependency when absent');
+  assert.match(source, /psql --version/, 'hosted browser CI does not verify the PostgreSQL client before running fixtures');
   assert.match(source, /npm --prefix apps\/web run build/, 'hosted browser CI does not build the exact web source');
   assert.match(source, /npm run test:hosted-gates/, 'hosted browser CI does not execute the composed hosted gate');
   const browserInstall = steps.find(step => /playwright install/.test(step.run ?? ''))?.run ?? '';
