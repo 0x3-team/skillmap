@@ -1,0 +1,646 @@
+{
+  "kind": "skillmap.initial-corpus-manifest",
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "anthropic-frontend-design",
+      "group": "frontend-design-ui",
+      "publisher": {
+        "githubHandle": "anthropics",
+        "displayName": "Anthropic",
+        "profileUrl": "https://github.com/anthropics",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/anthropics/skills",
+        "commit": "9d2f1ae187231d8199c64b5b762e1bdf2244733d",
+        "path": "skills/frontend-design/SKILL.md"
+      },
+      "versionLabel": "git-9d2f1ae18723",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/anthropics/skills",
+        "commit": "9d2f1ae187231d8199c64b5b762e1bdf2244733d",
+        "path": "skills/frontend-design/LICENSE.txt"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-anthropic-frontend-design"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "cloudflare-web-perf",
+      "group": "frontend-design-ui",
+      "publisher": {
+        "githubHandle": "cloudflare",
+        "displayName": "Cloudflare",
+        "profileUrl": "https://github.com/cloudflare",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/cloudflare/skills",
+        "commit": "27ce0c0e159225caa7ed30ebefd4107aa6c52497",
+        "path": "skills/web-perf/SKILL.md"
+      },
+      "versionLabel": "git-27ce0c0e1592",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/cloudflare/skills",
+        "commit": "27ce0c0e159225caa7ed30ebefd4107aa6c52497",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-cloudflare-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "github-penpot-uiux-design",
+      "group": "frontend-design-ui",
+      "publisher": {
+        "githubHandle": "github",
+        "displayName": "GitHub",
+        "profileUrl": "https://github.com/github",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "skills/penpot-uiux-design/SKILL.md"
+      },
+      "versionLabel": "git-0aaced533251",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-github-awesome-copilot"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "huggingface-gradio",
+      "group": "frontend-design-ui",
+      "publisher": {
+        "githubHandle": "huggingface",
+        "displayName": "Hugging Face",
+        "profileUrl": "https://github.com/huggingface",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/huggingface/skills",
+        "commit": "7039bdcf4510c30ec932637e8b2c1646aee7f185",
+        "path": "skills/huggingface-gradio/SKILL.md"
+      },
+      "versionLabel": "git-7039bdcf4510",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/huggingface/skills",
+        "commit": "7039bdcf4510c30ec932637e8b2c1646aee7f185",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-huggingface-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "github-codeql",
+      "group": "review-security-acceptance",
+      "publisher": {
+        "githubHandle": "github",
+        "displayName": "GitHub",
+        "profileUrl": "https://github.com/github",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "skills/codeql/SKILL.md"
+      },
+      "versionLabel": "git-0aaced533251",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-github-awesome-copilot"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "obra-systematic-debugging",
+      "group": "review-security-acceptance",
+      "publisher": {
+        "githubHandle": "obra",
+        "displayName": "Jesse Vincent",
+        "profileUrl": "https://github.com/obra",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "skills/systematic-debugging/SKILL.md"
+      },
+      "versionLabel": "git-d884ae04edeb",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-obra-superpowers"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "github-secret-scanning",
+      "group": "review-security-acceptance",
+      "publisher": {
+        "githubHandle": "github",
+        "displayName": "GitHub",
+        "profileUrl": "https://github.com/github",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "skills/secret-scanning/SKILL.md"
+      },
+      "versionLabel": "git-0aaced533251",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-github-awesome-copilot"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "obra-verification-before-completion",
+      "group": "review-security-acceptance",
+      "publisher": {
+        "githubHandle": "obra",
+        "displayName": "Jesse Vincent",
+        "profileUrl": "https://github.com/obra",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "skills/verification-before-completion/SKILL.md"
+      },
+      "versionLabel": "git-d884ae04edeb",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-obra-superpowers"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "anthropic-internal-comms",
+      "group": "research-docs-writing",
+      "publisher": {
+        "githubHandle": "anthropics",
+        "displayName": "Anthropic",
+        "profileUrl": "https://github.com/anthropics",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/anthropics/skills",
+        "commit": "9d2f1ae187231d8199c64b5b762e1bdf2244733d",
+        "path": "skills/internal-comms/SKILL.md"
+      },
+      "versionLabel": "git-9d2f1ae18723",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/anthropics/skills",
+        "commit": "9d2f1ae187231d8199c64b5b762e1bdf2244733d",
+        "path": "skills/internal-comms/LICENSE.txt"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-anthropic-internal-comms"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "github-create-readme",
+      "group": "research-docs-writing",
+      "publisher": {
+        "githubHandle": "github",
+        "displayName": "GitHub",
+        "profileUrl": "https://github.com/github",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "skills/create-readme/SKILL.md"
+      },
+      "versionLabel": "git-0aaced533251",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-github-awesome-copilot"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "huggingface-datasets",
+      "group": "research-docs-writing",
+      "publisher": {
+        "githubHandle": "huggingface",
+        "displayName": "Hugging Face",
+        "profileUrl": "https://github.com/huggingface",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/huggingface/skills",
+        "commit": "7039bdcf4510c30ec932637e8b2c1646aee7f185",
+        "path": "skills/huggingface-datasets/SKILL.md"
+      },
+      "versionLabel": "git-7039bdcf4510",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/huggingface/skills",
+        "commit": "7039bdcf4510c30ec932637e8b2c1646aee7f185",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-huggingface-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "huggingface-papers",
+      "group": "research-docs-writing",
+      "publisher": {
+        "githubHandle": "huggingface",
+        "displayName": "Hugging Face",
+        "profileUrl": "https://github.com/huggingface",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/huggingface/skills",
+        "commit": "7039bdcf4510c30ec932637e8b2c1646aee7f185",
+        "path": "skills/huggingface-papers/SKILL.md"
+      },
+      "versionLabel": "git-7039bdcf4510",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/huggingface/skills",
+        "commit": "7039bdcf4510c30ec932637e8b2c1646aee7f185",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-huggingface-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "cloudflare-workers-best-practices",
+      "group": "deployment-infrastructure-operations",
+      "publisher": {
+        "githubHandle": "cloudflare",
+        "displayName": "Cloudflare",
+        "profileUrl": "https://github.com/cloudflare",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/cloudflare/skills",
+        "commit": "27ce0c0e159225caa7ed30ebefd4107aa6c52497",
+        "path": "skills/workers-best-practices/SKILL.md"
+      },
+      "versionLabel": "git-27ce0c0e1592",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/cloudflare/skills",
+        "commit": "27ce0c0e159225caa7ed30ebefd4107aa6c52497",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-cloudflare-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "cloudflare-wrangler",
+      "group": "deployment-infrastructure-operations",
+      "publisher": {
+        "githubHandle": "cloudflare",
+        "displayName": "Cloudflare",
+        "profileUrl": "https://github.com/cloudflare",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/cloudflare/skills",
+        "commit": "27ce0c0e159225caa7ed30ebefd4107aa6c52497",
+        "path": "skills/wrangler/SKILL.md"
+      },
+      "versionLabel": "git-27ce0c0e1592",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/cloudflare/skills",
+        "commit": "27ce0c0e159225caa7ed30ebefd4107aa6c52497",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-cloudflare-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "github-incident-postmortem",
+      "group": "deployment-infrastructure-operations",
+      "publisher": {
+        "githubHandle": "github",
+        "displayName": "GitHub",
+        "profileUrl": "https://github.com/github",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "skills/incident-postmortem/SKILL.md"
+      },
+      "versionLabel": "git-0aaced533251",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-github-awesome-copilot"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "supabase-postgres-best-practices",
+      "group": "deployment-infrastructure-operations",
+      "publisher": {
+        "githubHandle": "supabase",
+        "displayName": "Supabase",
+        "profileUrl": "https://github.com/supabase",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/supabase/agent-skills",
+        "commit": "1ad9aaeb49caafd9e95c0a91116f71890eebbc53",
+        "path": "skills/supabase-postgres-best-practices/SKILL.md"
+      },
+      "versionLabel": "git-1ad9aaeb49ca",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/supabase/agent-skills",
+        "commit": "1ad9aaeb49caafd9e95c0a91116f71890eebbc53",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-supabase-agent-skills"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "anthropic-mcp-builder",
+      "group": "skill-authoring-discovery-maintenance",
+      "publisher": {
+        "githubHandle": "anthropics",
+        "displayName": "Anthropic",
+        "profileUrl": "https://github.com/anthropics",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/anthropics/skills",
+        "commit": "9d2f1ae187231d8199c64b5b762e1bdf2244733d",
+        "path": "skills/mcp-builder/SKILL.md"
+      },
+      "versionLabel": "git-9d2f1ae18723",
+      "licenseEvidence": {
+        "spdxExpression": "Apache-2.0",
+        "repositoryUrl": "https://github.com/anthropics/skills",
+        "commit": "9d2f1ae187231d8199c64b5b762e1bdf2244733d",
+        "path": "skills/mcp-builder/LICENSE.txt"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-anthropic-mcp-builder"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "obra-using-superpowers",
+      "group": "skill-authoring-discovery-maintenance",
+      "publisher": {
+        "githubHandle": "obra",
+        "displayName": "Jesse Vincent",
+        "profileUrl": "https://github.com/obra",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "skills/using-superpowers/SKILL.md"
+      },
+      "versionLabel": "git-d884ae04edeb",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-obra-superpowers"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "github-create-agentsmd",
+      "group": "skill-authoring-discovery-maintenance",
+      "publisher": {
+        "githubHandle": "github",
+        "displayName": "GitHub",
+        "profileUrl": "https://github.com/github",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "skills/create-agentsmd/SKILL.md"
+      },
+      "versionLabel": "git-0aaced533251",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/github/awesome-copilot",
+        "commit": "0aaced533251f5b86c69dfbc5e55db74c4b4d1af",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-github-awesome-copilot"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    },
+    {
+      "id": "obra-writing-skills",
+      "group": "skill-authoring-discovery-maintenance",
+      "publisher": {
+        "githubHandle": "obra",
+        "displayName": "Jesse Vincent",
+        "profileUrl": "https://github.com/obra",
+        "identityBasis": "repository-owner"
+      },
+      "source": {
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "skills/writing-skills/SKILL.md"
+      },
+      "versionLabel": "git-d884ae04edeb",
+      "licenseEvidence": {
+        "spdxExpression": "MIT",
+        "repositoryUrl": "https://github.com/obra/superpowers",
+        "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
+        "path": "LICENSE"
+      },
+      "authorizationEvidence": {
+        "state": "pending-publisher-consent",
+        "licenseBasis": {
+          "state": "operator-reviewed",
+          "basis": "repository-license",
+          "reviewReference": "license-review-obra-superpowers"
+        },
+        "publisherConsent": { "state": "pending" },
+        "scope": "metadata-only-catalog-citation"
+      }
+    }
+  ]
+}

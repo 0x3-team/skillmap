@@ -320,7 +320,20 @@ Three bounded audits covered the complete product journey, the audit/grading bac
 
 The integrated local acceptance result is: root tests `376/376`, contracts `34/34`, pgTAP `341/341`, hosted boundary tests `29/29`, release path `47/47`, production dependency audits with zero vulnerabilities, all three hosted auth browsers, the complete hosted launch flow, nine zero-diff hosted baselines, accessibility, forced-colors, responsive, performance, packaging, and post-cleanup database validation passed. These receipts are local evidence only until the containing clean commit passes authoritative remote CI and live deployment acceptance.
 
-The next locally actionable launch slice is the initial corpus: prepare at least 20 exact, license-evidenced skill versions across at least five useful comparison groups, then run each version through the same submission, audit, provisional-grade, and publication path. Provider ownership, domain, OAuth, public policy/support identity, hosted restore/rollback, named operators, five-seat pilot, push/deploy, and live verification remain external `NO-GO` gates.
+The next locally actionable launch slice was the initial corpus: prepare at least 20 exact, license-evidenced skill versions across at least five useful comparison groups, then qualify each version through the inert audit and provisional-grade path. That preparation is now complete as described below. Authenticated submission, receipt-backed publication, provider ownership, domain, OAuth, public policy/support identity, hosted restore/rollback, named operators, five-seat pilot, push/deploy, and live verification remain external `NO-GO` gates.
+
+### 2026-07-13 initial-corpus preparation and inert audit
+
+The local launch corpus is pinned in `docs/launch/initial-corpus-v1.json` and operated through `docs/launch/initial-corpus-operations.md`:
+
+- exactly 20 immutable GitHub versions cover five comparison groups with four alternatives or complements per group and six repository owners;
+- every selected `SKILL.md` and Apache-2.0/MIT evidence path was verified at the exact commit; unclear, missing, CC-only, proprietary, conflicting, and deprecated sources were excluded;
+- the deterministic preparer rejects mutable refs, duplicate coordinates, unsafe paths, unresolved license expressions, publisher mismatches, unknown fields, and fewer than 20 entries or five groups;
+- the preparation digest is `sha256:b4e993e0a40ecb7b26c713b459b433af5353895a66d21034bbb0537fad96524a`;
+- the shared-memoized, unauthenticated, inert GitHub audit completed `20/20` with zero fetch failures, two `passed` audits, 18 `warnings` audits, zero `blocked` audits, and 20 truthful `provisional` grades; its owner-only local receipt digest is `sha256:156ff3ead25ff7af9400f44c028cb00134410b50fcf0df927cac89e2ecc071cf`;
+- no source content was executed and no database, production service, account submission, consent, publication, current letter grade, or public launch authority was used.
+
+All 20 entries intentionally remain `blocked-pending-publisher-consent`. Public visibility and an open-source license are not presented as publisher endorsement. The launch corpus gate closes only after reviewed consent/authority, normal quota-aware authenticated submissions, service-role audit receipts, collision review, receipt-backed publication, and deployed public-route verification exist for all 20 versions.
 
 ### Batch 0 — plan and baseline reconciliation
 
@@ -575,9 +588,9 @@ Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success al
 | Data | Migrations, forced RLS, pgTAP, generated types, disposable backup/reset/replay | No encrypted off-host hosted restore | `NO-GO` |
 | Security | No source execution, constrained worker, secret canary, cross-account isolation, bounded public projections, lifecycle removal | No provider-global abuse control or live secret inspection | `NO-GO` |
 | Reliability | Claim leases, idempotent completion/publication, replay, report disposition, lifecycle controls, web failure states | No hosted scheduler, monitoring, alert, rollback, or incident drill | `NO-GO` |
-| Quality | Root `376/376`, contracts `34/34`, pgTAP `341/341`, hosted boundaries `29/29`, release path `47/47`, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, package, and dependency gates passed locally | No authoritative exact-commit CI or deployed-commit browser receipt | `NO-GO` |
+| Quality | Root `390/390`, contracts `34/34`, pgTAP `341/341`, hosted boundaries `29/29`, release path `47/47`, corpus tooling `14/14`, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, package, and dependency gates passed locally | No authoritative exact-commit CI or deployed-commit browser receipt | `NO-GO` |
 | Operations | Runbooks, policy draft, GTM kit, and hosted-pilot protocol checked in | Zero-cost-compatible host, remaining owners, jurisdiction, retention approval, support identity, and backup destination unset | `NO-GO` |
-| Launch | Free/no-billing scope, stage/indexing gate, announcement and outreach copy | Domain, corpus of 20, mandatory-workflow five-seat pilot, authoritative CI, push/deploy, and public indexing absent | `NO-GO` |
+| Launch | Free/no-billing scope, stage/indexing gate, announcement/outreach copy, and an exact 20-version/five-group corpus candidate with `20/20` inert audits and provisional grades | Publisher consent plus database/public publication for the corpus, domain, mandatory-workflow five-seat pilot, authoritative CI, push/deploy, and public indexing absent | `NO-GO` |
 
 ## Go-to-market plan
 

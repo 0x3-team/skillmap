@@ -41,6 +41,8 @@ Curate four evidenced versions in each group before indexing is enabled:
 
 Each group should include alternatives or complements that make comparison useful. A version counts only when its immutable source, license disposition, audit receipt, compatibility evidence, grade state, and lifecycle state are truthful and linked.
 
+The locally prepared candidate is pinned in `initial-corpus-v1.json` and operated through `initial-corpus-operations.md`. It contains 20 exact Apache-2.0/MIT versions across the five groups, but every entry remains blocked pending publisher consent. Preparation, source qualification, or a static audit does not count as ingestion or publication.
+
 ## Ninety-second demo
 
 1. Open the search-first homepage: “SkillMap is a free directory for agent skills with version-bound trust evidence.”

@@ -44,6 +44,11 @@ public indexing, or verified-live status.
   mirroring/loading, TUF distribution, current-letter behavioral grading,
   remote worker scheduling, authoritative current-commit CI, external hosted
   pilot evidence, npm publication, and deployment are not included.
+- Added a pinned 20-version, five-group initial-corpus candidate with exact
+  Apache-2.0/MIT evidence, deterministic preparation, shared-memoized inert
+  GitHub audit, and owner-only provisional-grade receipts. Publisher consent,
+  authenticated ingestion, database publication, and public launch remain
+  explicitly unclaimed.
 
 ## 0.1.0-alpha
 

@@ -5,7 +5,7 @@ Last reconciled: 2026-07-13
 Repo: https://github.com/0x3-team/skillmap
 Current canonical branch: `main`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Current status: canonical `main` still contains the previously accepted hosted-foundation anchor described below. The free-public-alpha candidate lineage includes local commit `7f3eac5641240bb0d0230cb2faeb58f2ef64a191` on `codex/hosted-library-foundation`; the exact candidate is the current reviewed branch HEAD after the working tree is committed and must be recorded in the receipt ledger before release checks. It is ahead of the tracked Gitea branch and is not claimed pushed, reviewed, deployed, or verified live. The last recorded GitHub Actions state was spending-blocked before execution, but that state is drift-prone and must be rechecked rather than assumed. Public release now requires both current Gitea authority lanes and the exact-commit GitHub `hosted-web-browser` lane; inability to run either remains `NO-GO`. No remote database/web project, OAuth path, backup destination, worker schedule, domain, or public indexing state is claimed by this handoff.
+Current status: canonical `main` still contains the previously accepted hosted-foundation anchor described below. The free-public-alpha candidate lineage includes local commits through `fc1dd2b06f75f371fbf7c6c020e4a7c69ea592f1` on `codex/hosted-library-foundation`; the exact candidate is the current reviewed branch HEAD after the working tree is committed and must be recorded in the receipt ledger before release checks. It is ahead of the tracked Gitea branch and is not claimed pushed, reviewed, deployed, or verified live. The last recorded GitHub Actions state was spending-blocked before execution, but that state is drift-prone and must be rechecked rather than assumed. Public release now requires both current Gitea authority lanes and the exact-commit GitHub `hosted-web-browser` lane; inability to run either remains `NO-GO`. No remote database/web project, OAuth path, backup destination, worker schedule, domain, or public indexing state is claimed by this handoff.
 
 ## Purpose of this handoff
 
@@ -34,7 +34,7 @@ This is different from adding another skill list into Codex. The main value appe
 
 ## Historical baseline and current local implementation
 
-The historical baseline commit above passed its then-current CI. The current implementation substantially changes its identity, evidence, export, dashboard, hosted submission/trust workflow, and test contracts. The free-public-alpha candidate is locally validated but remains experimental because it has not been pushed through the required current CI authorities or accepted against a remote database/web environment, live OAuth path, restore/rollback exercise, initial corpus, or external pilot.
+The historical baseline commit above passed its then-current CI. The current implementation substantially changes its identity, evidence, export, dashboard, hosted submission/trust workflow, and test contracts. The free-public-alpha candidate is locally validated but remains experimental because it has not been pushed through the required current CI authorities or accepted against a remote database/web environment, live OAuth path, restore/rollback exercise, publisher-authorized receipt-backed corpus publication, or external pilot.
 
 Completed surfaces:
 
@@ -60,6 +60,7 @@ Completed surfaces:
 - Bounded redacted route/feedback/job ledgers, restart-safe allowlisted jobs, and explicit cancellation before publication.
 - Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. Gitea covers root/web quality plus restored database/RLS/type authority; GitHub contains a separate complete disposable hosted-browser job for API, Auth, submission, report, and evidence. The current candidate has local receipts only and must pass both current CI authorities after push.
 - Separate hosted contracts plus local Supabase `api`/`private` schemas, deterministic first-party seeds, RLS/grant tests, public `/skills` and `/api/v1/skills` routes, Supabase SSR auth, free-account saves, exact-commit submissions, constrained audit/provisional-grade processing, operator publication, reports, lifecycle actions, export, and deletion. These are locally implemented, not deployed.
+- A 20-version/five-group/six-publisher initial-corpus manifest plus fail-closed preparation and shared-memoized inert audit tooling. All exact trees completed local static audit with two passed, 18 warning, zero blocked, and 20 provisional grade states; every entry remains blocked pending publisher consent and none is a submitted or published database row.
 
 ## Historical validation evidence (not current release proof)
 
@@ -131,7 +132,7 @@ SkillMap = another list of skills inside Codex
 
 ## Release boundary
 
-The repository contains an experimental local free-public-alpha candidate. It is not pushed, deployed, verified live, indexed, publicly launched, tagged, or published. Public release actions remain gated on explicit owner decisions and exact-candidate CI, provider, policy, restore/rollback, corpus, pilot, and live-acceptance receipts.
+The repository contains an experimental local free-public-alpha candidate. It is not pushed, deployed, verified live, indexed, publicly launched, tagged, or published. Public release actions remain gated on explicit owner decisions and exact-candidate CI, provider, policy, restore/rollback, publisher-authorized receipt-backed corpus publication, pilot, and live-acceptance receipts.
 
 Not yet done:
 
@@ -207,6 +208,7 @@ If the next goal is the private hosted alpha:
 3. Configure the GitHub OAuth app, Supabase provider, exact site/callback URLs, and approved web-host environment variables from `docs/operations/hosted-alpha-deploy.md`.
 4. Apply the checked-in migrations and seed, verify generated-type parity and backup/restore readiness, then deploy the exact reviewed commit.
 5. Run anonymous catalog, authenticated save/unsave/submission/report/export/deletion, worker publication/lifecycle, cross-account isolation, OAuth, cache-policy, mobile, accessibility, restore, and rollback acceptance against the exact live private-alpha deployment before calling it verified live or inviting the dedicated five-seat hosted cohort.
+6. Obtain and retain redacted publisher-consent references, ingest the pinned 20-version corpus through normal quota-aware submissions, and verify every receipt-backed public listing before enabling indexing.
 
 ## Important constraints
 

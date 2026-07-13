@@ -46,6 +46,8 @@
     "hosted:catalog:lifecycle": "npm run build && node apps/worker/src/lifecycle.mjs",
     "hosted:reports:queue": "npm run build && node apps/worker/src/report-queue.mjs",
     "hosted:reports:disposition": "npm run build && node apps/worker/src/report-disposition.mjs",
+    "corpus:prepare": "node scripts/initial-corpus-prepare.mjs",
+    "corpus:audit": "npm run build && node scripts/initial-corpus-audit.mjs",
     "test:hosted-gates": "npm --prefix apps/web run test:hosted-gates",
     "preflight:public-alpha": "node scripts/free-public-alpha-preflight.mjs --profile candidate --require-clean",
     "preflight:public-alpha:static": "node scripts/free-public-alpha-preflight.mjs --profile static",
