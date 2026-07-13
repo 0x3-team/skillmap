@@ -143,6 +143,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Verify exact-candidate release and secret boundaries
+        run: |
+          receipt="${RUNNER_TEMP}/skillmap-public-alpha-static-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          npm run preflight:public-alpha:static -- --require-clean --output "$receipt"
+          mkdir -p artifacts/package
+          install -m 600 "$receipt" artifacts/package/free-public-alpha-preflight.json
       - name: Build exact non-published candidate
         id: verify_candidate
         run: |

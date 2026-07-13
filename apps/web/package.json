@@ -17,6 +17,7 @@
     "test:browser:direct": "node scripts/browser-smoke.mjs",
     "test:hosted-api": "node scripts/hosted-api-smoke.mjs",
     "test:hosted-auth": "node scripts/hosted-auth-browser-smoke.mjs",
+    "test:hosted-launch": "node scripts/launch-report-evidence-smoke.mjs",
     "test:performance": "node scripts/web-performance.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs"
   },

@@ -142,10 +142,35 @@ export async function createVisualGate({ appDir, repoDir, artifactDir, browserVe
   const visualResources = await deterministicVisualResources(appDir);
   const routedPages = new WeakSet();
   return {
+    async assertRepeatable(firstPage, secondPage, name) {
+      const firstPath = path.join(artifactDir, "screenshots", `${name}-repeatability-a.png`);
+      const secondPath = path.join(artifactDir, "screenshots", `${name}-repeatability-b.png`);
+      const diffPath = path.join(artifactDir, "diffs", `${name}-repeatability.png`);
+      const first = await captureNormalizedScreenshot(firstPage, firstPath, visualResources, routedPages);
+      const second = await captureNormalizedScreenshot(secondPage, secondPath, visualResources, routedPages);
+      const firstPng = PNG.sync.read(first);
+      const secondPng = PNG.sync.read(second);
+      assert.equal(secondPng.width, firstPng.width, `${name} repeatability screenshot width changed`);
+      assert.equal(secondPng.height, firstPng.height, `${name} repeatability screenshot height changed`);
+      if (Buffer.compare(firstPng.data, secondPng.data) !== 0) {
+        const diff = new PNG({ width: firstPng.width, height: firstPng.height });
+        const diffPixels = pixelmatch(
+          firstPng.data,
+          secondPng.data,
+          diff.data,
+          firstPng.width,
+          firstPng.height,
+          { threshold: 0, includeAA: true, alpha: 0.2, diffColor: [220, 38, 38], diffColorAlt: [37, 99, 235] }
+        );
+        await writeFile(diffPath, PNG.sync.write(diff));
+        throw new Error(`${name} normalized workspace repeatability failed: ${diffPixels} pixels differ; inspect ${diffPath}`);
+      }
+      console.log(`visual repeatability: ${name} matched across two independently created workspaces (0 pixels differ)`);
+      return { name: `${name}-repeatability`, diffPixels: 0, diffRatio: 0, firstPath, secondPath };
+    },
     async capture(page, name) {
-      await stabilizeVisualPage(page, visualResources, routedPages);
       const actualPath = path.join(artifactDir, "screenshots", `${name}.png`);
-      const actual = await page.screenshot({ path: actualPath, animations: "disabled", caret: "hide", scale: "css" });
+      const actual = await captureNormalizedScreenshot(page, actualPath, visualResources, routedPages);
       const baselinePath = path.join(baselineDir, `${name}.png`);
       if (options.updateVisualBaselines) {
         await writeFile(baselinePath, actual);
@@ -180,6 +205,18 @@ export async function createVisualGate({ appDir, repoDir, artifactDir, browserVe
       return { name, diffPixels, diffRatio, actualPath, baselinePath, updated: false };
     }
   };
+}
+
+async function captureNormalizedScreenshot(page, targetPath, resources, routedPages) {
+  await stabilizeVisualPage(page, resources, routedPages);
+  // A screenshot forces Chromium to rasterize rounded borders. Under CPU-heavy
+  // suites the first raster after identifier-width normalization can differ by
+  // one color channel at a few antialiased corner pixels. Warm that exact paint,
+  // then require two more frames before retaining the comparison artifact.
+  // This keeps the pixel threshold at zero and preserves the reviewed styling.
+  await page.screenshot({ animations: "disabled", caret: "hide", scale: "css" });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  return page.screenshot({ path: targetPath, animations: "disabled", caret: "hide", scale: "css" });
 }
 
 export async function writeQaReport({ artifactDir, browserName, browserVersion, playwrightVersion, runtimePackage, modes, budgets, metrics, assets, visuals, status, error }) {
@@ -293,27 +330,51 @@ async function stabilizeVisualPage(page, resources, routedPages) {
     }
   });
   await page.evaluate(() => {
-    const replacements = [
+    const identifierReplacements = [
       [/r\d{20}-[0-9a-f-]{36}/gi, "r00000000000000000000-00000000-0000-4000-8000-000000000000"],
       [/sha256:[a-f0-9]{7}…[a-f0-9]{6}/gi, "sha256:0000000…000000"],
       [/sha256:[a-f0-9]{64}/gi, "sha256:0000000000000000000000000000000000000000000000000000000000000000"],
       [/sk_[A-Za-z0-9_-]{43}/g, "sk_QA00000000000000000000000000000000000000000"],
       [/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, "00000000-0000-4000-8000-000000000000"],
-      [/\b[0-9a-f]{8}-[0-9a-f]{3}\b/gi, "00000000-000"],
+      [/\b[0-9a-f]{8}-[0-9a-f]{3}\b/gi, "00000000-000"]
+    ];
+    const measurementReplacements = [
       [/\b\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2} (?:AM|PM)\b/g, "7/10/2026, 12:00:00 PM"],
       [/\b\d+(?:\.\d+)? ms\b/g, "12 ms"]
     ];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       let value = walker.currentNode.nodeValue;
-      for (const [pattern, replacement] of replacements) value = value.replace(pattern, replacement);
+      let identifierChanged = false;
+      for (const [pattern, replacement] of identifierReplacements) {
+        const next = value.replace(pattern, replacement);
+        identifierChanged ||= next !== value;
+        value = next;
+      }
+      for (const [pattern, replacement] of measurementReplacements) value = value.replace(pattern, replacement);
       walker.currentNode.nodeValue = value;
+      if (identifierChanged && walker.currentNode.parentElement) {
+        walker.currentNode.parentElement.dataset.skillmapQaRuntimeIdentifier = "true";
+      }
     }
     const workspace = document.querySelector("#workspace-button");
-    if (workspace) workspace.textContent = "QA workspace";
+    if (workspace) {
+      workspace.textContent = "QA workspace";
+      workspace.dataset.skillmapQaRuntimeIdentifier = "true";
+    }
     const revision = document.querySelector("#revision-short");
-    if (revision) revision.textContent = "r0000000000000";
+    if (revision) {
+      revision.textContent = "r0000000000000";
+      revision.dataset.skillmapQaRuntimeIdentifier = "true";
+    }
     document.querySelector("#toast-region")?.replaceChildren();
+  });
+  await page.evaluate(async () => {
+    // Identifier normalization changes inline text widths after the earlier font
+    // barrier. Force layout, then allow two paints so border antialiasing is
+    // settled before independently created workspaces are compared pixel-for-pixel.
+    document.documentElement.getBoundingClientRect();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
 }
 
@@ -327,7 +388,7 @@ async function deterministicVisualResources(appDir) {
     fonts.set(pathname, font);
     definitions.push(`@font-face { font-family: "SkillMap QA Inter"; src: url("${pathname}") format("woff2"); font-style: normal; font-weight: ${weight}; font-display: block; }`);
   }
-  definitions.push('*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; } html, body, button, input, textarea, select { font-family: "SkillMap QA Inter" !important; }');
+  definitions.push('*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; } html, body, button, input, textarea, select { font-family: "SkillMap QA Inter" !important; } [data-skillmap-qa-runtime-identifier="true"] { font-family: "SkillMap QA Inter" !important; font-variant-ligatures: none !important; font-variant-numeric: tabular-nums !important; }');
   return { css: definitions.join("\n"), fonts };
 }
 

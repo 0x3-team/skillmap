@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/hosted-audit-receipt/v1.schema.json",
+  "title": "SkillMap Hosted Public Audit Receipt v1",
+  "description": "The redacted public audit receipt for one immutable hosted skill version. receiptDigest binds the canonical private evidence receipt; projectionDigest independently binds this final redacted public object. Raw content, private findings, user IDs, and operator notes are forbidden by shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "receiptId", "receiptDigest", "projectionDigest", "skillVersionId", "sourceCommit", "sourceContentDigest", "normalizedContentDigest", "state", "findingCounts", "checks", "reasonCodes", "policyVersion", "hostProfileVersion", "workerVersion", "auditedAt"],
+  "properties": {
+    "kind": { "const": "skillmap.hosted-audit-receipt" },
+    "schemaVersion": { "const": 1 },
+    "receiptId": { "type": "string", "pattern": "^aud_[0-9a-f]{32}$" },
+    "receiptDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "projectionDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "skillVersionId": { "type": "string", "pattern": "^skv_[0-9a-f]{32}$" },
+    "sourceCommit": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+    "sourceContentDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "normalizedContentDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "state": { "enum": ["passed", "warnings", "blocked"] },
+    "findingCounts": { "$ref": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json#/$defs/FindingCounts" },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "outcome", "severity", "evidenceDigest"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "outcome": { "enum": ["passed", "warning", "blocked", "not-applicable"] },
+          "severity": { "enum": ["critical", "high", "medium", "low", "info"] },
+          "evidenceDigest": {
+            "oneOf": [
+              { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    },
+    "reasonCodes": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    },
+    "policyVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "hostProfileVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "workerVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "auditedAt": { "type": "string", "format": "date-time" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "state": { "const": "passed" },
+        "checks": {
+          "items": {
+            "properties": { "outcome": { "enum": ["passed", "not-applicable"] } }
+          }
+        },
+        "reasonCodes": { "type": "array", "maxItems": 0 },
+        "findingCounts": {
+          "properties": {
+            "critical": { "const": 0 },
+            "high": { "const": 0 },
+            "medium": { "const": 0 },
+            "low": { "const": 0 }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "warnings" },
+        "checks": {
+          "items": {
+            "properties": { "outcome": { "enum": ["passed", "warning", "not-applicable"] } }
+          },
+          "contains": { "properties": { "outcome": { "const": "warning" } }, "required": ["outcome"] },
+          "minContains": 1
+        },
+        "reasonCodes": { "type": "array", "minItems": 1 },
+        "findingCounts": { "properties": { "critical": { "const": 0 } } }
+      }
+    },
+    {
+      "properties": {
+        "state": { "const": "blocked" },
+        "checks": {
+          "contains": { "properties": { "outcome": { "const": "blocked" } }, "required": ["outcome"] },
+          "minContains": 1
+        },
+        "reasonCodes": { "type": "array", "minItems": 1 }
+      }
+    }
+  ]
+}

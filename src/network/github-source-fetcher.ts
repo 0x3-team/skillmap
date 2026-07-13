@@ -264,25 +264,7 @@ export async function fetchGithubSkillTree(
   entries.sort((left, right) => comparePaths(left.path, right.path));
 
   const canonicalSubtree = normalizedSubtree || '.';
-  const manifestPayload = {
-    version: 1,
-    provider: 'github',
-    repository: normalizedRepository,
-    resolvedCommit,
-    subtree: canonicalSubtree,
-    rootTreeDigest: `git:${subtreeTreeSha}`,
-    entries: entries.map((entry) => ({
-      path: entry.path,
-      type: entry.type,
-      mode: entry.mode,
-      size: entry.size,
-      ...(entry.blobDigest ? { blobDigest: entry.blobDigest } : {}),
-      ...(entry.treeDigest ? { treeDigest: entry.treeDigest } : {}),
-      ...(entry.contentDigest ? { contentDigest: entry.contentDigest } : {})
-    }))
-  };
-
-  return {
+  const snapshot = {
     version: 1,
     provider: 'github',
     repository: normalizedRepository,
@@ -290,11 +272,39 @@ export async function fetchGithubSkillTree(
     resolvedCommit,
     subtree: canonicalSubtree,
     rootTreeDigest: `git:${subtreeTreeSha}`,
-    manifestDigest: sha256Digest(Buffer.from(JSON.stringify(manifestPayload))),
+    manifestDigest: '',
     totalBytes: downloaded.reduce((total, file) => total + file.size, 0),
     entries,
     files: downloaded
+  } satisfies GithubSourceSnapshot;
+  snapshot.manifestDigest = computeGithubSnapshotManifestDigest(snapshot);
+  return snapshot;
+}
+
+/** Recompute the immutable GitHub manifest projection from snapshot fields. */
+export function computeGithubSnapshotManifestDigest(
+  snapshot: Pick<GithubSourceSnapshot, 'version' | 'provider' | 'repository' | 'resolvedCommit' | 'subtree' | 'rootTreeDigest' | 'entries'>
+): string {
+  const manifestPayload = {
+    version: snapshot.version,
+    provider: snapshot.provider,
+    repository: snapshot.repository,
+    resolvedCommit: snapshot.resolvedCommit,
+    subtree: snapshot.subtree,
+    rootTreeDigest: snapshot.rootTreeDigest,
+    entries: [...snapshot.entries]
+      .sort((left, right) => comparePaths(left.path, right.path))
+      .map((entry) => ({
+        path: entry.path,
+        type: entry.type,
+        mode: entry.mode,
+        size: entry.size,
+        ...(entry.blobDigest ? { blobDigest: entry.blobDigest } : {}),
+        ...(entry.treeDigest ? { treeDigest: entry.treeDigest } : {}),
+        ...(entry.contentDigest ? { contentDigest: entry.contentDigest } : {})
+      }))
   };
+  return sha256Digest(Buffer.from(JSON.stringify(manifestPayload)));
 }
 
 /** Compute the same complete-tree semantic digest used by local skill identity. */

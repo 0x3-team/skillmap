@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
+import { getOptionalSiteUrl } from "@/lib/metadata";
 import { isPublicIndexingEnabled } from "@/lib/security/policy";
 import "./globals.css";
 
@@ -17,10 +18,30 @@ const geistMono = Geist_Mono({
   display: "swap"
 });
 
+const siteUrl = getOptionalSiteUrl();
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl ?? undefined,
   title: "SkillMap | Auditable Skill Library and Local Router",
   description:
     "Inspect hosted skill evidence, save useful skills, and route compact policy-backed advice without flooding the agent prompt.",
+  ...(siteUrl
+    ? {
+        alternates: { canonical: new URL("/", siteUrl) },
+        openGraph: {
+          type: "website" as const,
+          siteName: "SkillMap",
+          title: "SkillMap | Auditable Skill Library and Local Router",
+          description: "Inspect hosted skill evidence, save useful skills, and route compact policy-backed advice without flooding the agent prompt.",
+          url: siteUrl
+        },
+        twitter: {
+          card: "summary" as const,
+          title: "SkillMap | Auditable Skill Library and Local Router",
+          description: "Inspect hosted skill evidence, save useful skills, and route compact policy-backed advice without flooding the agent prompt."
+        }
+      }
+    : {}),
   robots: isPublicIndexingEnabled()
     ? { index: true, follow: true }
     : {

@@ -20,7 +20,12 @@
     { "name": "hosted-grade-summary-v1", "path": "hosted-grade-summary/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json" },
     { "name": "hosted-skill-v1", "path": "hosted-skill/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-skill/v1.schema.json" },
     { "name": "hosted-skill-list-v1", "path": "hosted-skill-list/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json" },
-    { "name": "hosted-api-response-v1", "path": "hosted-api-response/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json" }
+    { "name": "hosted-api-response-v1", "path": "hosted-api-response/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json" },
+    { "name": "hosted-review-state-v1", "path": "hosted-review-state/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-review-state/v1.schema.json" },
+    { "name": "hosted-audit-summary-v1", "path": "hosted-audit-summary/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json" },
+    { "name": "hosted-audit-receipt-v1", "path": "hosted-audit-receipt/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-audit-receipt/v1.schema.json" },
+    { "name": "hosted-grade-receipt-v1", "path": "hosted-grade-receipt/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-grade-receipt/v1.schema.json" },
+    { "name": "hosted-submission-v1", "path": "hosted-submission/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-submission/v1.schema.json" }
   ],
   "testVectors": ["test-vectors/canonicalization-v1.json"]
 }

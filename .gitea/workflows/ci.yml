@@ -31,6 +31,11 @@ jobs:
       - name: Install CLI dependencies
         run: npm ci
 
+      - name: Verify exact-candidate release and secret boundaries
+        run: |
+          receipt="${RUNNER_TEMP:-/tmp}/skillmap-public-alpha-static-${GITHUB_RUN_ID:-$$}.json"
+          npm run preflight:public-alpha:static -- --require-clean --output "$receipt"
+
       - name: Typecheck the CLI
         run: npm run typecheck
 
@@ -67,6 +72,11 @@ jobs:
         with:
           version: 2.109.0
 
+      - name: Set up Node.js 24 for recovery evidence
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: Verify the isolated Docker daemon
         run: docker info
 
@@ -78,6 +88,12 @@ jobs:
           supabase start --exclude edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector
           supabase db reset --local
           supabase db lint --local --level warning
+
+          # Rebuild from migrations, replay the application-data backup, and
+          # only then run pgTAP and generated-type parity against the restored
+          # exact candidate.
+          receipt="${RUNNER_TEMP:-/tmp}/skillmap-public-alpha-recovery-${GITHUB_RUN_ID:-$$}.json"
+          npm run preflight:public-alpha:recovery -- --execute --output "$receipt"
 
           # `supabase test db` bind-mounts the checkout into pg_prove. In
           # rootless DinD the checkout belongs to the job container, so copy it

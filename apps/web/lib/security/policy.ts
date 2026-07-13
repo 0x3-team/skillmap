@@ -1,4 +1,8 @@
 const INDEXING_MODE_VARIABLE = "SKILLMAP_INDEXING_MODE";
+// Next.js may create an empty style element while reconciling streamed route
+// styles. This hash authorizes only the empty byte string and keeps arbitrary
+// inline style elements blocked.
+const EMPTY_STYLE_SHA256 = "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='";
 
 export const PRIVATE_ALPHA_ROBOTS_VALUE =
   "noindex, nofollow, noarchive, nosnippet, noimageindex";
@@ -39,8 +43,8 @@ export function buildContentSecurityPolicy(input: ContentSecurityPolicyInput): s
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${input.nonce}' 'strict-dynamic'${input.development ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${input.nonce}'`,
-    `style-src-elem 'self' 'nonce-${input.nonce}'`,
+    `style-src 'self' 'nonce-${input.nonce}' ${EMPTY_STYLE_SHA256}`,
+    `style-src-elem 'self' 'nonce-${input.nonce}' ${EMPTY_STYLE_SHA256}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",

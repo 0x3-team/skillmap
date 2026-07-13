@@ -45,6 +45,20 @@ export type Database = {
             foreignKeyName: "saved_skills_skill_id_fkey"
             columns: ["skill_id"]
             isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "saved_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "saved_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
             referencedRelation: "catalog_skill_relationships"
             referencedColumns: ["source_skill_id"]
           },
@@ -78,8 +92,425 @@ export type Database = {
           },
         ]
       }
+      skill_reports: {
+        Row: {
+          category: string
+          created_at: string
+          disposition_code: string | null
+          id: string
+          idempotency_key: string
+          message: string
+          public_id: string
+          public_resolution_message: string | null
+          reporter_user_id: string
+          resolution_digest: string | null
+          resolution_reason_code: string | null
+          resolved_at: string | null
+          skill_id: string
+          state: string
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          disposition_code?: string | null
+          id?: string
+          idempotency_key: string
+          message: string
+          public_id?: string
+          public_resolution_message?: string | null
+          reporter_user_id?: string
+          resolution_digest?: string | null
+          resolution_reason_code?: string | null
+          resolved_at?: string | null
+          skill_id: string
+          state?: string
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          disposition_code?: string | null
+          id?: string
+          idempotency_key?: string
+          message?: string
+          public_id?: string
+          public_resolution_message?: string | null
+          reporter_user_id?: string
+          resolution_digest?: string | null
+          resolution_reason_code?: string | null
+          resolved_at?: string | null
+          skill_id?: string
+          state?: string
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["target_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["version_id"]
+          },
+        ]
+      }
+      skill_submissions: {
+        Row: {
+          active_claim_id: string | null
+          attempt_count: number
+          audit_receipt_digest: string | null
+          audit_receipt_id: string | null
+          audit_receipt_public_id: string | null
+          audit_state: string
+          authority_confirmed: boolean
+          claim_expires_at: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          current_worker_version: string | null
+          grade_confidence: number | null
+          grade_receipt_digest: string | null
+          grade_receipt_id: string | null
+          grade_receipt_public_id: string | null
+          grade_state: string
+          id: string
+          idempotency_key: string
+          last_transition_digest: string | null
+          last_worker_run_id: string | null
+          license_claim: string | null
+          public_id: string
+          public_status_message: string | null
+          publication_digest: string | null
+          remediation_code: string | null
+          repository_url: string
+          result_skill_id: string | null
+          result_version_id: string | null
+          review_case_id: string | null
+          review_case_public_id: string | null
+          review_state: string
+          source_commit: string
+          source_path: string
+          state: string
+          submission_policy_version: string
+          submitter_user_id: string
+          untrusted_processing_accepted: boolean
+          updated_at: string
+          version_label: string
+        }
+        Insert: {
+          active_claim_id?: string | null
+          attempt_count?: number
+          audit_receipt_digest?: string | null
+          audit_receipt_id?: string | null
+          audit_receipt_public_id?: string | null
+          audit_state?: string
+          authority_confirmed?: boolean
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_worker_version?: string | null
+          grade_confidence?: number | null
+          grade_receipt_digest?: string | null
+          grade_receipt_id?: string | null
+          grade_receipt_public_id?: string | null
+          grade_state?: string
+          id?: string
+          idempotency_key: string
+          last_transition_digest?: string | null
+          last_worker_run_id?: string | null
+          license_claim?: string | null
+          public_id?: string
+          public_status_message?: string | null
+          publication_digest?: string | null
+          remediation_code?: string | null
+          repository_url: string
+          result_skill_id?: string | null
+          result_version_id?: string | null
+          review_case_id?: string | null
+          review_case_public_id?: string | null
+          review_state?: string
+          source_commit: string
+          source_path: string
+          state?: string
+          submission_policy_version?: string
+          submitter_user_id?: string
+          untrusted_processing_accepted?: boolean
+          updated_at?: string
+          version_label: string
+        }
+        Update: {
+          active_claim_id?: string | null
+          attempt_count?: number
+          audit_receipt_digest?: string | null
+          audit_receipt_id?: string | null
+          audit_receipt_public_id?: string | null
+          audit_state?: string
+          authority_confirmed?: boolean
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_worker_version?: string | null
+          grade_confidence?: number | null
+          grade_receipt_digest?: string | null
+          grade_receipt_id?: string | null
+          grade_receipt_public_id?: string | null
+          grade_state?: string
+          id?: string
+          idempotency_key?: string
+          last_transition_digest?: string | null
+          last_worker_run_id?: string | null
+          license_claim?: string | null
+          public_id?: string
+          public_status_message?: string | null
+          publication_digest?: string | null
+          remediation_code?: string | null
+          repository_url?: string
+          result_skill_id?: string | null
+          result_version_id?: string | null
+          review_case_id?: string | null
+          review_case_public_id?: string | null
+          review_state?: string
+          source_commit?: string
+          source_path?: string
+          state?: string
+          submission_policy_version?: string
+          submitter_user_id?: string
+          untrusted_processing_accepted?: boolean
+          updated_at?: string
+          version_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["target_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["version_id"]
+          },
+        ]
+      }
     }
     Views: {
+      catalog_audit_evidence: {
+        Row: {
+          audit_receipt_id: string | null
+          audited_at: string | null
+          checks: Json | null
+          finding_counts: Json | null
+          host_profile_version: string | null
+          license_state: string | null
+          network_indicators: boolean | null
+          permission_scripts: boolean | null
+          policy_version: string | null
+          reason_codes: string[] | null
+          receipt_digest: string | null
+          skill_id: string | null
+          source_commit: string | null
+          spdx_expression: string | null
+          state: string | null
+          tool_indicators: boolean | null
+          version_id: string | null
+          worker_version: string | null
+        }
+        Relationships: []
+      }
+      catalog_grade_evidence: {
+        Row: {
+          audit_receipt_digest: string | null
+          audit_receipt_id: string | null
+          compatibility_evidence_digest: string | null
+          confidence: number | null
+          dimensions: Json | null
+          evaluation_suite_digest: string | null
+          evaluator_version: string | null
+          grade_receipt_id: string | null
+          graded_at: string | null
+          hard_gates: Json | null
+          host_profile_version: string | null
+          reason_codes: string[] | null
+          receipt_digest: string | null
+          rubric_version: string | null
+          skill_id: string | null
+          source_commit: string | null
+          state: string | null
+          total_score: number | null
+          version_id: string | null
+        }
+        Relationships: []
+      }
       catalog_skill_relationships: {
         Row: {
           evidence_state: string | null
@@ -177,6 +608,319 @@ export type Database = {
         }
         Relationships: []
       }
+      my_skill_reports: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          disposition_code: string | null
+          message: string | null
+          public_resolution_message: string | null
+          report_id: string | null
+          resolution_reason_code: string | null
+          resolved_at: string | null
+          skill_id: string | null
+          state: string | null
+          updated_at: string | null
+          version_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          disposition_code?: string | null
+          message?: string | null
+          public_resolution_message?: string | null
+          report_id?: string | null
+          resolution_reason_code?: string | null
+          resolved_at?: string | null
+          skill_id?: string | null
+          state?: string | null
+          updated_at?: string | null
+          version_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          disposition_code?: string | null
+          message?: string | null
+          public_resolution_message?: string | null
+          report_id?: string | null
+          resolution_reason_code?: string | null
+          resolved_at?: string | null
+          skill_id?: string | null
+          state?: string | null
+          updated_at?: string | null
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["target_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_reports_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["version_id"]
+          },
+        ]
+      }
+      my_skill_submissions: {
+        Row: {
+          audit_receipt_digest: string | null
+          audit_receipt_public_id: string | null
+          audit_state: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string | null
+          grade_confidence: number | null
+          grade_receipt_digest: string | null
+          grade_receipt_public_id: string | null
+          grade_state: string | null
+          license_claim: string | null
+          public_status_message: string | null
+          remediation_code: string | null
+          repository_url: string | null
+          result_skill_id: string | null
+          result_version_id: string | null
+          review_case_public_id: string | null
+          review_state: string | null
+          source_commit: string | null
+          source_path: string | null
+          state: string | null
+          submission_id: string | null
+          submission_policy_version: string | null
+          updated_at: string | null
+          version_label: string | null
+        }
+        Insert: {
+          audit_receipt_digest?: string | null
+          audit_receipt_public_id?: string | null
+          audit_state?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          grade_confidence?: number | null
+          grade_receipt_digest?: string | null
+          grade_receipt_public_id?: string | null
+          grade_state?: string | null
+          license_claim?: string | null
+          public_status_message?: string | null
+          remediation_code?: string | null
+          repository_url?: string | null
+          result_skill_id?: string | null
+          result_version_id?: string | null
+          review_case_public_id?: string | null
+          review_state?: string | null
+          source_commit?: string | null
+          source_path?: string | null
+          state?: string | null
+          submission_id?: string | null
+          submission_policy_version?: string | null
+          updated_at?: string | null
+          version_label?: string | null
+        }
+        Update: {
+          audit_receipt_digest?: string | null
+          audit_receipt_public_id?: string | null
+          audit_state?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          grade_confidence?: number | null
+          grade_receipt_digest?: string | null
+          grade_receipt_public_id?: string | null
+          grade_state?: string | null
+          license_claim?: string | null
+          public_status_message?: string | null
+          remediation_code?: string | null
+          repository_url?: string | null
+          result_skill_id?: string | null
+          result_version_id?: string | null
+          review_case_public_id?: string | null
+          review_state?: string | null
+          source_commit?: string | null
+          source_path?: string | null
+          state?: string | null
+          submission_id?: string | null
+          submission_policy_version?: string | null
+          updated_at?: string | null
+          version_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["target_skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_skill_id_fkey"
+            columns: ["result_skill_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["skill_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_audit_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_grade_evidence"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_relationships"
+            referencedColumns: ["source_version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skill_versions"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_skills"
+            referencedColumns: ["version_id"]
+          },
+          {
+            foreignKeyName: "skill_submissions_result_version_id_fkey"
+            columns: ["result_version_id"]
+            isOneToOne: false
+            referencedRelation: "saved_skill_catalog"
+            referencedColumns: ["version_id"]
+          },
+        ]
+      }
       saved_skill_catalog: {
         Row: {
           capabilities: string[] | null
@@ -214,7 +958,135 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      claim_skill_submission: {
+        Args: {
+          p_lease_seconds?: number
+          p_submission_id?: string
+          p_worker_version: string
+        }
+        Returns: {
+          attempt_number: number
+          claim_expires_at: string
+          claim_id: string
+          license_claim: string
+          repository_url: string
+          source_commit: string
+          source_path: string
+          submission_id: string
+          version_label: string
+        }[]
+      }
+      complete_skill_submission: {
+        Args: {
+          p_audit_receipt: Json
+          p_claim_id: string
+          p_disposition: string
+          p_grade_receipt: Json
+          p_idempotency_digest: string
+          p_input_digest: string
+          p_public_message: string
+          p_reason_codes: string[]
+          p_result_digest: string
+          p_submission_id: string
+          p_worker_version: string
+        }
+        Returns: {
+          audit_receipt_id: string
+          grade_receipt_id: string
+          review_case_id: string
+          submission_id: string
+          submission_state: string
+        }[]
+      }
+      control_catalog_lifecycle: {
+        Args: {
+          p_action: string
+          p_idempotency_digest: string
+          p_reason_code: string
+          p_skill_id: string
+          p_version_id: string
+        }
+        Returns: {
+          skill_id: string
+          skill_lifecycle_state: string
+          skill_revoked: boolean
+          version_id: string
+          version_quarantined: boolean
+          version_revoked: boolean
+        }[]
+      }
+      delete_my_account: { Args: never; Returns: boolean }
+      disposition_skill_report: {
+        Args: {
+          p_disposition_code: string
+          p_idempotency_digest: string
+          p_public_message: string
+          p_reason_code: string
+          p_report_id: string
+        }
+        Returns: {
+          disposition_code: string
+          report_id: string
+          report_state: string
+        }[]
+      }
+      list_skill_report_queue: {
+        Args: { p_limit?: number }
+        Returns: {
+          category: string
+          created_at: string
+          message: string
+          report_id: string
+          skill_id: string
+          version_id: string
+        }[]
+      }
+      publish_skill_submission: {
+        Args: {
+          p_capabilities: string[]
+          p_description: string
+          p_license_state: string
+          p_permission_network: string[]
+          p_permission_scripts: boolean
+          p_permission_tools: string[]
+          p_publication_digest: string
+          p_publisher_display_name: string
+          p_publisher_handle: string
+          p_skill_display_name: string
+          p_skill_slug: string
+          p_spdx_expression: string
+          p_submission_id: string
+          p_summary: string
+        }
+        Returns: {
+          publisher_id: string
+          skill_id: string
+          submission_id: string
+          submission_state: string
+          version_id: string
+        }[]
+      }
+      renew_skill_submission_claim: {
+        Args: {
+          p_claim_id: string
+          p_lease_seconds?: number
+          p_submission_id: string
+          p_worker_version: string
+        }
+        Returns: {
+          claim_expires_at: string
+          claim_id: string
+          submission_id: string
+        }[]
+      }
+      requeue_skill_submission: {
+        Args: { p_idempotency_digest: string; p_submission_id: string }
+        Returns: {
+          attempt_count: number
+          submission_id: string
+          submission_state: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

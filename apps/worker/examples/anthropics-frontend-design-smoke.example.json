@@ -1,0 +1,18 @@
+{
+  "publisherHandle": "anthropics-smoke",
+  "publisherDisplayName": "Anthropic public-source smoke",
+  "skillSlug": "frontend-design",
+  "skillDisplayName": "Frontend Design",
+  "summary": "Local end-to-end publication smoke for one exact public source version.",
+  "description": "A disposable local metadata-only record used to verify the SkillMap submission, audit, provisional grade, review, publication, catalog, account-deletion, and quarantine path without claiming publisher verification.",
+  "capabilities": [
+    "frontend.design"
+  ],
+  "licenseState": "confirmed",
+  "spdxExpression": "Apache-2.0",
+  "permissionScripts": false,
+  "permissionNetwork": [
+    "static-url-indicator"
+  ],
+  "permissionTools": []
+}

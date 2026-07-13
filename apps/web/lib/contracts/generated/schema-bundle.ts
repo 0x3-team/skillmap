@@ -6481,6 +6481,1481 @@ export const CONTRACT_SCHEMAS = [
         }
       }
     }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-review-state/v1.schema.json",
+    "title": "SkillMap Hosted Review State v1",
+    "description": "A bounded public or submitter-visible review projection. Reviewer identity and private notes are never transported.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "state",
+      "reviewCaseId",
+      "reasonCodes",
+      "message",
+      "reviewedAt"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-review-state"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "state": {
+        "enum": [
+          "not-started",
+          "pending",
+          "changes-requested",
+          "approved",
+          "rejected",
+          "published",
+          "withdrawn"
+        ]
+      },
+      "reviewCaseId": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^rev_[0-9a-f]{32}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "reasonCodes": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "message": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]*$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "reviewedAt": {
+        "oneOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "state": {
+            "enum": [
+              "not-started",
+              "pending"
+            ]
+          },
+          "reviewCaseId": {
+            "type": "null"
+          },
+          "message": {
+            "type": "null"
+          },
+          "reviewedAt": {
+            "type": "null"
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "enum": [
+              "changes-requested",
+              "rejected"
+            ]
+          },
+          "reviewCaseId": {
+            "type": "string"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          },
+          "message": {
+            "type": "string"
+          },
+          "reviewedAt": {
+            "type": "string"
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "enum": [
+              "approved",
+              "published"
+            ]
+          },
+          "reviewCaseId": {
+            "type": "string"
+          },
+          "reviewedAt": {
+            "type": "string"
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "withdrawn"
+          },
+          "reviewCaseId": {
+            "type": "null"
+          },
+          "reviewedAt": {
+            "type": "string"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json",
+    "title": "SkillMap Hosted Audit Summary v1",
+    "description": "A bounded audit state that never claims safety or exposes private findings.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "state",
+      "receipt",
+      "findingCounts",
+      "reasonCodes"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-audit-summary"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "state": {
+        "enum": [
+          "not-run",
+          "passed",
+          "warnings",
+          "stale",
+          "blocked"
+        ]
+      },
+      "receipt": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "findingCounts": {
+        "$ref": "#/$defs/FindingCounts"
+      },
+      "reasonCodes": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "state": {
+            "const": "not-run"
+          },
+          "receipt": {
+            "type": "null"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          },
+          "findingCounts": {
+            "properties": {
+              "critical": {
+                "const": 0
+              },
+              "high": {
+                "const": 0
+              },
+              "medium": {
+                "const": 0
+              },
+              "low": {
+                "const": 0
+              },
+              "info": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "passed"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "findingCounts": {
+            "properties": {
+              "critical": {
+                "const": 0
+              },
+              "high": {
+                "const": 0
+              },
+              "medium": {
+                "const": 0
+              },
+              "low": {
+                "const": 0
+              },
+              "info": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "warnings"
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          },
+          "findingCounts": {
+            "properties": {
+              "critical": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "enum": [
+              "stale",
+              "blocked"
+            ]
+          },
+          "receipt": {
+            "$ref": "#/$defs/ReceiptRef"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    ],
+    "$defs": {
+      "ReceiptRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receiptId",
+          "receiptDigest",
+          "auditedAt",
+          "policyVersion",
+          "hostProfileVersion"
+        ],
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "pattern": "^aud_[0-9a-f]{32}$"
+          },
+          "receiptDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "auditedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "policyVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "hostProfileVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "FindingCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "info"
+        ],
+        "properties": {
+          "critical": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "high": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "medium": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "low": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "info": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-audit-receipt/v1.schema.json",
+    "title": "SkillMap Hosted Public Audit Receipt v1",
+    "description": "The redacted public audit receipt for one immutable hosted skill version. receiptDigest binds the canonical private evidence receipt; projectionDigest independently binds this final redacted public object. Raw content, private findings, user IDs, and operator notes are forbidden by shape.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "receiptId",
+      "receiptDigest",
+      "projectionDigest",
+      "skillVersionId",
+      "sourceCommit",
+      "sourceContentDigest",
+      "normalizedContentDigest",
+      "state",
+      "findingCounts",
+      "checks",
+      "reasonCodes",
+      "policyVersion",
+      "hostProfileVersion",
+      "workerVersion",
+      "auditedAt"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-audit-receipt"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "receiptId": {
+        "type": "string",
+        "pattern": "^aud_[0-9a-f]{32}$"
+      },
+      "receiptDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "projectionDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "skillVersionId": {
+        "type": "string",
+        "pattern": "^skv_[0-9a-f]{32}$"
+      },
+      "sourceCommit": {
+        "type": "string",
+        "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+      },
+      "sourceContentDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "normalizedContentDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "state": {
+        "enum": [
+          "passed",
+          "warnings",
+          "blocked"
+        ]
+      },
+      "findingCounts": {
+        "$ref": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json#/$defs/FindingCounts"
+      },
+      "checks": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "outcome",
+            "severity",
+            "evidenceDigest"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "outcome": {
+              "enum": [
+                "passed",
+                "warning",
+                "blocked",
+                "not-applicable"
+              ]
+            },
+            "severity": {
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low",
+                "info"
+              ]
+            },
+            "evidenceDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "reasonCodes": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "policyVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "hostProfileVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "workerVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "auditedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "state": {
+            "const": "passed"
+          },
+          "checks": {
+            "items": {
+              "properties": {
+                "outcome": {
+                  "enum": [
+                    "passed",
+                    "not-applicable"
+                  ]
+                }
+              }
+            }
+          },
+          "reasonCodes": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "findingCounts": {
+            "properties": {
+              "critical": {
+                "const": 0
+              },
+              "high": {
+                "const": 0
+              },
+              "medium": {
+                "const": 0
+              },
+              "low": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "warnings"
+          },
+          "checks": {
+            "items": {
+              "properties": {
+                "outcome": {
+                  "enum": [
+                    "passed",
+                    "warning",
+                    "not-applicable"
+                  ]
+                }
+              }
+            },
+            "contains": {
+              "properties": {
+                "outcome": {
+                  "const": "warning"
+                }
+              },
+              "required": [
+                "outcome"
+              ]
+            },
+            "minContains": 1
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          },
+          "findingCounts": {
+            "properties": {
+              "critical": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "blocked"
+          },
+          "checks": {
+            "contains": {
+              "properties": {
+                "outcome": {
+                  "const": "blocked"
+                }
+              },
+              "required": [
+                "outcome"
+              ]
+            },
+            "minContains": 1
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-grade-receipt/v1.schema.json",
+    "title": "SkillMap Hosted Public Grade Receipt v1",
+    "description": "A redacted, version-bound grade receipt. receiptDigest binds the canonical private evidence receipt; projectionDigest independently binds this final redacted public object. A current letter requires all hard gates and complete bound evidence; Batch 1 storage admits only provisional or blocked receipts.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "receiptId",
+      "receiptDigest",
+      "projectionDigest",
+      "skillVersionId",
+      "normalizedContentDigest",
+      "auditReceiptId",
+      "auditReceiptDigest",
+      "compatibilityEvidenceDigest",
+      "evaluationSuiteDigest",
+      "rubricVersion",
+      "hostProfileVersion",
+      "evaluatorVersion",
+      "state",
+      "band",
+      "totalScore",
+      "confidence",
+      "hardGates",
+      "dimensions",
+      "reasonCodes",
+      "gradedAt"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-grade-receipt"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "receiptId": {
+        "type": "string",
+        "pattern": "^grd_[0-9a-f]{32}$"
+      },
+      "receiptDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "projectionDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "skillVersionId": {
+        "type": "string",
+        "pattern": "^skv_[0-9a-f]{32}$"
+      },
+      "normalizedContentDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "auditReceiptId": {
+        "type": "string",
+        "pattern": "^aud_[0-9a-f]{32}$"
+      },
+      "auditReceiptDigest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "compatibilityEvidenceDigest": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "evaluationSuiteDigest": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "rubricVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "hostProfileVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "evaluatorVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "state": {
+        "enum": [
+          "provisional",
+          "current",
+          "blocked"
+        ]
+      },
+      "band": {
+        "oneOf": [
+          {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "totalScore": {
+        "oneOf": [
+          {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "confidence": {
+        "oneOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "hardGates": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 50,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "passed",
+            "evidenceDigest"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "passed": {
+              "type": "boolean"
+            },
+            "evidenceDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "dimensions": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "weight",
+            "score",
+            "evidenceDigest"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "weight": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      },
+      "reasonCodes": {
+        "type": "array",
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "gradedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "oneOf": [
+      {
+        "properties": {
+          "state": {
+            "const": "provisional"
+          },
+          "band": {
+            "type": "null"
+          },
+          "totalScore": {
+            "type": "integer"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "compatibilityEvidenceDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "current"
+          },
+          "band": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ]
+          },
+          "totalScore": {
+            "type": "integer"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "compatibilityEvidenceDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "evaluationSuiteDigest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "hardGates": {
+            "items": {
+              "properties": {
+                "passed": {
+                  "const": true
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "band": {
+                "const": "A"
+              },
+              "totalScore": {
+                "type": "integer",
+                "minimum": 90
+              }
+            }
+          },
+          {
+            "properties": {
+              "band": {
+                "const": "B"
+              },
+              "totalScore": {
+                "type": "integer",
+                "minimum": 80,
+                "exclusiveMaximum": 90
+              }
+            }
+          },
+          {
+            "properties": {
+              "band": {
+                "const": "C"
+              },
+              "totalScore": {
+                "type": "integer",
+                "minimum": 70,
+                "exclusiveMaximum": 80
+              }
+            }
+          },
+          {
+            "properties": {
+              "band": {
+                "const": "D"
+              },
+              "totalScore": {
+                "type": "integer",
+                "minimum": 60,
+                "exclusiveMaximum": 70
+              }
+            }
+          },
+          {
+            "properties": {
+              "band": {
+                "const": "F"
+              },
+              "totalScore": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMaximum": 60
+              }
+            }
+          }
+        ]
+      },
+      {
+        "properties": {
+          "state": {
+            "const": "blocked"
+          },
+          "band": {
+            "type": "null"
+          },
+          "totalScore": {
+            "type": "null"
+          },
+          "confidence": {
+            "type": "null"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/hosted-submission/v1.schema.json",
+    "title": "SkillMap Hosted Account Submission v1",
+    "description": "The account-owned projection for one exact-commit public GitHub skill submission. Operator identity, claim tokens, internal database IDs, and private evidence are excluded.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "schemaVersion",
+      "submissionId",
+      "source",
+      "versionLabel",
+      "licenseClaim",
+      "state",
+      "audit",
+      "grade",
+      "review",
+      "publicResult",
+      "remediation",
+      "createdAt",
+      "updatedAt",
+      "claimedAt",
+      "completedAt"
+    ],
+    "properties": {
+      "kind": {
+        "const": "skillmap.hosted-submission"
+      },
+      "schemaVersion": {
+        "const": 1
+      },
+      "submissionId": {
+        "type": "string",
+        "pattern": "^sub_[0-9a-f]{32}$"
+      },
+      "source": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repositoryUrl",
+          "commit",
+          "path"
+        ],
+        "properties": {
+          "repositoryUrl": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 226,
+            "pattern": "^https://github\\.com/[A-Za-z0-9][A-Za-z0-9.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 500,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[\\u0000-\\u001F\\u007F])(?:[^/]+/)*SKILL\\.md$"
+          }
+        }
+      },
+      "versionLabel": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+      },
+      "licenseClaim": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9 .()+-]+$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "state": {
+        "enum": [
+          "queued",
+          "processing",
+          "changes-requested",
+          "accepted",
+          "published",
+          "rejected",
+          "failed",
+          "withdrawn"
+        ]
+      },
+      "audit": {
+        "$ref": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json"
+      },
+      "grade": {
+        "$ref": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json"
+      },
+      "review": {
+        "$ref": "https://skillmap.dev/contracts/hosted-review-state/v1.schema.json"
+      },
+      "publicResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "skillId",
+              "versionId"
+            ],
+            "properties": {
+              "skillId": {
+                "type": "string",
+                "pattern": "^skl_[0-9a-f]{32}$"
+              },
+              "versionId": {
+                "type": "string",
+                "pattern": "^skv_[0-9a-f]{32}$"
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "remediation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]*$"
+              }
+            }
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "claimedAt": {
+        "oneOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "completedAt": {
+        "oneOf": [
+          {
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "queued"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "claimedAt": {
+              "type": "null"
+            },
+            "completedAt": {
+              "type": "null"
+            },
+            "publicResult": {
+              "type": "null"
+            },
+            "remediation": {
+              "type": "null"
+            },
+            "audit": {
+              "properties": {
+                "state": {
+                  "const": "not-run"
+                }
+              }
+            },
+            "grade": {
+              "properties": {
+                "state": {
+                  "const": "ungraded"
+                }
+              }
+            },
+            "review": {
+              "properties": {
+                "state": {
+                  "const": "not-started"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "processing"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "claimedAt": {
+              "type": "string"
+            },
+            "completedAt": {
+              "type": "null"
+            },
+            "publicResult": {
+              "type": "null"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "published"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "claimedAt": {
+              "type": "string"
+            },
+            "completedAt": {
+              "type": "string"
+            },
+            "publicResult": {
+              "type": "object"
+            },
+            "remediation": {
+              "type": "null"
+            },
+            "audit": {
+              "properties": {
+                "state": {
+                  "enum": [
+                    "passed",
+                    "warnings"
+                  ]
+                }
+              }
+            },
+            "grade": {
+              "properties": {
+                "state": {
+                  "const": "current"
+                }
+              }
+            },
+            "review": {
+              "properties": {
+                "state": {
+                  "const": "published"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "enum": [
+                "changes-requested",
+                "accepted",
+                "rejected",
+                "failed"
+              ]
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "claimedAt": {
+              "type": "string"
+            },
+            "completedAt": {
+              "type": "string"
+            },
+            "publicResult": {
+              "type": "null"
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "accepted"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "remediation": {
+              "type": "null"
+            },
+            "audit": {
+              "properties": {
+                "state": {
+                  "enum": [
+                    "passed",
+                    "warnings"
+                  ]
+                }
+              }
+            },
+            "grade": {
+              "properties": {
+                "state": {
+                  "enum": [
+                    "provisional",
+                    "current"
+                  ]
+                }
+              }
+            },
+            "review": {
+              "properties": {
+                "state": {
+                  "const": "approved"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "rejected"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "remediation": {
+              "type": "object"
+            },
+            "review": {
+              "properties": {
+                "state": {
+                  "const": "rejected"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": {
+            "state": {
+              "const": "withdrawn"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "completedAt": {
+              "type": "string"
+            },
+            "publicResult": {
+              "type": "null"
+            },
+            "review": {
+              "properties": {
+                "state": {
+                  "const": "withdrawn"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
   }
 ] as const;
 

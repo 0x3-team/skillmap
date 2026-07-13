@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { canonicalJson } from '../dist/core/canonical-payload.js';
 import { validateContract } from '../dist/contracts/validate.js';
 
 const IDS = {
   grade: 'https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json',
   skill: 'https://skillmap.dev/contracts/hosted-skill/v1.schema.json',
   list: 'https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json',
-  api: 'https://skillmap.dev/contracts/hosted-api-response/v1.schema.json'
+  api: 'https://skillmap.dev/contracts/hosted-api-response/v1.schema.json',
+  review: 'https://skillmap.dev/contracts/hosted-review-state/v1.schema.json',
+  auditSummary: 'https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json',
+  auditReceipt: 'https://skillmap.dev/contracts/hosted-audit-receipt/v1.schema.json',
+  gradeReceipt: 'https://skillmap.dev/contracts/hosted-grade-receipt/v1.schema.json',
+  submission: 'https://skillmap.dev/contracts/hosted-submission/v1.schema.json'
 };
 
 const PUBLISHER_ID = `pub_${'0'.repeat(31)}1`;
@@ -303,3 +310,153 @@ test('PostgREST row cap preserves the sentinel behind the public 50-item page li
   assert.ok(configured, 'supabase/config.toml must declare max_rows');
   assert.ok(Number(configured[1]) >= 51, 'max_rows must admit limit=50 plus one pagination sentinel');
 });
+
+test('hosted submission, review, audit, and grade receipts accept bounded public projections', () => {
+  const auditReceipt = {
+    kind: 'skillmap.hosted-audit-receipt', schemaVersion: 1,
+    receiptId: `aud_${'1'.repeat(32)}`, receiptDigest: SHA_A, projectionDigest: SHA_B,
+    skillVersionId: VERSION_ID, sourceCommit: COMMIT,
+    sourceContentDigest: SHA_A, normalizedContentDigest: SHA_B,
+    state: 'warnings',
+    findingCounts: { critical: 0, high: 0, medium: 1, low: 0, info: 2 },
+    checks: [
+      { code: 'frontmatter-valid', outcome: 'passed', severity: 'info', evidenceDigest: SHA_A },
+      { code: 'broad-trigger-language', outcome: 'warning', severity: 'medium', evidenceDigest: SHA_B }
+    ],
+    reasonCodes: ['broad-trigger-language'], policyVersion: 'static-audit/v1',
+    hostProfileVersion: 'codex/v1', workerVersion: 'skillmap-worker/0.1.0', auditedAt: NOW
+  };
+  const gradeReceipt = {
+    kind: 'skillmap.hosted-grade-receipt', schemaVersion: 1,
+    receiptId: `grd_${'2'.repeat(32)}`, receiptDigest: SHA_B, projectionDigest: SHA_A,
+    skillVersionId: VERSION_ID, normalizedContentDigest: SHA_B,
+    auditReceiptId: auditReceipt.receiptId, auditReceiptDigest: SHA_A,
+    compatibilityEvidenceDigest: SHA_A, evaluationSuiteDigest: null,
+    rubricVersion: 'skillmap-rubric/v1', hostProfileVersion: 'codex/v1',
+    evaluatorVersion: 'skillmap-grader/0.1.0', state: 'provisional', band: null,
+    totalScore: 78, confidence: 0.62,
+    hardGates: [
+      { code: 'source-identity', passed: true, evidenceDigest: SHA_A },
+      { code: 'audit-acceptable', passed: true, evidenceDigest: SHA_A },
+      { code: 'license-confirmed', passed: true, evidenceDigest: SHA_A },
+      { code: 'compatibility-evidence-bound', passed: true, evidenceDigest: SHA_A },
+      { code: 'behavioral-evidence-bound', passed: false, evidenceDigest: null }
+    ],
+    dimensions: [
+      { code: 'instruction-quality', weight: 0.25, score: 78, evidenceDigest: SHA_B },
+      { code: 'safety-and-permissions', weight: 0.25, score: 78, evidenceDigest: SHA_B },
+      { code: 'routing-quality', weight: 0.20, score: 78, evidenceDigest: SHA_B },
+      { code: 'reproducibility', weight: 0.15, score: 78, evidenceDigest: SHA_B },
+      { code: 'maintenance-and-provenance', weight: 0.15, score: 78, evidenceDigest: SHA_B }
+    ],
+    reasonCodes: ['behavioral-evidence-incomplete'], gradedAt: NOW
+  };
+  auditReceipt.projectionDigest = canonicalProjectionDigest(auditReceipt);
+  gradeReceipt.auditReceiptDigest = auditReceipt.receiptDigest;
+  gradeReceipt.projectionDigest = canonicalProjectionDigest(gradeReceipt);
+  const review = {
+    kind: 'skillmap.hosted-review-state', schemaVersion: 1,
+    state: 'approved', reviewCaseId: `rev_${'3'.repeat(32)}`,
+    reasonCodes: [], message: null, reviewedAt: NOW
+  };
+  const submission = {
+    kind: 'skillmap.hosted-submission', schemaVersion: 1,
+    submissionId: `sub_${'4'.repeat(32)}`,
+    source: { repositoryUrl: 'https://github.com/0x3-team/skillmap', commit: COMMIT, path: 'catalog/first-party/skill-audit/SKILL.md' },
+    versionLabel: '1.0.0', licenseClaim: 'MIT', state: 'accepted',
+    audit: {
+      kind: 'skillmap.hosted-audit-summary', schemaVersion: 1, state: 'warnings',
+      receipt: { receiptId: auditReceipt.receiptId, receiptDigest: SHA_A, auditedAt: NOW, policyVersion: 'static-audit/v1', hostProfileVersion: 'codex/v1' },
+      findingCounts: auditReceipt.findingCounts, reasonCodes: auditReceipt.reasonCodes
+    },
+    grade: {
+      kind: 'skillmap.hosted-grade-summary', schemaVersion: 1, state: 'provisional', band: null,
+      confidence: 0.62,
+      receipt: { receiptId: gradeReceipt.receiptId, receiptDigest: SHA_B, gradedAt: NOW, rubricVersion: 'skillmap-rubric/v1', hostProfileVersion: 'codex/v1' },
+      invalidatedAt: null, reasonCodes: gradeReceipt.reasonCodes
+    },
+    review, publicResult: null, remediation: null,
+    createdAt: '2026-07-11T18:00:00.000Z', updatedAt: NOW,
+    claimedAt: '2026-07-11T18:30:00.000Z', completedAt: NOW
+  };
+
+  assertValid(IDS.auditReceipt, auditReceipt);
+  assertValid(IDS.gradeReceipt, gradeReceipt);
+  assertValid(IDS.review, review);
+  assertValid(IDS.auditSummary, submission.audit);
+  assertValid(IDS.submission, submission);
+
+  const passedWithBlockedCheck = structuredClone(auditReceipt);
+  passedWithBlockedCheck.state = 'passed';
+  passedWithBlockedCheck.reasonCodes = [];
+  passedWithBlockedCheck.checks = [{ code: 'secret-material', outcome: 'blocked', severity: 'critical', evidenceDigest: SHA_A }];
+  assertInvalid(IDS.auditReceipt, passedWithBlockedCheck, /oneOf|allowed values/);
+
+  const fabricatedPublished = structuredClone(submission);
+  fabricatedPublished.state = 'published';
+  fabricatedPublished.publicResult = { skillId: SKILL_ID, versionId: VERSION_ID };
+  assertInvalid(IDS.submission, fabricatedPublished, /must be equal to constant|allowed values/);
+
+  const forgedBand = structuredClone(gradeReceipt);
+  forgedBand.state = 'current';
+  forgedBand.band = 'A';
+  forgedBand.reasonCodes = [];
+  assertInvalid(IDS.gradeReceipt, forgedBand, /oneOf|must be >= 90/);
+
+  const forgedArithmetic = structuredClone(gradeReceipt);
+  forgedArithmetic.totalScore = 99;
+  assertInvalid(IDS.gradeReceipt, forgedArithmetic, /weighted dimension score/);
+
+  const forgedRubric = structuredClone(gradeReceipt);
+  forgedRubric.dimensions[0].weight = 0.01;
+  forgedRubric.dimensions[1].weight = 0.49;
+  forgedRubric.projectionDigest = canonicalProjectionDigest(forgedRubric);
+  assertInvalid(IDS.gradeReceipt, forgedRubric, /must equal 0.25|rubricWeight/);
+
+  const missingGate = structuredClone(gradeReceipt);
+  missingGate.hardGates.pop();
+  missingGate.projectionDigest = canonicalProjectionDigest(missingGate);
+  assertInvalid(IDS.gradeReceipt, missingGate, /exactly five hard gates|missing skillmap-rubric/);
+
+  const falsePassedSummary = structuredClone(submission.audit);
+  falsePassedSummary.state = 'passed';
+  falsePassedSummary.reasonCodes = [];
+  assertInvalid(IDS.auditSummary, falsePassedSummary, /must be equal to constant|passed audit summaries|oneOf/);
+});
+
+test('hosted authority contracts reject private transport fields and fabricated state combinations', () => {
+  const notRun = {
+    kind: 'skillmap.hosted-audit-summary', schemaVersion: 1, state: 'not-run', receipt: null,
+    findingCounts: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+    reasonCodes: ['audit-not-run']
+  };
+  assertValid(IDS.auditSummary, notRun);
+
+  const fabricated = structuredClone(notRun);
+  fabricated.findingCounts.high = 1;
+  assertInvalid(IDS.auditSummary, fabricated, /must be equal to constant|oneOf/);
+
+  const privateReview = {
+    kind: 'skillmap.hosted-review-state', schemaVersion: 1,
+    state: 'approved', reviewCaseId: `rev_${'3'.repeat(32)}`,
+    reasonCodes: [], message: null, reviewedAt: NOW,
+    operatorUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+  };
+  assertInvalid(IDS.review, privateReview, /additional properties|must NOT have/);
+
+  const queuedWithClaim = {
+    kind: 'skillmap.hosted-submission', schemaVersion: 1,
+    submissionId: `sub_${'4'.repeat(32)}`,
+    source: { repositoryUrl: 'https://github.com/0x3-team/skillmap', commit: COMMIT, path: 'SKILL.md' },
+    versionLabel: '1.0.0', licenseClaim: null, state: 'queued', audit: notRun, grade: ungraded(),
+    review: { kind: 'skillmap.hosted-review-state', schemaVersion: 1, state: 'not-started', reviewCaseId: null, reasonCodes: [], message: null, reviewedAt: null },
+    publicResult: null, remediation: null, createdAt: NOW, updatedAt: NOW,
+    claimedAt: NOW, completedAt: null
+  };
+  assertInvalid(IDS.submission, queuedWithClaim, /must be null/);
+});
+
+function canonicalProjectionDigest(receipt) {
+  const { projectionDigest: _projectionDigest, ...core } = receipt;
+  return `sha256:${createHash('sha256').update(canonicalJson(core)).digest('hex')}`;
+}

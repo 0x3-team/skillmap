@@ -2,7 +2,7 @@
 
 This Next.js application contains two deliberately separate products:
 
-- a real Supabase-backed hosted skill catalog and free-account saved-skill workflow;
+- a real Supabase-backed hosted skill catalog with free-account saved skills and account-owned exact-commit submission intents;
 - the existing fixture/redacted-snapshot dashboard for the local-first CLI.
 
 Hosted routes never fall back to dashboard fixtures. Missing Supabase configuration produces an explicit unavailable state or API `503`.
@@ -21,9 +21,10 @@ Routes:
 
 - `/` landing page
 - `/skills` anonymous hosted catalog
-- `/skills/[publisher]/[slug]` public skill evidence detail
+- `/skills/[publisher]/[slug]`, `/audit`, and `/grade` public skill detail plus bounded current-version evidence projections
 - `/api/v1/skills` and `/api/v1/skills/[skillId]` contract-validated public API
-- `/sign-in`, `/auth/callback`, `/account`, `/account/saved` Supabase account flow
+- `/submit`, `/account/submissions` authenticated exact-commit submission and owner-only queued withdrawal
+- `/sign-in`, `/auth/callback`, `/account`, `/account/saved`, `/account/submissions`, `/account/reports`, `/account/export` Supabase account flow, owner-only queue history, and bounded data export
 - `/dashboard` fixture-backed dashboard by default, or local redacted snapshot mode when `SKILLMAP_DASHBOARD_SNAPSHOT` is set
 
 ## Hosted Catalog Setup
@@ -76,6 +77,6 @@ The runner exercises the same critical, accessibility, responsive, overflow, and
 
 ## Safety Boundary
 
-Public catalog reads use an anonymous, no-store Supabase client and only the explicit `api` schema. Authenticated writes are limited by RLS to a user profile and that user’s saved skills. Catalog, version, grade, and audit mutation are denied in this slice.
+Public catalog reads use an anonymous, no-store Supabase client and only the explicit `api` schema. Audit and grade pages read only the bounded current-public evidence views; their canonical evidence digest is not a full public `projectionDigest` receipt. Authenticated writes are limited by RLS to a user profile, that user’s saved skills, exact source-coordinate submission intents, queued-to-withdrawn transitions, immutable suspicious-listing reports, and the no-target `api.delete_my_account()` RPC. Submission writes are capped at 3 active rows and 10 new rows per rolling 24 hours. Reports require an exact current public version, are capped at 5 queued and 20 new rows per rolling 24 hours, allow one queued row per account/version/category, and apply a 24-hour cooldown to that tuple. The browser cannot set worker, review, audit, grade, report disposition, lifecycle, or publication authority. Account deletion requires an exact confirmation phrase, cascades account-owned data including reports, detaches published submission evidence, and clears the current browser session.
 
 The dashboard remains a redacted mirror and workflow console. It stores prompt hashes, short previews, `$PROJECT`/`$HOME` placeholders, connector state, and read-only local commands. It does not upload raw prompts, raw skill bodies, or unredacted local paths.

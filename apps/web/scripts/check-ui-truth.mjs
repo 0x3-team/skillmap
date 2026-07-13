@@ -10,7 +10,10 @@ const sources = Object.fromEntries(
       "app/privacy/page.tsx",
       "app/release-status/page.tsx",
       "app/security/page.tsx",
+      "app/submit/page.tsx",
       "app/support/page.tsx",
+      "app/trust/auditing/page.tsx",
+      "app/trust/grading/page.tsx",
       "components/skillmap/landing-page.tsx",
       "components/skillmap/dashboard-client.tsx",
       "components/skillmap/trust-page.tsx",
@@ -52,8 +55,20 @@ for (const file of ["components/skillmap/landing-page.tsx", "components/skillmap
   if (!/href="\/support"/.test(sources[file])) failures.push(`${file}: support route is missing from product-information navigation`);
 }
 
+const landing = sources["components/skillmap/landing-page.tsx"];
+for (const boundary of [
+  /action="\/skills" method="get"/i,
+  /name="q"/i,
+  /Free curated trust alpha · pre-deployment/i,
+  /no billing, checkout, subscription, entitlement, paywall, or Stripe dependency/i,
+  /recorded local fixture/i,
+  /not live catalog data/i
+]) {
+  if (!boundary.test(landing)) failures.push(`components/skillmap/landing-page.tsx: missing homepage truth boundary ${boundary}`);
+}
+
 const support = sources["app/support/page.tsx"];
-for (const boundary of [/locally validated free-account flow/i, /no public production .*response-time SLA/i, /Do not include raw prompts/i, /Never delete locks/i]) {
+for (const boundary of [/locally validated free-account(?: (?:flow|spine)|, submission, evidence, and suspicious-listing report spine)/i, /no remote deployment.*response-time SLA/i, /Do not include raw prompts/i, /Never delete locks/i]) {
   if (!boundary.test(support)) failures.push(`app/support/page.tsx: missing support boundary ${boundary}`);
 }
 
@@ -63,8 +78,18 @@ for (const boundary of [/application schema stores the authenticated account ide
 }
 
 const releaseStatus = sources["app/release-status/page.tsx"];
-for (const boundary of [/Supabase-backed public catalog/i, /unlisted private alpha/i, /No public beta/i, /Stripe integration is claimed/i]) {
+for (const boundary of [/Supabase-backed public catalog/i, /validated locally and is not deployed/i, /No push, remote Supabase or web deployment/i, /Existing local validation is not push, deployment, live OAuth/i, /no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency/i]) {
   if (!boundary.test(releaseStatus)) failures.push(`app/release-status/page.tsx: missing hosted release boundary ${boundary}`);
+}
+
+for (const [file, boundaries] of Object.entries({
+  "app/submit/page.tsx": [/does not execute repository content/i, /does not.*publish a listing.*current grade/i, /operator review required/i, /no billing/i],
+  "app/trust/auditing/page.tsx": [/seed versions are still marked not run/i, /No remote audit service/i, /does not follow instructions found in a skill/i],
+  "app/trust/grading/page.tsx": [/current hosted seed versions are ungraded/i, /no letter grade is presented/i, /popularity or payment/i]
+})) {
+  for (const boundary of boundaries) {
+    if (!boundary.test(sources[file])) failures.push(`${file}: missing methodology truth boundary ${boundary}`);
+  }
 }
 
 const security = sources["app/security/page.tsx"];

@@ -1,0 +1,18 @@
+{
+  "name": "skillmap-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "audit:dry-run": "node src/audit-once.mjs",
+    "queue:process-once": "node src/process-once.mjs",
+    "queue:publish": "node src/publish-once.mjs",
+    "queue:requeue": "node src/requeue.mjs",
+    "catalog:lifecycle": "node src/lifecycle.mjs",
+    "reports:queue": "node src/report-queue.mjs",
+    "reports:disposition": "node src/report-disposition.mjs"
+  }
+}

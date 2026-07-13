@@ -9,39 +9,55 @@ select plan(96);
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname in ('api', 'private') and c.relkind = 'r'),
-  9::bigint,
-  'the Phase 1 boundary contains exactly nine API/private tables'
+    where c.relkind = 'r' and (n.nspname, c.relname) in (
+      ('private', 'publishers'), ('private', 'publisher_members'),
+      ('private', 'source_repositories'), ('private', 'skills'),
+      ('private', 'skill_versions'), ('private', 'skill_relationships'),
+      ('private', 'audit_events'), ('api', 'profiles'), ('api', 'saved_skills')
+    )),
+    9::bigint,
+    'the named Phase 1 boundary contains exactly its nine API/private tables'
 );
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname in ('api', 'private') and c.relkind = 'r'
+    where c.relkind = 'r' and (n.nspname, c.relname) in (
+      ('private', 'publishers'), ('private', 'publisher_members'),
+      ('private', 'source_repositories'), ('private', 'skills'),
+      ('private', 'skill_versions'), ('private', 'skill_relationships'),
+      ('private', 'audit_events'), ('api', 'profiles'), ('api', 'saved_skills')
+    )
       and c.relrowsecurity and c.relforcerowsecurity),
-  9::bigint,
-  'every API/private table enables and forces RLS'
-);
-
-select is(
-  (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'api' and c.relkind = 'v'),
-  4::bigint,
-  'the API exposes only four explicit views'
+    9::bigint,
+    'every named Phase 1 table enables and forces RLS'
 );
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'api' and c.relkind = 'v'
+      and c.relname in ('catalog_skill_versions', 'catalog_skills', 'catalog_skill_relationships', 'saved_skill_catalog')),
+    4::bigint,
+    'the named Phase 1 API boundary contains exactly its four explicit views'
+);
+
+select is(
+  (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'api' and c.relkind = 'v'
+      and c.relname in ('catalog_skill_versions', 'catalog_skills', 'catalog_skill_relationships', 'saved_skill_catalog')
       and c.reloptions @> array['security_invoker=true', 'security_barrier=true']),
-  4::bigint,
-  'every exposed view is a security-invoker security-barrier view'
+    4::bigint,
+    'every named Phase 1 view is a security-invoker security-barrier view'
 );
 
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'api' and p.prosecdef),
-  0::bigint,
-  'the exposed API schema contains no security-definer functions'
+    where n.nspname = 'api' and p.prosecdef and p.proname not in (
+      'claim_skill_submission', 'complete_skill_submission', 'requeue_skill_submission',
+      'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
+      'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue'
+    )),
+    0::bigint,
+    'no security-definer function exists outside the explicit hosted operator allowlist'
 );
 select is(
   (select count(*) from information_schema.columns

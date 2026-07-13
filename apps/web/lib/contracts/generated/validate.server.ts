@@ -41,6 +41,9 @@ export const EVAL_RELEASE_ROUTE_WORK_LIMIT = 72_000_000;
 const EVAL_SUITE_V3_SCHEMA_ID = 'https://skillmap.dev/contracts/eval-suite/v3.schema.json';
 const EVAL_RUN_V3_SCHEMA_ID = 'https://skillmap.dev/contracts/eval-run/v3.schema.json';
 const HOSTED_GRADE_SUMMARY_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json';
+const HOSTED_AUDIT_SUMMARY_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json';
+const HOSTED_AUDIT_RECEIPT_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-audit-receipt/v1.schema.json';
+const HOSTED_GRADE_RECEIPT_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-grade-receipt/v1.schema.json';
 const HOSTED_SKILL_LIST_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json';
 const HOSTED_API_RESPONSE_V1_SCHEMA_ID = 'https://skillmap.dev/contracts/hosted-api-response/v1.schema.json';
 const PAYLOAD_EXCLUDED_KEYS = new Set(['payloadDigest', 'transportDigest', 'transportMetadata']);
@@ -92,7 +95,12 @@ ajv.addFormat('date-time', {
   validate: isRealUtcTimestamp
 });
 
-for (const schema of CONTRACT_SCHEMAS) ajv.addSchema(schema as unknown as object);
+// Ajv normalizes some numeric subschemas in place while compiling them. Keep
+// the exported generated bundle immutable so callers and convergence tests see
+// the exact checked-in JSON Schema bytes rather than Ajv's internal form.
+for (const schema of CONTRACT_SCHEMAS) {
+  ajv.addSchema(JSON.parse(JSON.stringify(schema)) as object);
+}
 
 const validators = new Map<string, ValidateFunction>();
 
@@ -522,6 +530,9 @@ function semanticIssues(schemaId: string, value: unknown, context?: SemanticVali
   if (schemaId.endsWith('/sync-envelope/v1.schema.json')) validateSync(value, issues);
   if (schemaId.endsWith('/api-envelope/v1.schema.json')) validateApiEnvelope(value, issues);
   if (schemaId === HOSTED_GRADE_SUMMARY_V1_SCHEMA_ID) validateHostedGradeSummary(value, issues);
+  if (schemaId === HOSTED_AUDIT_SUMMARY_V1_SCHEMA_ID) validateHostedAuditSummary(value, issues);
+  if (schemaId === HOSTED_AUDIT_RECEIPT_V1_SCHEMA_ID) verifyReceiptDigest(value, 'projectionDigest', issues);
+  if (schemaId === HOSTED_GRADE_RECEIPT_V1_SCHEMA_ID) validateHostedGradeReceipt(value, issues);
   if (schemaId === HOSTED_SKILL_LIST_V1_SCHEMA_ID) validateHostedSkillList(value, issues);
   if (schemaId === HOSTED_API_RESPONSE_V1_SCHEMA_ID) validateHostedApiResponse(value, issues);
 
@@ -637,6 +648,109 @@ function validateHostedGradeSummary(value: Record<string, unknown>, issues: Cont
   const invalidatedAt = value.invalidatedAt;
   if (receipt && typeof invalidatedAt === 'string') {
     timestampOrder(receipt.gradedAt, invalidatedAt, `${basePath}/invalidatedAt`, issues);
+  }
+}
+
+function validateHostedAuditSummary(value: Record<string, unknown>, issues: ContractIssue[]): void {
+  const counts = recordValue(value.findingCounts);
+  if (!counts) return;
+  const critical = typeof counts.critical === 'number' ? counts.critical : 0;
+  const high = typeof counts.high === 'number' ? counts.high : 0;
+  const medium = typeof counts.medium === 'number' ? counts.medium : 0;
+  const low = typeof counts.low === 'number' ? counts.low : 0;
+  const info = typeof counts.info === 'number' ? counts.info : 0;
+  const total = critical + high + medium + low + info;
+  if (value.state === 'passed' && total !== 0) {
+    issue(issues, '/findingCounts', 'auditState', 'passed audit summaries must have zero findings');
+  }
+  if (value.state === 'warnings' && critical !== 0) {
+    issue(issues, '/findingCounts/critical', 'auditState', 'warning audit summaries cannot contain critical findings');
+  }
+}
+
+function validateHostedGradeReceipt(value: Record<string, unknown>, issues: ContractIssue[]): void {
+  const dimensions = arrayRecords(value.dimensions);
+  const hardGates = arrayRecords(value.hardGates);
+  uniqueRecordField(value.dimensions, 'code', '/dimensions', issues);
+  uniqueRecordField(value.hardGates, 'code', '/hardGates', issues);
+  verifyReceiptDigest(value, 'projectionDigest', issues);
+
+  const failedHardGates = hardGates.filter((entry) => entry.passed === false);
+  if (value.state === 'blocked' && failedHardGates.length === 0) {
+    issue(issues, '/hardGates', 'hardGateState', 'blocked grades require at least one failed hard gate');
+  }
+  if (value.state === 'current' && failedHardGates.length > 0) {
+    issue(issues, '/hardGates', 'hardGateState', 'current grades require every hard gate to pass');
+  }
+  if (value.state === 'provisional'
+    && failedHardGates.some((entry) => entry.code !== 'behavioral-evidence-bound')) {
+    issue(issues, '/hardGates', 'hardGateState', 'provisional grades may fail only the behavioral-evidence-bound gate');
+  }
+  for (const [index, gate] of hardGates.entries()) {
+    if (gate.passed === true && (typeof gate.evidenceDigest !== 'string' || !DIGEST_PATTERN.test(gate.evidenceDigest))) {
+      issue(issues, `/hardGates/${index}/evidenceDigest`, 'hardGateEvidence', 'passed hard gates require a lowercase sha256 evidence digest');
+    }
+  }
+
+  if (value.rubricVersion === 'skillmap-rubric/v1') {
+    const expected = new Map<string, number>([
+      ['instruction-quality', 0.25],
+      ['safety-and-permissions', 0.25],
+      ['routing-quality', 0.20],
+      ['reproducibility', 0.15],
+      ['maintenance-and-provenance', 0.15]
+    ]);
+    if (dimensions.length !== expected.size) {
+      issue(issues, '/dimensions', 'rubricDimensions', 'skillmap-rubric/v1 requires exactly five dimensions');
+    }
+    for (const [index, entry] of dimensions.entries()) {
+      const code = typeof entry.code === 'string' ? entry.code : '';
+      const requiredWeight = expected.get(code);
+      if (requiredWeight === undefined) {
+        issue(issues, `/dimensions/${index}/code`, 'rubricDimensions', `unexpected skillmap-rubric/v1 dimension ${code}`);
+      } else if (entry.weight !== requiredWeight) {
+        issue(issues, `/dimensions/${index}/weight`, 'rubricWeight', `must equal ${requiredWeight} for ${code}`);
+      }
+    }
+    for (const code of expected.keys()) {
+      if (!dimensions.some((entry) => entry.code === code)) {
+        issue(issues, '/dimensions', 'rubricDimensions', `missing skillmap-rubric/v1 dimension ${code}`);
+      }
+    }
+    const requiredHardGates = new Set([
+      'source-identity',
+      'audit-acceptable',
+      'license-confirmed',
+      'compatibility-evidence-bound',
+      'behavioral-evidence-bound'
+    ]);
+    if (hardGates.length !== requiredHardGates.size) {
+      issue(issues, '/hardGates', 'rubricHardGates', 'skillmap-rubric/v1 requires exactly five hard gates');
+    }
+    for (const [index, entry] of hardGates.entries()) {
+      const code = typeof entry.code === 'string' ? entry.code : '';
+      if (!requiredHardGates.has(code)) {
+        issue(issues, `/hardGates/${index}/code`, 'rubricHardGates', `unexpected skillmap-rubric/v1 hard gate ${code}`);
+      }
+    }
+    for (const code of requiredHardGates) {
+      if (!hardGates.some((entry) => entry.code === code)) {
+        issue(issues, '/hardGates', 'rubricHardGates', `missing skillmap-rubric/v1 hard gate ${code}`);
+      }
+    }
+  }
+
+  const weights = dimensions.map((entry) => typeof entry.weight === 'number' ? entry.weight : Number.NaN);
+  const scores = dimensions.map((entry) => typeof entry.score === 'number' ? entry.score : Number.NaN);
+  if (weights.some((entry) => !Number.isFinite(entry)) || scores.some((entry) => !Number.isFinite(entry))) return;
+  const weightTotal = weights.reduce((sum, entry) => sum + entry, 0);
+  if (Math.abs(weightTotal - 1) > 1e-9) {
+    issue(issues, '/dimensions', 'weightTotal', `dimension weights must sum to 1; computed ${weightTotal}`);
+  }
+  const computedScore = dimensions.reduce((sum, entry) => sum + Number(entry.weight) * Number(entry.score), 0);
+  const roundedScore = Math.round(computedScore);
+  if (typeof value.totalScore === 'number' && roundedScore !== value.totalScore) {
+    issue(issues, '/totalScore', 'scoreArithmetic', `must equal the rounded weighted dimension score; computed ${roundedScore}`);
   }
 }
 

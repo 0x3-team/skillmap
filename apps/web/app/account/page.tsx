@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { Bookmark, LogOut } from "lucide-react";
+import { Bookmark, Download, FileClock, FileWarning, LogOut, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable } from "@/components/skillmap/catalog-states";
 import { signOut } from "@/app/sign-in/actions";
+import { deleteMyAccount } from "@/app/account/data-actions";
 import { unsaveSkill } from "@/app/account/actions";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
+import { ACCOUNT_DELETION_CONFIRMATION } from "@/lib/account/deletion.server";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { listSavedSkills } from "@/lib/registry/repository.server";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
@@ -18,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function AccountPage({
   searchParams
 }: {
-  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[] }>;
+  searchParams: Promise<{ cursor?: string | string[]; error?: string | string[]; accountStatus?: string | string[] }>;
 }) {
   const params = await searchParams;
   if (params.error === "auth-unavailable") return <AccountUnavailable />;
@@ -62,11 +64,16 @@ export default async function AccountPage({
               {profile?.created_at ? `Account active since ${new Date(profile.created_at).toLocaleDateString("en", { dateStyle: "medium" })}.` : "Account profile is active."}
             </p>
           </div>
-          <form action={signOut}>
-            <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent">
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/account/submissions" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileClock className="h-4 w-4" /> Submissions</Link>
+            <Link href="/account/reports" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><FileWarning className="h-4 w-4" /> Reports</Link>
+            <a href="/account/export" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent"><Download className="h-4 w-4" /> Export JSON</a>
+            <form action={signOut}>
+              <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold hover:bg-accent">
+                <LogOut className="h-4 w-4" /> Sign out
+              </button>
+            </form>
+          </div>
         </div>
 
         <section className="py-8" id="saved">
@@ -104,6 +111,34 @@ export default async function AccountPage({
               {savedPage.nextCursor && <Link href={`/account?cursor=${encodeURIComponent(savedPage.nextCursor)}#saved`} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-xs font-semibold hover:bg-accent">Next saved skills</Link>}
             </nav>
           )}
+        </section>
+
+        <section className="scroll-mt-20 border-t border-border py-8" id="account-data" aria-labelledby="account-data-heading">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Data controls</p>
+            <h2 id="account-data-heading" className="mt-2 text-xl font-semibold">Export or delete account data</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">The bounded export contains your SkillMap profile, saved skill IDs, owner-filtered submission projection, and owner-filtered listing reports. It does not include Supabase provider secrets or private operator evidence.</p>
+          </div>
+          {params.accountStatus === "delete-confirmation" ? <p className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive" role="alert">Type the exact confirmation phrase before deleting the account. No data was changed.</p> : null}
+          {params.accountStatus === "delete-unavailable" ? <p className="mt-5 rounded-xl border border-warning/35 bg-warning/10 p-4 text-sm text-foreground" role="status">Account deletion could not be confirmed. The session remains active and SkillMap does not claim that data was deleted.</p> : null}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-card p-5">
+              <Download className="h-5 w-5 text-primary" />
+              <h3 className="mt-3 font-semibold">Download account JSON</h3>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Generated on demand, owner-filtered, capped, and returned with private no-store headers.</p>
+              <a href="/account/export" className="mt-4 inline-flex h-9 items-center rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground">Export JSON</a>
+            </div>
+            <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-5">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              <h3 className="mt-3 font-semibold">Delete SkillMap account</h3>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Deletes the authenticated account, profile, saved IDs, submissions, submission evidence, and account-owned listing reports. Published catalog metadata may remain, but its submission-backed evidence is detached and reset. This clears the current browser session; already-issued tokens on other devices may remain cryptographically valid until expiry, without the deleted account rows. Source repositories and provider backups are outside this RPC.</p>
+              <form action={deleteMyAccount} className="mt-4">
+                <label htmlFor="delete-account-confirmation" className="block text-xs font-semibold">Type “{ACCOUNT_DELETION_CONFIRMATION}”</label>
+                <input id="delete-account-confirmation" name="confirmation" type="text" required autoComplete="off" maxLength={ACCOUNT_DELETION_CONFIRMATION.length} placeholder={ACCOUNT_DELETION_CONFIRMATION} className="mt-2 h-9 w-full rounded-lg border border-destructive/25 bg-background px-3 text-xs text-foreground" />
+                <button type="submit" className="mt-3 inline-flex h-9 items-center rounded-full border border-destructive/35 px-4 text-xs font-semibold text-destructive hover:bg-destructive/10">Delete account permanently</button>
+              </form>
+            </div>
+          </div>
         </section>
       </div>
     </main>
