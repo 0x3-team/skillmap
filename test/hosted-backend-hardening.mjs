@@ -73,14 +73,14 @@ test('publisher authorization CLI is exposed through both operator package surfa
     'npm run build && node apps/worker/src/authorization.mjs');
   assert.equal(workerPackage.scripts['publisher:authorization'], 'node src/authorization.mjs');
   const readme = readFileSync('apps/worker/README.md', 'utf8');
-  assert.match(readme, /20260713050000_submission_authority_completion\.sql/);
+  assert.match(readme, /20260713060000_operator_submission_read_plane\.sql/);
   assert.match(readme, /npm run hosted:publisher:authorization/);
   assert.match(readme, /renews an expired[\s\S]+exact still-published source version/i);
   assert.match(readme, /cannot be renewed/i);
   assert.match(readme, /terminal for the exact repository, commit,[\s\S]+across accounts and publisher handles/i);
   assert.match(readme, /--license-evidence-path LICENSE/);
   const runbook = readFileSync('docs/operations/free-public-alpha-runbook.md', 'utf8');
-  assert.match(runbook, /20260713050000_submission_authority_completion\.sql/);
+  assert.match(runbook, /20260713060000_operator_submission_read_plane\.sql/);
   assert.match(runbook, /claim-scoped exact license evidence/);
   assert.match(runbook, /current unexpired publisher authorization/);
   assert.match(runbook, /target-bound collision/);
@@ -176,7 +176,7 @@ test('backend recovery and collision operator commands require explicit authorit
   assert.match(authorizationHelp.stdout, /Revocation is terminal[\s\S]+across accounts and publisher handles/i);
 });
 
-test('operator RPC client allowlists the recovery and collision boundary without reflecting secrets', async () => {
+test('operator RPC client allowlists mutation and read-plane boundaries without reflecting secrets', async () => {
   const observed = [];
   const client = createSupabaseRpcClient({
     url: 'http://127.0.0.1:54321',
@@ -218,6 +218,16 @@ test('operator RPC client allowlists the recovery and collision boundary without
       p_review_reference: `licref_${'2'.repeat(32)}`,
       p_review_evidence_digest: digest('license-review'),
       p_idempotency_digest: digest('license-record')
+    }],
+    ['get_skill_submission_queue_summary', {}],
+    ['list_skill_submission_operator_queue', {
+      p_state: null,
+      p_limit: 20,
+      p_after_updated_at: null,
+      p_after_submission_id: null
+    }],
+    ['get_skill_submission_operator_detail', {
+      p_submission_id: `sub_${'f'.repeat(32)}`
     }]
   ]) await client.call(name, parameters);
   assert.deepEqual(observed.map(item => item.url.split('/').at(-1)), [
@@ -225,7 +235,10 @@ test('operator RPC client allowlists the recovery and collision boundary without
     'list_skill_submission_collisions',
     'review_skill_submission_collisions',
     'record_skill_submission_publisher_authorization',
-    'record_skill_submission_license_evidence'
+    'record_skill_submission_license_evidence',
+    'get_skill_submission_queue_summary',
+    'list_skill_submission_operator_queue',
+    'get_skill_submission_operator_detail'
   ]);
   assert.equal(JSON.stringify(observed).includes(SECRET), false);
 });

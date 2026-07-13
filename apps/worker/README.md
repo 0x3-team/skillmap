@@ -4,7 +4,7 @@ This directory is the constrained Node worker boundary for hosted source ingesti
 
 ## Hard database preflight
 
-Do not start a worker until `20260713050000_submission_authority_completion.sql` and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, and generated `api` type parity. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication also requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority introduced by the final authority migration. Worker-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
+Do not start a worker or service-role operator command until `20260713060000_operator_submission_read_plane.sql` and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, and generated `api` type parity. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority, while list/inspect require the final read-plane migration. Operator-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
 
 The first executable slice is a non-mutating exact-commit audit rehearsal:
 
@@ -35,13 +35,31 @@ Public visibility does not establish permission to redistribute repository conte
 
 ## Operator queue workflow
 
-The mutating commands require server-only environment variables and an explicit `--execute` flag:
+Every service-role operator command requires server-only environment variables and an explicit `--execute` flag. For `hosted:queue:list` and `hosted:queue:inspect`, the flag confirms use of the protected credential; both commands remain read-only and report `mutation: false`.
 
 ```bash
 # Load SKILLMAP_SUPABASE_URL and SKILLMAP_SUPABASE_SERVICE_ROLE_KEY from the
 # approved root-only runtime secret source; never type the key into shell history.
 test -n "$SKILLMAP_SUPABASE_URL"
 test -n "$SKILLMAP_SUPABASE_SERVICE_ROLE_KEY"
+
+# Read the queue summary and the oldest active submissions without claiming one.
+# Omit --state for queued, processing, accepted, changes-requested, and failed.
+npm run hosted:queue:list -- --execute --limit 20
+
+# Filter one exact state. Limits are 1 through 32.
+npm run hosted:queue:list -- --execute --state queued --limit 20
+
+# Continue from the exact nextCursor returned by the preceding list response.
+# The timestamp and submission ID cursor fields must always be supplied together.
+npm run hosted:queue:list -- \
+  --execute --state queued --limit 20 \
+  --after-updated-at 2026-07-13T21:38:40.079Z \
+  --after-submission-id sub_0123456789abcdef0123456789abcdef
+
+# Inspect one exact submission and its bounded redacted receipt history.
+npm run hosted:queue:inspect -- \
+  --execute --submission-id sub_0123456789abcdef0123456789abcdef
 
 # Claim and audit one row. Without confirmed license review this will request changes.
 npm run hosted:queue:process-once -- --execute --submission-id sub_...
@@ -51,7 +69,7 @@ npm run hosted:queue:process-once -- \
   --execute --submission-id sub_... \
   --license-state confirmed --spdx MIT \
   --license-review-reference licref_0123456789abcdef0123456789abcdef \
-  --license-review-evidence-digest sha256:... \
+  --license-review-evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
   --license-evidence-path LICENSE \
   --disposition accepted
 
@@ -79,7 +97,7 @@ npm run hosted:publisher:authorization -- \
   --execute --submission-id sub_... --publisher-handle publisher-handle \
   --decision authorized --basis publisher-owner-approval \
   --evidence-reference authref_0123456789abcdef0123456789abcdef \
-  --evidence-digest sha256:... --expires-at 2026-10-01T00:00:00.000Z \
+  --evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --expires-at 2026-10-01T00:00:00.000Z \
   --operation-id 00000000-0000-4000-8000-000000000000
 
 # Consent withdrawal is a terminal append-only decision. It accepts no basis or
@@ -88,7 +106,7 @@ npm run hosted:publisher:authorization -- \
   --execute --submission-id sub_... --publisher-handle publisher-handle \
   --decision revoked \
   --evidence-reference authref_fedcba9876543210fedcba9876543210 \
-  --evidence-digest sha256:... \
+  --evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
   --operation-id 11111111-1111-4111-8111-111111111111
 
 # Publish reviewed metadata after the completion state and any collision are accepted.
@@ -122,6 +140,8 @@ npm run hosted:reports:disposition -- \
   --operation-id 00000000-0000-4000-8000-000000000000
 ```
 
-Never export the service-role value into the web-server or browser environment. Queue RPCs are allowlisted, same-origin, bounded, and redact provider bodies from errors. GitHub source requests remain fully unauthenticated even when the Supabase operator credential is present.
+`hosted:queue:list` returns one aggregate snapshot plus at most the requested number of deterministic least-recently-updated rows. Supported exact state filters are `queued`, `processing`, `changes-requested`, `rejected`, `failed`, `accepted`, `published`, and `withdrawn`. Its `nextCursor.updatedAt` and `nextCursor.submissionId` values map directly to the paired cursor options above. Resume only with the same state filter. This is a best-effort live cursor, not an MVCC snapshot, CDC feed, exhaustive scan, or at-least-once delivery contract. A later update can replay a submission, and a transaction that began before the current page can commit behind its cursor. Deduplicate by submission ID plus `updated_at`; after reaching the end, restart once from no cursor and reconcile the IDs, timestamps, and summary counts before treating an operating pass as complete. `hosted:queue:inspect` returns exactly one submission plus bounded audit, grade, review, worker, transition, license-evidence metadata, collision-review, and publisher-authorization projections. Neither command exposes submitter or actor account IDs, internal claim IDs, private evidence digests, raw skill or license contents, or unrestricted history.
+
+Never export the service-role value into the web-server or browser environment. Queue RPCs are allowlisted, same-origin, bounded, and redact provider bodies from errors. The read commands do not claim, complete, requeue, publish, or otherwise mutate a submission. GitHub source requests remain fully unauthenticated even when the Supabase operator credential is present.
 
 Static evidence can produce a low-confidence provisional integer score with no band. It cannot produce a current letter. Current authority additionally requires exact signed compatibility and behavioral receipts from a configured trusted Ed25519 issuer.

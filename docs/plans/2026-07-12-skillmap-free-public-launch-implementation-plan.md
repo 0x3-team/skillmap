@@ -7,6 +7,17 @@ Repository: `/home/codex/projects/skillmap`
 Branch at plan creation: `codex/hosted-library-foundation`
 Baseline commit: `bb054b7`
 Receipt ledger: `docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan-implementation-ledger.jsonl`
+Release ledger: `docs/plans/2026-07-12-skillmap-release-ledger.md`
+
+Current release truth: candidate `67129297d08f7f7bc88800015b336a2a7bb1b139`
+with tree `3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` was locally validated,
+pushed, accepted by scoped remote CI, and squash-merged as canonical `main`
+commit `29a356a9b809d29ff8c986fbd5a0af78d87e479c`. This closes the source
+integration gate only. No deployment, live verification, public indexing, or
+open-user launch is claimed; the public-launch verdict remains `NO-GO`. Any
+later Unreleased slice, including the operator read plane, requires a new
+candidate/merge receipt in the release ledger before this baseline source gate
+can be treated as covering it.
 
 ## Executive decision
 
@@ -42,9 +53,9 @@ This plan inherits stable contracts and safety decisions from:
 
 When prose and executable artifacts disagree, the checked-in contract, migration, RLS test, or implementation owns current behavior. The ledger records every later change to that truth.
 
-## Current baseline
+## Baseline at plan creation
 
-Already implemented and locally accepted:
+Already implemented and locally accepted at plan creation:
 
 - public Supabase-backed catalog list and detail
 - bounded public API with no-store behavior and explicit missing-configuration failure
@@ -64,7 +75,7 @@ Not implemented at this baseline:
 - abuse reporting and public launch analytics
 - remote database/web projects, live OAuth, canonical domain, backup/restore receipt, deployment, or live acceptance
 
-Existing local validation is not deployment proof. The branch is ahead of its remote and retains user-owned uncommitted `.gitignore`, `.chunk/`, `.claude/`, and `.codex/` state that this program must not overwrite or commit.
+Existing local validation was not deployment proof. At plan creation, the branch was ahead of its remote and retained user-owned uncommitted `.gitignore`, `.chunk/`, `.claude/`, and `.codex/` state that this program could not overwrite or commit. The later frozen candidate excluded that state and closed the scoped source-integration gate recorded at the top of this plan; deployment and live acceptance remain open.
 
 ## Definition of market-ready
 
@@ -303,7 +314,7 @@ The first committed candidate exposed four locally actionable gaps under a fresh
 - the composed hosted browser gate now runs API, authenticated account, submission, report, export/deletion, no-row evidence, and real receipt-row rendering against a disposable local Supabase stack, treats synthetic cleanup/postcondition failure as fatal, emits pass only after zero auth/publisher/repository/skill/version rows remain, and is explicitly bound in GitHub CI;
 - the visual harness now guards only the generated workspace and revision labels during the two screenshot paints, proves a simulated late refresh is normalized before paint, and disconnects immediately after capture so later functional behavior remains observable.
 
-These fixes improve local candidate evidence only. They do not change the external provider, push, deploy, OAuth, restore, corpus, pilot, policy, or live-verification gates.
+At that checkpoint, these fixes improved local candidate evidence only. They did not change the external provider, push, deploy, OAuth, restore, corpus, pilot, policy, or live-verification gates. The later source-integration receipt is recorded below.
 
 ### 2026-07-13 completion audit and launch-readiness remediation
 
@@ -318,9 +329,9 @@ Three bounded audits covered the complete product journey, the audit/grading bac
 - hosted synthetic cleanup is fatal and proves zero remaining auth, publisher, repository, skill, and version rows; both Gitea quality authority and the exact GitHub hosted-browser lane remain mandatory, with zero-cost-compatible infrastructure as a launch constraint rather than a paid fallback;
 - canonical social images, public support configuration, pilot workflow coverage, deployment/runbook language, launch cleanup, and candidate-binding documentation now agree with the implemented product.
 
-The integrated local acceptance result at that checkpoint was: root tests `376/376`, contracts `34/34`, pgTAP `341/341`, hosted boundary tests `29/29`, release path `47/47`, production dependency audits with zero vulnerabilities, all three hosted auth browsers, the complete hosted launch flow, nine zero-diff hosted baselines, accessibility, forced-colors, responsive, performance, packaging, and post-cleanup database validation passed. These receipts are local evidence only until the containing clean commit passes authoritative remote CI and live deployment acceptance.
+The integrated local acceptance result at that checkpoint was: root tests `376/376`, contracts `34/34`, pgTAP `341/341`, hosted boundary tests `29/29`, release path `47/47`, production dependency audits with zero vulnerabilities, all three hosted auth browsers, the complete hosted launch flow, nine zero-diff hosted baselines, accessibility, forced-colors, responsive, performance, packaging, and post-cleanup database validation passed. Those remain local receipts. The later scoped remote-CI closure is recorded separately below; deployment and live acceptance remain absent.
 
-The next locally actionable launch slice was the initial corpus: prepare at least 20 exact, license-evidenced skill versions across at least five useful comparison groups, then qualify each version through the inert audit and provisional-grade path. That preparation is now complete as described below. Authenticated submission, receipt-backed publication, provider ownership, domain, OAuth, public policy/support identity, hosted restore/rollback, named operators, five-seat pilot, push/deploy, and live verification remain external `NO-GO` gates.
+The next locally actionable launch slice was the initial corpus: prepare at least 20 exact, license-evidenced skill versions across at least five useful comparison groups, then qualify each version through the inert audit and provisional-grade path. That preparation is now complete as described below. Authenticated submission, receipt-backed publication, provider ownership, domain, OAuth, public policy/support identity, hosted restore/rollback, named operators, five-seat pilot, deployment, and live verification remain external `NO-GO` gates.
 
 ### 2026-07-13 initial-corpus preparation and inert audit
 
@@ -349,7 +360,9 @@ The final locally actionable trust gaps were closed before freezing a release ca
 - audit, grade, and license receipt validators reject JSON-null or incorrectly typed authority scalars, and callers require an explicit `TRUE` result rather than accepting SQL-null predicates;
 - operator commands expose publisher authorization/revocation, license evidence, collision review, dead-letter, lifecycle, and report disposition boundaries; the static preflight now hard-binds worker startup through `20260713050000_submission_authority_completion.sql`, while Gitea workflows emit commit/tree-bound, bounded, retained gate receipts without credentials.
 
-The current working-tree evidence is root tests `396/396`, contracts `34/34`, pgTAP `436/436`, hosted boundary tests `31/31`, bounded adversarial Node/static checks `87/87`, affected authority Node checks `22/22`, database lint with zero findings, exact generated API type parity, web typecheck/lint/build, all three hosted browsers, composed private/public-stage workflows, accessibility, responsive, forced-colors, performance, nine deterministic zero-diff visual baselines, synthetic cleanup, production dependency audits with zero vulnerabilities, consumer install, and package dry run. The one account visual baseline change was independently reviewed as the exact 80-pixel expansion required by the tombstone-retention disclosure, with no clipping, overlap, overflow, or alignment regression; the complete non-update hosted gate then passed. This remains development evidence until the intended tree is frozen, materialized as an exact-tree squash with canonical `main` as its direct parent, and accepted by the required exact-SHA remote CI and live deployment gates.
+The frozen candidate evidence is root tests `396/396`, contracts `34/34`, pgTAP `436/436`, hosted boundary tests `31/31`, bounded adversarial Node/static checks `87/87`, affected authority Node checks `22/22`, database lint with zero findings, exact generated API type parity, web typecheck/lint/build, all three hosted browsers, composed private/public-stage workflows, accessibility, responsive, forced-colors, performance, nine deterministic zero-diff visual baselines, synthetic cleanup, production dependency audits with zero vulnerabilities, consumer install, and package dry run. The one account visual baseline change was independently reviewed as the exact 80-pixel expansion required by the tombstone-retention disclosure, with no clipping, overlap, overflow, or alignment regression; the complete non-update hosted gate then passed.
+
+Candidate `67129297d08f7f7bc88800015b336a2a7bb1b139` with tree `3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` passed Gitea candidate run `44` and GitHub Actions run `29285742074`, JIT `hosted-web` job `86937705880`. The identical tree was squash-merged as canonical `main` commit `29a356a9b809d29ff8c986fbd5a0af78d87e479c`; post-merge Gitea `main` run `47` then passed. The frozen static receipt is `sha256:3dd68b69f5faad0e6cf70e03dbf98cedb735ed5661dc2c6a8d01c799ed7b2996`, and the frozen database receipt is `sha256:ada2c9d819dce02a3b89971c44119eb96ef89f244ccd692439e80281f64056d1`. This establishes locally validated, pushed, merged, and scoped remote-CI-verified status. The GitHub receipt covers only the recorded hosted-web job; none of these receipts proves deployment, a live origin, OAuth, backup/restore, public indexing, or open-user launch.
 
 ### Batch 0 — plan and baseline reconciliation
 
@@ -594,32 +607,32 @@ The final gate must publish one verdict per area:
 | Operations | owners, alerts, runbooks, support, incident drill |
 | Launch | domain, OAuth, indexing, announcement, pilot results |
 
-Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success alone cannot produce `GO` for a public launch.
+Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success or scoped source CI alone cannot produce `GO` for a public launch.
 
 ### Current readiness snapshot
 
 | Area | Validated locally | Verified live | Current verdict |
 | --- | --- | --- | --- |
 | Product | Discovery, receipt-verified save/delete, exact-source submission, failure-preserving remediation, owner status/withdrawal, audit/provisional-grade evidence, reporting, and cross-account isolation | No production origin or OAuth account selected | `NO-GO` for public launch |
-| Data | Six ordered migrations, forced RLS, `436/436` pgTAP assertions, exact generated type parity, disposable reset/replay, and durable account-detached terminal revocation tombstones | No encrypted off-host hosted restore | `NO-GO` |
+| Data | Seven ordered migrations, forced RLS, `492/492` pgTAP assertions, exact generated type parity, disposable reset/replay, and durable account-detached terminal revocation tombstones | No encrypted off-host hosted restore | `NO-GO` |
 | Security | No source execution, exact-commit license evidence, expiring publisher authorization, cross-account and cross-handle atomic consent revocation, transaction-locked replay resistance, fail-closed typed receipt validators, target-bound collision review, secret canary, bounded public projections, and lifecycle removal | No provider-global abuse control or live secret inspection | `NO-GO` |
-| Reliability | Claim leases, claim-scoped crash retry, durable expired-run receipts, idempotent completion/publication, post-lock expiry and revocation checks, active-catalog-graph replay validation, report disposition, lifecycle controls, and truthful web failure states | No hosted scheduler, monitoring, alert, rollback, or incident drill | `NO-GO` |
-| Quality | Root `396/396`, contracts `34/34`, pgTAP `436/436`, hosted boundaries `31/31`, release path `47/47`, corpus tooling `14/14`, bounded adversarial Node/static `87/87`, affected authority Node `22/22`, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, consumer-install, package, exact type parity, and dependency gates passed locally | No authoritative exact-commit CI or deployed-commit browser receipt | `NO-GO` |
-| Operations | Mutation-explicit operator commands, migration-bound preflight, bounded retained Gitea gate receipts, runbooks, policy draft, GTM kit, corpus-consent procedure, and hosted-pilot protocol checked in | Zero-cost-compatible host, remaining owners, jurisdiction, retention approval, support identity, and backup destination unset | `NO-GO` |
-| Launch | Free/no-billing scope, stage/indexing gate, announcement/outreach copy, and an exact 20-version/five-group corpus candidate with `20/20` inert audits and provisional grades | Publisher consent plus database/public publication for the corpus, domain, mandatory-workflow five-seat pilot, authoritative CI, push/deploy, and public indexing absent | `NO-GO` |
+| Reliability | Claim leases, claim-scoped crash retry, durable expired-run receipts, idempotent completion/publication, post-lock expiry and revocation checks, bounded non-mutating queue/detail inspection, active-catalog-graph replay validation, report disposition, lifecycle controls, and truthful web failure states | No hosted scheduler, monitoring, alert, rollback, or incident drill | `NO-GO` |
+| Quality | Root `409/409`, contracts `34/34`, pgTAP `492/492`, hosted boundaries `31/31`, release path `47/47`, corpus tooling, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, clean consumer install, package, exact type parity, schema lint, and dependency gates passed locally | Baseline candidate passed Gitea run `44` and GitHub JIT hosted-web job `86937705880`; identical-tree merged `main` passed Gitea run `47`. The later operator read-plane slice still needs its own remote source receipt. No deployed-commit browser receipt | `NO-GO` |
+| Operations | Mutation-explicit write commands, credential-explicit read-only queue/detail commands, migration-bound preflight, bounded retained Gitea gate receipts, runbooks, policy draft, GTM kit, corpus-consent procedure, and hosted-pilot protocol checked in | Baseline source is pushed and merged with scoped remote CI; the operator read-plane continuation is locally validated only. Zero-cost-compatible host, remaining owners, jurisdiction, retention approval, support identity, and backup destination remain unset | `NO-GO` |
+| Launch | Free/no-billing scope, stage/indexing gate, announcement/outreach copy, and an exact 20-version/five-group corpus candidate with `20/20` inert audits and provisional grades | Publisher consent plus database/public publication for the corpus, domain, deployment, mandatory-workflow five-seat pilot, live acceptance, and public indexing absent | `NO-GO` |
 
 ## Go-to-market plan
 
 ### Remaining ordered path to market
 
-1. Freeze only the intended tracked implementation, excluding user/tool-local state, and create an exact-tree squash whose direct parent is the re-fetched canonical `main`.
-2. Pass clean-candidate preflight, full disposable database/browser acceptance, and both required Gitea jobs plus GitHub `hosted-web-browser` on the identical candidate SHA.
-3. Select and provision the approved zero-recurring-cost Supabase and web-hosting targets; assign the domain, OAuth, service-role, support, incident, backup, rollback, and release owners without adding billing.
-4. Approve jurisdiction, retention/deletion, privacy, terms, acceptable-use, support, and security-response policy; publish the reachable support URL.
-5. Obtain durable publisher authorization for the six initial-corpus owners, then ingest all 20 versions through the normal authenticated claim/audit/provisional-grade/collision/publication path rather than direct row seeding.
-6. Deploy privately, bind the exact deployment commit, run encrypted off-host restore and web rollback drills, schedule the constrained worker, and verify monitoring/alerts without exposing credentials.
-7. Complete the mandatory five-seat pilot across browse/evidence, save/return, submit/status/withdrawal, author publication follow-through, reporting, export, deletion, accessibility, mobile, and failure recovery.
-8. Only after every prior receipt is accepted, enable the exact public-stage/indexing pair, run live acceptance, publish the launch announcement, and operate the first-week metrics and incident cadence.
+Completed baseline source-integration gate: the frozen candidate was locally validated, accepted by Gitea and the scoped GitHub hosted-web job, pushed, and merged as the identical tree on canonical `main`; post-merge Gitea passed. Any later Unreleased slice must receive and append its own source-integration receipt before it joins that baseline. The remaining path is:
+
+1. Select and provision the approved zero-recurring-cost Supabase and web-hosting targets; assign the domain, OAuth, service-role, support, incident, backup, rollback, and release owners without adding billing.
+2. Approve jurisdiction, retention/deletion, privacy, terms, acceptable-use, support, and security-response policy; publish the reachable support URL.
+3. Obtain durable publisher authorization for the six initial-corpus owners, then ingest all 20 versions through the normal authenticated claim/audit/provisional-grade/collision/publication path rather than direct row seeding.
+4. Deploy privately, bind the exact deployment commit, run encrypted off-host restore and web rollback drills, schedule the constrained worker, and verify monitoring/alerts without exposing credentials.
+5. Complete the mandatory five-seat pilot across browse/evidence, save/return, submit/status/withdrawal, author publication follow-through, reporting, export, deletion, accessibility, mobile, and failure recovery.
+6. Only after every prior receipt is accepted, enable the exact public-stage/indexing pair, run live acceptance, publish the launch announcement, and operate the first-week metrics and incident cadence.
 
 ### Audience
 

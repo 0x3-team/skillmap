@@ -16,7 +16,7 @@ Do not claim that SkillMap proves a skill is safe, indexes every skill, mirrors 
 
 The public announcement may be sent only when all boxes are checked:
 
-- [ ] Exact candidate commit is pushed, reviewed, and accepted by both current Gitea authority lanes and the GitHub `hosted-web-browser` lane; an unavailable required CI provider keeps this unchecked.
+- [x] Candidate `67129297d08f7f7bc88800015b336a2a7bb1b139` with tree `3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` was pushed and accepted by Gitea candidate run `44` plus GitHub Actions run `29285742074`, JIT hosted-web job `86937705880`; the identical tree was squash-merged as `main` commit `29a356a9b809d29ff8c986fbd5a0af78d87e479c`, and post-merge Gitea `main` run `47` passed. The GitHub receipt is scoped only to that hosted-web job. Frozen receipts: static `sha256:3dd68b69f5faad0e6cf70e03dbf98cedb735ed5661dc2c6a8d01c799ed7b2996`; database `sha256:ada2c9d819dce02a3b89971c44119eb96ef89f244ccd692439e80281f64056d1`.
 - [ ] Production Supabase, web, OAuth, domain, worker, backup, incident, and support owners are recorded.
 - [ ] `SKILLMAP_SUPPORT_URL` opens an approved public HTTPS page with support, formal-appeal, and confidential security-report instructions; `/support` links to it while signed out.
 - [ ] Production migrations, generated types, secrets, callback URLs, and indexing mode are verified.

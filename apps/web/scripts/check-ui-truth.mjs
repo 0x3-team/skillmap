@@ -82,7 +82,7 @@ for (const boundary of [/application schema stores the authenticated account ide
 }
 
 const releaseStatus = sources["app/release-status/page.tsx"];
-for (const boundary of [/Supabase-backed public catalog/i, /validated locally and is not deployed/i, /No push, remote Supabase or web deployment/i, /Existing local validation is not push, deployment, live OAuth/i, /no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency/i]) {
+for (const boundary of [/Supabase-backed public catalog/i, /validated locally and is not deployed/i, /pushed, merged, and accepted by scoped remote CI/i, /Pushed source, a merge, local validation, and scoped remote CI are not deployment, live OAuth/i, /no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency/i]) {
   if (!boundary.test(releaseStatus)) failures.push(`app/release-status/page.tsx: missing hosted release boundary ${boundary}`);
 }
 

@@ -9,7 +9,7 @@ import {
 
 export const metadata: Metadata = buildPublicPageMetadata({
   title: "Release status | SkillMap",
-  description: "The implemented, locally validated, hosted, and externally verified boundaries for the free SkillMap trust alpha.",
+  description: "The implemented, locally validated, merged, scoped-CI, deployment, and live-verification boundaries for the free SkillMap trust alpha.",
   path: "/release-status"
 });
 
@@ -21,10 +21,10 @@ export default function ReleaseStatusPage() {
     <TrustPage eyebrow="Experimental alpha" title={hosted
       ? `This service is configured as a ${releaseStageLabel(releaseStage)}.`
       : "The free curated trust alpha is validated locally and is not deployed."} intro={hosted
-      ? `This process declares the ${releaseStageLabel(releaseStage)} release stage. Exact-commit submission, bounded static audit, provisional numeric grading, operator review, metadata-only publication, account export, withdrawal, reporting, and self-deletion are available; an operator receipt remains the authority for the exact deployment, migration, OAuth, backup, and live-smoke state.`
-      : "This checkout contains a deterministic local runtime and a separately gated hosted catalog/account workflow. Exact-commit submission, bounded static audit, provisional numeric grading, operator review, metadata-only publication, account export, withdrawal, reporting, and self-deletion are implemented and exercised locally. No push, remote Supabase or web deployment, live OAuth path, hosted backup, public indexing, or open-user launch is claimed."}>
+      ? `This process declares the ${releaseStageLabel(releaseStage)} release stage. Exact-commit submission, bounded static audit, provisional numeric grading, operator review, metadata-only publication, account export, withdrawal, reporting, and self-deletion are available. The release ledger records pushed, merged, scoped remote-CI acceptance; an operator deployment receipt remains the authority for the exact migration, OAuth, backup, and live-smoke state.`
+      : "This checkout contains a deterministic local runtime and a separately gated hosted catalog/account workflow. Exact-commit submission, bounded static audit, provisional numeric grading, operator review, metadata-only publication, account export, withdrawal, reporting, and self-deletion are implemented and exercised locally. The source-integration baseline was pushed, merged, and accepted by scoped remote CI; exact receipts belong to the release ledger, and later Unreleased work requires its own ledger receipt. No remote Supabase or web deployment, live OAuth path, hosted backup, public indexing, or open-user launch is claimed."}>
       <TrustSection title={hosted ? "Implemented hosted workflow" : "Implemented locally"}>
-        <BoundaryList items={["Qualified identity, canonical duplicate decisions, safe sharing, eval anti-cheat gates, and hardened source reads.", "Revision-bound route, hook, MCP, local API, redacted route events, feedback, and allowlisted jobs.", "A Supabase-backed public catalog, free saved-skill accounts, exact-commit submission queue, static audit and provisional score receipts, operator publication, owner status/export/withdrawal, and account deletion validated against local Supabase.", "A repeatable exact-candidate preflight, tracked-file secret canary, CI-bound package evidence, and destructive-explicit local backup/reset/replay rehearsal."]} />
+        <BoundaryList items={["Qualified identity, canonical duplicate decisions, safe sharing, eval anti-cheat gates, and hardened source reads.", "Revision-bound route, hook, MCP, local API, redacted route events, feedback, and allowlisted jobs.", "A Supabase-backed public catalog, free saved-skill accounts, exact-commit submission queue, static audit and provisional score receipts, operator publication, owner status/export/withdrawal, and account deletion validated against local Supabase.", "A repeatable exact-candidate preflight, tracked-file secret canary, candidate and post-merge scoped remote-CI receipts, and destructive-explicit local backup/reset/replay rehearsal."]} />
       </TrustSection>
       <TrustSection title={publicAlpha ? "Ongoing public-alpha gates" : hosted ? "Required before public indexing" : "Required before inviting public users"}>
         <BoundaryList items={hosted
@@ -33,8 +33,8 @@ export default function ReleaseStatusPage() {
       </TrustSection>
       <TrustSection title="Deployment boundary">
         <p>{hosted
-          ? "The exact verified-live state belongs to a deployment receipt and implementation ledger, not this page or its environment value. A loaded page is not backup-retention, cross-account, worker, rollback, pilot, or indexing proof. The trust alpha remains free to every user and contains no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency."
-          : "The current live or blocked state belongs to an exact candidate receipt and the implementation ledger, not this static page. Existing local validation is not push, deployment, live OAuth, backup-retention, external-pilot, indexing, or launch proof. The intended trust alpha remains free to every user and contains no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency."}</p>
+          ? "The exact verified-live state belongs to a deployment receipt and release ledger, not this page or its environment value. A loaded page and source merge/CI receipts are not backup-retention, cross-account, worker, rollback, pilot, or indexing proof. The trust alpha remains free to every user and contains no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency."
+          : "The current live or blocked state belongs to exact release and deployment receipts, not this static page. Pushed source, a merge, local validation, and scoped remote CI are not deployment, live OAuth, backup-retention, external-pilot, indexing, or launch proof. The intended trust alpha remains free to every user and contains no billing, checkout, subscription, entitlement, metering, paywall, or Stripe dependency."}</p>
       </TrustSection>
     </TrustPage>
   );

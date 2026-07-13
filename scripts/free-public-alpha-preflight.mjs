@@ -114,8 +114,11 @@ function staticGates(requireClean) {
   const completionHardeningMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713020000_backend_completion_hardening.sql'), 'utf8');
   const operatorAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260712233000_hosted_operator_publication_authority.sql'), 'utf8');
   const authorityCompletionMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713050000_submission_authority_completion.sql'), 'utf8');
+  const operatorReadMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713060000_operator_submission_read_plane.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
   const authorizationSource = readFileSync(path.join(repo, 'apps/worker/src/authorization.mjs'), 'utf8');
+  const submissionQueueSource = readFileSync(path.join(repo, 'apps/worker/src/submission-queue.mjs'), 'utf8');
+  const submissionDetailSource = readFileSync(path.join(repo, 'apps/worker/src/submission-detail.mjs'), 'utf8');
   const rpcSource = readFileSync(path.join(repo, 'apps/worker/src/supabase-rpc.mjs'), 'utf8');
   const workerMigrationBound = /create function api\.renew_skill_submission_claim\s*\(/i.test(leaseMigration)
     && /grant execute on function api\.renew_skill_submission_claim\(text, uuid, text, integer\) to service_role/i.test(leaseMigration)
@@ -168,6 +171,28 @@ function staticGates(requireClean) {
     && /set publication_state = 'blocked'[\s\S]+revoked_at = coalesce/i.test(authorityCompletionMigration)
     && /rpc\.call\('record_skill_submission_license_evidence'/.test(workerSource)
     && /rpc\.call\('record_skill_submission_publisher_authorization'/.test(authorizationSource)
+    && /create function api\.get_skill_submission_queue_summary\(\)/i.test(operatorReadMigration)
+    && /create function api\.list_skill_submission_operator_queue\s*\(/i.test(operatorReadMigration)
+    && /create function api\.get_skill_submission_operator_detail\s*\(/i.test(operatorReadMigration)
+    && /p_after_updated_at timestamptz/i.test(operatorReadMigration)
+    && /p_limit is null or p_limit not between 1 and 32/i.test(operatorReadMigration)
+    && /order by submission\.updated_at, submission\.public_id/i.test(operatorReadMigration)
+    && /create index skill_submissions_operator_queue_idx[\s\S]+state, updated_at, public_id/i.test(operatorReadMigration)
+    && /grant execute on function api\.get_skill_submission_queue_summary\(\) to service_role/i.test(operatorReadMigration)
+    && /grant execute on function api\.list_skill_submission_operator_queue\(text, integer, timestamptz, text\)\s+to service_role/i.test(operatorReadMigration)
+    && /grant execute on function api\.get_skill_submission_operator_detail\(text\) to service_role/i.test(operatorReadMigration)
+    && /\bsubmitter_user_id\b/i.test(operatorReadMigration) === false
+    && /private_?evidence_?digest/i.test(operatorReadMigration) === false
+    && /rpc\.call\('get_skill_submission_queue_summary'/.test(submissionQueueSource)
+    && /rpc\.call\('list_skill_submission_operator_queue'/.test(submissionQueueSource)
+    && /p_after_updated_at: options\.afterUpdatedAt/.test(submissionQueueSource)
+    && /best-effort-live-by-updated-at-restart-required/.test(submissionQueueSource)
+    && /reconciliationRequired: true/.test(submissionQueueSource)
+    && /MAX_QUEUE_ROWS = 32/.test(submissionQueueSource)
+    && /rpc\.call\('get_skill_submission_operator_detail'/.test(submissionDetailSource)
+    && /'get_skill_submission_queue_summary'/.test(rpcSource)
+    && /'list_skill_submission_operator_queue'/.test(rpcSource)
+    && /'get_skill_submission_operator_detail'/.test(rpcSource)
     && /'dead_letter_expired_skill_submission'/.test(rpcSource)
     && /'list_skill_submission_collisions'/.test(rpcSource)
     && /'review_skill_submission_collisions'/.test(rpcSource)
@@ -177,8 +202,8 @@ function staticGates(requireClean) {
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker lease renewal, completion hardening, and exact-source publication authority are source-bound through migration 20260713050000; applying and verifying every migration remains a database gate before worker start.'
-      : 'Worker lease renewal, completion hardening, or exact-source publication authority is not bound to every required migration, RPC, and service-role grant.'
+      ? 'Worker mutation authority and the redacted service-only operator read plane are source-bound through migration 20260713060000; applying and verifying every migration remains a database gate before worker start.'
+      : 'Worker mutation authority or the redacted operator read plane is not bound to every required migration, RPC, service-role grant, and privacy exclusion.'
   });
 
   const diffCheck = run('git', ['diff', '--check']);

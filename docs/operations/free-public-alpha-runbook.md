@@ -75,13 +75,13 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, or any queue consumer until migration `20260713050000_submission_authority_completion.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, while publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck. Worker-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, or bypass the reviewed license, publisher, or collision boundary.
+Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migration `20260713060000_operator_submission_read_plane.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck, and queue inspection relies on the final read-plane RPCs. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, or leave the operator without the supported redacted read boundary.
 
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713050000 is present in both the local and remote columns.
+# Verify 20260713060000 is present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
@@ -94,7 +94,7 @@ cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Record migration `20260713050000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, and target-bound collision authority. An unverified migration list, skipped pgTAP, type mismatch, or incomplete authority receipt blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Record migration `20260713060000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, target-bound collision authority, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -138,25 +138,54 @@ Do not push local-only Supabase auth configuration. Configure the production Sit
 
 ## Submission operator workflow
 
-1. Open the account-owned submission status or query the bounded operator queue.
-2. Verify the source is a public GitHub repository, full immutable commit, canonical path, and the intended version.
-3. Review the applicable license file. A submitter claim is not license confirmation.
-4. Process exactly one row:
+The operator queue read plane is service-role-only, bounded, redacted, and non-mutating. `--execute` confirms use of the protected credential for these reads; it does not turn them into mutation commands. List responses contain an aggregate snapshot and at most 32 deterministic least-recently-updated rows. Inspect responses contain exactly one submission and bounded receipt/history projections. Neither response contains submitter or actor account IDs, internal claim IDs, private evidence digests, or raw skill or license contents.
+
+1. Query the bounded operator queue without claiming a submission. Omit `--state` to include the active `queued`, `processing`, `accepted`, `changes-requested`, and `failed` states, or pass one exact supported state. Use a limit from 1 through 32:
+
+   ```bash
+   npm run hosted:queue:list -- --execute --state queued --limit 20
+   ```
+
+   If the response contains `nextCursor`, pass both fields together and the same state filter to continue from that live update-order position:
+
+   ```bash
+   npm run hosted:queue:list -- \
+     --execute --state queued --limit 20 \
+     --after-updated-at 2026-07-13T21:38:40.079Z \
+     --after-submission-id sub_0123456789abcdef0123456789abcdef
+   ```
+
+   The cursor is explicitly best-effort and live. It is not an MVCC snapshot, CDC feed, exhaustive scan, or at-least-once delivery contract. A row updated during pagination can appear again, and a transaction that began before the current page can commit behind its cursor. Deduplicate by submission ID plus `updated_at`. After reaching the end, restart from no cursor with the same filter, reconcile IDs, timestamps, and summary counts, and inspect every consequential submission by exact ID. Do not call an operating pass complete until the restart sweep is stable.
+
+2. Inspect the selected exact submission before claiming it:
+
+   ```bash
+   npm run hosted:queue:inspect -- \
+     --execute --submission-id sub_0123456789abcdef0123456789abcdef
+   ```
+
+3. Verify the source is a public GitHub repository, full immutable commit, canonical path, and the intended version.
+4. Review the applicable license file. A submitter claim is not license confirmation.
+5. Process exactly one row. The review reference is an opaque `licref_` value with 32 lowercase hexadecimal characters; the evidence digest is one lowercase SHA-256 digest. Include each exact root or enclosing license path reviewed at the submitted commit:
 
    ```bash
    npm run hosted:queue:process-once -- \
      --execute --submission-id sub_... \
-     --license-state confirmed --spdx Apache-2.0 --disposition accepted
+     --license-state confirmed --spdx Apache-2.0 \
+     --license-review-reference licref_0123456789abcdef0123456789abcdef \
+     --license-review-evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+     --license-evidence-path LICENSE \
+     --disposition accepted
    ```
 
-5. Inspect the redacted completion receipt. Static evidence may create a provisional numeric score with no band; it cannot create a current letter.
-6. Load the bounded collision subject. It contains both completion-time and current-catalog evidence and never authorizes publication by itself:
+6. Re-run `hosted:queue:inspect` for the same submission and inspect the durable redacted completion receipt. Static evidence may create a provisional numeric score with no band; it cannot create a current letter.
+7. Load the bounded collision subject. It contains both completion-time and current-catalog evidence and never authorizes publication by itself:
 
    ```bash
    npm run hosted:collisions:list -- --execute --submission-id sub_...
    ```
 
-7. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop:
+8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop:
 
    ```bash
    npm run hosted:collisions:review -- \
@@ -166,28 +195,28 @@ Do not push local-only Supabase auth configuration. Configure the production Sit
    ```
 
    Publication recomputes the subject under advisory locks. A new or changed collision invalidates the old approval and fails closed. If either evidence snapshot reports `truncated: true`, its bounded matches are only an operator sample: `approved-distinct` and `approved-update` both fail closed, and publication remains blocked until the complete collision set can be reviewed.
-8. Record current exact-publisher authorization with a redacted evidence reference, digest, and bounded expiry:
+9. Record current exact-publisher authorization with a redacted evidence reference, digest, and bounded expiry:
 
    ```bash
    npm run hosted:publisher:authorization -- \
      --execute --submission-id sub_... --publisher-handle publisher-handle \
      --decision authorized --basis publisher-owner-approval \
      --evidence-reference authref_0123456789abcdef0123456789abcdef \
-     --evidence-digest sha256:... --expires-at 2026-10-01T00:00:00.000Z \
+     --evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --expires-at 2026-10-01T00:00:00.000Z \
      --operation-id 00000000-0000-4000-8000-000000000000
    ```
 
    Expiry hides the listing at the public RLS boundary. Run the same command with fresh retained evidence, a new operation ID, and a future expiry to renew the exact still-published source version; it becomes visible again without a new submission. Wrong-handle renewal rolls back. A blocked or quarantined version cannot be renewed. Explicit revocation is terminal: it atomically blocks every published version at the exact repository URL, commit, and path and writes a private redacted tombstone. That tombstone survives submission/account deletion and remains effective across accounts and publisher handles; no identity-transfer exception exists in this launch. A stale authorized replay fails rather than reporting current authority.
-9. Copy and review the publication metadata template outside the repository.
-10. Publish transactionally:
+10. Copy and review the publication metadata template outside the repository.
+11. Publish transactionally:
 
    ```bash
    npm run hosted:queue:publish -- \
      --execute --submission-id sub_... --metadata /tmp/reviewed-publication.json
    ```
 
-11. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
-12. Delete the temporary metadata file if it contains operator-only notes. The template must contain public fields only.
+12. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
+13. Delete the temporary metadata file if it contains operator-only notes. The template must contain public fields only.
 
 For unresolved evidence, omit confirmed license authority. The worker records changes-requested or failed truthfully. Requeue only after remediation:
 
@@ -224,6 +253,8 @@ npm run hosted:catalog:lifecycle -- \
 Each consequential command needs a newly generated canonical UUID. Exact retries must reuse the same UUID and the same subject, action, reason, disposition, and public message; conflicting replay payloads fail closed. Restoration is allowed only when the exact version still has a valid, non-restricted, receipt-backed publication chain. Quarantine or revoke first when continued public exposure may cause harm, then disposition the report with bounded public copy.
 
 ## Queue and reliability checks
+
+Run `npm run hosted:queue:list -- --execute --limit 32` before each operating pass. The summary exposes bounded counts and oldest timestamps; rows expose only the redacted fields needed to identify expired claims, retry-eligible submissions, dead-letter candidates, and accepted submissions awaiting publication review. Use `hosted:queue:inspect` for the exact submission before any consequential command.
 
 Alert on:
 
