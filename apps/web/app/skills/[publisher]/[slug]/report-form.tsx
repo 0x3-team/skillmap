@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { AlertTriangle, Flag } from "lucide-react";
 import { useRef, useState, type FormEvent, type Ref } from "react";
 import {
@@ -42,7 +43,8 @@ export function ReportForm({
       let actionResult: ReportActionState;
       try {
         actionResult = await reportSuspiciousListing(formData);
-      } catch {
+      } catch (error) {
+        unstable_rethrow(error);
         actionResult = { status: "service-unavailable" };
       } finally {
         setPending(false);

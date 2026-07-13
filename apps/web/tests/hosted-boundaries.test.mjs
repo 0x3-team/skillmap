@@ -225,7 +225,8 @@ test("submission server action mints attestations only after acknowledgement val
   assert.match(formSource, /event[.]preventDefault\(\)/);
   assert.match(formSource, /new FormData\(form\)/);
   assert.match(formSource, /setValidation\(result\)/);
-  assert.match(formSource, /catch \{/);
+  assert.match(formSource, /import \{ unstable_rethrow \} from "next\/navigation"/);
+  assert.match(formSource, /catch \(error\) \{\s*unstable_rethrow\(error\);\s*setValidation\(/);
   assert.match(formSource, /status: "service-unavailable"/);
   assert.match(formSource, /finally \{\s*setPending\(false\)/);
   assert.match(formSource, /noticeRef[.]current[?][.]focus\(\)/);
@@ -302,7 +303,8 @@ test("report form preserves safe values and request identity for recoverable fai
   assert.match(form, /event[.]preventDefault\(\)/);
   assert.match(form, /new FormData\(event[.]currentTarget\)/);
   assert.match(form, /value=\{requestId\}/);
-  assert.match(form, /catch \{/);
+  assert.match(form, /import \{ unstable_rethrow \} from "next\/navigation"/);
+  assert.match(form, /catch \(error\) \{\s*unstable_rethrow\(error\);\s*actionResult = \{ status: "service-unavailable" \}/);
   assert.match(form, /actionResult = \{ status: "service-unavailable" \}/);
   assert.match(form, /finally \{\s*setPending\(false\)/);
   assert.match(form, /setResult\(actionResult\)/);

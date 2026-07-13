@@ -1,5 +1,6 @@
 "use client";
 
+import { unstable_rethrow } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, FileKey2 } from "lucide-react";
 import {
@@ -31,7 +32,8 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
           if (result.status === "invalid") document.getElementById(result.field)?.focus();
           else noticeRef.current?.focus();
         });
-      } catch {
+      } catch (error) {
+        unstable_rethrow(error);
         setValidation({
           status: "service-unavailable",
           message: "The request could not be confirmed. Your entries and request ID remain in this form so you can retry safely."
