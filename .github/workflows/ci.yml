@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      hosted_web_runner:
+        description: Runner label for the hosted browser gate
+        required: true
+        default: ubuntu-latest
+        type: choice
+        options:
+          - ubuntu-latest
+          - skillmap-gitea-oneshot
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -342,7 +351,9 @@ jobs:
 
   hosted-web-browser:
     name: Hosted web / API, auth, submission, reports, evidence
-    runs-on: ubuntu-latest
+    # PRs and pushes stay on GitHub-hosted infrastructure. An authorized manual
+    # dispatch can route only this gate to an isolated one-shot runner.
+    runs-on: ${{ inputs.hosted_web_runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
