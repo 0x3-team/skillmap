@@ -9,7 +9,7 @@ import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/re
 import { buildCurrentPublicSkillLinks, type PublicSkillRoute } from "@/lib/registry/public-links";
 import { resolvePublicSkillRoutes } from "@/lib/registry/repository.server";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { decodeSubmissionCursor, encodeSubmissionCursor, SubmissionCursorError } from "@/lib/submissions/cursor";
 import {

@@ -55,7 +55,10 @@ source-integration receipts cover them.
 - Added a service-role-only submission queue summary, cursor-paged redacted list,
   and exact bounded receipt-history detail plane plus strict read-only operator
   CLIs. Submitter/actor identities, internal claims, private evidence, and raw
-  source contents remain outside those projections.
+  source contents remain outside those projections. The generated Supabase type
+  file remains byte-exact for schema parity, while an application-only override
+  restores the nullable return fields that the generator cannot infer for the
+  three operator `RETURNS TABLE` RPCs.
 - Added fail-closed private/public release-stage and indexing controls plus a
   composed disposable hosted-browser gate. Team sync, billing, package
   mirroring/loading, TUF distribution, current-letter behavioral grading,

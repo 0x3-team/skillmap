@@ -20,6 +20,7 @@ const sources = Object.fromEntries(
       "components/skillmap/dashboard-client.tsx",
       "components/skillmap/trust-page.tsx",
       "components/ui/number.tsx",
+      "lib/supabase/database.runtime.types.ts",
       "scripts/browser-smoke.mjs"
     ].map(async (file) => [file, await readFile(join(appDir, file), "utf8")])
   )
@@ -118,6 +119,33 @@ for (const boundary of [
 }
 for (const staleClaim of [/ephemeral capability cookie/i, /double-submit CSRF/i]) {
   if (staleClaim.test(security)) failures.push(`app/security/page.tsx: stale connector security claim ${staleClaim}`);
+}
+
+const databaseRuntimeTypes = sources["lib/supabase/database.runtime.types.ts"];
+for (const boundary of [
+  /Database as GeneratedDatabase.*database[.]types/,
+  /type NullableFields/,
+  /get_skill_submission_operator_detail/,
+  /get_skill_submission_queue_summary/,
+  /list_skill_submission_operator_queue/,
+  /claimed_at/,
+  /oldest_queued_at/,
+  /audit_receipt/,
+  /OperatorSubmissionDetailNonNullableJsonKey/,
+  /ExpectedOperatorSubmissionQueueSummaryNullableKey/,
+  /ExpectedOperatorSubmissionQueueNullableKey/,
+  /ExpectedOperatorSubmissionDetailNullableKey/,
+  /OperatorSubmissionExactNullabilityAssertions/,
+  /NullableKeys<OperatorSubmissionQueueSummary>/,
+  /NullableKeys<OperatorSubmissionQueueRow>/,
+  /NullableKeys<OperatorSubmissionDetail>/,
+  /NonNullableKeys<OperatorSubmissionQueueSummary>/,
+  /NonNullableKeys<OperatorSubmissionQueueRow>/,
+  /NonNullableKeys<OperatorSubmissionDetail>/
+]) {
+  if (!boundary.test(databaseRuntimeTypes)) {
+    failures.push(`lib/supabase/database.runtime.types.ts: missing generated RPC nullability boundary ${boundary}`);
+  }
 }
 
 if (failures.length > 0) {

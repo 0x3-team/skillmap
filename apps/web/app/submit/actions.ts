@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import {
   parseSkillSubmissionForm,
   SubmissionValidationError,

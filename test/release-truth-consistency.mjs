@@ -12,6 +12,7 @@ const sources = Object.fromEntries([
   'docs/launch/free-public-alpha-go-to-market.md',
   'docs/plans/2026-07-12-skillmap-release-ledger.md',
   'apps/web/app/release-status/page.tsx',
+  'apps/web/lib/supabase/database.runtime.types.ts',
   'apps/worker/README.md',
   'docs/operations/free-public-alpha-runbook.md'
 ].map(file => [file, readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')]));
@@ -62,7 +63,7 @@ test('go-to-market checklist records source integration without claiming externa
   assert.match(checklist, /- \[ \].*index/i);
 });
 
-test('operator documentation binds the final migration and executable argument shapes', () => {
+test('operator documentation, commands, and application types bind the final read plane', () => {
   for (const file of ['apps/worker/README.md', 'docs/operations/free-public-alpha-runbook.md']) {
     const source = sources[file];
     assert.match(source, /20260713060000_operator_submission_read_plane[.]sql/, file);
@@ -84,4 +85,30 @@ test('operator documentation binds the final migration and executable argument s
   assert.match(scripts['hosted:queue:inspect'], /submission-detail[.]mjs/);
   assert.match(workerScripts['queue:list'], /submission-queue[.]mjs/);
   assert.match(workerScripts['queue:inspect'], /submission-detail[.]mjs/);
+  const runtimeTypes = sources['apps/web/lib/supabase/database.runtime.types.ts'];
+  assert.match(runtimeTypes, /Database as GeneratedDatabase.*database[.]types/);
+  assert.match(runtimeTypes, /type NullableFields/);
+  for (const rpc of [
+    'get_skill_submission_operator_detail',
+    'get_skill_submission_queue_summary',
+    'list_skill_submission_operator_queue'
+  ]) {
+    assert.match(runtimeTypes, new RegExp(rpc));
+  }
+  for (const nullableField of ['claimed_at', 'oldest_queued_at', 'audit_receipt']) {
+    assert.match(runtimeTypes, new RegExp(nullableField));
+  }
+  assert.match(runtimeTypes, /OperatorSubmissionDetailNonNullableJsonKey/);
+  assert.match(runtimeTypes, /ExpectedOperatorSubmissionQueueSummaryNullableKey/);
+  assert.match(runtimeTypes, /ExpectedOperatorSubmissionQueueNullableKey/);
+  assert.match(runtimeTypes, /ExpectedOperatorSubmissionDetailNullableKey/);
+  assert.match(runtimeTypes, /OperatorSubmissionExactNullabilityAssertions/);
+  for (const row of [
+    'OperatorSubmissionQueueSummary',
+    'OperatorSubmissionQueueRow',
+    'OperatorSubmissionDetail'
+  ]) {
+    assert.match(runtimeTypes, new RegExp(`NullableKeys<${row}>`));
+    assert.match(runtimeTypes, new RegExp(`NonNullableKeys<${row}>`));
+  }
 });
