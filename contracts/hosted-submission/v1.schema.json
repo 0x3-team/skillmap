@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/hosted-submission/v1.schema.json",
+  "title": "SkillMap Hosted Account Submission v1",
+  "description": "The account-owned projection for one exact-commit public GitHub skill submission. Operator identity, claim tokens, internal database IDs, and private evidence are excluded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "schemaVersion", "submissionId", "source", "versionLabel", "licenseClaim", "state", "audit", "grade", "review", "publicResult", "remediation", "createdAt", "updatedAt", "claimedAt", "completedAt"],
+  "properties": {
+    "kind": { "const": "skillmap.hosted-submission" },
+    "schemaVersion": { "const": 1 },
+    "submissionId": { "type": "string", "pattern": "^sub_[0-9a-f]{32}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryUrl", "commit", "path"],
+      "properties": {
+        "repositoryUrl": { "type": "string", "minLength": 20, "maxLength": 226, "pattern": "^https://github\\.com/[A-Za-z0-9][A-Za-z0-9.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$" },
+        "commit": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "path": { "type": "string", "minLength": 8, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[\\u0000-\\u001F\\u007F])(?:[^/]+/)*SKILL\\.md$" }
+      }
+    },
+    "versionLabel": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[^\\u0000-\\u001F\\u007F]+$" },
+    "licenseClaim": {
+      "oneOf": [
+        { "type": "string", "minLength": 2, "maxLength": 200, "pattern": "^[A-Za-z0-9 .()+-]+$" },
+        { "type": "null" }
+      ]
+    },
+    "state": { "enum": ["queued", "processing", "changes-requested", "accepted", "published", "rejected", "failed", "withdrawn"] },
+    "audit": { "$ref": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json" },
+    "grade": { "$ref": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json" },
+    "review": { "$ref": "https://skillmap.dev/contracts/hosted-review-state/v1.schema.json" },
+    "publicResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["skillId", "versionId"],
+          "properties": {
+            "skillId": { "type": "string", "pattern": "^skl_[0-9a-f]{32}$" },
+            "versionId": { "type": "string", "pattern": "^skv_[0-9a-f]{32}$" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "remediation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "message": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]*$" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "claimedAt": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "completedAt": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "queued" } } },
+      "then": {
+        "properties": {
+          "claimedAt": { "type": "null" },
+          "completedAt": { "type": "null" },
+          "publicResult": { "type": "null" },
+          "remediation": { "type": "null" },
+          "audit": { "properties": { "state": { "const": "not-run" } } },
+          "grade": { "properties": { "state": { "const": "ungraded" } } },
+          "review": { "properties": { "state": { "const": "not-started" } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "processing" } } },
+      "then": { "properties": { "claimedAt": { "type": "string" }, "completedAt": { "type": "null" }, "publicResult": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "published" } } },
+      "then": {
+        "properties": {
+          "claimedAt": { "type": "string" },
+          "completedAt": { "type": "string" },
+          "publicResult": { "type": "object" },
+          "remediation": { "type": "null" },
+          "audit": { "properties": { "state": { "enum": ["passed", "warnings"] } } },
+          "grade": { "properties": { "state": { "const": "provisional" }, "band": { "type": "null" } } },
+          "review": { "properties": { "state": { "const": "published" } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "enum": ["changes-requested", "accepted", "rejected", "failed"] } } },
+      "then": { "properties": { "claimedAt": { "type": "string" }, "completedAt": { "type": "string" }, "publicResult": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "accepted" } } },
+      "then": {
+        "properties": {
+          "remediation": { "type": "null" },
+          "audit": { "properties": { "state": { "enum": ["passed", "warnings"] } } },
+          "grade": { "properties": { "state": { "enum": ["provisional", "current"] } } },
+          "review": { "properties": { "state": { "const": "approved" } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "rejected" } } },
+      "then": {
+        "properties": {
+          "remediation": { "type": "object" },
+          "review": { "properties": { "state": { "const": "rejected" } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "withdrawn" } } },
+      "then": {
+        "properties": {
+          "completedAt": { "type": "string" },
+          "publicResult": { "type": "null" },
+          "review": { "properties": { "state": { "const": "withdrawn" } } }
+        }
+      }
+    }
+  ]
+}

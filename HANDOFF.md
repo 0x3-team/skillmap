@@ -1,11 +1,11 @@
 # SkillMap Handoff
 
 Originally created: 2026-07-08
-Last reconciled: 2026-07-12
+Last reconciled: 2026-07-13
 Repo: https://github.com/0x3-team/skillmap
 Current canonical branch: `main`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
-Current status: seed-anchor PR #5 was squash-merged at permanent source commit `d1c23990af82d1c8c99997cb8d9a2c23707d91fa`, followed by hosted-foundation PR #7 at `295dffe031d3010bb241ade75e9f249c97cd6063`. Acceptance reconciliation PR #8 and its late-review accessibility follow-up PR #9 produced final accepted product anchor `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`, which canonical `main` contains on both GitHub and Gitea. Gitea exact-feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and final-product-main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; both commits have tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Branch protection was restored, and temporary synchronization credentials were removed. GitHub Actions is presently blocked before test execution by the organization spending limit, so Gitea is the authoritative hosted CI lane. The hosted product is still not provisioned, published, or deployed; remote provider ownership/cost approval, migrations, OAuth configuration, and live acceptance remain separate gates.
+Current status: canonical `main` still contains the previously accepted hosted-foundation anchor described below. The free-public-alpha implementation is on `codex/hosted-library-foundation`; its exact release input is the current reviewed tracked tree after the intended launch-readiness changes are committed, while user-owned `.gitignore`, `.chunk/`, `.claude/`, and `.codex/` state remains excluded. That frozen tree must be squashed onto a fresh branch whose direct parent is the re-fetched canonical `main`, then pass clean-candidate and remote checks. It is not yet claimed pushed, reviewed remotely, deployed, or verified live. The last recorded GitHub Actions state was spending-blocked before execution, but that state is drift-prone and must be rechecked rather than assumed. Public release requires both current Gitea authority lanes and the exact-commit GitHub `hosted-web-browser` lane; inability to run either remains `NO-GO`. No remote database/web project, OAuth path, backup destination, worker schedule, domain, or public indexing state is claimed by this handoff.
 
 ## Purpose of this handoff
 
@@ -17,7 +17,7 @@ Do not duplicate or reinterpret the whole planning history. Use this handoff as 
 
 SkillMap is a local-first skill registry, SkillGraph, router, source tracker, and quality system for coding agents.
 
-Current surface boundary: `apps/web` now contains a local-Supabase-validated hosted catalog and free-account saved-skill spine alongside the separate recorded-fixture/redacted-snapshot dashboard. The package also contains `assets/local-app/v1`, a modular application served only by the foreground `skillmap dashboard` loopback connector. The hosted slice has not been provisioned or deployed remotely, and live GitHub OAuth has not been verified. Team sync, billing, automated ingestion/auditing/grading, package loading, advanced hosted routing, and remote operator mutation remain unimplemented and must not be presented as current behavior.
+Current surface boundary: `apps/web` contains a locally validated Supabase-backed catalog, free-account saved-skill flow, exact-commit submission/status/withdrawal, current-version public audit and provisional-grade projections, authenticated suspicious-listing reports, export, and self-deletion alongside the separate recorded-fixture/redacted-snapshot dashboard. A constrained server-only worker can claim one queued submission, fetch bounded inert public GitHub bytes, emit static-audit and letterless provisional-grade receipts, complete/requeue it, and publish reviewed metadata through service-only RPCs; report disposition and receipt-backed deprecate/quarantine/revoke/restore controls are also implemented locally. The package contains `assets/local-app/v1`, served only by the foreground `skillmap dashboard` loopback connector. None of the hosted paths is claimed pushed, provisioned, deployed, scheduled, or verified live. Team sync, billing, package mirroring/loading, TUF distribution, advanced hosted routing, and current-letter behavioral grading remain unimplemented or deliberately deferred.
 
 The strongest intended architecture is:
 
@@ -34,7 +34,7 @@ This is different from adding another skill list into Codex. The main value appe
 
 ## Historical baseline and current local implementation
 
-The historical baseline commit above passed its then-current CI. The current implementation substantially changes its identity, evidence, export, dashboard, and test contracts. Its permanent binding and private-alpha hardening are merged and their exact implementation and final `main` heads passed Gitea CI. It remains experimental alpha because no remote Supabase/Vercel environment, live OAuth path, or Phases 2 through 7 capability has been provisioned or accepted.
+The historical baseline commit above passed its then-current CI. The current implementation substantially changes its identity, evidence, export, dashboard, hosted submission/trust workflow, and test contracts. The free-public-alpha candidate is locally validated but remains experimental because it has not been pushed through the required current CI authorities or accepted against a remote database/web environment, live OAuth path, restore/rollback exercise, publisher-authorized receipt-backed corpus publication, or external pilot.
 
 Completed surfaces:
 
@@ -58,8 +58,9 @@ Completed surfaces:
 - Capability-authenticated IPv4-loopback connector with origin/CSRF/Host limits, bounded responses, foreground lifecycle, and versioned packaged assets.
 - Live local UI routes for onboarding, workspaces, overview, Route Lab, skills/variants, policy, eval, sources, trust, integrations, activity, and settings.
 - Bounded redacted route/feedback/job ledgers, restart-safe allowlisted jobs, and explicit cancellation before publication.
-- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. Local acceptance passed for the hosted foundation; Gitea exact-feature and final-main CI passed the root/web quality and database/RLS/type lanes. The full hosted API and authenticated browser smokes remain local acceptance gates until the runner supports the complete disposable Supabase stack.
-- Separate hosted contracts plus local Supabase `api`/`private` schemas, deterministic first-party seeds, RLS/grant tests, public `/skills` and `/api/v1/skills` routes, Supabase SSR auth integration points, and free-account saved skills. These are locally implemented, not deployed.
+- Cross-browser, accessibility, deterministic visual-diff, performance-budget, privacy, failure, migration, and clean-consumer-install test lanes. Gitea covers root/web quality plus restored database/RLS/type authority; GitHub contains a separate complete disposable hosted-browser job for API, Auth, submission, report, and evidence. The current candidate has local receipts only and must pass both current CI authorities after push.
+- Separate hosted contracts plus local Supabase `api`/`private` schemas, deterministic first-party seeds, RLS/grant tests, public `/skills` and `/api/v1/skills` routes, Supabase SSR auth, free-account saves, exact-commit submissions, constrained audit/provisional-grade processing, operator publication, reports, lifecycle actions, export, and deletion. These are locally implemented, not deployed.
+- A 20-version/five-group/six-publisher initial-corpus manifest plus fail-closed preparation and shared-memoized inert audit tooling. All exact trees completed local static audit with two passed, 18 warning, zero blocked, and 20 provisional grade states; every entry remains blocked pending publisher consent and none is a submitted or published database row.
 
 ## Historical validation evidence (not current release proof)
 
@@ -131,7 +132,7 @@ SkillMap = another list of skills inside Codex
 
 ## Release boundary
 
-The repository and committed hosted foundation are experimental alpha, not a release candidate. Public release actions remain intentionally gated on explicit user approval and fresh validation of the eventual release candidate.
+The repository contains an experimental local free-public-alpha candidate. It is not pushed, deployed, verified live, indexed, publicly launched, tagged, or published. Public release actions remain gated on explicit owner decisions and exact-candidate CI, provider, policy, restore/rollback, publisher-authorized receipt-backed corpus publication, pilot, and live-acceptance receipts.
 
 Not yet done:
 
@@ -139,11 +140,11 @@ Not yet done:
 - GitHub tag/release
 - Global hook install
 - Applying held risky/stale upstream third-party skill updates
-- Five external onboarding pilots
+- The dedicated five-seat hosted pilot and its mandatory workflow receipts
 - Recorded manual screen-reader, keyboard, zoom/reflow, contrast, forced-colors, and operating-system review for the eventual beta candidate
-- Remote Supabase/Vercel provisioning, live GitHub OAuth, hosted tenancy, connector pairing, team sync, billing, deployment, or production operations
+- Remote database/web provisioning, live GitHub OAuth, hosted worker scheduling, encrypted backup/restore, domain/indexing, deployment, or production operations
 
-Current CI note: Gitea feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; those commits share tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Historical hosted-foundation feature run 14 passed `00e29a442b3ef03345f25970aa2abff4655d259d`, and main run 15 passed `295dffe031d3010bb241ade75e9f249c97cd6063`; those commits share tree `3a163cf577eef73b832c2947c6e01332e1c4ecca`. GitHub Actions jobs are spending-blocked before execution and must not be interpreted as test failures or successes.
+Historical CI note: Gitea feature run 18 passed `1427e277e46315de5792a973deded1af4c274195`, and main run 19 passed `f9ea0fa0d9711b5b0a61d24555ed9102fff20eb3`; those commits share tree `be96e2a71f2b38ded52ac6e1077ebbcd1dc0bbc1`. Historical hosted-foundation feature run 14 passed `00e29a442b3ef03345f25970aa2abff4655d259d`, and main run 15 passed `295dffe031d3010bb241ade75e9f249c97cd6063`; those receipts do not cover the current candidate. The last observed GitHub spending block is not a pass or failure and must be rechecked. Current public release requires both Gitea jobs plus the GitHub `hosted-web-browser` job against the same exact commit.
 
 Before public release, a fresh agent should verify current state again because package registries, CI, and repo state can drift.
 
@@ -180,7 +181,7 @@ Use these only when relevant:
 
 ## Recommended next actions
 
-If the next goal is public release:
+If the next goal is a public CLI/package release:
 
 1. Re-anchor repo state.
 2. Run `git status --short --branch`.
@@ -188,7 +189,7 @@ If the next goal is public release:
 4. Run `npm run check:all`, the root and web dependency audits, and the full regression suite from the repo root. Do not run mutating CLI workflows from the repo root because its ignored `.skillmap` state is protected evidence.
 5. Run `npm run test:consumer-install` and `npm pack --dry-run`; inspect the exact tarball manifest.
 6. Complete every manual item in `docs/ui-acceptance-matrix.md` and five real sessions from `docs/external-pilot-runbook.md` against the exact candidate tarball.
-7. Push a reviewed commit and verify the supported Node/OS, browser, privacy, migration, failure, and consumer-install jobs in the current authoritative hosted CI. Use Gitea while GitHub Actions remains spending-blocked, and record any scope difference explicitly.
+7. Push a reviewed commit and verify the supported Node/OS, browser, privacy, migration, failure, and consumer-install jobs in the approved package-release CI. Record any unavailable provider and scope difference explicitly; this package-only path does not satisfy the hosted alpha's separate dual-provider CI gate.
 8. Confirm package name, prerelease version/tag, npm account, trusted-publishing environment, support owner, and visibility with the user.
 9. Only after explicit approval: create the immutable tag, publish with provenance, verify a registry install, and create the GitHub release. Report npm, tag, release, and any web deployment as separate states.
 
@@ -200,13 +201,14 @@ If the next goal is product improvement:
 4. Continue the authorized hosted-registry phases only through their explicit evidence gates; do not collapse local runtime, hosted catalog, package, grade, and router authority into one state.
 5. Expand evals with real missed routes from daily use, not only generated examples.
 
-If the next goal is a private hosted alpha:
+If the next goal is the private hosted alpha:
 
-1. Obtain explicit approval for the provider ownership and recurring-cost boundary before creating a professional Vercel team or any paid resource; separately accept the Supabase alpha organization, region, and free-tier backup/pausing limits.
-2. Create the SkillMap Supabase and Vercel projects only after that approval, then record project ownership, region, plan, and rollback owners without committing credentials.
-3. Configure the GitHub OAuth app, Supabase provider, exact site/callback URLs, and Vercel environment variables from `docs/operations/hosted-alpha-deploy.md`.
+1. Obtain explicit approval for a zero-cost-compatible database and web-provider path, ownership, plan limits, region, and free-tier backup/pausing constraints. Do not create, upgrade, or attach a paid provider resource.
+2. Create the SkillMap database and web projects only after that approval, then record project ownership, region, plan, deployment/rollback commands, and owners without committing credentials.
+3. Configure the GitHub OAuth app, Supabase provider, exact site/callback URLs, and approved web-host environment variables from `docs/operations/hosted-alpha-deploy.md`.
 4. Apply the checked-in migrations and seed, verify generated-type parity and backup/restore readiness, then deploy the exact reviewed commit.
-5. Run anonymous catalog, authenticated save/unsave, cross-account isolation, OAuth, cache-policy, mobile, accessibility, and rollback acceptance against the live private-alpha URL before calling it deployed or inviting testers.
+5. Run anonymous catalog, authenticated save/unsave/submission/report/export/deletion, worker publication/lifecycle, cross-account isolation, OAuth, cache-policy, mobile, accessibility, restore, and rollback acceptance against the exact live private-alpha deployment before calling it verified live or inviting the dedicated five-seat hosted cohort.
+6. Obtain and retain redacted publisher-consent references, ingest the pinned 20-version corpus through normal quota-aware submissions, and verify every receipt-backed public listing before enabling indexing.
 
 ## Important constraints
 

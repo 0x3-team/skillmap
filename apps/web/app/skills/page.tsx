@@ -34,7 +34,8 @@ export default async function SkillsPage({
       return (
         <SkillsShell>
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive" role="alert">
-            {error.message} <Link href="/skills" className="font-semibold underline">Reset the catalog query</Link>.
+            <h1 className="text-lg font-semibold text-foreground">Catalog query rejected</h1>
+            <p className="mt-2">{error.message} <Link href="/skills" className="font-semibold underline">Reset the catalog query</Link>.</p>
           </div>
         </SkillsShell>
       );

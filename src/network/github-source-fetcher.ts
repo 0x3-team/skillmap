@@ -8,6 +8,7 @@ export type GithubSourceFetchErrorCode =
   | 'INVALID_REPOSITORY'
   | 'INVALID_REF'
   | 'INVALID_SUBTREE'
+  | 'INVALID_SOURCE_PATH'
   | 'INVALID_TOKEN'
   | 'INVALID_OPTIONS'
   | 'REQUEST_TIMEOUT'
@@ -95,6 +96,11 @@ export interface GithubSourceFile {
   blobDigest: string;
   contentDigest: string;
   bytes: Uint8Array;
+}
+
+export interface GithubExactSourceFile extends GithubSourceFile {
+  repository: string;
+  resolvedCommit: string;
 }
 
 export interface GithubSourceSnapshot {
@@ -264,25 +270,7 @@ export async function fetchGithubSkillTree(
   entries.sort((left, right) => comparePaths(left.path, right.path));
 
   const canonicalSubtree = normalizedSubtree || '.';
-  const manifestPayload = {
-    version: 1,
-    provider: 'github',
-    repository: normalizedRepository,
-    resolvedCommit,
-    subtree: canonicalSubtree,
-    rootTreeDigest: `git:${subtreeTreeSha}`,
-    entries: entries.map((entry) => ({
-      path: entry.path,
-      type: entry.type,
-      mode: entry.mode,
-      size: entry.size,
-      ...(entry.blobDigest ? { blobDigest: entry.blobDigest } : {}),
-      ...(entry.treeDigest ? { treeDigest: entry.treeDigest } : {}),
-      ...(entry.contentDigest ? { contentDigest: entry.contentDigest } : {})
-    }))
-  };
-
-  return {
+  const snapshot = {
     version: 1,
     provider: 'github',
     repository: normalizedRepository,
@@ -290,11 +278,156 @@ export async function fetchGithubSkillTree(
     resolvedCommit,
     subtree: canonicalSubtree,
     rootTreeDigest: `git:${subtreeTreeSha}`,
-    manifestDigest: sha256Digest(Buffer.from(JSON.stringify(manifestPayload))),
+    manifestDigest: '',
     totalBytes: downloaded.reduce((total, file) => total + file.size, 0),
     entries,
     files: downloaded
+  } satisfies GithubSourceSnapshot;
+  snapshot.manifestDigest = computeGithubSnapshotManifestDigest(snapshot);
+  return snapshot;
+}
+
+/**
+ * Fetch one explicitly named regular file from an immutable GitHub commit.
+ * The commit and path are resolved through Git tree objects before the raw
+ * bytes are accepted, so callers never need to fetch an enclosing repository
+ * tree merely to bind root or ancestor license evidence.
+ */
+export async function fetchGithubExactSourceFile(
+  repository: string,
+  commit: string,
+  sourcePath: string,
+  options: GithubSourceFetcherOptions = {}
+): Promise<GithubExactSourceFile> {
+  const normalizedRepository = validateGithubRepository(repository);
+  const normalizedCommit = validateGithubImmutableCommit(commit);
+  const normalizedPath = validateGithubSourceFilePath(sourcePath);
+  const baseContext = buildContext(options);
+  const context: FetchContext = {
+    ...baseContext,
+    maxResponseBytes: Math.min(baseContext.maxResponseBytes, 1024 * 1024),
+    maxTotalBytes: Math.min(baseContext.maxTotalBytes, 1024 * 1024),
+    maxEntries: 1
   };
+  const { owner, name } = splitRepository(normalizedRepository);
+  const apiBase = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+
+  const commitResponse = await getJson(
+    `${apiBase}/commits/${encodeURIComponent(normalizedCommit)}`,
+    context
+  );
+  const resolvedCommit = requiredDigest(commitResponse.sha, 'commit identifier');
+  if (resolvedCommit !== normalizedCommit) {
+    throw new GithubSourceFetchError(
+      'SOURCE_CHANGED',
+      'GitHub did not resolve the requested immutable commit exactly.'
+    );
+  }
+  const commitObject = requiredRecord(commitResponse.commit, 'commit');
+  const commitTree = requiredRecord(commitObject.tree, 'commit tree');
+  const rootTreeSha = requiredDigest(commitTree.sha, 'root tree identifier');
+  const directory = path.posix.dirname(normalizedPath);
+  const directoryTreeSha = await resolveSubtreeTreeSha(
+    apiBase,
+    rootTreeSha,
+    directory === '.' ? '' : directory,
+    context
+  );
+  const directoryTree = await getJson(
+    `${apiBase}/git/trees/${encodeURIComponent(directoryTreeSha)}`,
+    context
+  );
+  if (directoryTree.truncated === true) {
+    throw new GithubSourceFetchError(
+      'INVALID_RESPONSE',
+      'GitHub returned a truncated tree while resolving the exact source file.'
+    );
+  }
+  const basename = path.posix.basename(normalizedPath);
+  const matches = requiredArray(directoryTree.tree, 'tree entries')
+    .map((entry) => requiredRecord(entry, 'tree entry'))
+    .filter((entry) => entry.path === basename);
+  if (matches.length !== 1) {
+    throw new GithubSourceFetchError(
+      'SUBTREE_NOT_FOUND',
+      'GitHub exact source file was not found at the requested immutable commit.'
+    );
+  }
+  const match = matches[0];
+  const mode = requiredString(match.mode, 'tree entry mode');
+  const type = requiredString(match.type, 'tree entry type');
+  if (type === 'commit' || mode === '160000' || mode === '120000') {
+    throw new GithubSourceFetchError(
+      'UNSUPPORTED_ENTRY',
+      'GitHub exact source file resolves through an unsupported link or submodule boundary.'
+    );
+  }
+  if (type !== 'blob' || (mode !== '100644' && mode !== '100755')) {
+    throw new GithubSourceFetchError(
+      'UNSUPPORTED_ENTRY',
+      'GitHub exact source file must resolve to a regular file.'
+    );
+  }
+  const sha = requiredDigest(match.sha, 'tree entry identifier');
+  if (!Number.isSafeInteger(match.size) || Number(match.size) < 0) {
+    throw new GithubSourceFetchError(
+      'INVALID_RESPONSE',
+      'GitHub exact source file is missing a valid byte size.'
+    );
+  }
+  const size = Number(match.size);
+  if (size > context.maxResponseBytes || size > context.maxTotalBytes) {
+    throw new GithubSourceFetchError(
+      'RESPONSE_TOO_LARGE',
+      'GitHub exact source file exceeds the configured bounded evidence-file limit.'
+    );
+  }
+  const rawUrl = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${resolvedCommit}/${encodeRemotePath(normalizedPath)}`;
+  const response = await getResponse(rawUrl, context, 'application/octet-stream');
+  assertSuccessfulResponse(response);
+  const bytes = Buffer.from(response.body);
+  if (bytes.length !== size || gitBlobDigest(bytes, sha.length) !== sha) {
+    throw new GithubSourceFetchError(
+      'SOURCE_CHANGED',
+      'GitHub raw content does not match the exact immutable tree entry.'
+    );
+  }
+  return {
+    repository: normalizedRepository,
+    resolvedCommit,
+    path: normalizedPath,
+    mode,
+    size,
+    blobDigest: `git:${sha}`,
+    contentDigest: sha256Digest(bytes),
+    bytes: new Uint8Array(bytes)
+  };
+}
+
+/** Recompute the immutable GitHub manifest projection from snapshot fields. */
+export function computeGithubSnapshotManifestDigest(
+  snapshot: Pick<GithubSourceSnapshot, 'version' | 'provider' | 'repository' | 'resolvedCommit' | 'subtree' | 'rootTreeDigest' | 'entries'>
+): string {
+  const manifestPayload = {
+    version: snapshot.version,
+    provider: snapshot.provider,
+    repository: snapshot.repository,
+    resolvedCommit: snapshot.resolvedCommit,
+    subtree: snapshot.subtree,
+    rootTreeDigest: snapshot.rootTreeDigest,
+    entries: [...snapshot.entries]
+      .sort((left, right) => comparePaths(left.path, right.path))
+      .map((entry) => ({
+        path: entry.path,
+        type: entry.type,
+        mode: entry.mode,
+        size: entry.size,
+        ...(entry.blobDigest ? { blobDigest: entry.blobDigest } : {}),
+        ...(entry.treeDigest ? { treeDigest: entry.treeDigest } : {}),
+        ...(entry.contentDigest ? { contentDigest: entry.contentDigest } : {})
+      }))
+  };
+  return sha256Digest(Buffer.from(JSON.stringify(manifestPayload)));
 }
 
 /** Compute the same complete-tree semantic digest used by local skill identity. */
@@ -358,6 +491,36 @@ export function validateGithubRef(value: string): string {
     throw new GithubSourceFetchError('INVALID_REF', 'GitHub ref is invalid.');
   }
   return value;
+}
+
+export function validateGithubImmutableCommit(value: string): string {
+  if (typeof value !== 'string' || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value)) {
+    throw new GithubSourceFetchError(
+      'INVALID_REF',
+      'GitHub exact source evidence requires an immutable lowercase 40- or 64-hex commit.'
+    );
+  }
+  return value;
+}
+
+export function validateGithubSourceFilePath(value: string): string {
+  if (typeof value !== 'string' || value.length > 500) {
+    throw new GithubSourceFetchError(
+      'INVALID_SOURCE_PATH',
+      'GitHub exact source file path must be a bounded normalized relative path.'
+    );
+  }
+  try {
+    return validateRemoteRelativePath(value, 'INVALID_SOURCE_PATH');
+  } catch (error) {
+    if (error instanceof GithubSourceFetchError && error.code === 'INVALID_SOURCE_PATH') {
+      throw new GithubSourceFetchError(
+        'INVALID_SOURCE_PATH',
+        'GitHub exact source file path must be a bounded normalized relative path.'
+      );
+    }
+    throw error;
+  }
 }
 
 export function validateGithubSubtree(value: string): string {
@@ -820,7 +983,10 @@ function responseHeader(headers: Readonly<Record<string, string | undefined>>, n
   return undefined;
 }
 
-function validateRemoteRelativePath(value: string, code: 'INVALID_SUBTREE' | 'INVALID_RESPONSE'): string {
+function validateRemoteRelativePath(
+  value: string,
+  code: 'INVALID_SUBTREE' | 'INVALID_SOURCE_PATH' | 'INVALID_RESPONSE'
+): string {
   if (!value || value.length > 4_096 || value !== value.normalize('NFC')
     || value.startsWith('/') || value.endsWith('/') || value.includes('\\')
     || /[\u0000-\u001f\u007f]/.test(value)) {

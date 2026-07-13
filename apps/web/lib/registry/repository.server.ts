@@ -37,12 +37,14 @@ import {
   encodeSavedSkillsCursor,
   SavedSkillsCursorError
 } from "@/lib/registry/saved-cursor";
+import type { PublicSkillRoute } from "@/lib/registry/public-links";
 import { createPublicCatalogClient } from "@/lib/supabase/catalog.server";
 import type { Database } from "@/lib/supabase/database.types";
 
 const HOSTED_LIST_SCHEMA = "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json";
 const HOSTED_SKILL_SCHEMA = "https://skillmap.dev/contracts/hosted-skill/v1.schema.json";
 const SAVED_PAGE_SIZE = 50;
+const MAX_PUBLIC_ROUTE_RESOLUTIONS = 50;
 const SAVED_SKILL_SELECT = "saved_at,skill_id,publisher_id,publisher_handle,publisher_display_name,publisher_verification_state,slug,display_name,summary,lifecycle_state,capabilities,updated_at,version_id,version,entrypoint_content_digest,license_state,redistribution_state,compatibility_state,grade_state,grade_band,grade_confidence,grade_receipt_id,grade_receipt_digest,graded_at,grade_rubric_version,grade_host_profile_version,grade_invalidated_at,grade_reason_codes,published_at";
 
 type CatalogRow = Database["api"]["Views"]["catalog_skill_versions"]["Row"];
@@ -113,6 +115,36 @@ export async function getPublicSkillById(skillId: string): Promise<HostedSkillV1
 export async function getPublicSkillByRoute(publisher: string, slug: string): Promise<HostedSkillV1 | null> {
   assertCatalogRoute(publisher, slug);
   return getPublicSkill({ publisher, slug });
+}
+
+export async function resolvePublicSkillRoutes(skillIds: string[]): Promise<Map<string, PublicSkillRoute>> {
+  const uniqueIds = [...new Set(skillIds)];
+  if (uniqueIds.length > MAX_PUBLIC_ROUTE_RESOLUTIONS) {
+    throw new CatalogInputError("INVALID_QUERY", `At most ${MAX_PUBLIC_ROUTE_RESOLUTIONS} public skill routes can be resolved at once.`);
+  }
+  for (const skillId of uniqueIds) assertHostedSkillId(skillId);
+  if (uniqueIds.length === 0) return new Map();
+
+  const supabase = createPublicCatalogClient();
+  const { data, error } = await supabase
+    .from("catalog_skills")
+    .select("skill_id,publisher_handle,slug,version_id")
+    .in("skill_id", uniqueIds);
+  if (error) throw new CatalogQueryError("Public result routes could not be loaded.");
+
+  const routes = new Map<string, PublicSkillRoute>();
+  for (const row of data ?? []) {
+    const skillId = requiredHostedSkillId(row.skill_id, "skill_id");
+    const publisherHandle = requiredString(row.publisher_handle, "publisher_handle");
+    const slug = requiredString(row.slug, "slug");
+    assertCatalogRoute(publisherHandle, slug);
+    routes.set(skillId, {
+      publisherHandle,
+      slug,
+      versionId: requiredVersionId(row.version_id, "version_id")
+    });
+  }
+  return routes;
 }
 
 export interface SavedSkillsPage {

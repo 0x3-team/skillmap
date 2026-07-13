@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 
 const baseUrl = process.env.SKILLMAP_WEB_BASE_URL ?? "http://127.0.0.1:3000";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -11,9 +11,19 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const databaseUrl = process.env.SKILLMAP_TEST_DB_URL;
 const paginationFixture = fileURLToPath(new URL("../../../supabase/tests/fixtures/hosted_saved_pagination.sql.inc", import.meta.url));
 const paginationCleanup = fileURLToPath(new URL("../../../supabase/tests/fixtures/hosted_saved_pagination_cleanup.sql.inc", import.meta.url));
+const browserName = process.env.SKILLMAP_HOSTED_BROWSER ?? "chromium";
+const browserTypes = { chromium, firefox, webkit };
+const browserClientAddresses = {
+  chromium: { forged: "203.0.113.71", authenticated: "203.0.113.72" },
+  firefox: { forged: "203.0.113.73", authenticated: "203.0.113.74" },
+  webkit: { forged: "203.0.113.75", authenticated: "203.0.113.76" }
+};
 
 if (!supabaseUrl || !publishableKey || !serviceRoleKey || !databaseUrl) {
   throw new Error("Local Supabase URL, publishable key, service-role key, and test database URL are required for the authenticated smoke test.");
+}
+if (!Object.hasOwn(browserTypes, browserName)) {
+  throw new Error("SKILLMAP_HOSTED_BROWSER must be chromium, firefox, or webkit.");
 }
 
 const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -81,12 +91,12 @@ try {
     .eq("skill_id", concurrentSkillId);
   if (concurrentCleanupError) throw concurrentCleanupError;
 
-  browser = await chromium.launch({ headless: true });
+  browser = await browserTypes[browserName].launch({ headless: true });
 
   const forgedContext = await browser.newContext({
     viewport: { width: 390, height: 844 },
     colorScheme: "light",
-    extraHTTPHeaders: { "x-vercel-forwarded-for": "203.0.113.78" }
+    extraHTTPHeaders: { "x-vercel-forwarded-for": browserClientAddresses[browserName].forged }
   });
   await forgedContext.addCookies([...cookieJar.values()].map(({ name }) => ({
     name,
@@ -97,7 +107,7 @@ try {
     sameSite: "Lax"
   })));
   const forgedPage = await forgedContext.newPage();
-  await forgedPage.goto(new URL("/account", baseUrl).toString(), { waitUntil: "load" });
+  await gotoSettled(forgedPage, new URL("/account", baseUrl).toString());
   await Promise.race([
     forgedPage.waitForURL((url) => url.pathname === "/sign-in"),
     forgedPage.getByRole("heading", { name: "Hosted catalog unavailable" }).waitFor(),
@@ -113,7 +123,7 @@ try {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     colorScheme: "light",
-    extraHTTPHeaders: { "x-vercel-forwarded-for": "203.0.113.79" }
+    extraHTTPHeaders: { "x-vercel-forwarded-for": browserClientAddresses[browserName].authenticated }
   });
   await context.addCookies([...cookieJar.values()].map(({ name, value, options = {} }) => ({
     name,
@@ -126,28 +136,34 @@ try {
 
   const page = await context.newPage();
   const diagnostics = [];
+  const expectedDiagnostics = [];
+  let smokeStage = "landing-demo";
   page.on("console", (message) => {
     if (message.type() === "error" || message.type() === "warning") {
-      diagnostics.push(`${message.type()}: ${message.text()}`);
+      const diagnostic = `${smokeStage} ${message.type()}: ${message.text()}`;
+      if (isExpectedStrictDynamicFallbackWarning(diagnostic)) expectedDiagnostics.push(diagnostic);
+      else diagnostics.push(diagnostic);
     }
   });
-  page.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
+  page.on("pageerror", (error) => diagnostics.push(`${smokeStage} pageerror: ${error.message}`));
 
-  await page.goto(new URL("/", baseUrl).toString(), { waitUntil: "load" });
-  await page.getByRole("button", { name: "Browse skill library" }).waitFor();
+  await gotoSettled(page, new URL("/", baseUrl).toString());
+  await page.getByRole("button", { name: "Search skill library" }).waitFor();
   await page.getByRole("button", { name: "Run recorded demo" }).click();
   await page.getByText(/Recorded fixture selected:/).waitFor();
 
+  smokeStage = "mobile-catalog";
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(new URL("/skills", baseUrl).toString(), { waitUntil: "load" });
+  await gotoSettled(page, new URL("/skills", baseUrl).toString());
   await page.getByRole("link", { name: "Skill library" }).waitFor();
   const mobileWidth = await page.evaluate(() => ({ inner: window.innerWidth, scroll: document.documentElement.scrollWidth }));
   if (mobileWidth.scroll > mobileWidth.inner) {
     throw new Error(`Hosted catalog overflows at 390px (${mobileWidth.scroll}px > ${mobileWidth.inner}px).`);
   }
 
+  smokeStage = "account-empty";
   await page.setViewportSize({ width: 1280, height: 900 });
-  const accountResponse = await page.goto(new URL("/account", baseUrl).toString(), { waitUntil: "load" });
+  const accountResponse = await gotoSettled(page, new URL("/account", baseUrl).toString());
   assertPrivateNoStore(accountResponse?.headers() ?? {}, "authenticated account response");
   try {
     await page.getByRole("heading", { name: "Your saved skills" }).waitFor();
@@ -157,24 +173,56 @@ try {
   }
   await page.getByRole("heading", { name: "No saved skills yet" }).waitFor();
 
-  await page.goto(new URL("/skills/0x3-team/skill-audit", baseUrl).toString(), { waitUntil: "load" });
-  await page.getByRole("button", { name: "Save skill" }).waitFor();
-  const saveResponsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/skills/0x3-team/skill-audit"));
-  await page.getByRole("button", { name: "Save skill" }).click();
-  const saveResponse = await saveResponsePromise;
-  if (!saveResponse.ok()) throw new Error(`Save action returned HTTP ${saveResponse.status()}.`);
-  await page.reload({ waitUntil: "load" });
-  await page.getByRole("button", { name: "Remove from saved" }).waitFor();
+  smokeStage = "forged-save-status";
+  const forgedSaveToken = "123e4567-e89b-42d3-a456-426614174000";
+  await gotoSettled(page, new URL(`/skills/0x3-team/skill-audit?saveFlash=${forgedSaveToken}`, baseUrl).toString());
+  for (const title of ["Skill saved", "Skill removed", "Saved-skill action unavailable"]) {
+    if (await page.getByText(title, { exact: true }).isVisible().catch(() => false)) {
+      throw new Error(`A query-only save flash forged the ${title} notice.`);
+    }
+  }
 
-  await page.goto(new URL("/account", baseUrl).toString(), { waitUntil: "load" });
-  await page.getByRole("link", { name: "Skill Audit" }).waitFor();
-  const removeResponsePromise = page.waitForResponse((response) => response.request().method() === "POST" && response.url().includes("/account"));
-  await page.getByRole("button", { name: "Remove" }).click();
-  const removeResponse = await removeResponsePromise;
-  if (!removeResponse.ok()) throw new Error(`Remove action returned HTTP ${removeResponse.status()}.`);
-  await page.reload({ waitUntil: "load" });
+  smokeStage = "save-unavailable";
+  await gotoSettled(page, new URL("/account", baseUrl).toString());
+  await page.evaluate(() => {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = "/account/saved/action";
+    for (const [name, value] of [
+      ["skillId", `skl_${"f".repeat(32)}`],
+      ["operation", "save"],
+      ["returnPath", "/account"]
+    ]) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.append(input);
+    }
+    document.body.append(form);
+    form.requestSubmit();
+  });
+  await waitForPageUrl(page, (url) => url.pathname === "/account" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
+  await page.getByText("Saved-skill action unavailable", { exact: true }).waitFor();
   await page.getByRole("heading", { name: "No saved skills yet" }).waitFor();
 
+  smokeStage = "save-detail";
+  await gotoSettled(page, new URL("/skills/0x3-team/skill-audit", baseUrl).toString());
+  await page.getByRole("button", { name: "Save skill" }).waitFor();
+  await page.locator('form[action="/account/saved/action"]').evaluate((form) => form.requestSubmit());
+  await waitForPageUrl(page, (url) => url.pathname === "/skills/0x3-team/skill-audit" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
+  await page.getByText("Skill saved", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Remove from saved" }).waitFor();
+
+  smokeStage = "unsave-account";
+  await gotoSettled(page, new URL("/account", baseUrl).toString());
+  await page.getByRole("link", { name: "Skill Audit" }).waitFor();
+  await page.locator('form[action="/account/saved/action"]').evaluate((form) => form.requestSubmit());
+  await waitForPageUrl(page, (url) => url.pathname === "/account" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
+  await page.getByText("Skill removed", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "No saved skills yet" }).waitFor();
+
+  smokeStage = "pagination-fixture";
   const paginationSkillIds = Array.from({ length: 52 }, (_, index) =>
     `skl_${(65537 + index).toString(16).padStart(32, "0")}`
   );
@@ -187,7 +235,8 @@ try {
   );
   if (paginationSaveError) throw paginationSaveError;
 
-  await page.goto(new URL("/account", baseUrl).toString(), { waitUntil: "load" });
+  smokeStage = "pagination-first";
+  await gotoSettled(page, new URL("/account", baseUrl).toString());
   await page.getByRole("link", { name: "Pagination Test 001" }).waitFor();
   const firstPageNames = await page.locator('a[href*="/pagination-test-"]').allTextContents();
   if (firstPageNames.length !== 50 || firstPageNames[0] !== "Pagination Test 001" || firstPageNames.at(-1) !== "Pagination Test 050") {
@@ -195,13 +244,15 @@ try {
   }
   const nextSavedHref = await page.getByRole("link", { name: "Next saved skills" }).getAttribute("href");
   if (!nextSavedHref) throw new Error("Saved pagination did not expose a next-page cursor.");
-  await page.goto(new URL(nextSavedHref, baseUrl).toString(), { waitUntil: "load" });
+  smokeStage = "pagination-second";
+  await gotoSettled(page, new URL(nextSavedHref, baseUrl).toString());
   await page.getByRole("link", { name: "Pagination Test 051" }).waitFor();
   const secondPageNames = await page.locator('a[href*="/pagination-test-"]').allTextContents();
   if (secondPageNames.join(",") !== "Pagination Test 051,Pagination Test 052") {
     throw new Error(`Saved pagination terminal page had gaps, duplicates, or unstable ordering (${secondPageNames.join(",")}).`);
   }
 
+  smokeStage = "pagination-revocation";
   execFileSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-c",
     "update private.skills set revoked_at = '2026-07-11T20:01:00Z' where public_id = 'skl_00000000000000000000000000010034'"
   ], { stdio: "pipe" });
@@ -211,18 +262,20 @@ try {
   }
   const postRevocationUrl = new URL(nextSavedHref, baseUrl);
   postRevocationUrl.searchParams.set("smokeState", "post-revocation");
-  await page.goto(postRevocationUrl.toString(), { waitUntil: "load" });
+  await gotoSettled(page, postRevocationUrl.toString());
   await page.getByRole("link", { name: "Pagination Test 051" }).waitFor();
   const postRevocationNames = await page.locator('a[href*="/pagination-test-"]').allTextContents();
   if (postRevocationNames.join(",") !== "Pagination Test 051") {
     throw new Error(`A revoked saved skill leaked or pagination became unstable (${postRevocationNames.join(",")}).`);
   }
 
+  smokeStage = "logout";
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.waitForURL(new URL("/", baseUrl).toString());
   const remainingAuthCookies = (await context.cookies()).filter((cookie) => /auth-token/i.test(cookie.name));
   if (remainingAuthCookies.length > 0) throw new Error("Sign-out left Supabase auth cookies in the browser context.");
-  const signedOutResponse = await page.goto(new URL("/account", baseUrl).toString(), { waitUntil: "load" });
+  smokeStage = "signed-out-account";
+  const signedOutResponse = await gotoSettled(page, new URL("/account", baseUrl).toString());
   if (new URL(page.url()).pathname !== "/sign-in") throw new Error("Signed-out account access did not return to sign-in.");
   assertPrivateNoStore(signedOutResponse?.headers() ?? {}, "signed-out account redirect");
 
@@ -230,9 +283,12 @@ try {
   await context.close();
   process.stdout.write(`${JSON.stringify({
     result: "pass",
+    browser: browserName,
     account: "authenticated",
     concurrentSave: "idempotent-single-row",
-    save: "passed",
+    save: "authoritative-flash-passed",
+    saveUnavailable: "truthful-flash-passed",
+    forgedSaveFlash: "rejected",
     savedProjection: "passed",
     unsave: "passed",
     savedPagination: "52-rows-no-gaps-or-duplicates",
@@ -244,7 +300,8 @@ try {
     mobileNavigationName: "passed",
     mobileOverflow: "passed",
     landingCspAndHydration: "passed",
-    diagnostics: 0
+    diagnostics: 0,
+    expectedCspCompatibilityWarnings: expectedDiagnostics.length
   })}\n`);
 } catch (error) {
   primaryError = error;
@@ -286,6 +343,23 @@ function runSqlFile(path) {
   execFileSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "pipe" });
 }
 
+async function gotoSettled(page, url) {
+  return page.goto(url, { waitUntil: "load" });
+}
+
+async function waitForPageUrl(page, predicate) {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (predicate(new URL(page.url()))) return;
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Timed out waiting for the saved-skill redirect (${page.url()}).`);
+}
+
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isExpectedStrictDynamicFallbackWarning(value) {
+  return /Content-Security-Policy: Ignoring .?'self'.? within script-src: .?strict-dynamic.? specified/.test(value);
 }

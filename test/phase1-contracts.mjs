@@ -760,7 +760,12 @@ const dedicatedContractSchemas = new Set([
   IDS['hosted-grade-summary-v1'],
   IDS['hosted-skill-v1'],
   IDS['hosted-skill-list-v1'],
-  IDS['hosted-api-response-v1']
+  IDS['hosted-api-response-v1'],
+  IDS['hosted-review-state-v1'],
+  IDS['hosted-audit-summary-v1'],
+  IDS['hosted-audit-receipt-v1'],
+  IDS['hosted-grade-receipt-v1'],
+  IDS['hosted-submission-v1']
 ]);
 
 test('frontmatter parsing accepts LF and CRLF delimiters without rewriting body bytes', () => {

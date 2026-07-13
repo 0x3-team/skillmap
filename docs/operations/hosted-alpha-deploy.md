@@ -1,33 +1,42 @@
 # Hosted Alpha Deployment and Recovery Runbook
 
-Status: pre-deployment. This runbook governs the Phase 1 private hosted alpha only. It does not authorize public release, third-party ingestion, package loading, grading, advanced routing, billing, or Stripe.
+Status: pre-deployment. This is the canonical provider, deployment, recovery, and live-acceptance handoff for the free hosted trust alpha. It permits reviewed third-party metadata-only submissions, inert static audit, provisional numeric grading, operator review, and receipt-backed publication after the gates below pass. It never authorizes submitted-code execution, package mirroring/loading, billing, checkout, paid placement, or Stripe. Private pilot comes first; public alpha and indexing require the later promotion gate.
+
+Use this runbook together with `docs/operations/free-public-alpha-runbook.md`, which is authoritative for worker migration compatibility, submission review, publication, reports, lifecycle actions, monitoring, and daily operations.
 
 ## Ownership and approval gate
 
 - Source and review: private `0x3-team/skillmap` on GitHub, mirrored to private Gitea.
-- CI authority: the exact candidate commit must pass both jobs in `.gitea/workflows/ci.yml`.
+- CI authority: the exact candidate commit must pass both jobs in `.gitea/workflows/ci.yml` **and** the `hosted-web-browser` job in `.github/workflows/ci.yml`. The Gitea lanes prove root/web quality plus restored database/RLS/type authority; the GitHub lane proves the complete disposable Auth/PostgREST/API/submission/report/evidence browser workflow. If either provider cannot run the required lane, the release remains `NO-GO`; a local transcript is useful evidence but is not a substitute for authoritative exact-commit CI.
+- Gitea evidence retention: the static-preflight and recovery steps emit one bounded `skillmap-ci-retained-gate-receipt/v1` envelope into the retained job log. Copy its run ID, job, exact commit/tree, and receipt SHA-256 into the release decision record; a temporary runner path alone is not evidence.
 - Incident and rollback owner: Masih Hedayati, acting as the `0x3-team` owner.
-- Supabase target: an isolated 0x3-owned alpha organization and `skillmap-alpha` project in `us-east-1`. Free infrastructure is acceptable only for the private alpha; pausing and the absence of managed backups must remain visible limitations.
-- Vercel target: an 0x3-owned Pro team and a `skillmap` project rooted at `apps/web`.
-- Cost gate: do not create or upgrade the Vercel team until the owner explicitly approves the current Pro charge. Do not place this professional project in the personal Hobby scope.
-- Repository gate: do not migrate or deploy until the hosted-foundation PR is merged and the resulting `main` commit has passed Gitea CI.
+- Database target: an isolated 0x3-owned alpha project in an owner-approved region and plan whose recurring provider cost is zero for this launch. Free-tier pausing, quotas, and the absence of managed backups must remain visible limitations.
+- Web target: an owner-approved provider/project that can run the reviewed Next.js application from `apps/web` at zero recurring provider cost and under terms compatible with this public product. No paid team or plan is the canonical target.
+- Cost gate: do not create, upgrade, or attach any paid provider resource. If no reviewed zero-cost-compatible host is available, stop and keep deployment blocked rather than silently selecting a paid plan.
+- Repository gate: do not migrate or deploy until the hosted-foundation change is merged and the resulting exact `main` commit has passed both Gitea authority lanes and the GitHub `hosted-web-browser` lane.
 
 Preview deployments must remain unconfigured until a separate preview Supabase project exists. A preview must never receive production Supabase credentials.
 
+### Policy-version promotion gate
+
+`public-alpha-draft/v1` is an implementation-only consent identifier, not launch-approved legal authority. Before inviting any external submitter, the product owner must approve the support identity, governing jurisdiction, age/geography boundary, retention/deletion/legal-hold periods, terms, acceptable-use rules, privacy text, takedown/appeal process, and effective date. Publish reachable versioned terms and acceptable-use pages, update the submission consent surface to link that exact version, introduce a reviewed migration and application change that replace the draft identifier consistently, and rerun the database, contract, browser, export, and deletion gates. Record the approved policy ID, URLs, content digests, effective date, and owner in the production decision receipt. Until that receipt exists, deployment may be exercised only as private operator evidence and public invitations remain `NO-GO`.
+
 ## Secret boundary
 
-Never commit, print into CI logs, or add to Vercel:
+Never commit, print into CI logs, or add to the web host:
 
 - Supabase access tokens, database passwords, secret/service-role keys, or JWT secrets
 - GitHub OAuth client secrets
 - backup encryption keys
 
-Vercel receives only:
+The web deployment receives only:
 
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SKILLMAP_RELEASE_STAGE=private-alpha`
 - `SKILLMAP_INDEXING_MODE=private-alpha`
+- `SKILLMAP_SUPPORT_URL` only after the owner approves a reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
 - optional bounded rate-limit tuning values documented by the application
 
 The GitHub OAuth client secret belongs only in Supabase Auth. Store database and backup credentials in the operator password manager and a root-only runtime secret file when automation is approved.
@@ -36,7 +45,7 @@ The GitHub OAuth client secret belongs only in Supabase Auth. Store database and
 
 ### Supabase project
 
-1. Create `skillmap-alpha` in the approved isolated organization and `us-east-1`.
+1. Create `skillmap-alpha` in the approved isolated organization and the exact `APPROVED_REGION` recorded in the production provider decision receipt. Do not substitute a default region in this runbook.
 2. Store the generated database password outside the repository.
 3. Link the clean candidate worktree:
 
@@ -49,7 +58,7 @@ The GitHub OAuth client secret belongs only in Supabase Auth. Store database and
 4. Do **not** run `supabase config push`. The checked-in `supabase/config.toml` is deliberately local-only: it contains loopback URLs, local password-test behavior, and a disabled GitHub provider.
 5. Configure the hosted project deliberately in the Supabase dashboard:
    - exposed PostgREST schema: `api` only
-   - Site URL: the exact production Vercel origin
+   - Site URL: the exact production web origin
    - additional redirect URL: `<production-origin>/auth/callback` only
    - anonymous sign-ins: disabled
    - email/password and magic-link signups: disabled
@@ -66,12 +75,13 @@ Create the OAuth application under 0x3 ownership:
 
 The GitHub-to-Supabase callback above is distinct from the application callback `<production-origin>/auth/callback`. Configure the GitHub client ID and secret only in Supabase Auth.
 
-### Vercel project
+### Web project
 
-1. Install the Vercel GitHub App for `0x3-team/skillmap` only.
-2. Create `skillmap` in the approved 0x3 team with Root Directory `apps/web`, Next.js detection, and Node 24.x.
-3. Leave Preview variables unset. Add the production variables from the secret boundary using stdin or the dashboard so values do not enter shell history.
-4. Keep `SKILLMAP_INDEXING_MODE=private-alpha` until the read-only public-preview gate explicitly changes it.
+1. Select and record the zero-cost-compatible provider, project owner, plan/limits, deployment command, rollback command, and log/health surface. Selection is an owner decision; this runbook does not default to a paid provider.
+2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, a reviewed Next.js runtime, and Node 24.x.
+3. Leave preview variables unset until a separate preview database exists. Add the production variables from the secret boundary using stdin or the provider dashboard so values do not enter shell history.
+4. Keep `SKILLMAP_RELEASE_STAGE=private-alpha` and `SKILLMAP_INDEXING_MODE=private-alpha` until the public gate explicitly changes both. Indexing requires the exact pair `public-alpha` and `public`.
+5. Before public alpha, configure `SKILLMAP_SUPPORT_URL` to the approved reachable intake page, open it from the deployed `/support` page while signed out, and verify that its public and confidential reporting instructions match the approved policy. A private repository issue URL is not a public support route.
 
 ## Migration and first deployment
 
@@ -84,10 +94,9 @@ supabase db push --linked --include-seed
 supabase gen types typescript --linked --schema api \
   | sed -e '${/^$/d;}' > /tmp/skillmap-alpha-database.types.ts
 cmp /tmp/skillmap-alpha-database.types.ts apps/web/lib/supabase/database.types.ts
-vercel deploy --prod --cwd apps/web
 ```
 
-`--include-seed` is a one-time alpha bootstrap. Later migrations must omit it unless a reviewed reseed is explicitly intended. Record the Supabase project ref, migration versions, deployed Git commit, Vercel deployment ID/URL, and operator in the implementation ledger without recording secrets.
+Then run the exact production deployment command recorded in the provider decision record from `apps/web`. `--include-seed` is a one-time alpha bootstrap. Later migrations must omit it unless a reviewed reseed is explicitly intended. Record the database project ref, migration versions, deployed Git commit, web deployment ID/URL, provider/plan, and operator in the implementation ledger without recording secrets.
 
 ## Backup and restore gate
 
@@ -114,15 +123,26 @@ Capture evidence against the exact deployment commit:
 - direct anonymous access to `private` and hidden lifecycle records fails
 - GitHub sign-in, callback normalization, profile creation, save, saved projection, unsave, logout, and cookie clearing pass
 - two distinct accounts cannot read or mutate each other's profile or saved skills
+- an author can submit an authorized public GitHub `SKILL.md` at one immutable full commit; an invalid path preserves the safe form values and creates no row
+- the server-only worker can claim the exact queued row, fetch inert bounded source bytes, emit audit and provisional-grade receipts, and never expose its service credential to the web process
+- an operator can review and publish the receipt-bound metadata; the public detail, audit, and grade routes show the exact current version, findings, safe reason codes, and a visibly letterless provisional score
+- a second account can submit a suspicious-listing report, see only its own immutable report history, and receive a bounded operator disposition without directly changing catalog state
+- deprecate, quarantine, revoke, and receipt-backed restore actions preserve public lifecycle history and cannot be performed by the browser or ordinary authenticated role
+- withdrawing a queued owner submission works, and deleting an account removes its private rows plus any derived public projection covered by the deletion contract
 - auth cookies are `Secure`, `HttpOnly`, and appropriately `SameSite`
+- `/support` exposes the approved reachable support, appeal, and confidential security-intake page; no private-repository-only link is treated as public support
 - no secret/service-role key appears in HTML, JavaScript, logs, screenshots, or deployment metadata
-- desktop and 390px browser checks, a hydrated landing-page interaction with zero CSP console violations, accessibility checks, performance budgets, and Vercel error logs pass
+- desktop and 390px browser checks, a hydrated landing-page interaction with zero CSP console violations, accessibility checks, performance budgets, and the approved web host's error logs pass
 
-The application limiter is a per-instance private-alpha safeguard. A provider-level/global abuse control is still required before public preview.
+Run the composed local browser contract with `npm run test:hosted-gates`; its launch pass receipt is valid only after fatal zero-row cleanup verifies every synthetic auth user and exact synthetic publisher/repository/skill/version row are absent. Then reproduce the submission-to-publication, report, lifecycle, deletion, and support checks against the exact deployment using redacted live receipts. The application limiter is a per-instance private-alpha safeguard. A provider-level/global abuse control is still required before public alpha.
+
+## Promotion from private pilot to public alpha
+
+Do not change either indexing variable until all live acceptance items pass, the encrypted off-host restore and web rollback are proven, the reviewed initial corpus is public, the policy/retention version and owners are approved, `SKILLMAP_SUPPORT_URL` is reachable, and the hosted pilot satisfies its mandatory workflow matrix. Record that decision against the exact deployment commit and IDs. Then set the exact pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`, redeploy, and verify page-level robots metadata, the absence of `X-Robots-Tag: noindex`, and `robots.txt` allowing `/`. Any mismatch returns the decision to `NO_GO` and the private pair.
 
 ## Rollback and incident response
 
-- Web-only defect: `vercel rollback <previous-deployment-url-or-id>`, verify the restored URL, then inspect the bad deployment logs.
+- Web-only defect: run the exact provider rollback command recorded before deployment against the prior immutable deployment ID, verify the restored origin, then inspect the bad deployment logs.
 - Pre-user database defect: delete and recreate the isolated alpha project, reapply the reviewed migration and seed, and repeat the restore and live gates.
 - Post-user database defect: stop invites and mutations, preserve evidence, export a backup, and forward-fix with a reviewed migration. Do not run an ad hoc destructive down migration.
 - OAuth compromise: disable the GitHub provider, rotate the GitHub client secret in Supabase, revoke affected sessions, and verify callbacks before re-enabling.
@@ -137,5 +157,5 @@ After every deployment or rehearsal:
 - stop local Supabase containers and temporary web servers
 - remove `/tmp/skillmap-alpha-database.types.ts` and unencrypted dumps
 - remove one-off cookies, test users, saved rows, and temporary OAuth credentials
-- confirm no unexpected Vercel Preview variables or Supabase exposed schemas remain
+- confirm no unexpected web-preview variables or database exposed schemas remain
 - record `validated locally`, `pushed`, `verified live`, `deployed`, and `blocked` as separate states

@@ -7,7 +7,7 @@ export function CatalogUnavailable({ compact = false }: { compact?: boolean }) {
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
         <div>
-          <h2 className="font-semibold text-foreground">Hosted catalog unavailable</h2>
+          <h1 className="font-semibold text-foreground">Hosted catalog unavailable</h1>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
             Supabase is not configured or cannot be reached in this environment. SkillMap has not substituted fixture data.
           </p>

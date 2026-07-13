@@ -5,10 +5,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
+  fetchGithubExactSourceFile,
   fetchGithubSkillTree,
   GithubSourceFetchError,
+  validateGithubImmutableCommit,
   validateGithubRef,
   validateGithubRepository,
+  validateGithubSourceFilePath,
   validateGithubSubtree
 } from '../dist/network/github-source-fetcher.js';
 
@@ -33,6 +36,46 @@ test('GitHub source coordinates reject ambiguous repositories, refs, and travers
   for (const subtree of ['', '../skill', '/absolute', 'skills\\demo', 'skills//demo', 'skills/./demo']) {
     assert.throws(() => validateGithubSubtree(subtree), errorCode('INVALID_SUBTREE'));
   }
+});
+
+test('exact source files are bounded to an immutable commit and verified Git blob identity', async () => {
+  const fixture = createExactFileFixture({ content: 'MIT License\n' });
+  const file = await fetchGithubExactSourceFile('owner/repo', COMMIT_A, 'LICENSE', {
+    transport: fixture.transport,
+    maxResponseBytes: 1024
+  });
+  assert.equal(file.repository, 'owner/repo');
+  assert.equal(file.resolvedCommit, COMMIT_A);
+  assert.equal(file.path, 'LICENSE');
+  assert.equal(Buffer.from(file.bytes).toString(), 'MIT License\n');
+  assert.match(file.contentDigest, /^sha256:[0-9a-f]{64}$/);
+  assert.deepEqual(fixture.rawUrls, [`https://raw.githubusercontent.com/owner/repo/${COMMIT_A}/LICENSE`]);
+  assert.equal(validateGithubImmutableCommit(COMMIT_A), COMMIT_A);
+  assert.equal(validateGithubSourceFilePath('licenses/COPYING.md'), 'licenses/COPYING.md');
+
+  let calls = 0;
+  for (const [commit, sourcePath, code] of [
+    ['main', 'LICENSE', 'INVALID_REF'],
+    [COMMIT_A, '../LICENSE', 'INVALID_SOURCE_PATH']
+  ]) {
+    await assert.rejects(fetchGithubExactSourceFile('owner/repo', commit, sourcePath, {
+      transport: async () => { calls += 1; return response(500); }
+    }), errorCode(code));
+  }
+  assert.equal(calls, 0);
+
+  const mismatchedCommit = createExactFileFixture({ content: 'MIT License\n', resolvedCommit: COMMIT_B });
+  await assert.rejects(
+    fetchGithubExactSourceFile('owner/repo', COMMIT_A, 'LICENSE', { transport: mismatchedCommit.transport }),
+    errorCode('SOURCE_CHANGED')
+  );
+  assert.equal(mismatchedCommit.rawUrls.length, 0);
+
+  const tampered = createExactFileFixture({ content: 'MIT License\n', rawContent: 'different bytes\n' });
+  await assert.rejects(
+    fetchGithubExactSourceFile('owner/repo', COMMIT_A, 'LICENSE', { transport: tampered.transport }),
+    errorCode('SOURCE_CHANGED')
+  );
 });
 
 test('mutable refs resolve once, raw reads remain commit-bound, full manifests detect added scripts, and concurrency is bounded', async () => {
@@ -334,6 +377,34 @@ function createFixtureTransport({
       } finally {
         activeRaw -= 1;
       }
+    }
+    return response(404, 'unknown fixture request');
+  };
+  return state;
+}
+
+function createExactFileFixture({ content, rawContent = content, resolvedCommit = COMMIT_A }) {
+  const declaredBytes = Buffer.from(content);
+  const rawBytes = Buffer.from(rawContent);
+  const state = { rawUrls: [] };
+  state.transport = async request => {
+    const target = new URL(request.url);
+    if (target.hostname === 'api.github.com' && target.pathname.includes('/commits/')) {
+      return jsonResponse({ sha: resolvedCommit, commit: { tree: { sha: ROOT_TREE } } }, request.url, false);
+    }
+    if (target.hostname === 'api.github.com' && target.pathname.endsWith(`/git/trees/${ROOT_TREE}`) && !target.search) {
+      return jsonResponse({
+        sha: ROOT_TREE,
+        truncated: false,
+        tree: [{
+          path: 'LICENSE', mode: '100644', type: 'blob',
+          sha: gitBlobSha(declaredBytes), size: declaredBytes.length
+        }]
+      }, request.url, false);
+    }
+    if (target.hostname === 'raw.githubusercontent.com') {
+      state.rawUrls.push(request.url);
+      return response(200, rawBytes);
     }
     return response(404, 'unknown fixture request');
   };
