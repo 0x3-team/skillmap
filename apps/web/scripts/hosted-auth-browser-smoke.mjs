@@ -274,6 +274,10 @@ try {
   await page.waitForURL(new URL("/", baseUrl).toString());
   const remainingAuthCookies = (await context.cookies()).filter((cookie) => /auth-token/i.test(cookie.name));
   if (remainingAuthCookies.length > 0) throw new Error("Sign-out left Supabase auth cookies in the browser context.");
+  smokeStage = "logout-landing-hydration";
+  const postLogoutCommandPalette = await openLandingCommandPalette(page);
+  await page.keyboard.press("Escape");
+  await postLogoutCommandPalette.waitFor({ state: "hidden" });
   smokeStage = "signed-out-account";
   const signedOutResponse = await gotoSettled(page, new URL("/account", baseUrl).toString());
   if (new URL(page.url()).pathname !== "/sign-in") throw new Error("Signed-out account access did not return to sign-in.");
@@ -354,6 +358,22 @@ async function waitForPageUrl(page, predicate) {
     await page.waitForTimeout(50);
   }
   throw new Error(`Timed out waiting for the saved-skill redirect (${page.url()}).`);
+}
+
+async function openLandingCommandPalette(page) {
+  const trigger = page.getByRole("button", { name: "Open command palette" });
+  const dialog = page.getByRole("dialog", { name: "Command palette" });
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await trigger.click({ timeout: 2_000 });
+      await dialog.waitFor({ timeout: 2_000 });
+      return dialog;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error("The signed-out landing page did not become interactive after navigation.", { cause: lastError });
 }
 
 function errorMessage(error) {

@@ -93,6 +93,22 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     assert.match(orchestrator, new RegExp(`"${browser}"`), `composed hosted gate omits ${browser}`);
   }
+  const authSmoke = readFileSync(path.join(repo, 'apps', 'web', 'scripts', 'hosted-auth-browser-smoke.mjs'), 'utf8');
+  const hydrationStage = authSmoke.indexOf('smokeStage = "logout-landing-hydration"');
+  const signedOutStage = authSmoke.indexOf('smokeStage = "signed-out-account"', hydrationStage);
+  assert.ok(hydrationStage >= 0 && signedOutStage > hydrationStage,
+    'authenticated smoke does not settle the post-logout client route before its signed-out redirect probe');
+  const postLogoutHydration = authSmoke.slice(hydrationStage, signedOutStage);
+  assert.match(postLogoutHydration, /openLandingCommandPalette\(page\)/,
+    'post-logout barrier does not prove the landing client bundle is interactive');
+  assert.match(authSmoke, /getByRole\("button", \{ name: "Open command palette" \}\)/,
+    'landing hydration probe does not exercise a client-only control');
+  assert.match(authSmoke, /getByRole\("dialog", \{ name: "Command palette" \}\)/,
+    'post-logout barrier does not observe the client-only interaction result');
+  assert.match(authSmoke, /for \(let attempt = 0; attempt < 5; attempt \+= 1\)/,
+    'landing hydration probe does not retry a pre-hydration click within a fixed bound');
+  assert.match(postLogoutHydration, /waitFor\(\{ state: "hidden" \}\)/,
+    'post-logout barrier leaves its client interaction unsettled before the next navigation');
   assert.doesNotMatch(orchestrator, /env:\s*\{\s*\.\.\.process\.env/s,
     'hosted web server inherits the operator/test process environment instead of an explicit public allowlist');
   assert.match(orchestrator, /startWebServer\("public-alpha", "public"\)/,
