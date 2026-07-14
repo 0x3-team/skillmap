@@ -82,17 +82,19 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260713060000_operator_submission_read_plane.sql` and `20260714010000_atomic_report_enforcement.sql`, plus every preceding migration, are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck, queue inspection relies on the read-plane RPCs, and report moderation relies on the final atomic enforcement and paired-cursor contracts. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
+Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, and `20260714030000_github_provider_rate_limit_deferral.sql`, plus every preceding migration, are applied to the target. The worker uses `api.peek_skill_submission_candidate` before its GitHub budget check, claims only that exact ID, unconditionally calls `api.renew_skill_submission_claim` after source phases, and uses `api.defer_skill_submission_provider_limit` for raced provider exhaustion. Publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck; queue inspection relies on the read-plane RPCs; report moderation relies on the final atomic enforcement and paired-cursor contracts. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise consume attempts during provider backpressure, fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
 
 Migration `20260713060000` creates its queue index inside the migration transaction. Apply it before accepting submissions. If the target is already populated, use a maintenance window and record the pre-migration row count plus index-build duration because the non-concurrent build can block writes. A second index for the default multi-state listing is deferred until target `EXPLAIN` output, queue growth, or measured latency justifies its write and storage cost.
 
 Migration `20260714010000` deliberately refuses a target containing any report already resolved by the legacy non-atomic RPC. Before applying it to such a target, pause report mutations and create a reviewed forward reconciliation migration that verifies every exact report target, enforces quarantine or revocation for confirmed reports, and retains the resulting evidence. Do not delete or rewrite the append-only audit history, and do not bypass this guard manually. A new or currently empty hosted alpha satisfies the guard directly.
 
+Migration `20260714030000` adds provider retry timing, a separate deferral counter, an exact read-only candidate peek, and an exact-claim deferral RPC. Normal insufficient GitHub core budget returns `provider-deferred` with `mutation: false`; a post-claim 403/429 or bounded secondary-limit response returns `mutation: true` only after the row is safely back in `queued`. Both paths preserve unauthenticated public/private verification and consume no audit attempt. Treat a requirement above the provider's total limit as an operator configuration error, not a retry loop.
+
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713060000 and 20260714010000 are present in both the local and remote columns.
+# Verify 20260713060000, 20260714010000, and 20260714030000 are present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
@@ -107,7 +109,7 @@ npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000` and `20260714010000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000`, `20260714010000`, and `20260714030000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -120,7 +122,7 @@ The web deployment receives only:
 - `SKILLMAP_INDEXING_MODE=private-alpha` until public acceptance
 - `SKILLMAP_SUPPORT_URL` only after the owner approves one reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
 
-The web guard is fixed at its reviewed private-alpha values; there are no web rate-limit tuning variables in this release. A provider-global limiter remains mandatory before public alpha.
+The web guard is fixed at its reviewed private-alpha values; there are no web rate-limit tuning variables in this release. Worker admission uses the reviewed unauthenticated GitHub core-budget gate and exact-claim provider deferral; neither setting is browser-configurable. A provider-global limiter remains mandatory before public alpha because worker backpressure does not replace public-ingress abuse control.
 
 The operator worker receives, from a root-only runtime secret source:
 

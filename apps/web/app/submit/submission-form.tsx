@@ -1,7 +1,7 @@
 "use client";
 
 import { unstable_rethrow } from "next/navigation";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, FileKey2 } from "lucide-react";
 import {
   submitSkill,
@@ -18,6 +18,12 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
   const errorFor = (field: SubmissionField) => validation?.status === "invalid" && validation.field === field ? validation.message : null;
   const describedBy = (field: SubmissionField) => `${field}-hint${errorFor(field) ? ` ${field}-error` : ""}`;
 
+  useEffect(() => {
+    if (!validation) return;
+    if (validation.status === "invalid") document.getElementById(validation.field)?.focus();
+    else noticeRef.current?.focus();
+  }, [validation]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -28,17 +34,12 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
       try {
         const result = await submitSkill(formData);
         setValidation(result);
-        window.requestAnimationFrame(() => {
-          if (result.status === "invalid") document.getElementById(result.field)?.focus();
-          else noticeRef.current?.focus();
-        });
       } catch (error) {
         unstable_rethrow(error);
         setValidation({
           status: "service-unavailable",
           message: "The request could not be confirmed. Your entries and request ID remain in this form so you can retry safely."
         });
-        window.requestAnimationFrame(() => noticeRef.current?.focus());
       } finally {
         setPending(false);
       }
@@ -57,7 +58,7 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
 
       {validation ? (
         <div ref={noticeRef} tabIndex={-1} className={`mt-5 rounded-xl border p-4 outline-none focus:ring-2 focus:ring-primary/30 ${validation.status === "invalid" ? "border-destructive/30 bg-destructive/10" : "border-warning/35 bg-warning/10"}`} role="alert" aria-live="polite">
-          <p className="font-semibold">{validation.status === "invalid" ? "Correct the highlighted field" : "Submission service unavailable"}</p>
+          <p className="font-semibold">{submissionNoticeTitle(validation.status)}</p>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">{validation.status === "invalid" ? "Your other entries and request ID remain in this form. No submission was created." : validation.message}</p>
         </div>
       ) : null}
@@ -113,6 +114,14 @@ export function SubmissionForm({ requestId }: { requestId: string }) {
       </div>
     </form>
   );
+}
+
+function submissionNoticeTitle(status: SubmissionActionState["status"]) {
+  if (status === "invalid") return "Correct the highlighted field";
+  if (status === "auth-unavailable") return "Authentication could not be verified";
+  if (status === "idempotency-conflict") return "Request ID already used";
+  if (status === "quota") return "Submission quota reached";
+  return "Submission service unavailable";
 }
 
 function Field({ field, label, hint, error, children }: { field: SubmissionField; label: string; hint: string; error: string | null; children: ReactNode }) {

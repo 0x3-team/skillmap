@@ -79,6 +79,7 @@ test('hosted audit worker rejects private and other non-public repository metada
 test('hosted audit worker rejects repository redirects and non-200 responses', async () => {
   for (const response of [
     { status: 301, headers: { location: 'https://api.github.com/repos/new/skills' }, body: Buffer.alloc(0) },
+    { status: 403, headers: { 'x-ratelimit-remaining': '42' }, body: Buffer.from('{"message":"Resource not accessible"}') },
     { status: 404, headers: {}, body: Buffer.from('{}') }
   ]) {
     await assert.rejects(
@@ -86,6 +87,46 @@ test('hosted audit worker rejects repository redirects and non-200 responses', a
       /redirect|requires an unauthenticated 200 response/i
     );
   }
+});
+
+test('hosted repository preflight classifies GitHub primary-rate-limit 403 without weakening public checks', async () => {
+  await assert.rejects(
+    assertPublicGithubRepository('example/skills', {
+      now: () => Date.parse('2026-07-14T03:00:00.000Z'),
+      transport: async () => ({
+        status: 403,
+        headers: {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': '1784001600'
+        },
+        body: Buffer.from('{"message":"API rate limit exceeded"}')
+      })
+    }),
+    error => {
+      assert.equal(error.code, 'RATE_LIMITED');
+      assert.equal(error.retryable, true);
+      assert.equal(error.statusCode, 403);
+      assert.equal(error.retryAfterMs, 3_600_000);
+      return true;
+    }
+  );
+
+  await assert.rejects(
+    assertPublicGithubRepository('example/skills', {
+      transport: async () => ({
+        status: 403,
+        headers: { 'x-ratelimit-remaining': '42' },
+        body: Buffer.from('{"message":"You have exceeded a secondary rate limit."}')
+      })
+    }),
+    error => {
+      assert.equal(error.code, 'RATE_LIMITED');
+      assert.equal(error.retryable, true);
+      assert.equal(error.statusCode, 403);
+      assert.equal(error.retryAfterMs, undefined);
+      return true;
+    }
+  );
 });
 
 test('hosted audit worker cannot opt content fetching into GitHub authorization', async () => {

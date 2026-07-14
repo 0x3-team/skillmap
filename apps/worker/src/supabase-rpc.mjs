@@ -1,5 +1,7 @@
 const ALLOWED_RPC = new Set([
+  'peek_skill_submission_candidate',
   'claim_skill_submission',
+  'defer_skill_submission_provider_limit',
   'renew_skill_submission_claim',
   'complete_skill_submission',
   'requeue_skill_submission',

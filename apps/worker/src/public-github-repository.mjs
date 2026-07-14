@@ -1,5 +1,8 @@
 import { TextDecoder } from 'node:util';
 import {
+  GithubSourceFetchError,
+  githubRateLimitRetryAfterMs,
+  isGithubRateLimitResponse,
   nodeHttpsGithubTransport,
   validateGithubRepository
 } from '../../../dist/network/github-source-fetcher.js';
@@ -27,6 +30,8 @@ export async function assertPublicGithubRepository(repository, options = {}) {
   );
   const transport = options.transport ?? nodeHttpsGithubTransport;
   if (typeof transport !== 'function') throw new Error('GitHub visibility transport must be a function.');
+  const now = options.now ?? Date.now;
+  if (typeof now !== 'function') throw new Error('GitHub visibility clock must be a function.');
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -45,7 +50,8 @@ export async function assertPublicGithubRepository(repository, options = {}) {
       signal: controller.signal,
       maxResponseBytes
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof GithubSourceFetchError) throw error;
     if (controller.signal.aborted) throw new Error('GitHub repository visibility preflight timed out.');
     throw new Error('GitHub repository visibility preflight failed.');
   } finally {
@@ -58,6 +64,17 @@ export async function assertPublicGithubRepository(repository, options = {}) {
   }
   if (status >= 300 && status < 400) {
     throw new Error('GitHub repository visibility preflight rejected a redirect. Submit the canonical public OWNER/REPO.');
+  }
+  if (isGithubRateLimitResponse(status, response.headers ?? {}, response.body)) {
+    throw new GithubSourceFetchError(
+      'RATE_LIMITED',
+      'GitHub repository visibility preflight was rate limited.',
+      {
+        retryable: true,
+        statusCode: status,
+        retryAfterMs: githubRateLimitRetryAfterMs(response.headers ?? {}, now())
+      }
+    );
   }
   if (status !== 200) {
     throw new Error(`GitHub repository visibility preflight requires an unauthenticated 200 response; received ${status}.`);

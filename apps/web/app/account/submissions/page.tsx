@@ -183,6 +183,7 @@ function SubmissionCard({ submission, publicRoute }: { submission: SubmissionPro
       <EvidenceSnapshot submission={submission} publicLinks={publicLinks} />
       <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />Queued {formatDate(submission.createdAt)}</span>
+        {submission.updatedAt !== submission.createdAt ? <span className="inline-flex items-center gap-1.5"><RotateCcw className="h-3.5 w-3.5" />Updated {formatDate(submission.updatedAt)}</span> : null}
         {submission.claimedAt ? <span className="inline-flex items-center gap-1.5"><GitCommitHorizontal className="h-3.5 w-3.5" />Claimed {formatDate(submission.claimedAt)}</span> : null}
         {submission.completedAt ? <span className="inline-flex items-center gap-1.5"><RotateCcw className="h-3.5 w-3.5" />Closed {formatDate(submission.completedAt)}</span> : null}
       </div>

@@ -222,6 +222,9 @@ test("submission server action mints attestations only after acknowledgement val
   assert.match(source, /untrusted_processing_accepted:\s*true/);
   assert.doesNotMatch(source, /submitter_user_id\s*:/);
   assert.doesNotMatch(source, /\bstate\s*:\s*"(?:queued|processing|withdrawn)"/);
+  assert.match(source, /if \(error[.]code === "P0001"\) \{\s*return \{\s*status: "quota"/);
+  assert.doesNotMatch(source, /if \(error[.]code === "P0001"\) redirect/);
+  assert.match(source, /context[.]state === "unavailable"[\s\S]*status: "auth-unavailable"/);
   assert.match(formSource, /event[.]preventDefault\(\)/);
   assert.match(formSource, /new FormData\(form\)/);
   assert.match(formSource, /setValidation\(result\)/);
@@ -232,6 +235,8 @@ test("submission server action mints attestations only after acknowledgement val
   assert.match(formSource, /noticeRef[.]current[?][.]focus\(\)/);
   assert.match(formSource, /Your other entries and request ID remain in this form/);
   assert.match(formSource, /Your entries and request ID remain in this form so you can retry safely/);
+  assert.match(formSource, /Submission quota reached/);
+  assert.match(formSource, /Authentication could not be verified/);
   assert.match(formSource, /value=\{requestId\}/);
   assert.match(formSource, /aria-invalid=\{Boolean\(errorFor\("sourcePath"\)\)\}/);
 });
@@ -284,6 +289,7 @@ test("hosted product surfaces expose truthful trust, route, auth, and semantic e
   assert.match(submissions, /View published listing/);
   assert.match(submissions, /View audit evidence/);
   assert.match(submissions, /View grade evidence/);
+  assert.match(submissions, /Updated \{formatDate\(submission[.]updatedAt\)\}/);
   assert.match(reports, /buildCurrentPublicSkillLinks/);
   assert.match(reports, /View reported listing/);
   assert.match(evidence, /Every gate must pass before this version can receive a current letter grade/);
@@ -394,6 +400,8 @@ test("account submission mutation and export stay owner-filtered and bounded", a
   assert.match(submitPage, /Open submission history/);
   assert.doesNotMatch(submitPage, /That exact source is already in your queue/);
   assert.match(launchSmoke, /smokeStage = "terminal-submission-duplicate"/);
+  assert.match(launchSmoke, /smokeStage = "submission-server-quota-failure"/);
+  assert.match(launchSmoke, /quotaFailureInsertedRows: 0/);
   assert.match(launchSmoke, /url[.]searchParams[.]get\("submission"\) === withdrawalId/);
   assert.match(launchSmoke, /A terminal duplicate was mislabeled as still queued/);
   assert.match(submissionsPage, /data[.]state === status/);

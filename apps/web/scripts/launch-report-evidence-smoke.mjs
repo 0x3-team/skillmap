@@ -83,10 +83,13 @@ try {
   smokeStage = "synthetic-account-setup";
   const primary = await createSyntheticUser("primary");
   const secondary = await createSyntheticUser("secondary");
+  const quota = await createSyntheticUser("quota");
   const primaryContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   const secondaryContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+  const quotaContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   await primaryContext.addCookies(toBrowserCookies(primary.cookies));
   await secondaryContext.addCookies(toBrowserCookies(secondary.cookies));
+  await quotaContext.addCookies(toBrowserCookies(quota.cookies));
 
   const page = await primaryContext.newPage();
   page.setDefaultTimeout(20_000);
@@ -160,6 +163,103 @@ try {
   } finally {
     await transportPage.close();
   }
+
+  smokeStage = "submission-server-quota-failure";
+  const quotaFixturePaths = [];
+  for (let index = 0; index < 3; index += 1) {
+    const idempotencyKey = crypto.randomUUID();
+    const sourcePath = `skills/quota-${index}/SKILL.md`;
+    quotaFixturePaths.push(sourcePath);
+    const { error: quotaFixtureError } = await quota.client.from("skill_submissions").insert({
+      repository_url: syntheticRepositoryUrl,
+      source_commit: `${index + 1}`.repeat(40),
+      source_path: sourcePath,
+      version_label: `quota-${marker}-${index}`,
+      license_claim: "MIT",
+      idempotency_key: idempotencyKey,
+      submission_policy_version: "public-alpha-draft/v1",
+      authority_confirmed: true,
+      untrusted_processing_accepted: true
+    });
+    if (quotaFixtureError) throw quotaFixtureError;
+  }
+  const quotaPage = await quotaContext.newPage();
+  try {
+    const quotaCommit = "d".repeat(40);
+    const quotaPath = "skills/quota-target/SKILL.md";
+    const quotaVersion = `quota-target-${marker}`;
+    await quotaPage.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
+    await quotaPage.getByLabel("Public GitHub repository URL").fill(syntheticRepositoryUrl);
+    await quotaPage.getByLabel("Exact commit").fill(quotaCommit);
+    await quotaPage.getByLabel("Relative skill path").fill(quotaPath);
+    await quotaPage.getByLabel("Version label").fill(quotaVersion);
+    await quotaPage.getByLabel("License claim").selectOption("MIT");
+    await quotaPage.locator("#authorizationAcknowledgement").check();
+    await quotaPage.locator("#untrustedContentAcknowledgement").check();
+    const quotaRequestId = await quotaPage.getByLabel("Request ID").inputValue();
+    await submitForm(quotaPage.getByRole("button", { name: "Queue submission" }));
+    const quotaAlert = quotaPage.getByRole("alert").filter({ hasText: "Submission quota reached" });
+    await quotaAlert.getByText("Submission quota reached", { exact: true }).waitFor();
+    await quotaPage.waitForFunction(() => document.activeElement?.getAttribute("role") === "alert");
+    const quotaPreserved = {
+      repository: await quotaPage.getByLabel("Public GitHub repository URL").inputValue(),
+      commit: await quotaPage.getByLabel("Exact commit").inputValue(),
+      path: await quotaPage.getByLabel("Relative skill path").inputValue(),
+      version: await quotaPage.getByLabel("Version label").inputValue(),
+      license: await quotaPage.getByLabel("License claim").inputValue(),
+      requestId: await quotaPage.getByLabel("Request ID").inputValue(),
+      authority: await quotaPage.locator("#authorizationAcknowledgement").isChecked(),
+      untrusted: await quotaPage.locator("#untrustedContentAcknowledgement").isChecked(),
+      alertFocused: await quotaAlert.evaluate((element) => element === document.activeElement)
+    };
+    const { count: quotaTargetCount, error: quotaTargetError } = await quota.client
+      .from("my_skill_submissions")
+      .select("submission_id", { count: "exact", head: true })
+      .eq("repository_url", syntheticRepositoryUrl)
+      .eq("source_commit", quotaCommit)
+      .eq("source_path", quotaPath);
+    if (quotaTargetError) throw quotaTargetError;
+    if (quotaPreserved.repository !== syntheticRepositoryUrl
+      || quotaPreserved.commit !== quotaCommit
+      || quotaPreserved.path !== quotaPath
+      || quotaPreserved.version !== quotaVersion
+      || quotaPreserved.license !== "MIT"
+      || quotaPreserved.requestId !== quotaRequestId
+      || !quotaPreserved.authority
+      || !quotaPreserved.untrusted
+      || !quotaPreserved.alertFocused
+      || await quotaPage.getByRole("button", { name: "Queue submission" }).isDisabled()
+      || quotaTargetCount !== 0) {
+      throw new Error(`Server quota failure did not preserve a retryable zero-insert form (${JSON.stringify({ quotaPreserved, quotaTargetCount })}).`);
+    }
+  } finally {
+    await quotaPage.close();
+  }
+  const { data: quotaFixtureRows, error: quotaFixtureLookupError } = await quota.client
+    .from("my_skill_submissions")
+    .select("submission_id,source_path,state")
+    .eq("repository_url", syntheticRepositoryUrl)
+    .in("source_path", quotaFixturePaths);
+  if (quotaFixtureLookupError || !Array.isArray(quotaFixtureRows) || quotaFixtureRows.length !== 3
+    || quotaFixtureRows.some((row) => row.state !== "queued" || !quotaFixturePaths.includes(row.source_path))) {
+    throw quotaFixtureLookupError ?? new Error("Quota fixtures were not exactly owner-visible and queued before cleanup.");
+  }
+  const quotaFixtureIds = quotaFixtureRows.map((row) => row.submission_id);
+  const { error: quotaCleanupError } = await quota.client
+    .from("skill_submissions")
+    .update({ state: "withdrawn" })
+    .eq("state", "queued")
+    .in("public_id", quotaFixtureIds);
+  if (quotaCleanupError) throw quotaCleanupError;
+  const { data: withdrawnQuotaRows, error: quotaCleanupVerificationError } = await quota.client
+    .from("my_skill_submissions")
+    .select("submission_id,state")
+    .in("submission_id", quotaFixtureIds);
+  if (quotaCleanupVerificationError || !Array.isArray(withdrawnQuotaRows) || withdrawnQuotaRows.length !== 3
+    || withdrawnQuotaRows.some((row) => row.state !== "withdrawn")) {
+    throw quotaCleanupVerificationError ?? new Error("Quota fixtures were not safely withdrawn after the recovery test.");
+  }
+  await quotaContext.close();
 
   smokeStage = "submission-invalid-field";
   await page.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
@@ -311,6 +411,7 @@ try {
   await page.goto(new URL("/account/submissions", baseUrl).toString(), { waitUntil: "load" });
   const publishedResult = page.getByRole("navigation", { name: "Published submission result" });
   await publishedResult.getByRole("link", { name: "View published listing" }).waitFor();
+  await page.getByText(/^Updated /).first().waitFor();
   if (await publishedResult.getByRole("link", { name: "View published listing" }).getAttribute("href") !== receiptDetailPath
     || await publishedResult.getByRole("link", { name: "View audit evidence" }).getAttribute("href") !== `${receiptDetailPath}/audit`
     || await publishedResult.getByRole("link", { name: "View grade evidence" }).getAttribute("href") !== `${receiptDetailPath}/grade`) {
@@ -531,7 +632,7 @@ try {
   if (diagnostics.length) throw new Error(`Authenticated browser diagnostics:\n${diagnostics.join("\n")}`);
   passReceipt = {
     result: "pass",
-    submissionValidation: { fieldLocal: true, valuesPreserved: true, transportFailurePreserved: true, invalidRows: 0, correctedRows: 1, responsive: "390px" },
+    submissionValidation: { fieldLocal: true, valuesPreserved: true, transportFailurePreserved: true, serverQuotaFailurePreserved: true, quotaFailureInsertedRows: 0, invalidRows: 0, correctedRows: 1, responsive: "390px" },
     submissionWithdrawal: { submissionId: withdrawalId, ownerState: "withdrawn", secondAccountIsolated: true },
     forgedPositiveNotices: "rejected",
     publicEvidence: {

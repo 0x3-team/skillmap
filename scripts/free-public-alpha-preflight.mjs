@@ -116,7 +116,10 @@ function staticGates(requireClean) {
   const authorityCompletionMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713050000_submission_authority_completion.sql'), 'utf8');
   const operatorReadMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713060000_operator_submission_read_plane.sql'), 'utf8');
   const launchReadinessMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714010000_atomic_report_enforcement.sql'), 'utf8');
+  const providerDeferralMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714030000_github_provider_rate_limit_deferral.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
+  const providerGateSource = readFileSync(path.join(repo, 'apps/worker/src/github-provider-gate.mjs'), 'utf8');
+  const githubFetcherSource = readFileSync(path.join(repo, 'src/network/github-source-fetcher.ts'), 'utf8');
   const authorizationSource = readFileSync(path.join(repo, 'apps/worker/src/authorization.mjs'), 'utf8');
   const submissionQueueSource = readFileSync(path.join(repo, 'apps/worker/src/submission-queue.mjs'), 'utf8');
   const submissionDetailSource = readFileSync(path.join(repo, 'apps/worker/src/submission-detail.mjs'), 'utf8');
@@ -195,6 +198,19 @@ function staticGates(requireClean) {
     && /'sourceReportId', report_row\.public_id/i.test(launchReadinessMigration)
     && /create function api\.list_skill_report_queue\s*\([\s\S]+p_after_created_at timestamptz[\s\S]+p_after_report_id text/i.test(launchReadinessMigration)
     && /\(report\.created_at, report\.public_id\) > \(p_after_created_at, p_after_report_id\)/i.test(launchReadinessMigration)
+    && /create function api\.peek_skill_submission_candidate\s*\(/i.test(providerDeferralMigration)
+    && /create function api\.defer_skill_submission_provider_limit\s*\(/i.test(providerDeferralMigration)
+    && /provider_retry_after_at is null[\s\S]+provider_retry_after_at <= clock_timestamp\(\)/i.test(providerDeferralMigration)
+    && /attempt_count = submission\.attempt_count - 1/i.test(providerDeferralMigration)
+    && /grant execute on function api\.peek_skill_submission_candidate\(text\) to service_role/i.test(providerDeferralMigration)
+    && /grant execute on function api\.defer_skill_submission_provider_limit\(text, uuid, text, integer, text\)[\s\S]+to service_role/i.test(providerDeferralMigration)
+    && /prepareGithubBudgetedClaim/.test(workerSource)
+    && /isGithubProviderRateLimitError\(error\)/.test(workerSource)
+    && /deferGithubRateLimitedClaim/.test(workerSource)
+    && /CORE_REQUEST_RESERVE = 2/.test(providerGateSource)
+    && /requiredCoreRequests > status\.limit/.test(providerGateSource)
+    && /result: 'provider-deferred'[\s\S]+mutation: false[\s\S]+github-rate-inspection/.test(providerGateSource)
+    && /secondary rate limits/.test(githubFetcherSource)
     && /rpc\.call\('get_skill_submission_queue_summary'/.test(submissionQueueSource)
     && /rpc\.call\('list_skill_submission_operator_queue'/.test(submissionQueueSource)
     && /p_after_updated_at: options\.afterUpdatedAt/.test(submissionQueueSource)
@@ -217,12 +233,14 @@ function staticGates(requireClean) {
     && /'list_skill_submission_collisions'/.test(rpcSource)
     && /'review_skill_submission_collisions'/.test(rpcSource)
     && /'record_skill_submission_license_evidence'/.test(rpcSource)
-    && /'record_skill_submission_publisher_authorization'/.test(rpcSource);
+    && /'record_skill_submission_publisher_authorization'/.test(rpcSource)
+    && /'peek_skill_submission_candidate'/.test(rpcSource)
+    && /'defer_skill_submission_provider_limit'/.test(rpcSource);
   gates.push({
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker mutation authority, atomic report enforcement, cursor-safe operator queues, and the redacted operations plane are source-bound through migration 20260714010000; applying and verifying every migration remains a database gate before worker start.'
+      ? 'Worker mutation authority, atomic report enforcement, cursor-safe operator queues, provider backpressure deferral, and the redacted operations plane are source-bound through migration 20260714030000; applying and verifying every migration remains a database gate before worker start.'
       : 'Worker mutation authority or the redacted operator read plane is not bound to every required migration, RPC, service-role grant, and privacy exclusion.'
   });
 
