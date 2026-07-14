@@ -583,7 +583,12 @@ test("report action and public evidence pages preserve database authority bounda
   const smoke = await readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8");
   assert.match(smoke, /rpc\("claim_skill_submission"/);
   assert.match(smoke, /rpc\("complete_skill_submission"/);
-  assert.match(smoke, /rpc\("publish_skill_submission"/);
+  assert.match(smoke, /const published = await runDualControlledBusinessRpc\(\{\s*actionKind: "submission[.]publish",[\s\S]*?rpcName: "publish_skill_submission",\s*rpcParameters: publicationParameters,\s*label: "publication"\s*\}\);/);
+  assert.match(smoke, /const serviceOnlyOutcome = await admin[.]rpc\(rpcName, rpcParameters\);\s*assertOperatorCredentialCanariesAbsent\(serviceOnlyOutcome, `\$\{label\} service-role denial`\);\s*assertPermissionDenied\(serviceOnlyOutcome, `\$\{label\} service-role-only call`\);/);
+  assert.match(smoke, /const approvalOutcome = await approver[.]rpc\("approve_operator_action"/);
+  assert.match(smoke, /const executor = createOperatorClient\(operatorAuthority[.]executor[.]credential, approval[.]approval_id\);\s*const executionOutcome = await executor[.]rpc\(rpcName, rpcParameters\);/);
+  assert.match(smoke, /assertCompleteDualControlEvidence\(dualControlEvidence\)/);
+  assert.doesNotMatch(smoke, /admin[.]rpc\("publish_skill_submission"/);
   assert.match(smoke, /receiptDetailPath}\/audit/);
   assert.match(smoke, /receiptDetailPath}\/grade/);
   assert.match(smoke, /Public audit page exposed the private evidence digest/);
