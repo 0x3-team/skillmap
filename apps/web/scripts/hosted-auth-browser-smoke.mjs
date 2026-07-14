@@ -208,8 +208,7 @@ try {
 
   smokeStage = "save-detail";
   await gotoSettled(page, new URL("/skills/0x3-team/skill-audit", baseUrl).toString());
-  await page.getByRole("button", { name: "Save skill" }).waitFor();
-  await page.locator('form[action="/account/saved/action"]').evaluate((form) => form.requestSubmit());
+  await page.getByRole("button", { name: "Save skill" }).click();
   await waitForPageUrl(page, (url) => url.pathname === "/skills/0x3-team/skill-audit" && /^[0-9a-f-]{36}$/.test(url.searchParams.get("saveFlash") ?? ""));
   await page.getByText("Skill saved", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Remove from saved" }).waitFor();

@@ -4,7 +4,7 @@ This directory is the constrained Node worker boundary for hosted source ingesti
 
 ## Hard database preflight
 
-Do not start a worker or service-role operator command until `20260713060000_operator_submission_read_plane.sql` and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, generated `api` type parity, and the web application typecheck. The raw `database.types.ts` stays byte-exact for generator comparison; `database.runtime.types.ts` corrects nullable return fields for only the three operator `RETURNS TABLE` RPCs. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority, while list/inspect require the final read-plane migration. Operator-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
+Do not start a worker or service-role operator command until `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, generated `api` type parity, and the web application typecheck. The raw `database.types.ts` stays byte-exact for generator comparison; `database.runtime.types.ts` corrects nullable return fields for only the three operator `RETURNS TABLE` RPCs. `process-once` unconditionally renews its claim through `api.renew_skill_submission_claim`; publication requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority. Report confirmation requires one atomic exact-version quarantine or revocation, and both operator queues use paired cursors. The atomic-enforcement migration fails closed if the target contains legacy resolved reports; reconcile those exact targets through a reviewed forward migration instead of bypassing the guard. Operator-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
 
 The first executable slice is a non-mutating exact-commit audit rehearsal:
 
@@ -131,13 +131,17 @@ npm run hosted:catalog:lifecycle -- \
   --action quarantine-version --reason-code security-review \
   --operation-id 00000000-0000-4000-8000-000000000000
 
-# Read the oldest queued report IDs through a bounded service-only projection,
-# then resolve one with a bounded public reply.
+# Read queued report IDs through a bounded paired-cursor service projection,
+# then resolve one with a bounded public reply and atomic exact-target action.
 npm run hosted:reports:queue -- --execute --limit 20
 npm run hosted:reports:disposition -- \
   --execute --report-id rpt_... --disposition confirmed \
   --reason-code listing-quarantined --public-message "The version was quarantined for review." \
+  --lifecycle-action quarantine-version \
   --operation-id 00000000-0000-4000-8000-000000000000
+
+# Emit one identifier-free readiness receipt; exit 2 means alerts are active.
+npm run hosted:operations:check -- --execute
 ```
 
 `hosted:queue:list` returns one aggregate snapshot plus at most the requested number of deterministic least-recently-updated rows. Supported exact state filters are `queued`, `processing`, `changes-requested`, `rejected`, `failed`, `accepted`, `published`, and `withdrawn`. Its `nextCursor.updatedAt` and `nextCursor.submissionId` values map directly to the paired cursor options above. Resume only with the same state filter. This is a best-effort live cursor, not an MVCC snapshot, CDC feed, exhaustive scan, or at-least-once delivery contract. A later update can replay a submission, and a transaction that began before the current page can commit behind its cursor. Deduplicate by submission ID plus `updated_at`; after reaching the end, restart once from no cursor and reconcile the IDs, timestamps, and summary counts before treating an operating pass as complete. `hosted:queue:inspect` returns exactly one submission plus bounded audit, grade, review, worker, transition, license-evidence metadata, collision-review, and publisher-authorization projections. Neither command exposes submitter or actor account IDs, internal claim IDs, private evidence digests, raw skill or license contents, or unrestricted history.

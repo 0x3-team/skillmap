@@ -37,7 +37,8 @@ The web deployment receives only:
 - `SKILLMAP_RELEASE_STAGE=private-alpha`
 - `SKILLMAP_INDEXING_MODE=private-alpha`
 - `SKILLMAP_SUPPORT_URL` only after the owner approves a reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
-- optional bounded rate-limit tuning values documented by the application
+
+The web process uses the reviewed fixed private-alpha per-instance catalog-read guard (60 requests per 60 seconds and at most 5,000 live keys). It has no environment tuning surface in this release and does not replace the required provider-global public-alpha limiter.
 
 The GitHub OAuth client secret belongs only in Supabase Auth. Store database and backup credentials in the operator password manager and a root-only runtime secret file when automation is approved.
 
@@ -115,6 +116,7 @@ Free Supabase has no managed backup guarantee and may pause after inactivity. An
 Capture evidence against the exact deployment commit:
 
 - `/`, `/skills`, and each first-party detail return expected content with no fixture fallback
+- `/api/v1/health` returns the identifier-free `skillmap-health/v1` readiness projection, uses `503` for incomplete hosted configuration, and carries browser/CDN no-store headers
 - `/api/v1/skills` returns a contract-valid list, rejects malformed cursor/limit input, emits no-store headers, and returns `429` plus `Retry-After` when the alpha limit is exceeded
 - `robots.txt`, metadata, and `X-Robots-Tag` block indexing during private alpha
 - CSP uses a per-request nonce, keeps stylesheet elements nonce-restricted, permits inline style attributes only for the reviewed React/Motion UI boundary, and forbids framing, objects, and foreign base URLs
@@ -126,7 +128,7 @@ Capture evidence against the exact deployment commit:
 - an author can submit an authorized public GitHub `SKILL.md` at one immutable full commit; an invalid path preserves the safe form values and creates no row
 - the server-only worker can claim the exact queued row, fetch inert bounded source bytes, emit audit and provisional-grade receipts, and never expose its service credential to the web process
 - an operator can review and publish the receipt-bound metadata; the public detail, audit, and grade routes show the exact current version, findings, safe reason codes, and a visibly letterless provisional score
-- a second account can submit a suspicious-listing report, see only its own immutable report history, and receive a bounded operator disposition without directly changing catalog state
+- a second account can submit a suspicious-listing report and see only its own immutable report history; a no-action disposition leaves catalog state unchanged, while a confirmed disposition atomically quarantines or revokes the exact reported version and retains its original enforcement outcome for replay
 - deprecate, quarantine, revoke, and receipt-backed restore actions preserve public lifecycle history and cannot be performed by the browser or ordinary authenticated role
 - withdrawing a queued owner submission works, and deleting an account removes its private rows plus any derived public projection covered by the deletion contract
 - auth cookies are `Secure`, `HttpOnly`, and appropriately `SameSite`

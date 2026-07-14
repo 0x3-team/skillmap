@@ -89,7 +89,15 @@ function validateResult(result, options) {
     || !['published', 'deprecated'].includes(row.skill_lifecycle_state)
     || typeof row.skill_revoked !== 'boolean'
     || (row.version_quarantined !== null && typeof row.version_quarantined !== 'boolean')
-    || (row.version_revoked !== null && typeof row.version_revoked !== 'boolean')) {
+    || (row.version_revoked !== null && typeof row.version_revoked !== 'boolean')
+    || (options.action === 'deprecate-skill' && row.skill_lifecycle_state !== 'deprecated')
+    || (options.action === 'revoke-skill' && row.skill_revoked !== true)
+    || (options.action === 'restore-skill'
+      && (row.skill_lifecycle_state !== 'published' || row.skill_revoked !== false))
+    || (options.action === 'quarantine-version' && row.version_quarantined !== true)
+    || (options.action === 'revoke-version' && row.version_revoked !== true)
+    || (options.action === 'restore-version'
+      && (row.version_quarantined !== false || row.version_revoked !== false))) {
     throw new Error('Catalog lifecycle RPC returned an invalid lifecycle projection.');
   }
 }

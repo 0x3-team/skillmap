@@ -743,6 +743,40 @@ test("release stage and public indexing fail closed and require two exact public
   assert.equal(publicHeaders["Strict-Transport-Security"], undefined);
 });
 
+test("public health route is identifier-free, fail-closed, and explicitly no-store", async () => {
+  const [route, projection] = await Promise.all([
+    readFile(new URL("../app/api/v1/health/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/operations/health.ts", import.meta.url), "utf8")
+  ]);
+  assert.match(route, /export const dynamic = "force-dynamic"/);
+  assert.match(route, /export const revalidate = 0/);
+  assert.match(route, /"Cache-Control": "no-store, max-age=0"/);
+  assert.match(route, /"CDN-Cache-Control": "no-store"/);
+  assert.match(route, /"Vercel-CDN-Cache-Control": "no-store"/);
+  assert.match(route, /health[.]status === "ready" \? 200 : 503/);
+  assert.match(projection, /getPublicSupabaseConfig\(environment\)/);
+  assert.match(projection, /getApprovedSupportUrl\(environment\)/);
+  assert.match(projection, /isPublicIndexingEnabled\(environment\)/);
+  assert.doesNotMatch(projection, /userId|accountId|email|queueCount|errorMessage/);
+
+  assert.deepEqual(getPublicSupabaseConfig({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key"
+  }), {
+    url: "https://project.supabase.co",
+    publishableKey: "test-publishable-key"
+  });
+  assert.match(
+    await readFile(new URL("../lib/supabase/config.ts", import.meta.url), "utf8"),
+    /process[.]env[.]NEXT_PUBLIC_SUPABASE_URL/
+  );
+  assert.equal(getSiteUrl({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SITE_URL: "https://skillmap.example"
+  }), "https://skillmap.example");
+});
+
 test("nonce CSP is strict, environment-aware, and rejects malformed sources", () => {
   const nonce = "bm9uY2UtZm9yLXRlc3Rz";
   const production = buildContentSecurityPolicy({

@@ -34,6 +34,22 @@ const nonce = contentSecurityPolicy.match(/'nonce-([^']+)'/)?.[1];
 assert.equal(typeof nonce, "string");
 assert.match(landingHtml, new RegExp(`nonce=["']${escapeRegExp(nonce)}["']`));
 
+const health = await getJson("/api/v1/health", 200);
+assert.deepEqual(Object.keys(health.body).sort(), ["checks", "releaseStage", "schemaVersion", "status"]);
+assert.equal(health.body.schemaVersion, "skillmap-health/v1");
+assert.equal(health.body.status, "ready");
+assert.equal(health.body.releaseStage, "private-alpha");
+assert.deepEqual(health.body.checks, {
+  application: "ok",
+  publicConfiguration: "ok",
+  support: "ok",
+  indexing: "not-required"
+});
+assert.match(health.headers.get("cache-control") ?? "", /no-store/);
+assert.equal(health.headers.get("cdn-cache-control"), "no-store");
+assert.equal(health.headers.get("vercel-cdn-cache-control"), "no-store");
+assert.doesNotMatch(JSON.stringify(health.body), /user|account|email|queue|count|error/i);
+
 const robotsResponse = await smokeFetch(`${baseUrl}/robots.txt`, { cache: "no-store" });
 assert.equal(robotsResponse.status, 200);
 assert.match(await robotsResponse.text(), /^Disallow: \/$/m);

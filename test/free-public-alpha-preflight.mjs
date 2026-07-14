@@ -43,6 +43,7 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /20260713020000_backend_completion_hardening\.sql/);
   assert.match(source, /20260713050000_submission_authority_completion\.sql/);
   assert.match(source, /20260713060000_operator_submission_read_plane\.sql/);
+  assert.match(source, /20260714010000_atomic_report_enforcement\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
   assert.match(source, /dead_letter_expired_skill_submission/);
   assert.match(source, /list_skill_submission_collisions/);
@@ -52,6 +53,12 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /get_skill_submission_queue_summary/);
   assert.match(source, /list_skill_submission_operator_queue/);
   assert.match(source, /get_skill_submission_operator_detail/);
+  assert.match(source, /disposition_skill_report/);
+  assert.match(source, /p_lifecycle_action/);
+  assert.match(source, /list_skill_report_queue/);
+  assert.match(source, /p_after_created_at/);
+  assert.match(source, /skillmap-hosted-operations-check/);
+  assert.match(source, /Cache-Control/);
   assert.match(source, /p_after_updated_at/);
   assert.match(source, /best-effort-live-by-updated-at-restart-required/);
   assert.match(source, /reconciliationRequired: true/);

@@ -72,8 +72,13 @@ try {
   });
   const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
   if (signInError || !signedIn.user) throw signInError ?? new Error("Hosted frontend QA user was not authenticated.");
-  const { error: profileError } = await auth.from("profiles").insert({ user_id: signedIn.user.id });
+  const { error: profileError } = await auth.from("profiles").insert({
+    user_id: signedIn.user.id
+  });
   if (profileError) throw profileError;
+  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+    `update api.profiles set created_at = '2026-07-13T00:00:00.000Z' where user_id = '${signedIn.user.id}'::uuid`
+  ], { stdio: ["ignore", "ignore", "pipe"] });
 
   browser = await chromium.launch({ headless: true });
   browserVersion = browser.version();
@@ -119,6 +124,8 @@ try {
     { name: "catalog-compact-320", path: "/skills", viewport: { width: 320, height: 760 }, heading: "Inspect the evidence before the instruction body." },
     { name: "catalog-mobile-390", path: "/skills", viewport: { width: 390, height: 844 }, heading: "Inspect the evidence before the instruction body." },
     { name: "detail-desktop", path: "/skills/0x3-team/skill-audit", viewport: { width: 1440, height: 1000 }, heading: "Skill Audit" },
+    { name: "detail-compact-320", path: "/skills/0x3-team/skill-audit", viewport: { width: 320, height: 760 }, heading: "Skill Audit" },
+    { name: "detail-mobile-390", path: "/skills/0x3-team/skill-audit", viewport: { width: 390, height: 844 }, heading: "Skill Audit" },
     { name: "audit-mobile", path: "/skills/0x3-team/skill-audit/audit", viewport: { width: 390, height: 844 }, heading: "Skill Audit audit evidence" },
     { name: "grade-mobile", path: "/skills/0x3-team/skill-audit/grade", viewport: { width: 390, height: 844 }, heading: "Skill Audit grade evidence" },
     { name: "account-empty-desktop", path: "/account", viewport: { width: 1280, height: 900 }, heading: "Your saved skills" },
@@ -133,6 +140,9 @@ try {
     await page.getByRole("heading", { level: 1, name: visualCase.heading }).waitFor();
     if (visualCase.path.includes("#report-listing")) await page.getByRole("heading", { name: "Report a suspicious listing" }).scrollIntoViewIfNeeded();
     await assertPageSemantics(page, visualCase.name);
+    if (visualCase.name === "detail-compact-320" || visualCase.name === "detail-mobile-390") {
+      await assertMobileSkillActionOrder(page, visualCase.name);
+    }
     await normalizeVisualState(page);
     visuals.push(await captureVisual(page, visualCase.name));
   }
@@ -240,7 +250,7 @@ await writeFile(path.join(artifactDir, "hosted-frontend-qa.json"), `${JSON.strin
   schemaVersion: "skillmap-hosted-frontend-qa/v1",
   status: failure ? "failed" : "passed",
   browser: { name: "chromium", version: browserVersion },
-  checks: ["semantic-controls", "six-step-keyboard-focus", "320-and-390-responsive", "invalid-query-heading", "200-percent-zoom", "forced-colors-structure-and-focus", "reviewed-visual-baselines"],
+  checks: ["semantic-controls", "six-step-keyboard-focus", "mobile-save-before-report", "320-and-390-responsive", "invalid-query-heading", "200-percent-zoom", "forced-colors-structure-and-focus", "reviewed-visual-baselines"],
   visuals,
   diagnostics: diagnostics.length,
   cleanup: failure ? "see-error" : "browser-context-user-profile-removed"
@@ -280,6 +290,36 @@ async function assertPageSemantics(page, label) {
   assert.deepEqual(result.unlabeledControls, [], `${label} has unlabeled controls.`);
   assert.deepEqual(result.unnamedActions, [], `${label} has unnamed actions.`);
   assert.deepEqual(result.duplicateIds, [], `${label} has duplicate IDs.`);
+}
+
+async function assertMobileSkillActionOrder(page, label) {
+  const result = await page.evaluate(() => {
+    const visible = (element) => {
+      const style = getComputedStyle(element);
+      return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
+    };
+    const actionPanel = [...document.querySelectorAll("[data-skill-actions]")].find(visible);
+    const reportSection = document.getElementById("report-listing");
+    const action = actionPanel
+      ? [...actionPanel.querySelectorAll("a[href],button")].find((element) => visible(element)
+        && /^(?:Save skill|Remove from saved|Sign in to save)$/.test((element.textContent ?? "").trim()))
+      : null;
+    if (!(actionPanel instanceof HTMLElement) || !(reportSection instanceof HTMLElement)
+      || !(action instanceof HTMLElement)) return null;
+    return {
+      actionText: (action.textContent ?? "").trim(),
+      actionTop: action.getBoundingClientRect().top,
+      viewportHeight: window.innerHeight,
+      panelBeforeReport: Boolean(actionPanel.compareDocumentPosition(reportSection) & Node.DOCUMENT_POSITION_FOLLOWING),
+      actionBeforeReport: Boolean(action.compareDocumentPosition(reportSection) & Node.DOCUMENT_POSITION_FOLLOWING)
+    };
+  });
+  assert.ok(result, `${label} did not expose one visible mobile skill action panel.`);
+  assert.match(result.actionText, /^(?:Save skill|Remove from saved|Sign in to save)$/);
+  assert.ok(result.actionTop >= 0 && result.actionTop < result.viewportHeight,
+    `${label} buried the save action below the initial viewport (${result.actionTop} >= ${result.viewportHeight}).`);
+  assert.equal(result.panelBeforeReport, true, `${label} rendered the action panel after the report section.`);
+  assert.equal(result.actionBeforeReport, true, `${label} keyboard order reached the report section before the save action.`);
 }
 
 async function normalizeVisualState(page) {

@@ -36,6 +36,7 @@ try {
   await publicPage.getByText("Sign in to send a report").waitFor();
   await publicPage.getByRole("link", { name: "View audit evidence" }).waitFor();
   await publicPage.getByRole("link", { name: "View grade evidence" }).waitFor();
+  await assertMobileSkillActionOrder(publicPage, "Sign in to save", "signed-out skill detail");
   assertNoOverflow(await dimensions(publicPage), "signed-out skill detail");
   await publicPage.goto(new URL(`${detailPath}?reportStatus=queued&report=rpt_${"f".repeat(32)}#report-listing`, baseUrl).toString(), { waitUntil: "load" });
   if (await publicPage.getByText("Private report queued").isVisible().catch(() => false)) throw new Error("Signed-out query parameters forged a queued report notice.");
@@ -409,6 +410,7 @@ try {
   await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
   await page.getByRole("button", { name: "Queue private report" }).waitFor();
   await page.waitForTimeout(1_000);
+  await assertMobileSkillActionOrder(page, "Save skill", "authenticated skill detail");
   assertNoOverflow(await dimensions(page), "authenticated report form");
 
   await page.getByLabel("Concern category").selectOption("security");
@@ -490,6 +492,7 @@ try {
     p_disposition_code: "no-action",
     p_reason_code: "not-reproducible",
     p_public_message: "Operator review found no actionable catalog change from the bounded evidence.",
+    p_lifecycle_action: null,
     p_idempotency_digest: dispositionDigest
   });
   if (dispositionError || disposition?.[0]?.report_state !== "resolved") throw dispositionError ?? new Error("Report disposition did not resolve.");
@@ -759,6 +762,36 @@ async function dimensions(page) {
 
 function assertNoOverflow(width, label) {
   if (width.scroll > width.inner) throw new Error(`${label} overflows (${width.scroll} > ${width.inner}).`);
+}
+
+async function assertMobileSkillActionOrder(page, expectedAction, label) {
+  const result = await page.evaluate((expected) => {
+    const visible = (element) => {
+      const style = getComputedStyle(element);
+      return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
+    };
+    const panel = [...document.querySelectorAll("[data-skill-actions]")].find(visible);
+    const report = document.getElementById("report-listing");
+    const action = panel
+      ? [...panel.querySelectorAll("a[href],button")].find((element) => visible(element)
+        && (element.textContent ?? "").trim() === expected)
+      : null;
+    if (!(panel instanceof HTMLElement) || !(report instanceof HTMLElement)
+      || !(action instanceof HTMLElement)) return null;
+    return {
+      actionTop: action.getBoundingClientRect().top,
+      viewportHeight: window.innerHeight,
+      panelBeforeReport: Boolean(panel.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING),
+      actionBeforeReport: Boolean(action.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING)
+    };
+  }, expectedAction);
+  if (!result) throw new Error(`${label} did not expose the expected ${expectedAction} action.`);
+  if (result.actionTop < 0 || result.actionTop >= result.viewportHeight) {
+    throw new Error(`${label} buried ${expectedAction} below the initial viewport (${result.actionTop} >= ${result.viewportHeight}).`);
+  }
+  if (!result.panelBeforeReport || !result.actionBeforeReport) {
+    throw new Error(`${label} reached the report section before ${expectedAction} in DOM or keyboard order.`);
+  }
 }
 
 function assertPrivateNoStore(headers, label) {

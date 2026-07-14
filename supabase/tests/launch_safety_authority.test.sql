@@ -116,7 +116,7 @@ update api.skill_submissions set state = 'published', review_state = 'published'
   last_transition_digest = 'sha256:' || repeat('9', 64)
 where id = '90000000-0000-4000-8000-000000000001';
 
-select plan(81);
+select plan(91);
 
 select has_table('api', 'skill_reports', 'authenticated suspicious-listing report table exists');
 select has_view('api', 'my_skill_reports', 'owner-safe report projection exists');
@@ -126,11 +126,13 @@ select ok((select relrowsecurity and relforcerowsecurity from pg_class c join pg
 select ok(has_column_privilege('authenticated', 'api.skill_reports', 'skill_id', 'insert'), 'authenticated accounts can insert report targets');
 select ok(not has_table_privilege('anon', 'api.skill_reports', 'insert'), 'anonymous reporting is explicitly deferred');
 select ok(not has_column_privilege('authenticated', 'api.skill_reports', 'state', 'update'), 'browser roles cannot mutate report disposition');
-select ok(has_function_privilege('service_role', 'api.disposition_skill_report(text,text,text,text,text)', 'execute'), 'service role can disposition reports');
-select ok(has_function_privilege('service_role', 'api.list_skill_report_queue(integer)', 'execute'), 'service role can list the bounded report queue');
+select ok(has_function_privilege('service_role', 'api.disposition_skill_report(text,text,text,text,text,text)', 'execute'), 'service role can atomically disposition reports');
+select ok(has_function_privilege('service_role', 'api.list_skill_report_queue(integer,timestamptz,text)', 'execute'), 'service role can paginate the bounded report queue');
 select ok(has_function_privilege('service_role', 'api.control_catalog_lifecycle(text,text,text,text,text)', 'execute'), 'service role can control catalog lifecycle');
 select ok(has_function_privilege('service_role', 'api.renew_skill_submission_claim(text,uuid,text,integer)', 'execute'), 'service role can renew exact live claims');
 select ok(not has_function_privilege('authenticated', 'api.control_catalog_lifecycle(text,text,text,text,text)', 'execute'), 'browser roles cannot control catalog lifecycle');
+select ok(has_column_privilege('authenticated', 'api.profiles', 'user_id', 'insert'), 'authenticated account bootstrap can insert only its profile identity');
+select ok(not has_column_privilege('authenticated', 'api.profiles', 'created_at', 'insert'), 'authenticated accounts cannot forge profile creation time');
 select is((select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'api' and c.relname in ('catalog_audit_evidence', 'catalog_grade_evidence') and c.reloptions @> array['security_invoker=true','security_barrier=true']), 2::bigint, 'evidence views are security-invoker and security-barrier');
 select is((select count(*) from information_schema.columns where table_schema = 'api' and table_name in ('catalog_audit_evidence','catalog_grade_evidence') and column_name in ('submission_id','submitter_user_id','reporter_user_id','private_evidence_digest')), 0::bigint, 'evidence projections omit submission, account, and private-evidence identifiers');
 select ok(not has_column_privilege('anon', 'private.skill_audit_receipts', 'private_evidence_digest', 'select'), 'anonymous roles cannot select the private evidence digest');
@@ -203,10 +205,48 @@ reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is((select report_id from api.list_skill_report_queue(20) limit 1), :'report_a_id', 'service queue lists the oldest queued public report identity');
-select is((select report_state from api.disposition_skill_report(:'report_a_id','confirmed','credible-security-report','The report was reviewed and confirmed.','sha256:' || repeat('a',64))), 'resolved', 'service authority resolves the report');
-select is((select report_state from api.disposition_skill_report(:'report_a_id','confirmed','credible-security-report','The report was reviewed and confirmed.','sha256:' || repeat('a',64))), 'resolved', 'exact report disposition retry is idempotent');
+select throws_ok($$select * from api.list_skill_report_queue(20, now(), null)$$,
+  22023, 'report queue cursor is invalid',
+  'report queue rejects an unpaired cursor');
+select throws_ok(format(
+  'select * from api.disposition_skill_report(%L,%L,%L,%L,null,%L)',
+  :'report_a_id','confirmed','credible-security-report',
+  'The report was reviewed and confirmed.','sha256:' || repeat('a',64)
+), 22023, 'report disposition is invalid',
+  'confirmed report disposition cannot resolve without an exact lifecycle action');
+select is((select version_revoked from api.disposition_skill_report(
+  :'report_a_id','confirmed','credible-security-report',
+  'The report was reviewed and confirmed.','revoke-version','sha256:' || repeat('a',64)
+)), true, 'confirmed report atomically revokes the exact reported version');
+set local role anon;
+select is((select count(*) from api.catalog_skills
+  where skill_id = 'skl_00000000000000000000000000000001'), 0::bigint,
+  'confirmed report cannot resolve while the exact reported version remains public');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select is((select version_revoked from api.control_catalog_lifecycle(
+  'skl_00000000000000000000000000000001','skv_00000000000000000000000000000001',
+  'restore-version','independent-appeal-review','sha256:' || repeat('1a',32)
+)), false, 'restoration remains a separate receipt-backed lifecycle action');
+set local role anon;
+select is((select count(*) from api.catalog_skills
+  where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint,
+  'separately restored exact version returns to the public catalog');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select is((select version_revoked from api.disposition_skill_report(
+  :'report_a_id','confirmed','credible-security-report',
+  'The report was reviewed and confirmed.','revoke-version','sha256:' || repeat('a',64)
+)), true, 'exact report retry returns the retained enforcement outcome after a later restore');
 reset role;
 select is((select count(*) from private.audit_events where subject_type = 'report' and subject_id = :'report_a_id'), 1::bigint, 'report disposition creates one append-only audit event');
+select is((select count(*) from private.audit_events
+  where event_type = 'catalog.revoke-version'
+    and subject_id = 'skv_00000000000000000000000000000001'
+    and payload ->> 'sourceReportId' = :'report_a_id'), 1::bigint,
+  'atomic report enforcement creates one target-bound catalog lifecycle event');
 select throws_ok($$update private.audit_events set payload = '{}' where subject_type = 'report'$$, 55000, null, 'private lifecycle audit events are append-only');
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -227,6 +267,19 @@ select lives_ok($$insert into api.skill_reports (skill_id, version_id, category,
     gen_random_uuid()
   from unnest(array['security','malware','misleading','license','privacy']) category$$,
   'an account can queue up to five independent reports');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select report_id as backlog_cursor_id, created_at as backlog_cursor_created_at
+from api.list_skill_report_queue(1)
+limit 1 \gset
+select is((select count(*) from api.list_skill_report_queue(
+  50, :'backlog_cursor_created_at'::timestamptz, :'backlog_cursor_id'
+)), 4::bigint, 'paired report cursor makes every later backlog row reachable');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', true);
 select throws_ok($$insert into api.skill_reports (skill_id, version_id, category, message, idempotency_key)
   values ('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001',
     'broken','A sixth active report must be rejected by the global account cap.',gen_random_uuid())$$,
@@ -274,6 +327,7 @@ select throws_ok($$select * from api.control_catalog_lifecycle(
   'lifecycle retry rejects a changed reason payload under the same digest');
 select is((select count(*) from private.audit_events where event_type = 'catalog.quarantine-version' and subject_id = 'skv_00000000000000000000000000000001'), 1::bigint, 'quarantine retry creates no duplicate history');
 select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','restore-version','manual-review-cleared','sha256:' || repeat('c',64))), false, 'valid receipt-backed version can be restored');
+select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'stale quarantine retry returns its retained historical outcome after restore');
 set local role anon;
 select is((select count(*) from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'restored version returns to catalog');
 select is((select count(*) from api.catalog_audit_evidence where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'restored version returns to evidence projection');

@@ -5,7 +5,7 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
-select plan(96);
+select plan(97);
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -77,7 +77,7 @@ select ok(has_table_privilege('anon', 'api.catalog_skills', 'select'), 'anonymou
 select ok(has_table_privilege('authenticated', 'api.catalog_skills', 'select'), 'authenticated users can select the public catalog');
 select ok(not has_table_privilege('anon', 'api.profiles', 'select'), 'anonymous users cannot read profiles');
 select ok(has_table_privilege('authenticated', 'api.profiles', 'select'), 'authenticated users can select profiles under RLS');
-select ok(has_table_privilege('authenticated', 'api.profiles', 'insert'), 'authenticated users can insert their own profile');
+select ok(has_column_privilege('authenticated', 'api.profiles', 'user_id', 'insert'), 'authenticated users can insert their own profile identity');
 select ok(not has_table_privilege('authenticated', 'api.profiles', 'update'), 'profiles cannot be updated in Phase 1');
 select ok(not has_table_privilege('authenticated', 'api.profiles', 'delete'), 'profiles cannot be deleted in Phase 1');
 select ok(has_table_privilege('authenticated', 'api.saved_skills', 'select'), 'authenticated users can select saved skills under RLS');
@@ -299,6 +299,14 @@ select throws_ok(
 select lives_ok(
   $$insert into api.profiles (user_id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1')$$,
   'user A can insert their own profile'
+);
+select throws_ok(
+  $$insert into api.profiles (user_id, created_at) values (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '2020-01-01T00:00:00Z'
+  )$$,
+  42501,
+  null,
+  'authenticated profiles cannot forge their server-owned creation time'
 );
 select is((select count(*) from api.profiles), 1::bigint, 'user A can read their own profile');
 select throws_ok(

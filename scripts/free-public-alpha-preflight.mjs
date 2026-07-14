@@ -115,10 +115,15 @@ function staticGates(requireClean) {
   const operatorAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260712233000_hosted_operator_publication_authority.sql'), 'utf8');
   const authorityCompletionMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713050000_submission_authority_completion.sql'), 'utf8');
   const operatorReadMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713060000_operator_submission_read_plane.sql'), 'utf8');
+  const launchReadinessMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714010000_atomic_report_enforcement.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
   const authorizationSource = readFileSync(path.join(repo, 'apps/worker/src/authorization.mjs'), 'utf8');
   const submissionQueueSource = readFileSync(path.join(repo, 'apps/worker/src/submission-queue.mjs'), 'utf8');
   const submissionDetailSource = readFileSync(path.join(repo, 'apps/worker/src/submission-detail.mjs'), 'utf8');
+  const reportDispositionSource = readFileSync(path.join(repo, 'apps/worker/src/report-disposition.mjs'), 'utf8');
+  const reportQueueSource = readFileSync(path.join(repo, 'apps/worker/src/report-queue.mjs'), 'utf8');
+  const operationsSource = readFileSync(path.join(repo, 'apps/worker/src/operations-check.mjs'), 'utf8');
+  const healthRouteSource = readFileSync(path.join(repo, 'apps/web/app/api/v1/health/route.ts'), 'utf8');
   const rpcSource = readFileSync(path.join(repo, 'apps/worker/src/supabase-rpc.mjs'), 'utf8');
   const workerMigrationBound = /create function api\.renew_skill_submission_claim\s*\(/i.test(leaseMigration)
     && /grant execute on function api\.renew_skill_submission_claim\(text, uuid, text, integer\) to service_role/i.test(leaseMigration)
@@ -183,6 +188,13 @@ function staticGates(requireClean) {
     && /grant execute on function api\.get_skill_submission_operator_detail\(text\) to service_role/i.test(operatorReadMigration)
     && /\bsubmitter_user_id\b/i.test(operatorReadMigration) === false
     && /private_?evidence_?digest/i.test(operatorReadMigration) === false
+    && /create function api\.disposition_skill_report\s*\([\s\S]+p_lifecycle_action text[\s\S]+p_idempotency_digest text/i.test(launchReadinessMigration)
+    && /p_disposition_code = 'confirmed'[\s\S]+p_lifecycle_action is null[\s\S]+quarantine-version[\s\S]+revoke-version/i.test(launchReadinessMigration)
+    && /update private\.skill_versions[\s\S]+quarantined_at = coalesce/i.test(launchReadinessMigration)
+    && /update private\.skill_versions[\s\S]+revoked_at = coalesce/i.test(launchReadinessMigration)
+    && /'sourceReportId', report_row\.public_id/i.test(launchReadinessMigration)
+    && /create function api\.list_skill_report_queue\s*\([\s\S]+p_after_created_at timestamptz[\s\S]+p_after_report_id text/i.test(launchReadinessMigration)
+    && /\(report\.created_at, report\.public_id\) > \(p_after_created_at, p_after_report_id\)/i.test(launchReadinessMigration)
     && /rpc\.call\('get_skill_submission_queue_summary'/.test(submissionQueueSource)
     && /rpc\.call\('list_skill_submission_operator_queue'/.test(submissionQueueSource)
     && /p_after_updated_at: options\.afterUpdatedAt/.test(submissionQueueSource)
@@ -190,6 +202,14 @@ function staticGates(requireClean) {
     && /reconciliationRequired: true/.test(submissionQueueSource)
     && /MAX_QUEUE_ROWS = 32/.test(submissionQueueSource)
     && /rpc\.call\('get_skill_submission_operator_detail'/.test(submissionDetailSource)
+    && /p_lifecycle_action: options\.lifecycleAction/.test(reportDispositionSource)
+    && /runReportQueue/.test(reportQueueSource)
+    && /best-effort-live-by-created-at-restart-required/.test(reportQueueSource)
+    && /runSubmissionQueue/.test(operationsSource)
+    && /runReportQueue/.test(operationsSource)
+    && /skillmap-hosted-operations-check\/v1/.test(operationsSource)
+    && /"Cache-Control": "no-store, max-age=0"/.test(healthRouteSource)
+    && /health\.status === "ready" \? 200 : 503/.test(healthRouteSource)
     && /'get_skill_submission_queue_summary'/.test(rpcSource)
     && /'list_skill_submission_operator_queue'/.test(rpcSource)
     && /'get_skill_submission_operator_detail'/.test(rpcSource)
@@ -202,7 +222,7 @@ function staticGates(requireClean) {
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker mutation authority and the redacted service-only operator read plane are source-bound through migration 20260713060000; applying and verifying every migration remains a database gate before worker start.'
+      ? 'Worker mutation authority, atomic report enforcement, cursor-safe operator queues, and the redacted operations plane are source-bound through migration 20260714010000; applying and verifying every migration remains a database gate before worker start.'
       : 'Worker mutation authority or the redacted operator read plane is not bound to every required migration, RPC, service-role grant, and privacy exclusion.'
   });
 

@@ -44,6 +44,40 @@ test('operator RPC failures never reflect service credentials or provider bodies
   });
 });
 
+test('operator RPC response bound admits the maximum valid Unicode report page and rejects expansion', async () => {
+  const rows = Array.from({ length: 50 }, (_, index) => {
+    const suffix = index.toString(16).padStart(32, '0');
+    return {
+      report_id: `rpt_${suffix}`,
+      skill_id: `skl_${suffix}`,
+      version_id: `skv_${suffix}`,
+      category: 'security',
+      message: '🚀'.repeat(2000),
+      created_at: '2026-07-14T00:00:00.000000Z'
+    };
+  });
+  const maximumPage = JSON.stringify(rows);
+  assert.ok(Buffer.byteLength(maximumPage) > 256 * 1024);
+  assert.ok(Buffer.byteLength(maximumPage) < 512 * 1024);
+
+  const client = createSupabaseRpcClient({
+    url: 'http://127.0.0.1:54321',
+    serviceRoleKey: SECRET,
+    fetchImpl: async () => new Response(maximumPage, { status: 200 })
+  });
+  assert.equal((await client.call('list_skill_report_queue', { p_limit: 50 })).length, 50);
+
+  const expanded = createSupabaseRpcClient({
+    url: 'http://127.0.0.1:54321',
+    serviceRoleKey: SECRET,
+    fetchImpl: async () => new Response('x'.repeat((512 * 1024) + 1), { status: 200 })
+  });
+  await assert.rejects(
+    expanded.call('list_skill_report_queue', { p_limit: 50 }),
+    /response exceeds the bounded size limit/
+  );
+});
+
 test('operator RPC environment rejects unsafe origins and missing secrets', () => {
   for (const environment of [
     { SKILLMAP_SUPABASE_URL: 'http://example.com', SKILLMAP_SUPABASE_SERVICE_ROLE_KEY: SECRET },
