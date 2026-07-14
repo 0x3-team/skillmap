@@ -2,21 +2,27 @@
 
 ## Unreleased — experimental free public alpha
 
-The source-integration baseline for these entries was merged as
-`29a356a9b809d29ff8c986fbd5a0af78d87e479c`. Candidate
-`67129297d08f7f7bc88800015b336a2a7bb1b139` and the identical tree
-`3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` have local and scoped remote-CI
-receipts. That does not prove a tag, package publication, deployment, live OAuth,
-public indexing, open-user launch, or verified-live status. Later Unreleased
-changes require their own candidate and merge receipt before those baseline
-source-integration receipts cover them.
+The latest product source-integration boundary for these entries is operator
+candidate `69e7d1e7f2042ae996c1bed379891ec65ece84a4` and tree
+`67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c`, merged as feature `main` commit
+`8a30578520974257a1ab4ee2f6c7442696ee0289`. The earlier baseline remains a
+separate historical row in the append-only release ledger. This
+source-integration boundary does not prove a tag, package publication,
+deployment, live OAuth, public indexing, open-user launch, or verified-live
+status. Subsequent Unreleased product changes require their own candidate and
+merge receipt before this boundary covers them.
 
-- Recorded Gitea candidate run `44`, GitHub Actions run `29285742074` JIT
-  `hosted-web` job `86937705880`, and post-merge Gitea `main` run `47` as passed.
-  The frozen static receipt is
-  `sha256:3dd68b69f5faad0e6cf70e03dbf98cedb735ed5661dc2c6a8d01c799ed7b2996`;
+- Recorded Gitea candidate run `50`, GitHub Actions run `29294494176` one-shot
+  self-hosted `hosted-web` job `86964954830`, Gitea protected sync PR `#2`, and
+  Gitea sync-branch, PR, and post-merge `main` runs `51`, `52`, and `53` as
+  passed. The one-shot runner self-removed and the GitHub repository reported
+  zero registered runners afterward. The overall GitHub workflow remained red
+  only because unrelated GitHub-hosted jobs were organization-allowance blocked;
+  acceptance is scoped solely to the named hosted-web job. The frozen static
+  receipt is
+  `sha256:7dec38b69c6b709c13f6e0aac4d5f6767411e3a2b2e07b3226b87f16902bdd13`;
   the frozen database receipt is
-  `sha256:ada2c9d819dce02a3b89971c44119eb96ef89f244ccd692439e80281f64056d1`.
+  `sha256:74b8e840a2e1b5343df5daa79d8bbb2bc08d28bdd54ebd51277c9d912bc37fa6`.
   These are source and scoped-CI receipts, not deployment or live-product proof.
 
 - Added qualified skill identity, explicit canonical duplicate decisions, and

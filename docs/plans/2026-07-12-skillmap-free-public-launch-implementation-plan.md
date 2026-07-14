@@ -9,15 +9,18 @@ Baseline commit: `bb054b7`
 Receipt ledger: `docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan-implementation-ledger.jsonl`
 Release ledger: `docs/plans/2026-07-12-skillmap-release-ledger.md`
 
-Current release truth: candidate `67129297d08f7f7bc88800015b336a2a7bb1b139`
-with tree `3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` was locally validated,
-pushed, accepted by scoped remote CI, and squash-merged as canonical `main`
-commit `29a356a9b809d29ff8c986fbd5a0af78d87e479c`. This closes the source
-integration gate only. No deployment, live verification, public indexing, or
-open-user launch is claimed; the public-launch verdict remains `NO-GO`. Any
-later Unreleased slice, including the operator read plane, requires a new
-candidate/merge receipt in the release ledger before this baseline source gate
-can be treated as covering it.
+Latest product release truth: operator read-plane candidate
+`69e7d1e7f2042ae996c1bed379891ec65ece84a4` with tree
+`67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c` was locally validated, pushed,
+accepted by the named scoped remote CI, and squash-merged as feature `main`
+commit `8a30578520974257a1ab4ee2f6c7442696ee0289`. Gitea protected sync PR `#2`
+retained that exact commit. The GitHub acceptance is scoped only to one-shot
+self-hosted hosted-web job `86964954830`; unrelated allowance-blocked
+GitHub-hosted jobs left the overall workflow red. This closes source integration
+through that product tree only. No deployment, live verification, public
+indexing, or open-user launch is claimed; the public-launch verdict remains
+`NO-GO`. Any subsequent product slice requires a new candidate/merge receipt in
+the release ledger before this source gate can be treated as covering it.
 
 ## Executive decision
 
@@ -364,6 +367,8 @@ The frozen candidate evidence is root tests `396/396`, contracts `34/34`, pgTAP 
 
 Candidate `67129297d08f7f7bc88800015b336a2a7bb1b139` with tree `3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` passed Gitea candidate run `44` and GitHub Actions run `29285742074`, JIT `hosted-web` job `86937705880`. The identical tree was squash-merged as canonical `main` commit `29a356a9b809d29ff8c986fbd5a0af78d87e479c`; post-merge Gitea `main` run `47` then passed. The frozen static receipt is `sha256:3dd68b69f5faad0e6cf70e03dbf98cedb735ed5661dc2c6a8d01c799ed7b2996`, and the frozen database receipt is `sha256:ada2c9d819dce02a3b89971c44119eb96ef89f244ccd692439e80281f64056d1`. This establishes locally validated, pushed, merged, and scoped remote-CI-verified status. The GitHub receipt covers only the recorded hosted-web job; none of these receipts proves deployment, a live origin, OAuth, backup/restore, public indexing, or open-user launch.
 
+The operator read-plane continuation was subsequently frozen as candidate `69e7d1e7f2042ae996c1bed379891ec65ece84a4` with tree `67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c`. Its exact local evidence includes root tests `409/409`, contracts `34/34`, pgTAP `492/492`, hosted boundaries `31/31`, release path `47/47`, clean schema lint, byte-exact generated API type parity plus the narrow runtime-nullability assertions, web typecheck/lint/optimized build, zero production dependency vulnerabilities, clean consumer install, and package dry run. Gitea candidate run `50` passed, and GitHub Actions run `29294494176` one-shot self-hosted `hosted-web` job `86964954830` passed for that exact scope. GitHub PR `#12` squash-merged the identical tree as feature `main` commit `8a30578520974257a1ab4ee2f6c7442696ee0289`; Gitea protected sync PR `#2` retained that exact commit. Gitea sync-branch run `51`, PR run `52`, and post-merge `main` run `53` all passed. The runner self-removed and GitHub reported zero registered repository runners afterward. The overall GitHub workflow remained red only because unrelated GitHub-hosted jobs were blocked by the organization allowance, so it is not accepted as a whole-workflow receipt. Frozen static receipt: `sha256:7dec38b69c6b709c13f6e0aac4d5f6767411e3a2b2e07b3226b87f16902bdd13`; database receipt: `sha256:74b8e840a2e1b5343df5daa79d8bbb2bc08d28bdd54ebd51277c9d912bc37fa6`. These receipts still do not prove deployment, a live origin, OAuth, backup/restore, public indexing, or open-user launch.
+
 ### Batch 0 — plan and baseline reconciliation
 
 Deliverables:
@@ -617,15 +622,15 @@ Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success or
 | Data | Seven ordered migrations, forced RLS, `492/492` pgTAP assertions, exact generated type parity, disposable reset/replay, and durable account-detached terminal revocation tombstones | No encrypted off-host hosted restore | `NO-GO` |
 | Security | No source execution, exact-commit license evidence, expiring publisher authorization, cross-account and cross-handle atomic consent revocation, transaction-locked replay resistance, fail-closed typed receipt validators, target-bound collision review, secret canary, bounded public projections, and lifecycle removal | No provider-global abuse control or live secret inspection | `NO-GO` |
 | Reliability | Claim leases, claim-scoped crash retry, durable expired-run receipts, idempotent completion/publication, post-lock expiry and revocation checks, bounded non-mutating queue/detail inspection, active-catalog-graph replay validation, report disposition, lifecycle controls, and truthful web failure states | No hosted scheduler, monitoring, alert, rollback, or incident drill | `NO-GO` |
-| Quality | Root `409/409`, contracts `34/34`, pgTAP `492/492`, hosted boundaries `31/31`, release path `47/47`, corpus tooling, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, clean consumer install, package, exact type parity, schema lint, and dependency gates passed locally | Baseline candidate passed Gitea run `44` and GitHub JIT hosted-web job `86937705880`; identical-tree merged `main` passed Gitea run `47`. The later operator read-plane slice still needs its own remote source receipt. No deployed-commit browser receipt | `NO-GO` |
-| Operations | Mutation-explicit write commands, credential-explicit read-only queue/detail commands, migration-bound preflight, bounded retained Gitea gate receipts, runbooks, policy draft, GTM kit, corpus-consent procedure, and hosted-pilot protocol checked in | Baseline source is pushed and merged with scoped remote CI; the operator read-plane continuation is locally validated only. Zero-cost-compatible host, remaining owners, jurisdiction, retention approval, support identity, and backup destination remain unset | `NO-GO` |
+| Quality | Root `409/409`, contracts `34/34`, pgTAP `492/492`, hosted boundaries `31/31`, release path `47/47`, corpus tooling, three hosted auth browsers, nine zero-diff hosted baselines, accessibility, responsive, forced-colors, performance, clean consumer install, package, exact type parity, schema lint, and dependency gates passed locally | Operator candidate passed Gitea run `50` and GitHub one-shot hosted-web job `86964954830`; identical-tree feature `main` commit `8a30578520974257a1ab4ee2f6c7442696ee0289` passed Gitea sync-branch, PR, and post-merge runs `51` through `53`. GitHub acceptance is job-scoped because unrelated allowance-blocked jobs left the overall workflow red. No deployed-commit browser receipt | `NO-GO` |
+| Operations | Mutation-explicit write commands, credential-explicit read-only queue/detail commands, migration-bound preflight, bounded retained Gitea gate receipts, runbooks, policy draft, GTM kit, corpus-consent procedure, and hosted-pilot protocol checked in | Source through the operator read plane is pushed and merged with scoped remote CI, and the one-shot runner self-removed. Zero-cost-compatible host, remaining owners, jurisdiction, retention approval, support identity, and backup destination remain unset | `NO-GO` |
 | Launch | Free/no-billing scope, stage/indexing gate, announcement/outreach copy, and an exact 20-version/five-group corpus candidate with `20/20` inert audits and provisional grades | Publisher consent plus database/public publication for the corpus, domain, deployment, mandatory-workflow five-seat pilot, live acceptance, and public indexing absent | `NO-GO` |
 
 ## Go-to-market plan
 
 ### Remaining ordered path to market
 
-Completed baseline source-integration gate: the frozen candidate was locally validated, accepted by Gitea and the scoped GitHub hosted-web job, pushed, and merged as the identical tree on canonical `main`; post-merge Gitea passed. Any later Unreleased slice must receive and append its own source-integration receipt before it joins that baseline. The remaining path is:
+Completed source integration through the operator read-plane tree: the frozen candidate was locally validated, accepted by Gitea and the scoped GitHub hosted-web job, pushed, and merged as the identical feature tree on canonical `main`; protected Gitea synchronization and post-merge CI passed. Any subsequent product slice must receive and append its own source-integration receipt before it joins that boundary. The remaining path is:
 
 1. Select and provision the approved zero-recurring-cost Supabase and web-hosting targets; assign the domain, OAuth, service-role, support, incident, backup, rollback, and release owners without adding billing.
 2. Approve jurisdiction, retention/deletion, privacy, terms, acceptable-use, support, and security-response policy; publish the reachable support URL.
