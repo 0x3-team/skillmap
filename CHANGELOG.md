@@ -3,18 +3,17 @@
 ## Unreleased — experimental free public alpha
 
 The latest completed product source-integration boundary recorded here is
-launch-readiness candidate `e6fc09e9d8300fbd5bb974899cb18b5d1b2d8af6` and tree
-`94c910c02b224bd421905126da7c783a8f3fb0d7`, merged as `main` commit
-`426efb1af480dff57713d604bac617cea0e00ef2`. The earlier baselines remain
+completion-audit candidate `918a5015bcb8c264f9fe39c6cdd7940e67aef02e` and tree
+`29aba50561cbb9f79d15a8b8257076ff671fd1ee`, merged as `main` commit
+`a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`. The earlier baselines remain
 separate historical rows in the append-only release ledger. This
 source-integration boundary does not prove a tag, package publication,
 deployment, live OAuth, public indexing, open-user launch, or verified-live
 status. Subsequent Unreleased product changes require their own candidate and
 merge receipt before this boundary covers them.
 
-The completion-audit changes below have local acceptance only and remain
-outside that source-integration boundary until an exact candidate and merge
-receipt are appended:
+The completion-audit changes below are included in that source-integration
+boundary:
 
 - Preserved safe submission values, request identifiers, validation feedback,
   and deterministic focus across recoverable server-side submission failures;
@@ -25,6 +24,20 @@ receipt are appended:
   rate limits. Deferrals return work to the queue without consuming an attempt
   or fabricating a worker-run failure, while separate cooldown/defer telemetry
   keeps upstream capacity visible to operators.
+
+- Recorded Gitea candidate run `61`, GitHub Actions run `29304994899`
+  one-shot self-hosted hosted-web job `86996452876`, artifact `8299987067`,
+  GitHub PR `#15`, Gitea protected sync PR `#5`, and Gitea sync-branch, PR,
+  and post-merge `main` runs `62`, `63`, and `64` as passed. The one-shot
+  runner self-removed; its dedicated containers and volumes, temporary Gitea
+  users and tokens, and remote feature/sync branches were deleted. The overall
+  GitHub workflow remained red only because unrelated GitHub-hosted jobs were
+  organization-allowance blocked; acceptance is scoped solely to the named
+  hosted-web job. The frozen static receipt is
+  `sha256:c4a847a64e2811f34eb5a8babd6f536b624f50826647707238a0cd13cf0ed350`;
+  the frozen database receipt is
+  `sha256:fa53fa1a4026ce180bce8048d6aeb9a6a3aa8549a9143d9186304de69e13f5a1`.
+  These are source and scoped-CI receipts, not deployment or live-product proof.
 
 - Added an identifier-free, no-store hosted health endpoint and a bounded
   service-only operations checker with explicit queue-age, backlog, retry,
