@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const currentMain = '29a356a9b809d29ff8c986fbd5a0af78d87e479c';
-const releaseTree = '3a70dbafca99153ad80d67601a5b2e3bbc2d47d5';
+const operatorCandidate = '69e7d1e7f2042ae996c1bed379891ec65ece84a4';
+const operatorMergedMain = '8a30578520974257a1ab4ee2f6c7442696ee0289';
+const operatorReleaseTree = '67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c';
 const sources = Object.fromEntries([
   'README.md',
   'HANDOFF.md',
@@ -24,14 +25,18 @@ test('canonical release truth binds the merged source and scoped CI receipts', (
     'docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan.md',
     'docs/plans/2026-07-12-skillmap-release-ledger.md'
   ]) {
-    assert.match(sources[file], new RegExp(currentMain), file);
+    assert.match(sources[file], new RegExp(operatorMergedMain), file);
   }
-  assert.match(sources['HANDOFF.md'], new RegExp(releaseTree));
-  assert.match(sources['HANDOFF.md'], /Gitea candidate run `44` passed/i);
-  assert.match(sources['HANDOFF.md'], /job `86937705880` passed the JIT `hosted-web` scope/i);
-  assert.match(sources['HANDOFF.md'], /post-merge Gitea `main` run `47` passed/i);
-  assert.match(sources['HANDOFF.md'], /later candidate\/merge ledger row/i);
-  assert.match(sources['docs/plans/2026-07-12-skillmap-release-ledger.md'], /Locally validated, pushed, merged, and scoped remote CI verified/i);
+  assert.match(sources['HANDOFF.md'], new RegExp(operatorCandidate));
+  assert.match(sources['HANDOFF.md'], new RegExp(operatorReleaseTree));
+  assert.match(sources['HANDOFF.md'], /Gitea candidate run `50` passed/i);
+  assert.match(sources['HANDOFF.md'], /job `86964954830` passed the one-shot self-hosted `hosted-web` scope/i);
+  assert.match(sources['HANDOFF.md'], /post-merge `main` run `53` (?:all )?passed/i);
+  assert.match(sources['HANDOFF.md'], /now bound to the second release-ledger row/i);
+  const releaseLedger = sources['docs/plans/2026-07-12-skillmap-release-ledger.md'];
+  assert.match(releaseLedger, new RegExp(operatorCandidate));
+  assert.match(releaseLedger, /Operator read-plane source locally validated, pushed, merged, and verified by the named scoped remote CI/i);
+  assert.match(releaseLedger, /overall GitHub workflow remained red only because unrelated GitHub-hosted jobs were blocked by the organization allowance/i);
   assert.match(sources['README.md'], /baseline source-integration receipt is already pushed and merged/i);
 });
 
@@ -51,15 +56,19 @@ test('canonical release truth does not collapse source acceptance into deploymen
   }
   assert.match(sources['HANDOFF.md'], /Launch remains `NO-GO`/i);
   assert.match(sources['docs/plans/2026-07-12-skillmap-release-ledger.md'], /`NO-GO`/i);
-  assert.match(sources['CHANGELOG.md'], /Later Unreleased[\s\S]+own candidate and merge receipt/i);
+  assert.match(sources['CHANGELOG.md'], /Subsequent Unreleased product changes[\s\S]+own candidate and\s+merge receipt/i);
   assert.match(sources['apps/web/app/release-status/page.tsx'], /No remote Supabase or web deployment, live OAuth path, hosted backup, public indexing, or open-user launch is claimed/i);
 });
 
 test('go-to-market checklist records source integration without claiming external gates', () => {
   const checklist = sources['docs/launch/free-public-alpha-go-to-market.md'];
   assert.match(checklist, /- \[x\].*Baseline-only candidate `67129297d08f7f7bc88800015b336a2a7bb1b139`/i);
-  assert.match(checklist, /does not cover later Unreleased operator-read-plane changes[^.]+subsequent candidate and merge receipt/i);
-  assert.match(checklist, /- \[ \].*operator-read-plane changes have their own candidate and merge receipt recorded in the release ledger/i);
+  assert.match(checklist, /historical baseline remains independently scoped and is supplemented by the operator read-plane receipt below/i);
+  assert.match(checklist, new RegExp('- \\[x\\].*operator read-plane candidate `' + operatorCandidate + '`', 'i'));
+  assert.match(checklist, new RegExp(operatorReleaseTree));
+  assert.match(checklist, new RegExp(operatorMergedMain));
+  assert.match(checklist, /post-merge `main` run `53` passed/i);
+  assert.doesNotMatch(checklist, /- \[ \].*operator read-plane/i);
   assert.match(checklist, /- \[ \].*Production Supabase, web, OAuth/i);
   assert.match(checklist, /- \[ \].*pilot/i);
   assert.match(checklist, /- \[ \].*index/i);
