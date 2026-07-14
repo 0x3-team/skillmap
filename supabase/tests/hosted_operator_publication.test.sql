@@ -5,6 +5,11 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
+grant usage on schema private to service_role;
+grant execute on function private.record_skill_submission_publisher_authorization_unchecked(text,text,text,text,text,text,timestamptz,text) to service_role;
+grant execute on function private.publish_skill_submission_unchecked(text,text,text,text,text,text,text,text,text[],text,text,boolean,text[],text[]) to service_role;
+alter table private.audit_events alter column operator_attribution_required set default false;
+
 create function pg_temp.audit_payload(audit_state text, seed text)
 returns jsonb
 language plpgsql
@@ -109,8 +114,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  19::bigint,
-  'the API security-definer boundary contains exactly nineteen reviewed functions'
+  20::bigint,
+  'the API security-definer boundary contains exactly twenty reviewed functions'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -122,11 +127,12 @@ select is(
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
       'list_skill_submission_collisions', 'review_skill_submission_collisions',
       'record_skill_submission_publisher_authorization',
+      'approve_operator_action',
       'record_skill_submission_license_evidence',
       'get_skill_submission_queue_summary',
       'list_skill_submission_operator_queue',
       'get_skill_submission_operator_detail')),
-  19::bigint,
+  20::bigint,
   'all API security-definer functions are on the reviewed allowlist'
 );
 
@@ -374,14 +380,14 @@ select throws_ok(
 );
 
 select authorization_receipt_id as launch_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   :'launch_submission_id', 'launch-owner', 'authorized', 'publisher-consent',
   'authref_' || repeat('1', 32), 'sha256:' || repeat('d', 64),
   now() + interval '30 days', 'sha256:' || repeat('e', 64)
 ) \gset
 
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -389,7 +395,7 @@ select throws_ok(
   22023, null, 'publication rejects compound SPDX expressions outside the exact alpha allowlist'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -397,7 +403,7 @@ select throws_ok(
   23514, null, 'publication SPDX must equal the license bound into the immutable audit receipt'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -405,7 +411,7 @@ select throws_ok(
   23514, null, 'publication cannot invent script permissions absent from the audit inventory'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -413,7 +419,7 @@ select throws_ok(
   23514, null, 'publication network disclosure must match the audit indicator'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -421,7 +427,7 @@ select throws_ok(
   23514, null, 'publication tool disclosure must match the audit indicator'
 );
 select is(
-  (select submission_state from api.publish_skill_submission(
+  (select submission_state from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -444,7 +450,7 @@ select is(
 );
 select is((select count(*) from private.skill_versions where grade_state = 'current'), 0::bigint, 'publication never mints a current letter grade');
 select is((select count(*) from api.catalog_skill_versions where repository_url = 'https://github.com/launch-owner/retry-skill'), 0::bigint, 'failed and changes-requested work never leaks into the catalog');
-select is((select submission_state from api.publish_skill_submission(
+select is((select submission_state from private.publish_skill_submission_unchecked(
   (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
   'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
   'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -452,7 +458,7 @@ select is((select submission_state from api.publish_skill_submission(
 select is((select count(*) from private.skill_versions where source_submission_id = (
   select id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill')), 1::bigint, 'publication retry creates no duplicate version');
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Changed Name',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',

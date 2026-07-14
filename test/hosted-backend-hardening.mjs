@@ -180,7 +180,7 @@ test('backend recovery and collision operator commands require explicit authorit
       env: { ...process.env, SKILLMAP_SUPABASE_SERVICE_ROLE_KEY: 'PRIVATE-CANARY-SERVICE-ROLE' }
     });
     assert.equal(refused.status, 1);
-    assert.match(refused.stderr, /without the explicit --execute flag|submission-id is required/i);
+    assert.match(refused.stderr, /Exactly one of --approve or --execute|without the explicit --execute flag|submission-id is required/i);
     assert.doesNotMatch(refused.stdout + refused.stderr, /PRIVATE-CANARY/);
   }
   const authorizationHelp = spawnSync(process.execPath, [
@@ -261,6 +261,7 @@ test('operator RPC client allowlists mutation and read-plane boundaries without 
 test('publisher authorization and collision update CLIs reject incomplete authority tuples', () => {
   const missingExpiry = spawnSync(process.execPath, [
     'apps/worker/src/authorization.mjs', '--execute',
+    '--approval-id', `opa_${'a'.repeat(32)}`,
     '--submission-id', `sub_${'a'.repeat(32)}`, '--publisher-handle', 'example-owner',
     '--decision', 'authorized', '--basis', 'publisher-consent',
     '--evidence-reference', `authref_${'1'.repeat(32)}`,
@@ -272,6 +273,7 @@ test('publisher authorization and collision update CLIs reject incomplete author
 
   const missingTarget = spawnSync(process.execPath, [
     'apps/worker/src/collision-review.mjs', '--execute',
+    '--approval-id', `opa_${'b'.repeat(32)}`,
     '--submission-id', `sub_${'b'.repeat(32)}`, '--disposition', 'approved-update',
     '--reason-code', 'reviewed-update',
     '--operation-id', '22222222-2222-4222-8222-222222222222'
@@ -281,6 +283,7 @@ test('publisher authorization and collision update CLIs reject incomplete author
 
   const distinctWithTarget = spawnSync(process.execPath, [
     'apps/worker/src/collision-review.mjs', '--execute',
+    '--approval-id', `opa_${'c'.repeat(32)}`,
     '--submission-id', `sub_${'c'.repeat(32)}`, '--disposition', 'approved-distinct',
     '--reason-code', 'reviewed-distinct', '--target-skill-id', `skl_${'1'.repeat(32)}`,
     '--operation-id', '33333333-3333-4333-8333-333333333333'

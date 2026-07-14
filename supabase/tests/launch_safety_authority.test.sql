@@ -5,6 +5,12 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
+grant usage on schema private to service_role;
+grant execute on function private.record_skill_submission_publisher_authorization_unchecked(text,text,text,text,text,text,timestamptz,text) to service_role;
+grant execute on function private.disposition_skill_report_unchecked(text,text,text,text,text,text) to service_role;
+grant execute on function private.control_catalog_lifecycle_unchecked(text,text,text,text,text) to service_role;
+alter table private.audit_events alter column operator_attribution_required set default false;
+
 -- Bind the first public seed version to a truthful immutable submission receipt
 -- chain so lifecycle restoration and public evidence projections can be tested.
 insert into api.skill_submissions (
@@ -87,7 +93,7 @@ where id = '90000000-0000-4000-8000-000000000001';
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select authorization_receipt_id as lifecycle_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_90000000000000000000000000000001','0x3-team','authorized',
   'publisher-owner-approval','authref_' || repeat('a',32),
   'sha256:' || repeat('a',64),now() + interval '30 days',
@@ -116,7 +122,7 @@ update api.skill_submissions set state = 'published', review_state = 'published'
   last_transition_digest = 'sha256:' || repeat('9', 64)
 where id = '90000000-0000-4000-8000-000000000001';
 
-select plan(91);
+select plan(93);
 
 select has_table('api', 'skill_reports', 'authenticated suspicious-listing report table exists');
 select has_view('api', 'my_skill_reports', 'owner-safe report projection exists');
@@ -136,7 +142,7 @@ select ok(not has_column_privilege('authenticated', 'api.profiles', 'created_at'
 select is((select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'api' and c.relname in ('catalog_audit_evidence', 'catalog_grade_evidence') and c.reloptions @> array['security_invoker=true','security_barrier=true']), 2::bigint, 'evidence views are security-invoker and security-barrier');
 select is((select count(*) from information_schema.columns where table_schema = 'api' and table_name in ('catalog_audit_evidence','catalog_grade_evidence') and column_name in ('submission_id','submitter_user_id','reporter_user_id','private_evidence_digest')), 0::bigint, 'evidence projections omit submission, account, and private-evidence identifiers');
 select ok(not has_column_privilege('anon', 'private.skill_audit_receipts', 'private_evidence_digest', 'select'), 'anonymous roles cannot select the private evidence digest');
-select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef), 19::bigint, 'API security-definer surface remains the exact nineteen-function allowlist');
+select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef), 20::bigint, 'API security-definer surface remains the exact twenty-function allowlist');
 
 set local role anon;
 select is((select count(*) from api.catalog_audit_evidence where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'anonymous users can see audit evidence only for a current public version');
@@ -165,6 +171,44 @@ select lives_ok($$insert into api.skill_reports (skill_id, version_id, category,
 select is((select count(*) from api.my_skill_reports), 1::bigint, 'reporter sees exactly their own report');
 select is((select skill_id || ':' || version_id from api.my_skill_reports), 'skl_00000000000000000000000000000001:skv_00000000000000000000000000000001', 'owner view preserves the exact public target without account identifiers');
 select report_id as report_a_id from api.my_skill_reports \gset
+
+reset role;
+savepoint report_authorization_gate;
+insert into private.submission_publisher_authorization_receipts (
+  id, public_id, submission_id, repository_url, source_commit, source_path,
+  publisher_handle, decision, authorization_basis, evidence_reference,
+  evidence_digest, expires_at, idempotency_digest
+) values (
+  '95000000-0000-4000-8000-000000000001', 'aut_95000000000000000000000000000001',
+  '90000000-0000-4000-8000-000000000001', 'https://github.com/0x3-team/skillmap',
+  'd1c23990af82d1c8c99997cb8d9a2c23707d91fa',
+  'catalog/first-party/skill-audit/SKILL.md', '0x3-team', 'authorized',
+  'publisher-owner-approval', 'authref_' || repeat('b',32),
+  'sha256:' || repeat('b',64), clock_timestamp() - interval '1 second',
+  'sha256:' || repeat('c',64)
+);
+select ok(
+  exists (
+    select 1 from private.skill_versions version
+    where version.id = '40000000-0000-4000-8000-000000000001'
+      and version.publication_state = 'published'
+      and version.quarantined_at is null and version.revoked_at is null
+  ) and not private.version_has_current_publisher_authorization(
+    '40000000-0000-4000-8000-000000000001'
+  ),
+  'expired publisher authorization alone hides an otherwise published exact version'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', true);
+select throws_ok($$insert into api.skill_reports (skill_id, version_id, category, message, idempotency_key)
+  values ('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001',
+    'security','An otherwise public listing must not remain reportable after publisher authorization expires.',
+    'b1000000-0000-4000-8000-000000000009')$$,
+  23514, 'report target is not an exact current public listing',
+  'report insertion composes current publisher authorization with the exact public target');
+reset role;
+rollback to savepoint report_authorization_gate;
 
 reset role;
 set local role authenticated;
@@ -209,12 +253,12 @@ select throws_ok($$select * from api.list_skill_report_queue(20, now(), null)$$,
   22023, 'report queue cursor is invalid',
   'report queue rejects an unpaired cursor');
 select throws_ok(format(
-  'select * from api.disposition_skill_report(%L,%L,%L,%L,null,%L)',
+  'select * from private.disposition_skill_report_unchecked(%L,%L,%L,%L,null,%L)',
   :'report_a_id','confirmed','credible-security-report',
   'The report was reviewed and confirmed.','sha256:' || repeat('a',64)
 ), 22023, 'report disposition is invalid',
   'confirmed report disposition cannot resolve without an exact lifecycle action');
-select is((select version_revoked from api.disposition_skill_report(
+select is((select version_revoked from private.disposition_skill_report_unchecked(
   :'report_a_id','confirmed','credible-security-report',
   'The report was reviewed and confirmed.','revoke-version','sha256:' || repeat('a',64)
 )), true, 'confirmed report atomically revokes the exact reported version');
@@ -225,7 +269,7 @@ select is((select count(*) from api.catalog_skills
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_revoked from api.control_catalog_lifecycle(
+select is((select version_revoked from private.control_catalog_lifecycle_unchecked(
   'skl_00000000000000000000000000000001','skv_00000000000000000000000000000001',
   'restore-version','independent-appeal-review','sha256:' || repeat('1a',32)
 )), false, 'restoration remains a separate receipt-backed lifecycle action');
@@ -236,7 +280,7 @@ select is((select count(*) from api.catalog_skills
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_revoked from api.disposition_skill_report(
+select is((select version_revoked from private.disposition_skill_report_unchecked(
   :'report_a_id','confirmed','credible-security-report',
   'The report was reviewed and confirmed.','revoke-version','sha256:' || repeat('a',64)
 )), true, 'exact report retry returns the retained enforcement outcome after a later restore');
@@ -313,49 +357,49 @@ delete from api.skill_reports where reporter_user_id = 'bbbbbbbb-bbbb-4bbb-8bbb-
 
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'service authority quarantines an exact version');
+select is((select version_quarantined from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'service authority quarantines an exact version');
 set local role anon;
 select is((select count(*) from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 0::bigint, 'quarantined current versions disappear from catalog');
 select is((select (select count(*) from api.catalog_audit_evidence where skill_id = 'skl_00000000000000000000000000000001') + (select count(*) from api.catalog_grade_evidence where skill_id = 'skl_00000000000000000000000000000001')), 0::bigint, 'quarantined versions disappear from both evidence projections');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'exact quarantine retry is idempotent');
-select throws_ok($$select * from api.control_catalog_lifecycle(
+select is((select version_quarantined from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'exact quarantine retry is idempotent');
+select throws_ok($$select * from private.control_catalog_lifecycle_unchecked(
   'skl_00000000000000000000000000000001','skv_00000000000000000000000000000001',
   'quarantine-version','different-replay-reason','sha256:' || repeat('b',64))$$,
   23505, 'lifecycle idempotency digest conflicts with another event',
   'lifecycle retry rejects a changed reason payload under the same digest');
 select is((select count(*) from private.audit_events where event_type = 'catalog.quarantine-version' and subject_id = 'skv_00000000000000000000000000000001'), 1::bigint, 'quarantine retry creates no duplicate history');
-select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','restore-version','manual-review-cleared','sha256:' || repeat('c',64))), false, 'valid receipt-backed version can be restored');
-select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'stale quarantine retry returns its retained historical outcome after restore');
+select is((select version_quarantined from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','restore-version','manual-review-cleared','sha256:' || repeat('c',64))), false, 'valid receipt-backed version can be restored');
+select is((select version_quarantined from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','quarantine-version','credible-security-report','sha256:' || repeat('b',64))), true, 'stale quarantine retry returns its retained historical outcome after restore');
 set local role anon;
 select is((select count(*) from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'restored version returns to catalog');
 select is((select count(*) from api.catalog_audit_evidence where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'restored version returns to evidence projection');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_revoked from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','revoke-version','confirmed-policy-violation','sha256:' || repeat('d',64))), true, 'service authority revokes an exact version');
+select is((select version_revoked from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','revoke-version','confirmed-policy-violation','sha256:' || repeat('d',64))), true, 'service authority revokes an exact version');
 set local role anon;
 select is((select count(*) from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 0::bigint, 'revoked current versions disappear from catalog');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_revoked from api.control_catalog_lifecycle('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','restore-version','appeal-approved','sha256:' || repeat('e',64))), false, 'receipt-backed revoked version can be restored');
-select is((select skill_lifecycle_state from api.control_catalog_lifecycle('skl_00000000000000000000000000000001',null,'deprecate-skill','superseded-capability','sha256:' || repeat('f',64))), 'deprecated', 'service authority deprecates an exact skill');
+select is((select version_revoked from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001','skv_00000000000000000000000000000001','restore-version','appeal-approved','sha256:' || repeat('e',64))), false, 'receipt-backed revoked version can be restored');
+select is((select skill_lifecycle_state from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001',null,'deprecate-skill','superseded-capability','sha256:' || repeat('f',64))), 'deprecated', 'service authority deprecates an exact skill');
 set local role anon;
 select is((select lifecycle_state from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 'deprecated', 'deprecated skill remains visible with truthful lifecycle state');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select skill_revoked from api.control_catalog_lifecycle('skl_00000000000000000000000000000001',null,'revoke-skill','confirmed-policy-violation','sha256:' || repeat('0',64))), true, 'service authority revokes an exact skill');
+select is((select skill_revoked from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001',null,'revoke-skill','confirmed-policy-violation','sha256:' || repeat('0',64))), true, 'service authority revokes an exact skill');
 set local role anon;
 select is((select count(*) from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 0::bigint, 'revoked skills disappear from catalog');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select skill_lifecycle_state from api.control_catalog_lifecycle('skl_00000000000000000000000000000001',null,'restore-skill','appeal-approved','sha256:' || repeat('a0',32))), 'published', 'skill restore requires and accepts the valid current receipt chain');
+select is((select skill_lifecycle_state from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000001',null,'restore-skill','appeal-approved','sha256:' || repeat('a0',32))), 'published', 'skill restore requires and accepts the valid current receipt chain');
 set local role anon;
 select is((select lifecycle_state from api.catalog_skills where skill_id = 'skl_00000000000000000000000000000001'), 'published', 'restored skill returns as published');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select version_quarantined from api.control_catalog_lifecycle('skl_00000000000000000000000000000002','skv_00000000000000000000000000000002','quarantine-version','manual-review-required','sha256:' || repeat('b0',32))), true, 'an unverified seed version can be quarantined');
-select throws_ok($$select * from api.control_catalog_lifecycle('skl_00000000000000000000000000000002','skv_00000000000000000000000000000002','restore-version','manual-review-cleared','sha256:' || repeat('c0',32))$$, 55000, 'version restore requires valid non-restricted receipt-backed evidence', 'unverified versions cannot be restored');
+select is((select version_quarantined from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000002','skv_00000000000000000000000000000002','quarantine-version','manual-review-required','sha256:' || repeat('b0',32))), true, 'an unverified seed version can be quarantined');
+select throws_ok($$select * from private.control_catalog_lifecycle_unchecked('skl_00000000000000000000000000000002','skv_00000000000000000000000000000002','restore-version','manual-review-cleared','sha256:' || repeat('c0',32))$$, 55000, 'version restore requires valid non-restricted receipt-backed evidence', 'unverified versions cannot be restored');
 
 reset role;
 set local role authenticated;

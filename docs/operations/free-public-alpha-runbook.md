@@ -82,7 +82,7 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, and `20260714030000_github_provider_rate_limit_deferral.sql`, plus every preceding migration, are applied to the target. The worker uses `api.peek_skill_submission_candidate` before its GitHub budget check, claims only that exact ID, unconditionally calls `api.renew_skill_submission_claim` after source phases, and uses `api.defer_skill_submission_provider_limit` for raced provider exhaustion. Publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck; queue inspection relies on the read-plane RPCs; report moderation relies on the final atomic enforcement and paired-cursor contracts. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise consume attempts during provider backpressure, fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
+Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, `20260714030000_github_provider_rate_limit_deferral.sql`, `20260714050000_report_authorization_enforcement.sql`, and `20260714060000_operator_dual_control.sql`, plus every preceding migration, are applied to the target. The worker uses `api.peek_skill_submission_candidate` before its GitHub budget check, claims only that exact ID, unconditionally calls `api.renew_skill_submission_claim` after source phases, and uses `api.defer_skill_submission_provider_limit` for raced provider exhaustion. Publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck; queue inspection relies on the read-plane RPCs; report intake independently requires current publisher authorization; report moderation relies on the final atomic enforcement and paired-cursor contracts. Consequential authorization, collision, publication, lifecycle, and report-disposition mutations require an exact short-lived approval and a distinct executor. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise consume attempts during provider backpressure, fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, accept reports for a listing whose authorization has expired, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
 
 Migration `20260713060000` creates its queue index inside the migration transaction. Apply it before accepting submissions. If the target is already populated, use a maintenance window and record the pre-migration row count plus index-build duration because the non-concurrent build can block writes. A second index for the default multi-state listing is deferred until target `EXPLAIN` output, queue growth, or measured latency justifies its write and storage cost.
 
@@ -90,11 +90,15 @@ Migration `20260714010000` deliberately refuses a target containing any report a
 
 Migration `20260714030000` adds provider retry timing, a separate deferral counter, an exact read-only candidate peek, and an exact-claim deferral RPC. Normal insufficient GitHub core budget returns `provider-deferred` with `mutation: false`; a post-claim 403/429 or bounded secondary-limit response returns `mutation: true` only after the row is safely back in `queued`. Both paths preserve unauthenticated public/private verification and consume no audit attempt. Treat a requirement above the provider's total limit as an operator configuration error, not a retry loop.
 
+Migration `20260714050000` composes `private.version_has_current_publisher_authorization` into authenticated report insertion. A version hidden only because its latest authorization expired cannot accept a new report even if its catalog lifecycle fields otherwise remain published.
+
+Migration `20260714060000` requires two independently provisioned operator principals for every consequential authorization, collision-review, publication, catalog-lifecycle, and report-disposition action. The approver records one exact payload/digest/operation envelope; a distinct executor must present its unexpired `opa_...` approval. Raw `smo_v1_...` credentials are sent only in the server-to-server request header and are never arguments, output, or retained rows.
+
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713060000, 20260714010000, and 20260714030000 are present in both the local and remote columns.
+# Verify 20260713060000, 20260714010000, 20260714030000, 20260714050000, and 20260714060000 are present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
@@ -109,7 +113,7 @@ npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000`, `20260714010000`, and `20260714030000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000`, `20260714010000`, `20260714030000`, `20260714050000`, and `20260714060000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization for report intake, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, distinct-operator dual control, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -202,11 +206,11 @@ The operator queue read plane is service-role-only, bounded, redacted, and non-m
    npm run hosted:collisions:list -- --execute --submission-id sub_...
    ```
 
-8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop:
+8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop. For this and every later consequential command, the approver loads only their root-held `SKILLMAP_OPERATOR_CREDENTIAL` and runs `--approve`; a distinct executor then loads their own credential and repeats the exact arguments and operation UUID with `--execute --approval-id opa_...` before the 30-minute expiry. Never put either credential on the command line or in a receipt:
 
    ```bash
    npm run hosted:collisions:review -- \
-     --execute --submission-id sub_... --disposition approved-distinct \
+     --approve --submission-id sub_... --disposition approved-distinct \
      --reason-code independently-reviewed-source \
      --operation-id 00000000-0000-4000-8000-000000000000
    ```
@@ -216,7 +220,7 @@ The operator queue read plane is service-role-only, bounded, redacted, and non-m
 
    ```bash
    npm run hosted:publisher:authorization -- \
-     --execute --submission-id sub_... --publisher-handle publisher-handle \
+     --approve --submission-id sub_... --publisher-handle publisher-handle \
      --decision authorized --basis publisher-owner-approval \
      --evidence-reference authref_0123456789abcdef0123456789abcdef \
      --evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --expires-at 2026-10-01T00:00:00.000Z \
@@ -229,7 +233,8 @@ The operator queue read plane is service-role-only, bounded, redacted, and non-m
 
    ```bash
    npm run hosted:queue:publish -- \
-     --execute --submission-id sub_... --metadata /tmp/reviewed-publication.json
+     --approve --submission-id sub_... --metadata /tmp/reviewed-publication.json \
+     --operation-id 22222222-2222-4222-8222-222222222222
    ```
 
 12. Verify the public catalog/detail projection and account result point to the exact new skill/version IDs.
@@ -256,7 +261,7 @@ npm run hosted:reports:queue -- --execute --limit 20
 
 # Resolve one report. Reuse an operation UUID only to retry this exact payload.
 npm run hosted:reports:disposition -- \
-  --execute --report-id rpt_... --disposition confirmed \
+  --approve --report-id rpt_... --disposition confirmed \
   --reason-code listing-quarantined \
   --public-message "The version was quarantined for review." \
   --lifecycle-action quarantine-version \

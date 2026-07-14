@@ -4,7 +4,11 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { canonicalDigest } from './operator-receipts.mjs';
-import { createSupabaseRpcClientFromEnvironment } from './supabase-rpc.mjs';
+import {
+  acceptOperatorMode,
+  finalizeOperatorMode,
+  runDualControlledOperatorAction
+} from './operator-dual-control.mjs';
 
 const REPORT_ID = /^rpt_[0-9a-f]{32}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -12,43 +16,74 @@ const REASON = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DISPOSITIONS = new Set(['confirmed', 'no-action', 'duplicate', 'invalid']);
 const ENFORCEMENT_ACTIONS = new Set(['quarantine-version', 'revoke-version']);
 
-export async function runReportDisposition(options, dependencies = {}) {
-  if (!options.execute) throw new Error('Refusing report disposition without the explicit --execute flag.');
+export function buildReportDispositionAction(options) {
   const idempotencyDigest = canonicalDigest({
     kind: 'skillmap.report-disposition-operation', schemaVersion: 1,
     operationId: options.operationId, reportId: options.reportId,
     disposition: options.disposition, reasonCode: options.reasonCode,
     publicMessage: options.publicMessage, lifecycleAction: options.lifecycleAction
   });
-  const rpc = dependencies.rpc ?? createSupabaseRpcClientFromEnvironment();
-  const result = await rpc.call('disposition_skill_report', {
-    p_report_id: options.reportId,
-    p_disposition_code: options.disposition,
-    p_reason_code: options.reasonCode,
-    p_public_message: options.publicMessage,
-    p_lifecycle_action: options.lifecycleAction,
-    p_idempotency_digest: idempotencyDigest
+  return Object.freeze({
+    mode: options.mode,
+    approvalId: options.approvalId,
+    actionKind: 'report.disposition',
+    subjectType: 'report',
+    subjectId: options.reportId,
+    actionPayload: Object.freeze({
+      schemaVersion: 1,
+      reportId: options.reportId,
+      dispositionCode: options.disposition,
+      reasonCode: options.reasonCode,
+      publicMessage: options.publicMessage,
+      lifecycleAction: options.lifecycleAction
+    }),
+    actionDigest: idempotencyDigest,
+    operationId: options.operationId,
+    businessRpc: 'disposition_skill_report',
+    businessParameters: Object.freeze({
+      p_report_id: options.reportId,
+      p_disposition_code: options.disposition,
+      p_reason_code: options.reasonCode,
+      p_public_message: options.publicMessage,
+      p_lifecycle_action: options.lifecycleAction,
+      p_idempotency_digest: idempotencyDigest
+    })
   });
-  validateReportDispositionResult(result, options);
-  return { result: 'completed', mutation: true, idempotencyDigest, report: result };
+}
+
+export async function runReportDisposition(options, dependencies = {}) {
+  const action = buildReportDispositionAction(options);
+  const outcome = await runDualControlledOperatorAction(action, dependencies);
+  if (outcome.mode === 'approve') {
+    return {
+      result: 'operator-action-approved', mutation: true,
+      actionKind: action.actionKind, actionDigest: action.actionDigest,
+      approval: outcome.approval
+    };
+  }
+  validateReportDispositionResult(outcome.result, options);
+  return {
+    result: 'completed', mutation: true,
+    idempotencyDigest: action.actionDigest, report: outcome.result
+  };
 }
 
 export function parseReportDispositionArguments(args) {
   const values = Object.create(null);
-  let execute = false;
+  let mode = null;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === '--help' || argument === '-h') return { help: true };
-    if (argument === '--execute') {
-      if (execute) throw new Error('--execute may be supplied only once.');
-      execute = true;
+    const nextMode = acceptOperatorMode(argument, mode);
+    if (nextMode !== null) {
+      mode = nextMode;
       continue;
     }
     if (![
       '--report-id', '--disposition', '--reason-code', '--public-message',
-      '--lifecycle-action', '--operation-id'
+      '--lifecycle-action', '--operation-id', '--approval-id'
     ].includes(argument)) {
-      throw new Error(`Unknown option: ${argument}`);
+      throw new Error('Unknown option.');
     }
     if (values[argument] !== undefined) throw new Error(`Option may be supplied only once: ${argument}`);
     const value = args[index + 1];
@@ -56,7 +91,7 @@ export function parseReportDispositionArguments(args) {
     values[argument] = value;
     index += 1;
   }
-  if (!execute) return { help: false, execute };
+  const operator = finalizeOperatorMode(mode, values['--approval-id']);
   const reportId = values['--report-id'];
   const disposition = values['--disposition'];
   const reasonCode = values['--reason-code'];
@@ -78,7 +113,7 @@ export function parseReportDispositionArguments(args) {
   }
   if (!UUID.test(operationId ?? '')) throw new Error('--operation-id must be one canonical lowercase UUID.');
   return {
-    help: false, execute, reportId, disposition, reasonCode,
+    help: false, ...operator, reportId, disposition, reasonCode,
     publicMessage, lifecycleAction, operationId
   };
 }
@@ -112,10 +147,12 @@ function help() {
   return `SkillMap report disposition operator\n\n` +
     `Resolve one authenticated suspicious-listing report through a service-role-only idempotent RPC.\n` +
     `Confirmed reports atomically quarantine or revoke the exact reported version.\n` +
-    `Mutation requires: --execute\n\n` +
+    `Approval and execution require distinct SKILLMAP_OPERATOR_CREDENTIAL values. ` +
+    `Use exactly one mode; --approve records only the exact envelope, and --execute requires --approval-id.\n\n` +
     `Usage:\n` +
-    `  node apps/worker/src/report-disposition.mjs --execute --report-id rpt_... --disposition confirmed --reason-code CODE --public-message MESSAGE --lifecycle-action quarantine-version --operation-id UUID\n` +
-    `  node apps/worker/src/report-disposition.mjs --execute --report-id rpt_... --disposition no-action --reason-code CODE --public-message MESSAGE --operation-id UUID\n`;
+    `  node apps/worker/src/report-disposition.mjs --approve --report-id rpt_... --disposition confirmed --reason-code CODE --public-message MESSAGE --lifecycle-action quarantine-version --operation-id UUID\n` +
+    `  node apps/worker/src/report-disposition.mjs --approve --report-id rpt_... --disposition no-action --reason-code CODE --public-message MESSAGE --operation-id UUID\n` +
+    `Execute: repeat the exact action with --execute --approval-id opa_...\n`;
 }
 
 async function main(args) {

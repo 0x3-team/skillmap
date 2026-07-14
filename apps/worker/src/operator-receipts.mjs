@@ -9,6 +9,7 @@ const DIMENSIONS = [
   ['maintenance-and-provenance', 'maintenanceAndProvenance', 0.15]
 ];
 const AUDIT_BLOCKING_CODES = new Set([
+  'binary-file',
   'critical-instruction-confusion',
   'credential-material',
   'destructive-command',

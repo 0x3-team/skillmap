@@ -430,9 +430,9 @@ test('GitHub source transport receives connector cancellation without waiting fo
 });
 
 test('recovery processes every anchored nonterminal job beyond the first 100', {
-  // Windows hosted filesystems need more wall-clock headroom for the same 101
-  // durable create/transition/recovery corpus; POSIX keeps the tighter guard.
-  timeout: process.platform === 'win32' ? 60_000 : 30_000
+  // This durability-heavy corpus performs sequential synced writes and directory
+  // replacements, so its wall-clock cost varies materially by filesystem.
+  timeout: 120_000
 }, async (t) => {
   const cwd = workspace(t);
   for (let index = 0; index < 101; index += 1) {

@@ -45,6 +45,8 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /20260713060000_operator_submission_read_plane\.sql/);
   assert.match(source, /20260714010000_atomic_report_enforcement\.sql/);
   assert.match(source, /20260714030000_github_provider_rate_limit_deferral\.sql/);
+  assert.match(source, /20260714050000_report_authorization_enforcement\.sql/);
+  assert.match(source, /20260714060000_operator_dual_control\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
   assert.match(source, /dead_letter_expired_skill_submission/);
   assert.match(source, /list_skill_submission_collisions/);
@@ -57,6 +59,13 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /disposition_skill_report/);
   assert.match(source, /p_lifecycle_action/);
   assert.match(source, /list_skill_report_queue/);
+  assert.match(source, /reportAuthorizationMigration/);
+  assert.match(source, /version_has_current_publisher_authorization/);
+  assert.match(source, /operatorDualControlMigration/);
+  assert.match(source, /operatorDualControlSource/);
+  assert.match(source, /approve_operator_action/);
+  assert.match(source, /x-skillmap-operator-credential/);
+  assert.match(source, /x-skillmap-operator-approval/);
   assert.match(source, /peek_skill_submission_candidate/);
   assert.match(source, /defer_skill_submission_provider_limit/);
   assert.match(source, /CORE_REQUEST_RESERVE/);
@@ -111,4 +120,8 @@ test('repository secret canary scan catches credentials and limits the fixture e
     path: 'test/another-test.mjs',
     bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
   }]), [{ path: 'test/another-test.mjs', label: 'PEM private key' }]);
+  const operatorCredential = `smo_v1_${'a'.repeat(64)}`;
+  assert.deepEqual(scanRepositorySecretCanaries([{
+    path: 'ops/operator.env', bytes: Buffer.from(operatorCredential)
+  }]), [{ path: 'ops/operator.env', label: 'SkillMap operator credential' }]);
 });

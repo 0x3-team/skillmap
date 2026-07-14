@@ -191,6 +191,51 @@ export default async function SkillDetailPage({
             </nav>
           </section>
 
+          <section className="mt-10 border-t border-border pt-8" aria-labelledby="freshness-signals-heading">
+            <h2 id="freshness-signals-heading" className="text-xl font-semibold">Freshness signals</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Recorded signals only. SkillMap does not calculate an automatic fresh or current verdict from elapsed time; stale and incomplete states appear only when the retained evidence says so.
+            </p>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              <FreshnessSignal
+                label="Catalog publication"
+                value={formatDate(skill.currentVersion.publishedAt)}
+                detail={`Recorded for version ${skill.currentVersion.version}.`}
+              />
+              <FreshnessSignal
+                label="Listing record"
+                value={formatDate(skill.updatedAt)}
+                detail="Most recent recorded catalog update for this listing."
+              />
+              <FreshnessSignal
+                label="Provenance evidence"
+                value={humanize(skill.evidence.provenance)}
+                detail="Recorded evidence state for this exact source version."
+              />
+              <FreshnessSignal
+                label="Audit evidence"
+                value={humanize(skill.evidence.audit)}
+                detail="Open the bounded audit page for any retained receipt timestamp."
+              />
+              <FreshnessSignal
+                label="Compatibility evidence"
+                value={humanize(skill.evidence.compatibility)}
+                detail={skill.compatibility.profileVersion
+                  ? `Host profile ${skill.compatibility.profileVersion}.`
+                  : "No host-profile version is attached to this compatibility state."}
+              />
+              <FreshnessSignal
+                label="Grade evidence"
+                value={humanize(skill.currentVersion.grade.state)}
+                detail={skill.currentVersion.grade.invalidatedAt
+                  ? `Invalidated ${formatDate(skill.currentVersion.grade.invalidatedAt)}.`
+                  : skill.currentVersion.grade.receipt
+                    ? `Receipt recorded ${formatDate(skill.currentVersion.grade.receipt.gradedAt)}.`
+                    : "No public grade receipt timestamp is attached to this version."}
+              />
+            </dl>
+          </section>
+
           <section className="mt-10 border-t border-border pt-8">
             <h2 className="text-xl font-semibold">Source and integrity</h2>
             <dl className="mt-4 grid gap-3">
@@ -199,8 +244,6 @@ export default async function SkillDetailPage({
               <SourceRow icon={<FileKey2 />} label="Entrypoint digest" value={skill.source.entrypointContentDigest} mono />
               <SourceRow icon={<ShieldQuestion />} label="Raw source snapshot" value={skill.source.rawSnapshotDigest ?? "Pending canonical receipt"} mono={Boolean(skill.source.rawSnapshotDigest)} />
               <SourceRow icon={<ShieldQuestion />} label="Normalized artifact" value={skill.artifact.normalizedDigest ?? "Pending package pipeline"} mono={Boolean(skill.artifact.normalizedDigest)} />
-              <SourceRow icon={<GitCommitHorizontal />} label="Published" value={formatDate(skill.currentVersion.publishedAt)} />
-              <SourceRow icon={<GitCommitHorizontal />} label="Listing updated" value={formatDate(skill.updatedAt)} />
             </dl>
           </section>
 
@@ -332,6 +375,18 @@ function TrustStatePill({ label, state }: { label: string; state: string }) {
 
 function EvidenceCell({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs font-semibold text-muted-foreground">{label}</p><p className="mt-2 text-sm font-semibold text-foreground">{humanize(value)}</p></div>;
+}
+
+function FreshnessSignal({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-card p-4">
+      <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+      <dd className="mt-2">
+        <span className="block text-sm font-semibold text-foreground">{value}</span>
+        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{detail}</span>
+      </dd>
+    </div>
+  );
 }
 
 function SourceRow({ icon, label, value, mono = false }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {

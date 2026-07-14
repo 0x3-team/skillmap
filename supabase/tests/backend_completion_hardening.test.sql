@@ -5,6 +5,16 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
+-- Legacy behavioral assertions exercise the relocated implementations directly.
+-- The transaction-local grants/default never exist outside this pgTAP session;
+-- dual-control wrapper behavior is covered in operator_dual_control.test.sql.
+grant usage on schema private to service_role;
+grant execute on function private.record_skill_submission_publisher_authorization_unchecked(text,text,text,text,text,text,timestamptz,text) to service_role;
+grant execute on function private.review_skill_submission_collisions_unchecked(text,text,text,text,text,text,text) to service_role;
+grant execute on function private.publish_skill_submission_unchecked(text,text,text,text,text,text,text,text,text[],text,text,boolean,text[],text[]) to service_role;
+grant execute on function private.control_catalog_lifecycle_unchecked(text,text,text,text,text) to service_role;
+alter table private.audit_events alter column operator_attribution_required set default false;
+
 create function pg_temp.audit_payload(
   audit_state text,
   receipt_seed text,
@@ -345,18 +355,18 @@ select ok((select (collision_evidence ->> 'totalMatches')::integer > 0 from priv
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select ok((select collision_found from api.list_skill_submission_collisions('sub_c0000000000000000000000000000001')), 'bounded service lookup reports the collision');
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_c0000000000000000000000000000001','sha256:' || repeat('1',64),
   'copy-owner','Copy Owner','copied-skill','Copied Skill','Reviewed copy fixture.',
   'A metadata-only collision enforcement fixture.',array['review.audit'],'confirmed','MIT',false,'{}','{}')$$,
   55000, 'publication requires an explicit current target-bound collision disposition', 'publication cannot silently publish copied content');
-select is((select disposition from api.review_skill_submission_collisions(
+select is((select disposition from private.review_skill_submission_collisions_unchecked(
   'sub_c0000000000000000000000000000001','approved-distinct','manual-source-review',null,null,null,'sha256:' || repeat('2',64))),
   'approved-distinct', 'operator records an explicit digest-bound collision disposition');
-select is((select disposition from api.review_skill_submission_collisions(
+select is((select disposition from private.review_skill_submission_collisions_unchecked(
   'sub_c0000000000000000000000000000001','approved-distinct','manual-source-review',null,null,null,'sha256:' || repeat('2',64))),
   'approved-distinct', 'exact collision review replay is idempotent');
-select throws_ok($$select * from api.review_skill_submission_collisions(
+select throws_ok($$select * from private.review_skill_submission_collisions_unchecked(
   'sub_c0000000000000000000000000000001','approved-distinct','changed-review-reason',null,null,null,'sha256:' || repeat('2',64))$$,
   23505, 'collision review idempotency digest conflicts with another decision', 'changed collision review replay conflicts');
 reset role;
@@ -364,31 +374,31 @@ select throws_ok($$update private.submission_collision_reviews set reason_code =
   55000, null, 'collision review receipts are append-only');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_c0000000000000000000000000000001','sha256:' || repeat('1',64),
   'copy-owner','Copy Owner','copied-skill','Copied Skill','Reviewed copy fixture.',
   'A metadata-only collision enforcement fixture.',array['review.audit'],'confirmed','MIT',false,'{}','{}')$$,
   55000, 'publication requires current exact-source publisher authorization',
   'submitter self-attestation cannot substitute for reviewed publisher authorization');
 select authorization_receipt_id as wrong_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_c0000000000000000000000000000001','other-owner','authorized','publisher-consent',
   'authref_' || repeat('3',32),'sha256:' || repeat('3',64),
   now() + interval '30 days','sha256:' || repeat('3',64)
 ) \gset
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_c0000000000000000000000000000001','sha256:' || repeat('1',64),
   'copy-owner','Copy Owner','copied-skill','Copied Skill','Reviewed copy fixture.',
   'A metadata-only collision enforcement fixture.',array['review.audit'],'confirmed','MIT',false,'{}','{}')$$,
   55000, 'publication requires current exact-source publisher authorization',
   'authorization for another publisher identity cannot authorize publication');
 select authorization_receipt_id as collision_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_c0000000000000000000000000000001','copy-owner','authorized','publisher-consent',
   'authref_' || repeat('4',32),'sha256:' || repeat('4',64),
   now() + interval '30 days','sha256:' || repeat('4',64)
 ) \gset
-select is((select submission_state from api.publish_skill_submission(
+select is((select submission_state from private.publish_skill_submission_unchecked(
   'sub_c0000000000000000000000000000001','sha256:' || repeat('1',64),
   'copy-owner','Copy Owner','copied-skill','Copied Skill','Reviewed copy fixture.',
   'A metadata-only collision enforcement fixture.',array['review.audit'],'confirmed','MIT',false,'{}','{}')),
@@ -399,7 +409,7 @@ select is((select license_files::text from private.skill_versions where source_s
 select is((select count(*) from private.submission_collision_reviews where submission_id = 'c0000000-0000-4000-8000-000000000001'), 1::bigint, 'publication retains exactly one immutable collision review receipt');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_c0000000000000000000000000000001','other-owner','revoked',null,
   'authref_' || repeat('8',32),'sha256:' || repeat('8',64),null,
   'sha256:' || repeat('8',64))$$,
@@ -416,7 +426,7 @@ select is((select count(*) from private.submission_publisher_authorization_recei
   'wrong-handle revocation leaves no passive authorization receipt');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select authorization_decision from api.record_skill_submission_publisher_authorization(
+select is((select authorization_decision from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_c0000000000000000000000000000001','copy-owner','revoked',null,
   'authref_' || repeat('9',32),'sha256:' || repeat('9',64),null,
   'sha256:' || repeat('9',64))), 'revoked',
@@ -428,7 +438,7 @@ select is((select row(publication_state, quarantined_at is not null, revoked_at 
   '(blocked,t,t)', 'published consent withdrawal atomically blocks and revokes the exact source version');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_c0000000000000000000000000000001','sha256:' || repeat('1',64),
   'copy-owner','Copy Owner','copied-skill','Copied Skill','Reviewed copy fixture.',
   'A metadata-only collision enforcement fixture.',array['review.audit'],'confirmed','MIT',false,'{}','{}')$$,
@@ -443,7 +453,7 @@ select is((select count(*) from api.catalog_skills
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_c0000000000000000000000000000001','copy-owner','authorized','publisher-consent',
   'authref_' || repeat('a',32),'sha256:' || repeat('a',64),
   now() + interval '30 days','sha256:' || repeat('a',64))$$,
@@ -504,17 +514,17 @@ select submission_state as update_completion_state from api.complete_skill_submi
   '{}'::text[], null, 'sha256:' || repeat('b',64)
 ) \gset
 select authorization_receipt_id as update_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_d0000000000000000000000000000001','0x3-team','authorized','publisher-owner-approval',
   'authref_' || repeat('7',32),'sha256:' || repeat('c',64),
   now() + interval '30 days','sha256:' || repeat('c',64)
 ) \gset
-select throws_ok($$select * from api.review_skill_submission_collisions(
+select throws_ok($$select * from private.review_skill_submission_collisions_unchecked(
   'sub_d0000000000000000000000000000001','approved-update','reviewed-version-update',
   null,null,null,'sha256:' || repeat('d',64))$$,
   22023, 'collision review request is invalid',
   'approved-update rejects a missing target tuple');
-select throws_ok($$select * from api.review_skill_submission_collisions(
+select throws_ok($$select * from private.review_skill_submission_collisions_unchecked(
   'sub_d0000000000000000000000000000001','approved-update','reviewed-version-update',
   'pub_00000000000000000000000000000001',
   'skl_00000000000000000000000000000002',
@@ -522,21 +532,21 @@ select throws_ok($$select * from api.review_skill_submission_collisions(
   'sha256:' || repeat('e',64))$$,
   22023, 'approved update target is not the exact current collision identity',
   'approved-update rejects a valid catalog identity absent from collision evidence');
-select is((select disposition from api.review_skill_submission_collisions(
+select is((select disposition from private.review_skill_submission_collisions_unchecked(
   'sub_d0000000000000000000000000000001','approved-update','reviewed-version-update',
   'pub_00000000000000000000000000000001',
   'skl_00000000000000000000000000000001',
   'skv_00000000000000000000000000000001',
   'sha256:' || repeat('f',64))), 'approved-update',
   'approved-update records the exact current collision target tuple');
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_d0000000000000000000000000000001','sha256:' || repeat('0',64),
   '0x3-team','0x3 Team','skill-quality-review','Skill Quality Review',
   'Wrong target fixture.','This update intentionally selects the wrong reviewed skill.',
   array['review.audit'],'confirmed','MIT',false,'{}','{}')$$,
   55000, 'publication identity does not match the exact approved update target',
   'publication cannot redirect an approved update to another skill identity');
-select is((select submission_state from api.publish_skill_submission(
+select is((select submission_state from private.publish_skill_submission_unchecked(
   'sub_d0000000000000000000000000000001','sha256:' || repeat('0',64),
   '0x3-team','0x3 Team','skill-audit','Skill Audit',
   'Reviewed exact-target update fixture.',
@@ -618,12 +628,12 @@ select is((select submission_state from api.complete_skill_submission(
   'sha256:' || encode(digest('retry-completion','sha256'),'hex'))),
   'accepted', 'retry claim completes with the same deterministic audit digest');
 select authorization_receipt_id as retry_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_e0000000000000000000000000000001','retry-owner','authorized','publisher-owner-approval',
   'authref_' || repeat('8',32),'sha256:' || repeat('8',64),
   clock_timestamp() + interval '2 seconds','sha256:' || repeat('8',64)
 ) \gset
-select is((select submission_state from api.publish_skill_submission(
+select is((select submission_state from private.publish_skill_submission_unchecked(
   'sub_e0000000000000000000000000000001',
   'sha256:' || encode(digest('retry-publication','sha256'),'hex'),
   'retry-owner','Retry Owner','nested-skill','Nested Skill',
@@ -647,7 +657,7 @@ select is((select count(*) from api.catalog_skills
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_e0000000000000000000000000000001','other-owner','authorized','publisher-owner-approval',
   'authref_' || repeat('b',32),'sha256:' || encode(digest('retry-wrong-handle','sha256'),'hex'),
   now() + interval '30 days','sha256:' || encode(digest('retry-wrong-handle-operation','sha256'),'hex'))$$,
@@ -662,12 +672,12 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select authorization_receipt_id as retry_renewal_receipt_id,
   authorization_expires_at as retry_renewal_expires_at
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_e0000000000000000000000000000001','retry-owner','authorized','publisher-owner-approval',
   'authref_' || repeat('c',32),'sha256:' || encode(digest('retry-renewal','sha256'),'hex'),
   now() + interval '30 days','sha256:' || encode(digest('retry-renewal-operation','sha256'),'hex')
 ) \gset
-select is((select authorization_decision from api.record_skill_submission_publisher_authorization(
+select is((select authorization_decision from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_e0000000000000000000000000000001','retry-owner','authorized','publisher-owner-approval',
   'authref_' || repeat('c',32),'sha256:' || encode(digest('retry-renewal','sha256'),'hex'),
   :'retry_renewal_expires_at'::timestamptz,
@@ -693,11 +703,11 @@ from api.skill_submissions
 where id = 'e0000000-0000-4000-8000-000000000001' \gset
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select skill_revoked from api.control_catalog_lifecycle(
+select is((select skill_revoked from private.control_catalog_lifecycle_unchecked(
   :'retry_skill_public_id', null, 'revoke-skill', 'confirmed-policy-violation',
   'sha256:' || encode(digest('retry-skill-revocation','sha256'),'hex')
 )), true, 'service lifecycle authority revokes the published exact-source skill');
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_e0000000000000000000000000000001',
   'sha256:' || encode(digest('retry-publication','sha256'),'hex'),
   'retry-owner','Retry Owner','nested-skill','Nested Skill',
@@ -874,13 +884,13 @@ select ok(not exists (
 ), 'the twenty-first exact collision identity is omitted from both bounded arrays');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.review_skill_submission_collisions(
+select throws_ok($$select * from private.review_skill_submission_collisions_unchecked(
   'sub_f0000000000000000000000000000001','approved-distinct',
   'independently-reviewed-source',null,null,null,
   'sha256:' || encode(digest('bulk-distinct-review','sha256'),'hex'))$$,
   55000, 'partial collision evidence cannot authorize publication',
   'approved-distinct cannot infer safety from a truncated collision subject');
-select throws_ok($$select * from api.review_skill_submission_collisions(
+select throws_ok($$select * from private.review_skill_submission_collisions_unchecked(
   'sub_f0000000000000000000000000000001','approved-update',
   'reviewed-version-update','pub_' || repeat('f',31) || '1',
   'skl_f' || lpad(to_hex(21),31,'0'),
@@ -906,14 +916,14 @@ where submission.id = 'f0000000-0000-4000-8000-000000000001';
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select authorization_receipt_id as bulk_collision_authorization_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_f0000000000000000000000000000001','bulk-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('e',32),
   'sha256:' || encode(digest('bulk-authorization','sha256'),'hex'),
   now() + interval '30 days',
   'sha256:' || encode(digest('bulk-authorization-operation','sha256'),'hex')
 ) \gset
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_f0000000000000000000000000000001',
   'sha256:' || encode(digest('bulk-publication','sha256'),'hex'),
   'bulk-owner','Bulk Owner','collision-21','Collision 21',
@@ -977,7 +987,7 @@ from api.complete_skill_submission(
 ) \gset
 select authorization_receipt_id as terminal_authorization_receipt_id,
   authorization_expires_at as terminal_authorization_expires_at
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_a4000000000000000000000000000001','terminal-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('2',32),
   'sha256:' || encode(digest('terminal-authorization','sha256'),'hex'),
@@ -1042,13 +1052,13 @@ where id = 'a2000000-0000-4000-8000-000000000003';
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select authorization_receipt_id as terminal_revocation_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_a4000000000000000000000000000001','terminal-owner','revoked',null,
   'authref_' || repeat('3',32),
   'sha256:' || encode(digest('terminal-revocation','sha256'),'hex'),null,
   'sha256:' || encode(digest('terminal-revocation-operation','sha256'),'hex')
 ) \gset
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_a4000000000000000000000000000001','terminal-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('2',32),
   'sha256:' || encode(digest('terminal-authorization','sha256'),'hex'),
@@ -1056,7 +1066,7 @@ select throws_ok($$select * from api.record_skill_submission_publisher_authoriza
   'sha256:' || encode(digest('terminal-authorization-operation','sha256'),'hex'))$$,
   55000, 'publisher authorization revocation is terminal for the exact source',
   'a stale historical authorization replay cannot report current authority');
-select is((select authorization_receipt_id from api.record_skill_submission_publisher_authorization(
+select is((select authorization_receipt_id from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_a4000000000000000000000000000001','terminal-owner','revoked',null,
   'authref_' || repeat('3',32),
   'sha256:' || encode(digest('terminal-revocation','sha256'),'hex'),null,
@@ -1070,7 +1080,7 @@ select is((select decision from private.submission_publisher_authorization_recei
   'historical replay leaves the terminal receipt latest');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_a4000000000000000000000000000001','terminal-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('4',32),
   'sha256:' || encode(digest('terminal-reauthorization','sha256'),'hex'),
@@ -1078,7 +1088,7 @@ select throws_ok($$select * from api.record_skill_submission_publisher_authoriza
   'sha256:' || encode(digest('terminal-reauthorization-operation','sha256'),'hex'))$$,
   55000, 'publisher authorization revocation is terminal for the exact source',
   'new same-handle authorization cannot supersede terminal revocation');
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_a4000000000000000000000000000001','replacement-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('5',32),
   'sha256:' || encode(digest('terminal-handle-switch','sha256'),'hex'),
@@ -1101,7 +1111,7 @@ select is((select row(publication_state, quarantined_at is not null, revoked_at 
   '(blocked,t,t)', 'accepted-state revocation atomically blocks every published exact-source version');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_a4000000000000000000000000000001',
   'sha256:' || encode(digest('terminal-publication','sha256'),'hex'),
   'terminal-owner','Terminal Owner','terminal-skill','Terminal Skill',
@@ -1179,7 +1189,7 @@ select is((select (collision_evidence ->> 'totalMatches')::integer
   0, 'blocked exact-source versions are excluded from collision evidence without erasing the tombstone');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_b4000000000000000000000000000001','terminal-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('7',32),
   'sha256:' || encode(digest('terminal-second-same-handle','sha256'),'hex'),
@@ -1187,7 +1197,7 @@ select throws_ok($$select * from api.record_skill_submission_publisher_authoriza
   'sha256:' || encode(digest('terminal-second-same-operation','sha256'),'hex'))$$,
   55000, 'publisher authorization revocation is terminal for the exact source',
   'a second account cannot reauthorize the terminal source under the original handle');
-select throws_ok($$select * from api.record_skill_submission_publisher_authorization(
+select throws_ok($$select * from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_b4000000000000000000000000000001','replacement-owner','authorized',
   'publisher-owner-approval','authref_' || repeat('8',32),
   'sha256:' || encode(digest('terminal-second-cross-handle','sha256'),'hex'),
@@ -1201,7 +1211,7 @@ select is((select count(*) from private.submission_publisher_authorization_recei
   0::bigint, 'second-account bypass attempts append no authorization receipt');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok($$select * from api.publish_skill_submission(
+select throws_ok($$select * from private.publish_skill_submission_unchecked(
   'sub_b4000000000000000000000000000001',
   'sha256:' || encode(digest('terminal-second-publication','sha256'),'hex'),
   'terminal-owner','Terminal Owner','terminal-skill','Terminal Skill',

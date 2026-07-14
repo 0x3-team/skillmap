@@ -964,6 +964,22 @@ export type Database = {
       }
     }
     Functions: {
+      approve_operator_action: {
+        Args: {
+          p_action_digest: string
+          p_action_kind: string
+          p_action_payload: Json
+          p_operation_id: string
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: {
+          action_digest: string
+          approval_id: string
+          approver_id: string
+          expires_at: string
+        }[]
+      }
       claim_skill_submission: {
         Args: {
           p_lease_seconds?: number

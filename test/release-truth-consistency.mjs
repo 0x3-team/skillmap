@@ -107,6 +107,9 @@ test('operator documentation, commands, and application types bind the final rea
     const source = sources[file];
     assert.match(source, /20260713060000_operator_submission_read_plane[.]sql/, file);
     assert.match(source, /20260714010000_atomic_report_enforcement[.]sql/, file);
+    assert.match(source, /20260714030000_github_provider_rate_limit_deferral[.]sql/, file);
+    assert.match(source, /20260714050000_report_authorization_enforcement[.]sql/, file);
+    assert.match(source, /20260714060000_operator_dual_control[.]sql/, file);
     assert.match(source, /hosted:queue:list/, file);
     assert.match(source, /hosted:queue:inspect/, file);
     assert.match(source, /best-effort[^.]+live/i, file);

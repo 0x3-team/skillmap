@@ -11,10 +11,12 @@ test('operator projection emits an exact provisional rubric without fabricating 
     auditReceipt,
     gradeEvaluation,
     compatibilityReceiptDigest: SHA('8'),
-    workerVersion: 'skillmap-worker/0.1.0',
+    workerVersion: 'skillmap-worker/0.2.0',
     licenseReviewReference: `licref_${'1'.repeat(32)}`,
     licenseReviewEvidenceDigest: SHA('9')
   });
+  assert.equal(payloads.audit.policyVersion, 'skillmap-static-audit/v2');
+  assert.equal(payloads.audit.workerVersion, 'skillmap-worker/0.2.0');
   assert.equal(payloads.grade.state, 'provisional');
   assert.equal(payloads.grade.totalScore, 82);
   assert.equal(payloads.grade.evaluationSuiteDigest, null);
@@ -62,7 +64,7 @@ test('operator projection keeps blocked audit and grade evidence fail-closed', (
     auditReceipt,
     gradeEvaluation: grade('blocked'),
     compatibilityReceiptDigest: null,
-    workerVersion: 'skillmap-worker/0.1.0',
+    workerVersion: 'skillmap-worker/0.2.0',
     licenseReviewReference: `licref_${'1'.repeat(32)}`,
     licenseReviewEvidenceDigest: SHA('9')
   });
@@ -87,12 +89,12 @@ test('operator projection aggregates repeated finding codes into one determinist
     auditReceipt,
     gradeEvaluation: grade('blocked'),
     compatibilityReceiptDigest: null,
-    workerVersion: 'skillmap-worker/0.1.0',
+    workerVersion: 'skillmap-worker/0.2.0',
     licenseReviewReference: `licref_${'1'.repeat(32)}`,
     licenseReviewEvidenceDigest: SHA('9')
   });
   assert.deepEqual(payloads.audit.publicChecks, [
-    { code: 'binary-file', outcome: 'warning', severity: 'medium', evidenceDigest: null },
+    { code: 'binary-file', outcome: 'blocked', severity: 'medium', evidenceDigest: null },
     { code: 'credential-material', outcome: 'blocked', severity: 'critical', evidenceDigest: null }
   ]);
   assert.deepEqual(payloads.audit.reasonCodes, ['binary-file', 'credential-material']);
@@ -100,7 +102,7 @@ test('operator projection aggregates repeated finding codes into one determinist
 
 function audit(state) {
   return {
-    auditVersion: 'skillmap-static-audit/v1',
+    auditVersion: 'skillmap-static-audit/v2',
     receiptDigest: SHA('a'),
     state,
     subject: {

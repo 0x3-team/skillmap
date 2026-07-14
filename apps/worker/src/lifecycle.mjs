@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 
 import process from 'node:process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { canonicalDigest } from './operator-receipts.mjs';
-import { createSupabaseRpcClientFromEnvironment } from './supabase-rpc.mjs';
+import {
+  acceptOperatorMode,
+  finalizeOperatorMode,
+  runDualControlledOperatorAction
+} from './operator-dual-control.mjs';
 
 const SKILL_ID = /^skl_[0-9a-f]{32}$/;
 const VERSION_ID = /^skv_[0-9a-f]{32}$/;
@@ -13,45 +19,68 @@ const ACTIONS = new Set([
   'quarantine-version', 'revoke-version', 'restore-version'
 ]);
 
-try {
-  const options = parseArguments(process.argv.slice(2));
-  if (options.help) {
-    process.stdout.write(help());
-    process.exit(0);
-  }
-  if (!options.execute) throw new Error('Refusing catalog lifecycle mutation without the explicit --execute flag.');
+export function buildCatalogLifecycleAction(options) {
   const idempotencyDigest = canonicalDigest({
     kind: 'skillmap.catalog-lifecycle-operation', schemaVersion: 1,
     operationId: options.operationId, skillId: options.skillId,
     versionId: options.versionId, action: options.action, reasonCode: options.reasonCode
   });
-  const result = await createSupabaseRpcClientFromEnvironment().call('control_catalog_lifecycle', {
-    p_skill_id: options.skillId,
-    p_version_id: options.versionId,
-    p_action: options.action,
-    p_reason_code: options.reasonCode,
-    p_idempotency_digest: idempotencyDigest
+  return Object.freeze({
+    mode: options.mode,
+    approvalId: options.approvalId,
+    actionKind: 'catalog.lifecycle',
+    subjectType: options.versionId === null ? 'skill' : 'skill-version',
+    subjectId: options.versionId ?? options.skillId,
+    actionPayload: Object.freeze({
+      schemaVersion: 1,
+      skillId: options.skillId,
+      versionId: options.versionId,
+      action: options.action,
+      reasonCode: options.reasonCode
+    }),
+    actionDigest: idempotencyDigest,
+    operationId: options.operationId,
+    businessRpc: 'control_catalog_lifecycle',
+    businessParameters: Object.freeze({
+      p_skill_id: options.skillId,
+      p_version_id: options.versionId,
+      p_action: options.action,
+      p_reason_code: options.reasonCode,
+      p_idempotency_digest: idempotencyDigest
+    })
   });
-  validateResult(result, options);
-  process.stdout.write(`${JSON.stringify({ result: 'completed', mutation: true, idempotencyDigest, lifecycle: result })}\n`);
-} catch (error) {
-  process.stderr.write(`SkillMap catalog lifecycle command failed: ${safeError(error)}\n`);
-  process.exitCode = 1;
 }
 
-function parseArguments(args) {
+export async function runCatalogLifecycle(options, dependencies = {}) {
+  const action = buildCatalogLifecycleAction(options);
+  const outcome = await runDualControlledOperatorAction(action, dependencies);
+  if (outcome.mode === 'approve') {
+    return {
+      result: 'operator-action-approved', mutation: true,
+      actionKind: action.actionKind, actionDigest: action.actionDigest,
+      approval: outcome.approval
+    };
+  }
+  validateResult(outcome.result, options);
+  return {
+    result: 'completed', mutation: true,
+    idempotencyDigest: action.actionDigest, lifecycle: outcome.result
+  };
+}
+
+export function parseLifecycleArguments(args) {
   const values = Object.create(null);
-  let execute = false;
+  let mode = null;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === '--help' || argument === '-h') return { help: true };
-    if (argument === '--execute') {
-      if (execute) throw new Error('--execute may be supplied only once.');
-      execute = true;
+    const nextMode = acceptOperatorMode(argument, mode);
+    if (nextMode !== null) {
+      mode = nextMode;
       continue;
     }
-    if (!['--skill-id', '--version-id', '--action', '--reason-code', '--operation-id'].includes(argument)) {
-      throw new Error(`Unknown option: ${argument}`);
+    if (!['--skill-id', '--version-id', '--action', '--reason-code', '--operation-id', '--approval-id'].includes(argument)) {
+      throw new Error('Unknown option.');
     }
     if (values[argument] !== undefined) throw new Error(`Option may be supplied only once: ${argument}`);
     const value = args[index + 1];
@@ -59,7 +88,7 @@ function parseArguments(args) {
     values[argument] = value;
     index += 1;
   }
-  if (!execute) return { help: false, execute };
+  const operator = finalizeOperatorMode(mode, values['--approval-id']);
   const skillId = values['--skill-id'];
   const versionId = values['--version-id'] ?? null;
   const action = values['--action'];
@@ -73,7 +102,7 @@ function parseArguments(args) {
   }
   if (!REASON.test(reasonCode ?? '') || reasonCode.length > 64) throw new Error('--reason-code is invalid.');
   if (!UUID.test(operationId ?? '')) throw new Error('--operation-id must be one canonical lowercase UUID.');
-  return { help: false, execute, skillId, versionId, action, reasonCode, operationId };
+  return { help: false, ...operator, skillId, versionId, action, reasonCode, operationId };
 }
 
 function safeError(error) {
@@ -105,8 +134,28 @@ function validateResult(result, options) {
 function help() {
   return `SkillMap catalog lifecycle operator\n\n` +
     `Service-role-only, idempotent deprecation, quarantine, revocation, and receipt-backed restoration.\n` +
-    `Mutation requires: --execute\n\n` +
+    `Approval and execution require distinct SKILLMAP_OPERATOR_CREDENTIAL values. ` +
+    `Use exactly one mode; --approve records only the exact envelope, and --execute requires --approval-id.\n\n` +
     `Usage:\n` +
-    `  node apps/worker/src/lifecycle.mjs --execute --skill-id skl_... --action deprecate-skill --reason-code CODE --operation-id UUID\n` +
-    `  node apps/worker/src/lifecycle.mjs --execute --skill-id skl_... --version-id skv_... --action quarantine-version --reason-code CODE --operation-id UUID\n`;
+    `  node apps/worker/src/lifecycle.mjs --approve --skill-id skl_... --action deprecate-skill --reason-code CODE --operation-id UUID\n` +
+    `  node apps/worker/src/lifecycle.mjs --approve --skill-id skl_... --version-id skv_... --action quarantine-version --reason-code CODE --operation-id UUID\n` +
+    `Execute: repeat the exact action with --execute --approval-id opa_...\n`;
+}
+
+async function main(args) {
+  try {
+    const options = parseLifecycleArguments(args);
+    if (options.help) {
+      process.stdout.write(help());
+      return;
+    }
+    process.stdout.write(`${JSON.stringify(await runCatalogLifecycle(options))}\n`);
+  } catch (error) {
+    process.stderr.write(`SkillMap catalog lifecycle command failed: ${safeError(error)}\n`);
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main(process.argv.slice(2));
 }

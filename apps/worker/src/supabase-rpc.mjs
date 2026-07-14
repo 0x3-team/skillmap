@@ -1,4 +1,5 @@
 const ALLOWED_RPC = new Set([
+  'approve_operator_action',
   'peek_skill_submission_candidate',
   'claim_skill_submission',
   'defer_skill_submission_provider_limit',
@@ -18,6 +19,13 @@ const ALLOWED_RPC = new Set([
   'list_skill_report_queue',
   'control_catalog_lifecycle'
 ]);
+const DUAL_CONTROL_EXECUTION_RPC = new Set([
+  'record_skill_submission_publisher_authorization',
+  'review_skill_submission_collisions',
+  'publish_skill_submission',
+  'disposition_skill_report',
+  'control_catalog_lifecycle'
+]);
 const DEFAULT_TIMEOUT_MS = 15_000;
 // A maximum valid 50-row report page can contain 100,000 Unicode code points.
 // Keep one bounded ceiling that admits the schema maximum (including four-byte
@@ -27,6 +35,7 @@ const MAX_RESPONSE_BYTES = 512 * 1024;
 export function createSupabaseRpcClient(options) {
   const origin = validateOrigin(options?.url);
   const serviceRoleKey = validateSecret(options?.serviceRoleKey);
+  const operatorTransport = validateOperatorTransport(options);
   const fetchImpl = options?.fetchImpl ?? globalThis.fetch;
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   if (typeof fetchImpl !== 'function') throw new Error('A fetch implementation is required.');
@@ -37,6 +46,7 @@ export function createSupabaseRpcClient(options) {
   return Object.freeze({
     async call(name, parameters = {}) {
       if (!ALLOWED_RPC.has(name)) throw new Error('The requested Supabase RPC is not allowlisted.');
+      assertOperatorTransportCall(operatorTransport, name);
       const body = JSON.stringify(parameters);
       if (Buffer.byteLength(body) > 128 * 1024) throw new Error('The Supabase RPC request exceeds the bounded payload limit.');
       const controller = new AbortController();
@@ -53,7 +63,8 @@ export function createSupabaseRpcClient(options) {
             authorization: `Bearer ${serviceRoleKey}`,
             accept: 'application/json',
             'content-type': 'application/json',
-            'user-agent': 'skillmap-hosted-operator/1'
+            'user-agent': 'skillmap-hosted-operator/1',
+            ...(operatorTransport?.headers ?? {})
           },
           body
         });
@@ -93,6 +104,21 @@ export function createSupabaseRpcClientFromEnvironment(environment = process.env
   });
 }
 
+export function createOperatorSupabaseRpcClientFromEnvironment(
+  { mode, approvalId = null },
+  environment = process.env,
+  options = {}
+) {
+  return createSupabaseRpcClient({
+    ...options,
+    url: environment.SKILLMAP_SUPABASE_URL,
+    serviceRoleKey: environment.SKILLMAP_SUPABASE_SERVICE_ROLE_KEY,
+    operatorMode: mode,
+    operatorCredential: environment.SKILLMAP_OPERATOR_CREDENTIAL,
+    operatorApprovalId: approvalId
+  });
+}
+
 function validateOrigin(raw) {
   if (typeof raw !== 'string' || raw !== raw.trim()) throw new Error('SKILLMAP_SUPABASE_URL is required.');
   let url;
@@ -117,6 +143,50 @@ function validateSecret(raw) {
     throw new Error('SKILLMAP_SUPABASE_SERVICE_ROLE_KEY is required and must be bounded.');
   }
   return raw;
+}
+
+function validateOperatorTransport(options) {
+  const mode = options?.operatorMode ?? null;
+  const credential = options?.operatorCredential;
+  const approvalId = options?.operatorApprovalId ?? null;
+  if (mode === null) {
+    if (credential !== undefined || options?.operatorApprovalId !== undefined) {
+      throw new Error('Operator transport options require an explicit approve or execute mode.');
+    }
+    return null;
+  }
+  if (mode !== 'approve' && mode !== 'execute') {
+    throw new Error('Operator transport mode must be approve or execute.');
+  }
+  if (typeof credential !== 'string' || !/^smo_v1_[0-9a-f]{64}$/.test(credential)) {
+    throw new Error('SKILLMAP_OPERATOR_CREDENTIAL is required and invalid.');
+  }
+  if (mode === 'approve') {
+    if (approvalId !== null) throw new Error('Operator approval is accepted only for execute transport.');
+    return Object.freeze({
+      mode,
+      headers: Object.freeze({ 'x-skillmap-operator-credential': credential })
+    });
+  }
+  if (typeof approvalId !== 'string' || !/^opa_[0-9a-f]{32}$/.test(approvalId)) {
+    throw new Error('Operator approval is required and invalid for execute transport.');
+  }
+  return Object.freeze({
+    mode,
+    headers: Object.freeze({
+      'x-skillmap-operator-credential': credential,
+      'x-skillmap-operator-approval': approvalId
+    })
+  });
+}
+
+function assertOperatorTransportCall(operatorTransport, name) {
+  if (operatorTransport?.mode === 'approve' && name !== 'approve_operator_action') {
+    throw new Error('Approve transport may call only the operator approval RPC.');
+  }
+  if (operatorTransport?.mode === 'execute' && !DUAL_CONTROL_EXECUTION_RPC.has(name)) {
+    throw new Error('Execute transport may call only a dual-controlled business RPC.');
+  }
 }
 
 async function readBoundedText(response, maximumBytes) {
