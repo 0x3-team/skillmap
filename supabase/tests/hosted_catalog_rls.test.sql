@@ -58,7 +58,10 @@ select is(
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
       'list_skill_submission_collisions', 'review_skill_submission_collisions',
       'record_skill_submission_publisher_authorization',
-      'record_skill_submission_license_evidence'
+      'record_skill_submission_license_evidence',
+      'get_skill_submission_queue_summary',
+      'list_skill_submission_operator_queue',
+      'get_skill_submission_operator_detail'
     )),
     0::bigint,
     'no security-definer function exists outside the explicit hosted operator allowlist'

@@ -14,7 +14,7 @@ import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/re
 import { listSavedSkills } from "@/lib/registry/repository.server";
 import { parseSaveFlash, SAVE_FLASH_COOKIE, type SaveFlashStatus } from "@/lib/registry/save-flash";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";

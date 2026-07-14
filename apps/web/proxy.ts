@@ -16,7 +16,7 @@ import {
   type RateLimitDecision
 } from "@/lib/security/rate-limit";
 import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 
 export async function proxy(request: NextRequest) {
   const isAccountPath = /^\/account(?:\/|$)/.test(request.nextUrl.pathname);

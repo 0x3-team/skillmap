@@ -13,7 +13,7 @@ import {
 } from "@/lib/account/deletion-flash";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function deleteMyAccount(formData: FormData) {

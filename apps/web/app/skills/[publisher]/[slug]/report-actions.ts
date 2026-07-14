@@ -10,7 +10,7 @@ import { parseSkillReportForm, ReportValidationError, type ReportField } from "@
 import { createReportFlash, REPORT_FLASH_COOKIE, serializeReportFlash } from "@/lib/reports/flash";
 import { REPORT_PUBLIC_ID, reportStatusPath, type ReportSubmitStatus } from "@/lib/reports/status";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export interface ReportActionState {

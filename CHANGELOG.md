@@ -1,10 +1,23 @@
 # Changelog
 
-## Unreleased — experimental local alpha
+## Unreleased — experimental free public alpha
 
-These entries describe committed and in-progress local implementation work. They
-do not prove push, authoritative CI, tag, publication, deployment, live OAuth,
-public indexing, or verified-live status.
+The source-integration baseline for these entries was merged as
+`29a356a9b809d29ff8c986fbd5a0af78d87e479c`. Candidate
+`67129297d08f7f7bc88800015b336a2a7bb1b139` and the identical tree
+`3a70dbafca99153ad80d67601a5b2e3bbc2d47d5` have local and scoped remote-CI
+receipts. That does not prove a tag, package publication, deployment, live OAuth,
+public indexing, open-user launch, or verified-live status. Later Unreleased
+changes require their own candidate and merge receipt before those baseline
+source-integration receipts cover them.
+
+- Recorded Gitea candidate run `44`, GitHub Actions run `29285742074` JIT
+  `hosted-web` job `86937705880`, and post-merge Gitea `main` run `47` as passed.
+  The frozen static receipt is
+  `sha256:3dd68b69f5faad0e6cf70e03dbf98cedb735ed5661dc2c6a8d01c799ed7b2996`;
+  the frozen database receipt is
+  `sha256:ada2c9d819dce02a3b89971c44119eb96ef89f244ccd692439e80281f64056d1`.
+  These are source and scoped-CI receipts, not deployment or live-product proof.
 
 - Added qualified skill identity, explicit canonical duplicate decisions, and
   fail-closed routing from one exact approved workspace revision.
@@ -39,11 +52,18 @@ public indexing, or verified-live status.
 - Added receipt-backed fifth-attempt dead-letter recovery, explainable blocked
   grades without fabricated compatibility evidence, and fail-closed immutable
   source/content collision review before publication.
+- Added a service-role-only submission queue summary, cursor-paged redacted list,
+  and exact bounded receipt-history detail plane plus strict read-only operator
+  CLIs. Submitter/actor identities, internal claims, private evidence, and raw
+  source contents remain outside those projections. The generated Supabase type
+  file remains byte-exact for schema parity, while an application-only override
+  restores the nullable return fields that the generator cannot infer for the
+  three operator `RETURNS TABLE` RPCs.
 - Added fail-closed private/public release-stage and indexing controls plus a
   composed disposable hosted-browser gate. Team sync, billing, package
   mirroring/loading, TUF distribution, current-letter behavioral grading,
-  remote worker scheduling, authoritative current-commit CI, external hosted
-  pilot evidence, npm publication, and deployment are not included.
+  remote worker scheduling, external hosted pilot evidence, npm publication,
+  and deployment are not included.
 - Added a pinned 20-version, five-group initial-corpus candidate with exact
   Apache-2.0/MIT evidence, deterministic preparation, shared-memoized inert
   GitHub audit, and owner-only provisional-grade receipts. Publisher consent,

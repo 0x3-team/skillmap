@@ -9,6 +9,8 @@
   "scripts": {
     "audit:dry-run": "node src/audit-once.mjs",
     "queue:process-once": "node src/process-once.mjs",
+    "queue:list": "node src/submission-queue.mjs",
+    "queue:inspect": "node src/submission-detail.mjs",
     "queue:dead-letter": "node src/dead-letter.mjs",
     "queue:publish": "node src/publish-once.mjs",
     "queue:requeue": "node src/requeue.mjs",

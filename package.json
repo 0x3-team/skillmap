@@ -38,6 +38,8 @@
     "release:candidate": "node scripts/release-package-candidate.mjs",
     "hosted:audit:dry-run": "npm run build && node apps/worker/src/audit-once.mjs",
     "hosted:queue:process-once": "npm run build && node apps/worker/src/process-once.mjs",
+    "hosted:queue:list": "npm run build && node apps/worker/src/submission-queue.mjs",
+    "hosted:queue:inspect": "npm run build && node apps/worker/src/submission-detail.mjs",
     "hosted:queue:dead-letter": "npm run build && node apps/worker/src/dead-letter.mjs",
     "hosted:queue:publish": "npm run build && node apps/worker/src/publish-once.mjs",
     "hosted:queue:requeue": "npm run build && node apps/worker/src/requeue.mjs",
