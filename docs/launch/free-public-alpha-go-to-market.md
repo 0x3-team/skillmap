@@ -1,36 +1,32 @@
 # SkillMap free public alpha go-to-market kit
 
-Status: launch-ready copy and operating template; the current go-to-market/dual-control working slice is locally accepted but not yet frozen, pushed, remotely accepted, merged, deployed, or verified live. Publishing is blocked until the production-readiness gate records a live `GO` or explicitly scoped `CONDITIONAL GO`.
+Status: launch-ready copy and operating template; the current go-to-market/dual-control source is locally accepted, pushed, remotely accepted in the recorded scoped CI, merged, and dual-remote reconciled. It is not deployed or verified live. Publishing is blocked until the production-readiness gate records a live `GO` or explicitly scoped `CONDITIONAL GO`.
 
 ## Current handoff
 
 The current integrated repository head is
-`f168448a0fc89bcf12fcbe4905a5b4123030f902` on both GitHub `main` and protected
-Gitea `main`. It is GitHub PR `#16`, a release-documentation reconciliation whose
-direct parent `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b` remains the last accepted
-product-code merge and the commit covered by the completion-audit candidate CI.
-The later local candidate records audit policy `skillmap-static-audit/v2` and
-worker `skillmap-worker/0.2.0`, adds an opaque-file audit/grade hard gate,
+`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` with tree
+`00273fce90c0294f4f3aea2407d4ba0c65aec1f9` on both GitHub `main` and protected
+Gitea `main`. Candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf`
+records audit policy `skillmap-static-audit/v2` and worker
+`skillmap-worker/0.2.0`, adds an opaque-file audit/grade hard gate,
 current-publisher-authorization enforcement for report intake, literal
 visitor/submitter acquisition paths, recorded freshness signals, and mandatory
-dual control for five consequential operator RPCs. Authorization,
-collision-review, and publication success require strict validation of the
-exact single-row RPC projection and expected key/value. Root `npm test` passed
-`440/440` with zero failures, cancellations, or skips; the focused suite passed
-`45/45`; and pgTAP passed `585/585`. Final
-`npm --prefix apps/web run test:hosted-gates` passed API,
-Chromium/Firefox/WebKit authentication, acquisition/composed-launch,
-dual-control, accessibility/responsive/forced-colors, private/public-stage,
-thirteen strict zero-diff visual, and cleanup gates. Those later-slice receipts
-are local only.
+dual control for five consequential operator RPCs. Gitea candidate run ID `70`
+(UI run `53`)
+passed; GitHub Actions run `29317179590` one-shot hosted-web job `87033792983`
+passed all fifteen steps and retained artifact `8304546847`; GitHub PR `#17`
+squash-merged the identical tree; and Gitea protected sync PR `#7` retained the
+exact commit through sync-branch run ID `71` (UI `54`), PR run ID `72` (UI
+`55`), and post-merge `main` run ID `73` (UI `56`). The GitHub acceptance is scoped to the named job because unrelated
+GitHub-hosted jobs were organization-allowance blocked. Runner, DinD,
+temporary-credential, and branch cleanup verified zero.
 
-Next source action: freeze and push an exact candidate commit/tree, run the required
-Gitea candidate jobs and authorized one-shot GitHub hosted-web job, merge the
-identical tree, reconcile protected Gitea/GitHub `main`, and record runner,
-resource, temporary-credential, and branch cleanup. The current
-Cloudflare/OpenNext evaluation is blocked at the Next.js 16 Node-runtime
-proxy/middleware boundary; resolve that boundary or select another approved
-zero-recurring-cost host before any deployment claim.
+Next action: select and provision the approved zero-recurring-cost Supabase and
+web-hosting targets, owners, region, OAuth application, support identity, and
+backup/rollback path. The current Cloudflare/OpenNext evaluation is blocked at
+the Next.js 16 Node-runtime proxy/middleware boundary; resolve that boundary or
+select another approved zero-recurring-cost host before any deployment claim.
 
 ## Market wedge
 
@@ -50,9 +46,9 @@ The public announcement may be sent only when all boxes are checked:
 - [x] The operator read-plane candidate `69e7d1e7f2042ae996c1bed379891ec65ece84a4` with tree `67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c` passed Gitea candidate run `50` and GitHub Actions run `29294494176`, one-shot self-hosted hosted-web job `86964954830`; GitHub PR `#12` squash-merged the identical tree as `main` commit `8a30578520974257a1ab4ee2f6c7442696ee0289`. Gitea protected sync PR `#2` retained that exact commit, with sync-branch run `51`, PR run `52`, and post-merge `main` run `53` passed. The GitHub receipt is scoped only to the named hosted-web job: unrelated GitHub-hosted jobs remained allowance-blocked, so the overall workflow was red. The one-shot runner self-removed and the repository reported zero registered runners afterward. Frozen receipts: static `sha256:7dec38b69c6b709c13f6e0aac4d5f6767411e3a2b2e07b3226b87f16902bdd13`; database `sha256:74b8e840a2e1b5343df5daa79d8bbb2bc08d28bdd54ebd51277c9d912bc37fa6`. This is source-integration proof only, not deployment, live verification, indexing, or launch proof.
 - [x] The launch-readiness candidate `e6fc09e9d8300fbd5bb974899cb18b5d1b2d8af6` with tree `94c910c02b224bd421905126da7c783a8f3fb0d7` passed Gitea candidate run `57` and GitHub Actions run `29299879085`, one-shot self-hosted hosted-web job `86981228569`; GitHub PR `#14` squash-merged the identical tree as `main` commit `426efb1af480dff57713d604bac617cea0e00ef2`. Gitea protected sync PR `#4` retained that exact commit, with sync-branch run `58`, PR run `59`, and post-merge `main` run `60` passed. All fifteen hosted-web steps succeeded and one unexpired `hosted-web-browser` artifact was retained. The GitHub receipt is scoped only to the named hosted-web job: unrelated GitHub-hosted jobs remained allowance-blocked, so the overall workflow was red. The one-shot runner self-removed, dedicated resources and temporary credentials were deleted, and both remotes resolved `main` to the exact merge. Frozen receipts: static `sha256:79509a1ba5ad50b6b9be09a47c761268b71c261695cdee30d0839309ef11ce85`; database `sha256:3bd274cd5043819a9d5bc707000f70aad3500ef2540874c6a2d4aa0e23238715`. This is source-integration proof only, not deployment, live verification, indexing, or launch proof.
 - [x] The completion-audit candidate `918a5015bcb8c264f9fe39c6cdd7940e67aef02e` with tree `29aba50561cbb9f79d15a8b8257076ff671fd1ee` passed Gitea candidate run `61` and GitHub Actions run `29304994899`, one-shot self-hosted hosted-web job `86996452876`; GitHub PR `#15` squash-merged the identical tree as `main` commit `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`. Gitea protected sync PR `#5` retained that exact commit, with sync-branch run `62`, PR run `63`, and post-merge `main` run `64` passed. All fifteen hosted-web steps succeeded and unexpired `hosted-web-browser` artifact `8299987067` was retained. The GitHub receipt is scoped only to the named hosted-web job: unrelated GitHub-hosted jobs remained allowance-blocked, so the overall workflow was red. The one-shot runner self-removed, dedicated resources and temporary credentials were deleted, remote feature/sync branches were removed, and both remotes resolved `main` to the exact merge. Frozen receipts: static `sha256:c4a847a64e2811f34eb5a8babd6f536b624f50826647707238a0cd13cf0ed350`; database `sha256:fa53fa1a4026ce180bce8048d6aeb9a6a3aa8549a9143d9186304de69e13f5a1`. This is source-integration proof only, not deployment, live verification, indexing, or launch proof.
-- [x] GitHub PR `#16` subsequently reconciled those completion-audit release records as commit `f168448a0fc89bcf12fcbe4905a5b4123030f902` with tree `4d12e1783b52f97239f1f86e0b1b9059c45fa37a` and direct parent `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`; a live read-only release audit verified both GitHub and Gitea `main` at `f168448...`. This records the current repository head only. It neither replaces the parent's product-candidate CI scope nor proves deployment, live verification, indexing, or launch.
+- [x] GitHub PR `#16` subsequently reconciled those completion-audit release records as commit `f168448a0fc89bcf12fcbe4905a5b4123030f902` with tree `4d12e1783b52f97239f1f86e0b1b9059c45fa37a` and direct parent `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`; a live read-only release audit verified both GitHub and Gitea `main` at `f168448...`. This records the then-current repository head only. It neither replaces the parent's product-candidate CI scope nor proves deployment, live verification, indexing, or launch.
 - [x] The later go-to-market/dual-control working slice records audit policy `skillmap-static-audit/v2` and worker `skillmap-worker/0.2.0`; authorization, collision-review, and publication success require the exact single-row RPC projection and expected key/value. Root `npm test` passed `440/440` with zero failures, cancellations, or skips; focused tests passed `45/45`; and the local database gate passed eleven ordered migrations plus pgTAP `585/585`. Final `npm --prefix apps/web run test:hosted-gates` passed API, Chromium/Firefox/WebKit authentication, acquisition/composed-launch, dual-control, accessibility/responsive/forced-colors, private/public-stage, thirteen strict zero-diff visual, and cleanup gates. Browser-backed representative dual-control evidence retained three approvals and three distinct executions, denied service-role-only and approver-as-executor calls, cleaned all synthetic auth/catalog/operator rows, and restored four triggers. This checkbox proves local acceptance only.
-- [ ] Freeze and push that working slice as an exact candidate commit/tree, pass the required Gitea candidate jobs and authorized one-shot GitHub hosted-web job, merge the identical tree, reconcile protected Gitea/GitHub `main`, and record cleanup. Neither the `a4f97fa...` product receipt nor its `f168448...` documentation reconciliation covers the current working tree.
+- [x] The go-to-market/dual-control candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf` with tree `00273fce90c0294f4f3aea2407d4ba0c65aec1f9` passed Gitea candidate run ID `70` (UI `53`) and GitHub Actions run `29317179590`, one-shot self-hosted hosted-web job `87033792983`; GitHub PR `#17` squash-merged the identical tree as `main` commit `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`. Gitea protected sync PR `#7` retained that exact commit, with sync-branch run ID `71` (UI `54`), PR run ID `72` (UI `55`), and post-merge `main` run ID `73` (UI `56`) passed. All fifteen hosted-web steps succeeded and unexpired artifact `8304546847` was retained. The GitHub receipt is scoped only to the named hosted-web job because unrelated GitHub-hosted jobs remained allowance-blocked. The one-shot runner self-removed; registered runners, dedicated runner/DinD containers and volumes, temporary Gitea identity/credential, and remote feature/sync branches were verified absent. Frozen receipts: static `sha256:dd791b2c316a1117e4b73081a842192a2e4cbc1eafdf1428110b35c73ef90821`; database `sha256:d9ca6aa7cf806645ea425c1950facf1fbf2eaa22f00630d365844ebee4fcdd56`. This is source-integration proof only, not deployment, live verification, indexing, or launch proof.
 - [ ] Resolve the Cloudflare/OpenNext Next.js 16 Node-runtime proxy/middleware blocker or select another approved zero-recurring-cost host; record an exact deploy artifact and origin separately from source CI.
 - [ ] Production Supabase, web, OAuth, domain, worker, backup, incident, and support owners are recorded.
 - [ ] `SKILLMAP_SUPPORT_URL` opens an approved public HTTPS page with support, formal-appeal, and confidential security-report instructions; `/support` links to it while signed out.

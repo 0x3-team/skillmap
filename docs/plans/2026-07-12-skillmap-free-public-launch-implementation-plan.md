@@ -10,28 +10,26 @@ Receipt ledger: `docs/plans/2026-07-12-skillmap-free-public-launch-implementatio
 Release ledger: `docs/plans/2026-07-12-skillmap-release-ledger.md`
 
 Latest dual-remote repository-main truth: GitHub `main` and protected Gitea
-`main` both resolve to `f168448a0fc89bcf12fcbe4905a5b4123030f902` with tree
-`4d12e1783b52f97239f1f86e0b1b9059c45fa37a`. That commit is GitHub PR `#16`,
-`docs: reconcile completion audit receipt`, and its direct parent is
-`a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`. The parent remains the last
-product-code merge: completion-audit candidate
-`918a5015bcb8c264f9fe39c6cdd7940e67aef02e` with tree
-`29aba50561cbb9f79d15a8b8257076ff671fd1ee`, accepted by Gitea candidate run
-`61` and one-shot GitHub hosted-web job `86996452876`. Commit `f168448...`
-subsequently reconciled release documentation and release-truth tests; it did
-not supersede the product candidate with a new product-code or deployment
-receipt. No deployment, live verification, public indexing, or open-user launch
-is claimed; the public-launch verdict remains `NO-GO`.
+`main` both resolve to `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` with tree
+`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`. GitHub PR `#17` squash-merged
+go-to-market/dual-control candidate
+`413d8759e244005406280cd8d7c2fe2ec01b84bf` with that identical tree. Gitea
+candidate run ID `70` (UI run `53`) passed; GitHub Actions run `29317179590` one-shot hosted-web
+job `87033792983` passed all fifteen steps; and Gitea protected sync PR `#7`
+retained the exact merge through run IDs `71`, `72`, and `73` (UI runs `54`,
+`55`, and `56`). The GitHub
+acceptance is scoped to the named job because unrelated GitHub-hosted jobs were
+organization-allowance blocked. Runner, dedicated resource, temporary
+credential, and remote branch cleanup verified zero.
 
-Current local source-candidate truth: a later go-to-market hardening and
-five-RPC dual-control slice has passed its local database and hosted gates, but
-has not yet been frozen as an exact candidate commit/tree, pushed through the
-required Gitea candidate lane, accepted by the one-shot GitHub hosted-web job,
-or merged and reconciled to protected `main`. Its local receipt is recorded
-below and in the append-only ledgers. The prior remote receipt does not cover
-this working tree: neither the `a4f97fa...` product receipt nor its
-`f168448...` documentation reconciliation includes this later slice. None of
-these source states is deployment or live-product proof.
+Current source-candidate truth: the go-to-market hardening and five-RPC
+dual-control slice is an exact, pushed, merged, dual-remote-reconciled source
+candidate accepted by the recorded scoped CI. The local-only receipts below
+remain historical pre-freeze evidence and are superseded for current source
+state by the append-only exact-source reconciliation receipt. None of these
+source states is deployment or live-product proof. No deployment, live OAuth,
+encrypted off-host restore, public indexing, or open-user launch is claimed;
+the public-launch verdict remains `NO-GO`.
 
 ## Executive decision
 
@@ -423,8 +421,8 @@ reconciliation and its release-truth test changes, producing commit
 `f168448a0fc89bcf12fcbe4905a5b4123030f902` with tree
 `4d12e1783b52f97239f1f86e0b1b9059c45fa37a` and direct parent
 `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`. A live read-only release audit
-verified both GitHub and Gitea `main` at `f168448...`. This advances the current
-repository-main pointer while preserving `a4f97fa...` as the historical
+verified both GitHub and Gitea `main` at `f168448...`. This advanced the
+then-current repository-main pointer while preserving `a4f97fa...` as the historical
 product-code merge and its scoped candidate-CI receipt; it is not new product
 acceptance, deployment, or live-product proof.
 
@@ -439,7 +437,35 @@ The next bounded working-tree slice closes four launch-trust and acquisition gap
 
 The final local acceptance receipt records audit policy `skillmap-static-audit/v2` and worker `skillmap-worker/0.2.0`. Authorization, collision-review, and publication business clients now accept a protected RPC success only after strict validation of the exact single-row projection and expected key/value. Root `npm test` passed `440/440` with zero failures, cancellations, or skips; the focused suite passed `45/45`; and the local database receipt is eleven ordered migrations, clean schema lint and generated API type parity, and `585/585` pgTAP assertions across nine files. pgTAP covers all five protected RPCs. The final `npm --prefix apps/web run test:hosted-gates` passed API checks, Chromium/Firefox/WebKit authentication, acquisition and composed launch flows, dual-control browser journeys, frontend accessibility/responsive/forced-colors checks, private/public-stage runtime checks, thirteen strict zero-diff visual baselines, and cleanup. Its database-backed browser receipt retained three approvals plus three distinct executions; service-role-only calls and approver-as-executor calls failed with SQLSTATE `42501`, and cleanup proved zero hosted auth/catalog/operator fixture rows with all four temporarily disabled triggers restored.
 
-These are local source-candidate receipts only. The exact candidate commit and tree have not been frozen or pushed, Gitea candidate CI has not run for this slice, the authorized one-shot GitHub hosted-web runner has not accepted it, and no merge or protected dual-remote reconciliation is recorded. A Cloudflare/OpenNext deployment evaluation is also blocked at the current Next.js 16 Node-runtime proxy/middleware boundary; that evaluation produced neither an accepted deploy artifact nor a live origin. Resolve that compatibility boundary or select another approved zero-recurring-cost host before deployment. Public launch remains `NO-GO`.
+At that pre-freeze checkpoint, these were local source-candidate receipts only: the exact candidate commit and tree had not been frozen or pushed, Gitea candidate CI had not run for the slice, the authorized one-shot GitHub hosted-web runner had not accepted it, and no merge or protected dual-remote reconciliation was recorded. The later exact-source reconciliation below supersedes those source-state claims. A Cloudflare/OpenNext deployment evaluation remains blocked at the current Next.js 16 Node-runtime proxy/middleware boundary; that evaluation produced neither an accepted deploy artifact nor a live origin. Resolve that compatibility boundary or select another approved zero-recurring-cost host before deployment. Public launch remains `NO-GO`.
+
+### 2026-07-14 go-to-market hardening exact-source reconciliation
+
+The local-only boundary above is preserved as the pre-freeze historical
+receipt. Exact source integration subsequently completed for candidate
+`413d8759e244005406280cd8d7c2fe2ec01b84bf` and tree
+`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`. Gitea candidate run ID `70` (UI
+run `53`) passed
+both required jobs and retained static receipt
+`sha256:dd791b2c316a1117e4b73081a842192a2e4cbc1eafdf1428110b35c73ef90821`
+plus database-recovery receipt
+`sha256:d9ca6aa7cf806645ea425c1950facf1fbf2eaa22f00630d365844ebee4fcdd56`.
+GitHub Actions run `29317179590` named one-shot hosted-web job `87033792983`
+passed all fifteen steps and retained artifact `8304546847`; unrelated
+GitHub-hosted jobs remained organization-allowance blocked, so acceptance is
+scoped only to that named job. GitHub PR `#17` squash-merged the identical tree
+as `main` commit `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`. Gitea protected
+sync PR `#7` retained that exact commit after sync-branch run ID `71` (UI `54`)
+and PR run ID `72` (UI `55`); post-merge `main` run ID `73` (UI `56`) passed.
+Runner, DinD resources, temporary
+Gitea identity and credential, and remote branch cleanup verified zero, and
+both remotes resolved `main` to the same commit and tree.
+
+This is exact source acceptance, not deployment or live-product proof. No
+production Supabase/web origin, live OAuth, encrypted off-host restore,
+scheduled worker, publisher-authorized corpus publication, five-seat pilot,
+public indexing, or open-user launch is recorded. Public launch remains
+`NO-GO`.
 
 ### Batch 0 — plan and baseline reconciliation
 
@@ -694,23 +720,22 @@ Allowed final verdicts are `GO`, `CONDITIONAL GO`, and `NO-GO`. Local success or
 | Data | Eleven ordered migrations, forced RLS, `585/585` pgTAP assertions across nine files, exact generated type parity, disposable reset/replay, server-owned profile timestamps, durable account-detached terminal revocation tombstones, atomic report enforcement, current-authorization report intake, attempt-preserving exact-claim provider deferral, and immutable operator approval/execution records | No encrypted off-host hosted restore | `NO-GO` |
 | Security | No source execution, critical fail-closed handling for binary/non-UTF-8 source files, exact-commit license evidence, expiring publisher authorization, cross-account and cross-handle atomic consent revocation, transaction-locked replay resistance, fail-closed typed receipt validators, target-bound collision review, atomic confirmed-report restriction, mandatory five-RPC dual control with immutable attribution, secret canary, bounded public projections, and lifecycle removal | No provider-global abuse control, trusted-ingress receipt, deployed operator-principal custody review, or live secret inspection | `NO-GO` |
 | Reliability | Claim leases, claim-scoped crash retry, durable expired-run receipts, idempotent completion/publication, attempt-preserving pre/post-claim provider deferral with bounded cooldown telemetry, retained report/lifecycle replay outcomes, paired queue cursors, post-lock expiry and revocation checks, exact short-lived approvals with distinct execution, bounded non-mutating inspection, active-catalog-graph replay validation, identifier-free health, explicit operations thresholds, and failure-preserving web submission states | No hosted scheduler, notification delivery, monitored deployment, rollback, or incident drill | `NO-GO` |
-| Quality | The current local source candidate passed database reset/lint/type parity with pgTAP `585/585`; API, Chromium/Firefox/WebKit auth, composed launch, frontend accessibility/responsive/forced-colors, and private/public-stage gates; thirteen strict zero-diff hosted baselines; and database-backed representative dual-control journeys with three approvals, three executions, service-role-only and approver-as-executor denial, zero fixture residue, and four triggers restored | GitHub and Gitea `main` both resolve to docs-reconciliation commit `f168448a0fc89bcf12fcbe4905a5b4123030f902`, whose direct parent `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b` remains the completion-audit product merge accepted by Gitea candidate run `61`, GitHub one-shot hosted-web job `86996452876`, and Gitea runs `62` through `64`. The current working slice has no exact remote or deployed-commit browser receipt | `NO-GO` |
-| Operations | Mutation-explicit worker commands, credential-explicit read commands, five approval/execution command pairs, a no-store health route, migration-bound preflight, thresholded alert policy, runbooks, policy draft, GTM kit, corpus-consent procedure, and hosted-pilot protocol checked in | The current slice still needs an exact candidate/tree, Gitea candidate run, one-shot GitHub hosted-web acceptance, merge, and protected dual-remote reconciliation. Cloudflare/OpenNext is blocked at the current Node-runtime proxy/middleware boundary; zero-cost-compatible host, scheduler/notification target, remaining owners, jurisdiction, retention approval, support identity, and backup destination remain unset | `NO-GO` |
+| Quality | The exact source candidate passed database reset/lint/type parity with pgTAP `585/585`; API, Chromium/Firefox/WebKit auth, composed launch, frontend accessibility/responsive/forced-colors, and private/public-stage gates; thirteen strict zero-diff hosted baselines; and database-backed representative dual-control journeys with three approvals, three executions, service-role-only and approver-as-executor denial, zero fixture residue, and four triggers restored | GitHub and Gitea `main` both resolve to `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` with tree `00273fce90c0294f4f3aea2407d4ba0c65aec1f9`. Candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf` passed Gitea candidate run ID `70` (UI `53`), GitHub one-shot hosted-web job `87033792983`, and Gitea sync/PR/main run IDs `71` through `73` (UI `54` through `56`). No deployed-origin browser receipt exists | `NO-GO` |
+| Operations | Mutation-explicit worker commands, credential-explicit read commands, five approval/execution command pairs, a no-store health route, migration-bound preflight, thresholded alert policy, runbooks, policy draft, GTM kit, corpus-consent procedure, hosted-pilot protocol, and exact source-integration cleanup receipts checked in | Cloudflare/OpenNext is blocked at the current Node-runtime proxy/middleware boundary; zero-cost-compatible host, scheduler/notification target, remaining owners, jurisdiction, retention approval, support identity, and backup destination remain unset | `NO-GO` |
 | Launch | Free/no-billing scope, stage/indexing gate, announcement/outreach copy, and an exact 20-version/five-group corpus candidate with `20/20` inert audits and provisional grades | Publisher consent plus database/public publication for the corpus, domain, deployment, mandatory-workflow five-seat pilot, live acceptance, and public indexing absent | `NO-GO` |
 
 ## Go-to-market plan
 
 ### Remaining ordered path to market
 
-The last remotely accepted product code is the completion-audit provider-backpressure repair: candidate `918a5015bcb8c264f9fe39c6cdd7940e67aef02e` was locally validated, accepted by Gitea and the scoped GitHub hosted-web job, pushed, and merged as commit `a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`; protected Gitea synchronization and post-merge CI passed. GitHub PR `#16` then reconciled release documentation as direct child `f168448a0fc89bcf12fcbe4905a5b4123030f902`, which is now the verified GitHub/Gitea `main`. The later go-to-market/dual-control slice is locally accepted but not yet an exact remote candidate. The remaining path is:
+The last remotely accepted product code is the go-to-market hardening and five-RPC dual-control slice: candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf` was locally validated, accepted by Gitea and the scoped GitHub hosted-web job, pushed, and squash-merged as commit `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`; protected Gitea synchronization and post-merge CI passed, and both remotes share tree `00273fce90c0294f4f3aea2407d4ba0c65aec1f9`. The remaining path is:
 
-1. Freeze the current working tree as an exact candidate commit/tree; run the required Gitea candidate jobs and authorized one-shot GitHub hosted-web job; then merge the identical tree, reconcile protected Gitea/GitHub `main`, and record runner/resource/temporary-credential cleanup. Do not begin deployment from an unrecorded tree.
-2. Select and provision the approved zero-recurring-cost Supabase and web-hosting targets; resolve the current Cloudflare/OpenNext Node-runtime proxy/middleware blocker or choose another reviewed zero-cost-compatible host; assign the domain, OAuth, service-role, operator-principal, support, incident, backup, rollback, and release owners without adding billing.
-3. Approve jurisdiction, retention/deletion, privacy, terms, acceptable-use, support, and security-response policy; publish the reachable support URL.
-4. Obtain durable publisher authorization for the six initial-corpus owners, then ingest all 20 versions through the normal authenticated claim/audit/provisional-grade/collision/publication path rather than direct row seeding.
-5. Deploy privately, bind the exact deployment commit, run encrypted off-host restore and web rollback drills, schedule the constrained worker, provision distinct operator principals, and verify monitoring/alerts without exposing credentials.
-6. Complete the mandatory five-seat pilot across browse/evidence, save/return, submit/status/withdrawal, author publication follow-through, reporting, export, deletion, accessibility, mobile, and failure recovery.
-7. Only after every prior receipt is accepted, enable the exact public-stage/indexing pair, run live acceptance, publish the launch announcement, and operate the first-week metrics and incident cadence.
+1. Select and provision the approved zero-recurring-cost Supabase and web-hosting targets; resolve the current Cloudflare/OpenNext Node-runtime proxy/middleware blocker or choose another reviewed zero-cost-compatible host; assign the domain, OAuth, service-role, operator-principal, support, incident, backup, rollback, and release owners without adding billing.
+2. Approve jurisdiction, retention/deletion, privacy, terms, acceptable-use, support, and security-response policy; publish the reachable support URL.
+3. Obtain durable publisher authorization for the six initial-corpus owners, then ingest all 20 versions through the normal authenticated claim/audit/provisional-grade/collision/publication path rather than direct row seeding.
+4. Deploy privately, bind the exact deployment commit, run encrypted off-host restore and web rollback drills, schedule the constrained worker, provision distinct operator principals, and verify monitoring/alerts without exposing credentials.
+5. Complete the mandatory five-seat pilot across browse/evidence, save/return, submit/status/withdrawal, author publication follow-through, reporting, export, deletion, accessibility, mobile, and failure recovery.
+6. Only after every prior receipt is accepted, enable the exact public-stage/indexing pair, run live acceptance, publish the launch announcement, and operate the first-week metrics and incident cadence.
 
 ### Audience
 
