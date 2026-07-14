@@ -2,18 +2,34 @@
 
 ## Unreleased — experimental free public alpha
 
-The latest completed product source-integration boundary recorded here is
-completion-audit candidate `918a5015bcb8c264f9fe39c6cdd7940e67aef02e` and tree
-`29aba50561cbb9f79d15a8b8257076ff671fd1ee`, merged as `main` commit
-`a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`. The earlier baselines remain
+The latest completed product source-integration boundary recorded here is the
+go-to-market/dual-control candidate
+`413d8759e244005406280cd8d7c2fe2ec01b84bf` and tree
+`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`, merged as `main` commit
+`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`. The earlier baselines remain
 separate historical rows in the append-only release ledger. This
 source-integration boundary does not prove a tag, package publication,
 deployment, live OAuth, public indexing, open-user launch, or verified-live
 status. Subsequent Unreleased product changes require their own candidate and
 merge receipt before this boundary covers them.
 
-The completion-audit changes below are included in that source-integration
-boundary:
+The go-to-market/dual-control slice and all earlier Unreleased changes below
+are included in that source-integration boundary:
+
+- Recorded Gitea candidate run ID `70` (UI run `53`), GitHub Actions run `29317179590`
+  one-shot self-hosted hosted-web job `87033792983`, artifact `8304546847`,
+  GitHub PR `#17`, Gitea protected sync PR `#7`, and Gitea sync-branch, PR,
+  and post-merge `main` run IDs `71`, `72`, and `73`
+  (UI runs `54`, `55`, and `56`) as passed. The one-shot
+  runner self-removed; its dedicated containers and volumes, temporary Gitea
+  users and tokens, and remote feature/sync branches were deleted. The overall
+  GitHub workflow remained red only because unrelated GitHub-hosted jobs were
+  organization-allowance blocked; acceptance is scoped solely to the named
+  hosted-web job. The frozen static receipt is
+  `sha256:dd791b2c316a1117e4b73081a842192a2e4cbc1eafdf1428110b35c73ef90821`;
+  the frozen database receipt is
+  `sha256:d9ca6aa7cf806645ea425c1950facf1fbf2eaa22f00630d365844ebee4fcdd56`.
+  These are source and scoped-CI receipts, not deployment or live-product proof.
 
 - Preserved safe submission values, request identifiers, validation feedback,
   and deterministic focus across recoverable server-side submission failures;

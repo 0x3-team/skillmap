@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const releaseCandidate = '918a5015bcb8c264f9fe39c6cdd7940e67aef02e';
-const releaseMergedMain = 'a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b';
-const releaseTree = '29aba50561cbb9f79d15a8b8257076ff671fd1ee';
+const releaseCandidate = '413d8759e244005406280cd8d7c2fe2ec01b84bf';
+const releaseMergedMain = '8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7';
+const releaseTree = '00273fce90c0294f4f3aea2407d4ba0c65aec1f9';
 const sources = Object.fromEntries([
   'README.md',
   'HANDOFF.md',
@@ -13,6 +13,7 @@ const sources = Object.fromEntries([
   'docs/launch/free-public-alpha-go-to-market.md',
   'docs/plans/2026-07-12-skillmap-release-ledger.md',
   'docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan-implementation-ledger.jsonl',
+  'docs/security/hosted-threat-model.md',
   'apps/web/app/release-status/page.tsx',
   'apps/web/lib/supabase/database.runtime.types.ts',
   'apps/worker/README.md',
@@ -24,19 +25,20 @@ test('canonical release truth binds the merged source and scoped CI receipts', (
     'HANDOFF.md',
     'CHANGELOG.md',
     'docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan.md',
-    'docs/plans/2026-07-12-skillmap-release-ledger.md'
+    'docs/plans/2026-07-12-skillmap-release-ledger.md',
+    'docs/security/hosted-threat-model.md'
   ]) {
     assert.match(sources[file], new RegExp(releaseMergedMain), file);
   }
   assert.match(sources['HANDOFF.md'], new RegExp(releaseCandidate));
   assert.match(sources['HANDOFF.md'], new RegExp(releaseTree));
-  assert.match(sources['HANDOFF.md'], /Gitea candidate run `61` passed/i);
-  assert.match(sources['HANDOFF.md'], /job `86996452876` passed all fifteen steps in the one-shot self-hosted hosted-web scope/i);
-  assert.match(sources['HANDOFF.md'], /post-merge `main` run `64` (?:all )?passed/i);
-  assert.match(sources['HANDOFF.md'], /now bound to the fourth release-ledger row/i);
+  assert.match(sources['HANDOFF.md'], /Gitea candidate run ID `70` \(UI run `53`\) passed/i);
+  assert.match(sources['HANDOFF.md'], /job `87033792983` passed all fifteen steps in the one-shot self-hosted hosted-web scope/i);
+  assert.match(sources['HANDOFF.md'], /post-merge `main` run ID `73` \(UI `56`\) (?:all )?passed/i);
+  assert.match(sources['HANDOFF.md'], /now bound to the newest append-only release-ledger product row/i);
   const releaseLedger = sources['docs/plans/2026-07-12-skillmap-release-ledger.md'];
   assert.match(releaseLedger, new RegExp(releaseCandidate));
-  assert.match(releaseLedger, /Completion-audit provider-backpressure source locally validated, pushed, merged, dual-remote reconciled, and verified by the named scoped remote CI/i);
+  assert.match(releaseLedger, /Go-to-market hardening and five-RPC dual-control source locally validated, pushed, merged, dual-remote reconciled, and accepted by the named scoped CI/i);
   assert.match(releaseLedger, /overall GitHub workflow remained red only because unrelated GitHub-hosted jobs were blocked by the organization allowance/i);
   const implementationLedger = sources['docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan-implementation-ledger.jsonl']
     .trim()
@@ -48,9 +50,28 @@ test('canonical release truth binds the merged source and scoped CI receipts', (
   assert.ok(releaseReceipt);
   assert.equal(releaseReceipt.claims.candidate_tree, releaseTree);
   assert.equal(releaseReceipt.claims.merge_commit, releaseMergedMain);
+  assert.equal(releaseReceipt.claims.dual_remote_reconciled, true);
   assert.equal(releaseReceipt.claims.deployed, false);
   assert.equal(releaseReceipt.claims.verified_live, false);
   assert.equal(releaseReceipt.claims.public_launch_verdict, 'NO_GO');
+  assert.deepEqual(releaseReceipt.evidence, {
+    local_candidate_receipt: 'sha256:578cf9554fe6c9f4d61575cad8f968be49bb1299e1abe1f8d9339c30afce345f',
+    gitea_static_receipt: 'sha256:dd791b2c316a1117e4b73081a842192a2e4cbc1eafdf1428110b35c73ef90821',
+    gitea_database_receipt: 'sha256:d9ca6aa7cf806645ea425c1950facf1fbf2eaa22f00630d365844ebee4fcdd56',
+    github_run: '29317179590',
+    github_job: '87033792983',
+    github_artifact: '8304546847',
+    github_pr: '17',
+    gitea_candidate_run: '70',
+    gitea_candidate_run_index: '53',
+    gitea_sync_run: '71',
+    gitea_sync_run_index: '54',
+    gitea_pr: '7',
+    gitea_pr_run: '72',
+    gitea_pr_run_index: '55',
+    gitea_main_run: '73',
+    gitea_main_run_index: '56'
+  });
   const completionAudit = implementationLedger
     .find(receipt =>
       receipt.batch === 'completion-audit-provider-backpressure'
@@ -91,11 +112,11 @@ test('go-to-market checklist records source integration without claiming externa
   assert.match(checklist, /historical baseline remains independently scoped and is supplemented by the operator read-plane receipt below/i);
   assert.match(checklist, /- \[x\].*operator read-plane candidate `69e7d1e7f2042ae996c1bed379891ec65ece84a4`/i);
   assert.match(checklist, /- \[x\].*launch-readiness candidate `e6fc09e9d8300fbd5bb974899cb18b5d1b2d8af6`/i);
-  assert.match(checklist, new RegExp('- \\[x\\].*completion-audit candidate `' + releaseCandidate + '`', 'i'));
+  assert.match(checklist, new RegExp('- \\[x\\].*go-to-market/dual-control candidate `' + releaseCandidate + '`', 'i'));
   assert.match(checklist, new RegExp(releaseTree));
   assert.match(checklist, new RegExp(releaseMergedMain));
-  assert.match(checklist, /post-merge `main` run `64` passed/i);
-  assert.doesNotMatch(checklist, /- \[ \].*completion-audit candidate/i);
+  assert.match(checklist, /post-merge `main` run ID `73` \(UI `56`\) passed/i);
+  assert.doesNotMatch(checklist, /- \[ \].*Freeze and push that working slice/i);
   assert.match(checklist, /- \[ \].*Production Supabase, web, OAuth/i);
   assert.match(checklist, /- \[ \].*pilot/i);
   assert.match(checklist, /- \[ \].*index/i);

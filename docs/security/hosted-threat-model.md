@@ -102,19 +102,22 @@ journeys retained three approvals and three executions, denied
 service-role-only and approver-as-executor calls with SQLSTATE `42501`, and
 cleaned all synthetic operator/catalog/auth state.
 
-The current repository integration boundary is
-`f168448a0fc89bcf12fcbe4905a5b4123030f902` on both GitHub and Gitea `main`,
-as verified by a live read-only release audit. That commit reconciles release
-documentation and release-truth tests and is the direct child of
-`a4f97fa0d32b1abaaf29bc38f81d81cbc593b04b`, the last accepted product-code
-merge. Neither commit contains this later hardening/dual-control working slice.
+The current repository integration boundary is candidate
+`413d8759e244005406280cd8d7c2fe2ec01b84bf` with tree
+`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`, squash-merged as
+`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` on both GitHub and protected
+Gitea `main`. Gitea run IDs `70` through `73` (UI runs `53` through `56`)
+passed their recorded candidate, sync, pull-request, and post-merge scopes. GitHub Actions run `29317179590`
+one-shot hosted-web job `87033792983` passed all fifteen steps; unrelated
+GitHub-hosted jobs were allowance-blocked, so that acceptance remains scoped to
+the named job.
 
-This posture is not a remote source or production claim. The exact candidate,
-push, Gitea/GitHub acceptance, merge, deployment, live OAuth, operator credential
-custody, live RLS probes, and public traffic remain unverified for this slice.
+This posture is remote source acceptance, not a production claim. Deployment,
+live OAuth, operator credential custody, live RLS probes, encrypted off-host
+restore, public traffic, indexing, and open-user launch remain unverified.
 
 ## Production gates and residual risk
 
-Before remote alpha: freeze and push the exact source candidate, pass required Gitea and one-shot GitHub hosted-web acceptance, merge/reconcile protected `main`, and retain cleanup receipts. Resolve the current Cloudflare/OpenNext Next.js 16 Node-runtime proxy/middleware blocker or choose another approved zero-recurring-cost host; the failed evaluation is not a deploy receipt. Then follow the hosted-alpha runbook, configure exact OAuth redirects, provision distinct operator principals with reviewed credential custody, verify security headers/cookies, test backup and restore with named incident ownership, run real-data accessibility/performance checks, validate rate/cost controls, and retest the deployed grant/RLS/dual-control matrix. Before package/TUF phases: complete the package/TUF/SSRF/signing adversarial suites and a signing-key recovery exercise. Before current-letter automated grading: complete receipt authority, anti-gaming review, held-out behavioral evidence, appeal/takedown handling, and the updated privacy/legal assessment.
+Before remote alpha: resolve the current Cloudflare/OpenNext Next.js 16 Node-runtime proxy/middleware blocker or choose another approved zero-recurring-cost host; the failed evaluation is not a deploy receipt. Then follow the hosted-alpha runbook, configure exact OAuth redirects, provision distinct operator principals with reviewed credential custody, verify security headers/cookies, test backup and restore with named incident ownership, run real-data accessibility/performance checks, validate rate/cost controls, and retest the deployed grant/RLS/dual-control matrix. Before package/TUF phases: complete the package/TUF/SSRF/signing adversarial suites and a signing-key recovery exercise. Before current-letter automated grading: complete receipt authority, anti-gaming review, held-out behavioral evidence, appeal/takedown handling, and the updated privacy/legal assessment.
 
 Residual model behavior, provider compromise, novel package formats, false-negative audits, key compromise, and legal disputes cannot be eliminated; the system limits blast radius through separate evidence states, immutable subjects, quarantine/revocation, metadata-only operation, and reversible gated rollout.
