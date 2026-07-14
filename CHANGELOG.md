@@ -12,6 +12,21 @@ deployment, live OAuth, public indexing, open-user launch, or verified-live
 status. Subsequent Unreleased product changes require their own candidate and
 merge receipt before this boundary covers them.
 
+- Added an identifier-free, no-store hosted health endpoint and a bounded
+  service-only operations checker with explicit queue-age, backlog, retry,
+  expired-claim, failure, and dead-letter alert thresholds.
+- Made confirmed suspicious-listing disposition atomically quarantine or revoke
+  its exact reported version; added paired report pagination, retained
+  report/lifecycle replay outcomes, legacy-upgrade guards, maximum Unicode-page
+  transport coverage, and stricter operator result validation.
+- Moved the mobile save/sign-in action ahead of long evidence and reporting
+  content at 320px and 390px, retained the desktop sticky panel, froze visual
+  time deterministically, and prevented authenticated clients from forging
+  profile creation timestamps.
+- Updated public security truth, deployment/runbook contracts, generated API
+  types, candidate preflight bindings, cross-browser hosted smokes, and eleven
+  reviewed strict visual baselines for the launch-readiness slice.
+
 - Recorded Gitea candidate run `50`, GitHub Actions run `29294494176` one-shot
   self-hosted `hosted-web` job `86964954830`, Gitea protected sync PR `#2`, and
   Gitea sync-branch, PR, and post-merge `main` runs `51`, `52`, and `53` as

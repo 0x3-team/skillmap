@@ -78,6 +78,7 @@ test('operator documentation, commands, and application types bind the final rea
   for (const file of ['apps/worker/README.md', 'docs/operations/free-public-alpha-runbook.md']) {
     const source = sources[file];
     assert.match(source, /20260713060000_operator_submission_read_plane[.]sql/, file);
+    assert.match(source, /20260714010000_atomic_report_enforcement[.]sql/, file);
     assert.match(source, /hosted:queue:list/, file);
     assert.match(source, /hosted:queue:inspect/, file);
     assert.match(source, /best-effort[^.]+live/i, file);
@@ -96,8 +97,10 @@ test('operator documentation, commands, and application types bind the final rea
   )).scripts;
   assert.match(scripts['hosted:queue:list'], /submission-queue[.]mjs/);
   assert.match(scripts['hosted:queue:inspect'], /submission-detail[.]mjs/);
+  assert.match(scripts['hosted:operations:check'], /operations-check[.]mjs/);
   assert.match(workerScripts['queue:list'], /submission-queue[.]mjs/);
   assert.match(workerScripts['queue:inspect'], /submission-detail[.]mjs/);
+  assert.match(workerScripts['operations:check'], /operations-check[.]mjs/);
   const runtimeTypes = sources['apps/web/lib/supabase/database.runtime.types.ts'];
   assert.match(runtimeTypes, /Database as GeneratedDatabase.*database[.]types/);
   assert.match(runtimeTypes, /type NullableFields/);

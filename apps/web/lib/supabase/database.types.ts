@@ -1028,14 +1028,20 @@ export type Database = {
         Args: {
           p_disposition_code: string
           p_idempotency_digest: string
+          p_lifecycle_action: string
           p_public_message: string
           p_reason_code: string
           p_report_id: string
         }
         Returns: {
           disposition_code: string
+          lifecycle_action: string
           report_id: string
           report_state: string
+          skill_id: string
+          version_id: string
+          version_quarantined: boolean
+          version_revoked: boolean
         }[]
       }
       get_skill_submission_operator_detail: {
@@ -1104,7 +1110,11 @@ export type Database = {
         }[]
       }
       list_skill_report_queue: {
-        Args: { p_limit?: number }
+        Args: {
+          p_after_created_at?: string
+          p_after_report_id?: string
+          p_limit?: number
+        }
         Returns: {
           category: string
           created_at: string

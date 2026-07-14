@@ -19,6 +19,7 @@
     "publisher:authorization": "node src/authorization.mjs",
     "catalog:lifecycle": "node src/lifecycle.mjs",
     "reports:queue": "node src/report-queue.mjs",
-    "reports:disposition": "node src/report-disposition.mjs"
+    "reports:disposition": "node src/report-disposition.mjs",
+    "operations:check": "node src/operations-check.mjs"
   }
 }

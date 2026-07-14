@@ -74,6 +74,8 @@ test('publisher authorization CLI is exposed through both operator package surfa
   assert.equal(workerPackage.scripts['publisher:authorization'], 'node src/authorization.mjs');
   const readme = readFileSync('apps/worker/README.md', 'utf8');
   assert.match(readme, /20260713060000_operator_submission_read_plane\.sql/);
+  assert.match(readme, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(readme, /hosted:operations:check/);
   assert.match(readme, /npm run hosted:publisher:authorization/);
   assert.match(readme, /renews an expired[\s\S]+exact still-published source version/i);
   assert.match(readme, /cannot be renewed/i);
@@ -81,6 +83,9 @@ test('publisher authorization CLI is exposed through both operator package surfa
   assert.match(readme, /--license-evidence-path LICENSE/);
   const runbook = readFileSync('docs/operations/free-public-alpha-runbook.md', 'utf8');
   assert.match(runbook, /20260713060000_operator_submission_read_plane\.sql/);
+  assert.match(runbook, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(runbook, /confirmed disposition atomically quarantines or revokes/i);
+  assert.match(runbook, /skillmap-hosted-operations-check\/v1/);
   assert.match(runbook, /claim-scoped exact license evidence/);
   assert.match(runbook, /current unexpired publisher authorization/);
   assert.match(runbook, /target-bound collision/);
@@ -89,6 +94,16 @@ test('publisher authorization CLI is exposed through both operator package surfa
   assert.match(runbook, /explicit revocation is terminal/i);
   assert.match(runbook, /tombstone survives submission\/account deletion/i);
   assert.match(runbook, /stale authorized replay fails/i);
+});
+
+test('atomic report enforcement fails closed before upgrading legacy resolved reports', () => {
+  const source = readFileSync(
+    'supabase/migrations/20260714010000_atomic_report_enforcement.sql',
+    'utf8'
+  );
+  assert.match(source, /where report\.state = 'resolved'/);
+  assert.match(source, /requires zero legacy resolved reports/);
+  assert.match(source, /reconcile them in a reviewed forward migration first/);
 });
 
 test('malformed frontmatter produces a persistable blocked adapter shape with no compatibility digest', () => {

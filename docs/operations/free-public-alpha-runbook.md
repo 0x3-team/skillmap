@@ -82,15 +82,17 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migration `20260713060000_operator_submission_read_plane.sql` and every preceding migration are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck, and queue inspection relies on the final read-plane RPCs. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, or leave the operator without the supported redacted read boundary.
+Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260713060000_operator_submission_read_plane.sql` and `20260714010000_atomic_report_enforcement.sql`, plus every preceding migration, are applied to the target. The worker unconditionally calls `api.renew_skill_submission_claim`, publication relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck, queue inspection relies on the read-plane RPCs, and report moderation relies on the final atomic enforcement and paired-cursor contracts. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise fail during source processing, make a deterministic receipt retry unrecoverable, bypass reviewed authority, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
 
 Migration `20260713060000` creates its queue index inside the migration transaction. Apply it before accepting submissions. If the target is already populated, use a maintenance window and record the pre-migration row count plus index-build duration because the non-concurrent build can block writes. A second index for the default multi-state listing is deferred until target `EXPLAIN` output, queue growth, or measured latency justifies its write and storage cost.
+
+Migration `20260714010000` deliberately refuses a target containing any report already resolved by the legacy non-atomic RPC. Before applying it to such a target, pause report mutations and create a reviewed forward reconciliation migration that verifies every exact report target, enforces quarantine or revocation for confirmed reports, and retains the resulting evidence. Do not delete or rewrite the append-only audit history, and do not bypass this guard manually. A new or currently empty hosted alpha satisfies the guard directly.
 
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713060000 is present in both the local and remote columns.
+# Verify 20260713060000 and 20260714010000 are present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
@@ -105,7 +107,7 @@ npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migration `20260713060000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, target-bound collision authority, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000` and `20260714010000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -117,12 +119,14 @@ The web deployment receives only:
 - `SKILLMAP_RELEASE_STAGE=private-alpha` until the public gate passes
 - `SKILLMAP_INDEXING_MODE=private-alpha` until public acceptance
 - `SKILLMAP_SUPPORT_URL` only after the owner approves one reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
-- reviewed public rate-limit tuning values
+
+The web guard is fixed at its reviewed private-alpha values; there are no web rate-limit tuning variables in this release. A provider-global limiter remains mandatory before public alpha.
 
 The operator worker receives, from a root-only runtime secret source:
 
 - `SKILLMAP_SUPABASE_URL`
 - `SKILLMAP_SUPABASE_SERVICE_ROLE_KEY`
+- optional bounded `SKILLMAP_OPS_MAX_*` alert thresholds documented under Queue and reliability checks
 
 The service-role value must never enter the web deployment, client bundle, shell history, screenshots, logs, CI artifacts, or GitHub source requests. GitHub ingestion remains unauthenticated and public-only.
 
@@ -244,7 +248,8 @@ Authenticated reports are private, immutable account records. The database allow
 Use only the bounded service RPC commands; do not inspect or edit private rows by hand:
 
 ```bash
-# Read at most the oldest 20 queued report projections.
+# Read at most 20 queued report projections. Continue with both nextCursor
+# fields until the page is short, then restart once from no cursor to reconcile.
 npm run hosted:reports:queue -- --execute --limit 20
 
 # Resolve one report. Reuse an operation UUID only to retry this exact payload.
@@ -252,20 +257,17 @@ npm run hosted:reports:disposition -- \
   --execute --report-id rpt_... --disposition confirmed \
   --reason-code listing-quarantined \
   --public-message "The version was quarantined for review." \
-  --operation-id 00000000-0000-4000-8000-000000000000
-
-# Hide a disputed version from the catalog and both evidence projections.
-npm run hosted:catalog:lifecycle -- \
-  --execute --skill-id skl_... --version-id skv_... \
-  --action quarantine-version --reason-code credible-security-report \
+  --lifecycle-action quarantine-version \
   --operation-id 00000000-0000-4000-8000-000000000000
 ```
 
-Each consequential command needs a newly generated canonical UUID. Exact retries must reuse the same UUID and the same subject, action, reason, disposition, and public message; conflicting replay payloads fail closed. Restoration is allowed only when the exact version still has a valid, non-restricted, receipt-backed publication chain. Quarantine or revoke first when continued public exposure may cause harm, then disposition the report with bounded public copy.
+Use `--lifecycle-action revoke-version` instead when the reviewed outcome is terminal. Omit the lifecycle action for `no-action`, `duplicate`, and `invalid`; the command rejects a confirmed disposition without one and rejects a lifecycle action on every non-confirmed disposition. A confirmed disposition atomically quarantines or revokes the exact reported version: the report row, target mutation, report event, and catalog event commit in one transaction. Exact retries reuse the same UUID and payload and return the retained original enforcement outcome even if a separately reviewed restore happened later. Conflicting replay fails closed. Restoration remains a separate receipt-backed lifecycle action and is allowed only when the exact version still has valid, non-restricted evidence.
 
 ## Queue and reliability checks
 
-Run `npm run hosted:queue:list -- --execute --limit 32` before each operating pass. The summary exposes bounded counts and oldest timestamps; rows expose only the redacted fields needed to identify expired claims, retry-eligible submissions, dead-letter candidates, and accepted submissions awaiting publication review. Use `hosted:queue:inspect` for the exact submission before any consequential command.
+Run `npm run hosted:operations:check -- --execute` before each operating pass and on the reviewed scheduler. It reads the redacted submission summary plus at most 1,000 cursor-paged report rows, emits one identifier-free `skillmap-hosted-operations-check/v1` JSON receipt, returns zero only when every threshold passes, returns `2` for an alert receipt, and returns `1` for command/configuration failure. It never mutates queue state. Follow with `npm run hosted:queue:list -- --execute --limit 32`; use `hosted:queue:inspect` for an exact submission before any consequential command.
+
+The conservative private-alpha defaults are 60 minutes for queued submissions, 120 minutes for accepted publication review, 24 hours for remediation, 60 minutes for reports, 32 queued submissions, and 20 queued reports. Override only from the root-only worker environment with canonical bounded positive integers: `SKILLMAP_OPS_MAX_QUEUED_AGE_SECONDS`, `SKILLMAP_OPS_MAX_ACCEPTED_AGE_SECONDS`, `SKILLMAP_OPS_MAX_REMEDIATION_AGE_SECONDS`, `SKILLMAP_OPS_MAX_REPORT_AGE_SECONDS`, `SKILLMAP_OPS_MAX_QUEUED_SUBMISSIONS`, and `SKILLMAP_OPS_MAX_QUEUED_REPORTS`. Record reviewed values in the provider decision receipt. Never place these or the service credential in the web environment.
 
 Alert on:
 

@@ -17,7 +17,10 @@ const ALLOWED_RPC = new Set([
   'control_catalog_lifecycle'
 ]);
 const DEFAULT_TIMEOUT_MS = 15_000;
-const MAX_RESPONSE_BYTES = 256 * 1024;
+// A maximum valid 50-row report page can contain 100,000 Unicode code points.
+// Keep one bounded ceiling that admits the schema maximum (including four-byte
+// UTF-8 text and JSON framing) while still failing closed on expanded payloads.
+const MAX_RESPONSE_BYTES = 512 * 1024;
 
 export function createSupabaseRpcClient(options) {
   const origin = validateOrigin(options?.url);
