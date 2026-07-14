@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const operatorCandidate = '69e7d1e7f2042ae996c1bed379891ec65ece84a4';
-const operatorMergedMain = '8a30578520974257a1ab4ee2f6c7442696ee0289';
-const operatorReleaseTree = '67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c';
+const launchCandidate = 'e6fc09e9d8300fbd5bb974899cb18b5d1b2d8af6';
+const launchMergedMain = '426efb1af480dff57713d604bac617cea0e00ef2';
+const launchReleaseTree = '94c910c02b224bd421905126da7c783a8f3fb0d7';
 const sources = Object.fromEntries([
   'README.md',
   'HANDOFF.md',
@@ -12,6 +12,7 @@ const sources = Object.fromEntries([
   'docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan.md',
   'docs/launch/free-public-alpha-go-to-market.md',
   'docs/plans/2026-07-12-skillmap-release-ledger.md',
+  'docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan-implementation-ledger.jsonl',
   'apps/web/app/release-status/page.tsx',
   'apps/web/lib/supabase/database.runtime.types.ts',
   'apps/worker/README.md',
@@ -25,25 +26,49 @@ test('canonical release truth binds the merged source and scoped CI receipts', (
     'docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan.md',
     'docs/plans/2026-07-12-skillmap-release-ledger.md'
   ]) {
-    assert.match(sources[file], new RegExp(operatorMergedMain), file);
+    assert.match(sources[file], new RegExp(launchMergedMain), file);
   }
-  assert.match(sources['HANDOFF.md'], new RegExp(operatorCandidate));
-  assert.match(sources['HANDOFF.md'], new RegExp(operatorReleaseTree));
-  assert.match(sources['HANDOFF.md'], /Gitea candidate run `50` passed/i);
-  assert.match(sources['HANDOFF.md'], /job `86964954830` passed the one-shot self-hosted `hosted-web` scope/i);
-  assert.match(sources['HANDOFF.md'], /post-merge `main` run `53` (?:all )?passed/i);
-  assert.match(sources['HANDOFF.md'], /now bound to the second release-ledger row/i);
+  assert.match(sources['HANDOFF.md'], new RegExp(launchCandidate));
+  assert.match(sources['HANDOFF.md'], new RegExp(launchReleaseTree));
+  assert.match(sources['HANDOFF.md'], /Gitea candidate run `57` passed/i);
+  assert.match(sources['HANDOFF.md'], /job `86981228569` passed all fifteen steps in the one-shot self-hosted hosted-web scope/i);
+  assert.match(sources['HANDOFF.md'], /post-merge `main` run `60` (?:all )?passed/i);
+  assert.match(sources['HANDOFF.md'], /now bound to the third release-ledger row/i);
   const releaseLedger = sources['docs/plans/2026-07-12-skillmap-release-ledger.md'];
-  assert.match(releaseLedger, new RegExp(operatorCandidate));
-  assert.match(releaseLedger, /Operator read-plane source locally validated, pushed, merged, and verified by the named scoped remote CI/i);
+  assert.match(releaseLedger, new RegExp(launchCandidate));
+  assert.match(releaseLedger, /Provider-independent launch-readiness source locally validated, pushed, merged, dual-remote reconciled, and verified by the named scoped remote CI/i);
   assert.match(releaseLedger, /overall GitHub workflow remained red only because unrelated GitHub-hosted jobs were blocked by the organization allowance/i);
+  const implementationLedger = sources['docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan-implementation-ledger.jsonl']
+    .trim()
+    .split('\n')
+    .map(line => JSON.parse(line));
+  const launchReceipt = implementationLedger
+    .filter(receipt => receipt.event === 'superseding-source-integration-receipt')
+    .find(receipt => receipt.claims?.candidate_commit === launchCandidate);
+  assert.ok(launchReceipt);
+  assert.equal(launchReceipt.claims.candidate_tree, launchReleaseTree);
+  assert.equal(launchReceipt.claims.merge_commit, launchMergedMain);
+  assert.equal(launchReceipt.claims.deployed, false);
+  assert.equal(launchReceipt.claims.verified_live, false);
+  assert.equal(launchReceipt.claims.public_launch_verdict, 'NO_GO');
+  const completionAudit = implementationLedger
+    .find(receipt =>
+      receipt.batch === 'completion-audit-provider-backpressure'
+      && receipt.event === 'completion-audit-local-acceptance'
+    );
+  assert.ok(completionAudit);
+  assert.equal(completionAudit.status, 'locally-accepted-awaiting-exact-source-receipt');
+  assert.equal(completionAudit.claims.validated_locally, true);
+  assert.equal(completionAudit.claims.exact_candidate, false);
+  assert.equal(completionAudit.claims.pushed, false);
+  assert.equal(completionAudit.claims.merged, false);
+  assert.equal(completionAudit.claims.deployed, false);
+  assert.equal(completionAudit.claims.verified_live, false);
+  assert.equal(completionAudit.claims.public_launch_verdict, 'NO_GO');
   assert.match(sources['README.md'], /baseline source-integration receipt is already pushed and merged/i);
 });
 
 test('canonical release truth does not collapse source acceptance into deployment or launch', () => {
-  for (const [file, source] of Object.entries(sources)) {
-    assert.doesNotMatch(source, /\bno push\b|has not been pushed|no authoritative current-commit CI/i, file);
-  }
   for (const file of [
     'HANDOFF.md',
     'CHANGELOG.md',
@@ -64,14 +89,16 @@ test('go-to-market checklist records source integration without claiming externa
   const checklist = sources['docs/launch/free-public-alpha-go-to-market.md'];
   assert.match(checklist, /- \[x\].*Baseline-only candidate `67129297d08f7f7bc88800015b336a2a7bb1b139`/i);
   assert.match(checklist, /historical baseline remains independently scoped and is supplemented by the operator read-plane receipt below/i);
-  assert.match(checklist, new RegExp('- \\[x\\].*operator read-plane candidate `' + operatorCandidate + '`', 'i'));
-  assert.match(checklist, new RegExp(operatorReleaseTree));
-  assert.match(checklist, new RegExp(operatorMergedMain));
-  assert.match(checklist, /post-merge `main` run `53` passed/i);
-  assert.doesNotMatch(checklist, /- \[ \].*operator read-plane/i);
+  assert.match(checklist, /- \[x\].*operator read-plane candidate `69e7d1e7f2042ae996c1bed379891ec65ece84a4`/i);
+  assert.match(checklist, new RegExp('- \\[x\\].*launch-readiness candidate `' + launchCandidate + '`', 'i'));
+  assert.match(checklist, new RegExp(launchReleaseTree));
+  assert.match(checklist, new RegExp(launchMergedMain));
+  assert.match(checklist, /post-merge `main` run `60` passed/i);
+  assert.doesNotMatch(checklist, /- \[ \].*launch-readiness candidate/i);
   assert.match(checklist, /- \[ \].*Production Supabase, web, OAuth/i);
   assert.match(checklist, /- \[ \].*pilot/i);
   assert.match(checklist, /- \[ \].*index/i);
+  assert.match(checklist, /- \[ \].*source\/acquisition channel.*GitHub repository public.*protected Gitea `main`/i);
 });
 
 test('operator documentation, commands, and application types bind the final read plane', () => {

@@ -265,6 +265,8 @@ export type Database = {
           last_transition_digest: string | null
           last_worker_run_id: string | null
           license_claim: string | null
+          provider_defer_count: number
+          provider_retry_after_at: string | null
           public_id: string
           public_status_message: string | null
           publication_digest: string | null
@@ -307,6 +309,8 @@ export type Database = {
           last_transition_digest?: string | null
           last_worker_run_id?: string | null
           license_claim?: string | null
+          provider_defer_count?: number
+          provider_retry_after_at?: string | null
           public_id?: string
           public_status_message?: string | null
           publication_digest?: string | null
@@ -349,6 +353,8 @@ export type Database = {
           last_transition_digest?: string | null
           last_worker_run_id?: string | null
           license_claim?: string | null
+          provider_defer_count?: number
+          provider_retry_after_at?: string | null
           public_id?: string
           public_status_message?: string | null
           publication_digest?: string | null
@@ -1023,6 +1029,22 @@ export type Database = {
           submission_state: string
         }[]
       }
+      defer_skill_submission_provider_limit: {
+        Args: {
+          p_claim_id: string
+          p_idempotency_digest: string
+          p_retry_after_seconds: number
+          p_submission_id: string
+          p_worker_version: string
+        }
+        Returns: {
+          attempt_count: number
+          provider_defer_count: number
+          provider_retry_after_at: string
+          submission_id: string
+          submission_state: string
+        }[]
+      }
       delete_my_account: { Args: never; Returns: boolean }
       disposition_skill_report: {
         Args: {
@@ -1165,6 +1187,18 @@ export type Database = {
           submission_state: string
           submitter_license_claim: string
           updated_at: string
+          version_label: string
+        }[]
+      }
+      peek_skill_submission_candidate: {
+        Args: { p_submission_id?: string }
+        Returns: {
+          attempt_number: number
+          license_claim: string
+          repository_url: string
+          source_commit: string
+          source_path: string
+          submission_id: string
           version_label: string
         }[]
       }

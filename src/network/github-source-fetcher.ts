@@ -29,17 +29,32 @@ export class GithubSourceFetchError extends Error {
   readonly code: GithubSourceFetchErrorCode;
   readonly retryable: boolean;
   readonly statusCode?: number;
+  readonly retryAfterMs?: number;
 
   constructor(
     code: GithubSourceFetchErrorCode,
     message: string,
-    options: { retryable?: boolean; statusCode?: number } = {}
+    options: { retryable?: boolean; statusCode?: number; retryAfterMs?: number } = {}
   ) {
     super(message);
+    if (options.retryable !== undefined && typeof options.retryable !== 'boolean') {
+      throw new TypeError('GitHub source error retryability must be boolean.');
+    }
+    if (options.statusCode !== undefined
+      && (!Number.isInteger(options.statusCode) || options.statusCode < 100 || options.statusCode > 599)) {
+      throw new TypeError('GitHub source error status must be a valid HTTP status.');
+    }
+    if (options.retryAfterMs !== undefined
+      && (!Number.isSafeInteger(options.retryAfterMs)
+        || options.retryAfterMs < 0
+        || options.retryAfterMs > MAX_PROVIDER_RETRY_AFTER_MS)) {
+      throw new TypeError('GitHub source error retry delay must be a bounded nonnegative integer.');
+    }
     this.name = 'GithubSourceFetchError';
     this.code = code;
     this.retryable = options.retryable ?? false;
     this.statusCode = options.statusCode;
+    this.retryAfterMs = options.retryAfterMs;
   }
 }
 
@@ -168,6 +183,7 @@ const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_BASE_MS = 250;
 const DEFAULT_MAX_RETRY_AFTER_MS = 30_000;
 const DEFAULT_USER_AGENT = 'skillmap-source-fetcher/1';
+const MAX_PROVIDER_RETRY_AFTER_MS = 2 * 60 * 60 * 1_000;
 const JSON_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 /**
@@ -229,7 +245,7 @@ export async function fetchGithubSkillTree(
     const remotePath = joinRemotePath(normalizedSubtree, file.path);
     const rawUrl = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${resolvedCommit}/${encodeRemotePath(remotePath)}`;
     const response = await getResponse(rawUrl, context, 'application/octet-stream');
-    assertSuccessfulResponse(response);
+    assertSuccessfulResponse(response, context.now());
     const bytes = Buffer.from(response.body);
     if (bytes.length !== file.size) {
       throw new GithubSourceFetchError(
@@ -384,7 +400,7 @@ export async function fetchGithubExactSourceFile(
   }
   const rawUrl = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${resolvedCommit}/${encodeRemotePath(normalizedPath)}`;
   const response = await getResponse(rawUrl, context, 'application/octet-stream');
-  assertSuccessfulResponse(response);
+  assertSuccessfulResponse(response, context.now());
   const bytes = Buffer.from(response.body);
   if (bytes.length !== size || gitBlobDigest(bytes, sha.length) !== sha) {
     throw new GithubSourceFetchError(
@@ -689,7 +705,7 @@ function parseRecursiveTree(value: Record<string, unknown>, maxEntries: number):
 
 async function getJson(url: string, context: FetchContext): Promise<Record<string, unknown>> {
   const response = await getResponse(url, context, 'application/vnd.github+json');
-  assertSuccessfulResponse(response);
+  assertSuccessfulResponse(response, context.now());
   const contentType = responseHeader(response.headers, 'content-type');
   if (contentType && !contentType.toLowerCase().includes('json')) {
     throw new GithubSourceFetchError('INVALID_RESPONSE', 'GitHub API returned an unexpected content type.');
@@ -736,7 +752,8 @@ async function requestWithRetries(
   for (let attempt = 0; ; attempt += 1) {
     assertNotAborted(context);
     const response = await requestOnce(url, headers, context);
-    const retryableStatus = response.status === 408 || response.status === 429 || (response.status >= 500 && response.status <= 599);
+    if (isGithubRateLimitResponse(response.status, response.headers, response.body)) return response;
+    const retryableStatus = response.status === 408 || (response.status >= 500 && response.status <= 599);
     if (!retryableStatus || attempt >= context.maxRetries) return response;
     const retryAfter = retryDelay(response.headers, attempt, context);
     await sleepWithAbort(retryAfter, context);
@@ -791,7 +808,8 @@ async function requestOnce(
       if (context.token && error.message.includes(context.token)) {
         throw new GithubSourceFetchError(error.code, 'GitHub request failed safely.', {
           retryable: error.retryable,
-          statusCode: error.statusCode
+          statusCode: error.statusCode,
+          retryAfterMs: error.retryAfterMs
         });
       }
       throw error;
@@ -803,12 +821,13 @@ async function requestOnce(
   }
 }
 
-function assertSuccessfulResponse(response: GithubHttpResponse): void {
+function assertSuccessfulResponse(response: GithubHttpResponse, now: number): void {
   if (response.status === 200) return;
-  if (response.status === 429) {
+  if (isGithubRateLimitResponse(response.status, response.headers, response.body)) {
     throw new GithubSourceFetchError('RATE_LIMITED', 'GitHub rate limit was not satisfied after bounded retries.', {
       retryable: true,
-      statusCode: response.status
+      statusCode: response.status,
+      retryAfterMs: githubRateLimitRetryAfterMs(response.headers, now)
     });
   }
   const retryable = response.status === 408 || (response.status >= 500 && response.status <= 599);
@@ -816,6 +835,67 @@ function assertSuccessfulResponse(response: GithubHttpResponse): void {
     retryable,
     statusCode: response.status
   });
+}
+
+/**
+ * GitHub reports primary exhaustion as 403 or 429. A 403 with Retry-After is
+ * also provider throttling, while an ordinary private/not-found 403 remains a
+ * normal HTTP error.
+ */
+export function isGithubRateLimitResponse(
+  status: number,
+  headers: Readonly<Record<string, string | undefined>>,
+  body?: Uint8Array
+): boolean {
+  if (status === 429) return true;
+  if (status !== 403) return false;
+  return responseHeader(headers, 'x-ratelimit-remaining')?.trim() === '0'
+    || responseHeader(headers, 'retry-after') !== undefined
+    || hasGithubSecondaryRateLimitMessage(body);
+}
+
+/** Resolve bounded provider retry authority. Retry-After takes precedence. */
+export function githubRateLimitRetryAfterMs(
+  headers: Readonly<Record<string, string | undefined>>,
+  now: number = Date.now()
+): number | undefined {
+  if (!Number.isFinite(now)) return undefined;
+  const retryAfter = responseHeader(headers, 'retry-after');
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(MAX_PROVIDER_RETRY_AFTER_MS, Math.ceil(seconds * 1_000));
+    }
+    const date = Date.parse(retryAfter);
+    if (Number.isFinite(date)) {
+      return Math.min(MAX_PROVIDER_RETRY_AFTER_MS, Math.max(0, date - now));
+    }
+  }
+  const resetSeconds = Number(responseHeader(headers, 'x-ratelimit-reset'));
+  if (Number.isFinite(resetSeconds) && resetSeconds >= 0) {
+    return Math.min(
+      MAX_PROVIDER_RETRY_AFTER_MS,
+      Math.max(0, Math.ceil((resetSeconds * 1_000) - now))
+    );
+  }
+  return undefined;
+}
+
+function hasGithubSecondaryRateLimitMessage(body: Uint8Array | undefined): boolean {
+  if (!(body instanceof Uint8Array) || body.byteLength < 1 || body.byteLength > 64 * 1024) return false;
+  let text;
+  try {
+    text = Buffer.from(body).toString('utf8');
+  } catch {
+    return false;
+  }
+  try {
+    const payload = JSON.parse(text) as { message?: unknown };
+    if (typeof payload?.message === 'string') text = payload.message;
+  } catch {
+    // Raw GitHub error bodies are admitted only by the same narrow phrase.
+  }
+  return /\bsecondary rate limits?\b/i.test(text);
 }
 
 function retryDelay(

@@ -2,15 +2,29 @@
 
 ## Unreleased — experimental free public alpha
 
-The latest product source-integration boundary for these entries is operator
-candidate `69e7d1e7f2042ae996c1bed379891ec65ece84a4` and tree
-`67235ad3ce1553c4b3ba47a36c8e22f9c53cf89c`, merged as feature `main` commit
-`8a30578520974257a1ab4ee2f6c7442696ee0289`. The earlier baseline remains a
-separate historical row in the append-only release ledger. This
+The latest completed product source-integration boundary recorded here is
+launch-readiness candidate `e6fc09e9d8300fbd5bb974899cb18b5d1b2d8af6` and tree
+`94c910c02b224bd421905126da7c783a8f3fb0d7`, merged as `main` commit
+`426efb1af480dff57713d604bac617cea0e00ef2`. The earlier baselines remain
+separate historical rows in the append-only release ledger. This
 source-integration boundary does not prove a tag, package publication,
 deployment, live OAuth, public indexing, open-user launch, or verified-live
 status. Subsequent Unreleased product changes require their own candidate and
 merge receipt before this boundary covers them.
+
+The completion-audit changes below have local acceptance only and remain
+outside that source-integration boundary until an exact candidate and merge
+receipt are appended:
+
+- Preserved safe submission values, request identifiers, validation feedback,
+  and deterministic focus across recoverable server-side submission failures;
+  account history now exposes the submission update timestamp used by recovery
+  and operator support.
+- Added a GitHub provider-budget gate before exact candidate claim plus an
+  atomic post-claim deferral path for bounded primary, secondary, and reset-time
+  rate limits. Deferrals return work to the queue without consuming an attempt
+  or fabricating a worker-run failure, while separate cooldown/defer telemetry
+  keeps upstream capacity visible to operators.
 
 - Added an identifier-free, no-store hosted health endpoint and a bounded
   service-only operations checker with explicit queue-age, backlog, retry,
@@ -27,17 +41,18 @@ merge receipt before this boundary covers them.
   types, candidate preflight bindings, cross-browser hosted smokes, and eleven
   reviewed strict visual baselines for the launch-readiness slice.
 
-- Recorded Gitea candidate run `50`, GitHub Actions run `29294494176` one-shot
-  self-hosted `hosted-web` job `86964954830`, Gitea protected sync PR `#2`, and
-  Gitea sync-branch, PR, and post-merge `main` runs `51`, `52`, and `53` as
+- Recorded Gitea candidate run `57`, GitHub Actions run `29299879085` one-shot
+  self-hosted hosted-web job `86981228569`, GitHub PR `#14`, Gitea protected
+  sync PR `#4`, and Gitea sync-branch, PR, and post-merge `main` runs `58`,
+  `59`, and `60` as
   passed. The one-shot runner self-removed and the GitHub repository reported
   zero registered runners afterward. The overall GitHub workflow remained red
   only because unrelated GitHub-hosted jobs were organization-allowance blocked;
   acceptance is scoped solely to the named hosted-web job. The frozen static
   receipt is
-  `sha256:7dec38b69c6b709c13f6e0aac4d5f6767411e3a2b2e07b3226b87f16902bdd13`;
+  `sha256:79509a1ba5ad50b6b9be09a47c761268b71c261695cdee30d0839309ef11ce85`;
   the frozen database receipt is
-  `sha256:74b8e840a2e1b5343df5daa79d8bbb2bc08d28bdd54ebd51277c9d912bc37fa6`.
+  `sha256:3bd274cd5043819a9d5bc707000f70aad3500ef2540874c6a2d4aa0e23238715`.
   These are source and scoped-CI receipts, not deployment or live-product proof.
 
 - Added qualified skill identity, explicit canonical duplicate decisions, and

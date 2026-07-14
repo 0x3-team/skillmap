@@ -109,13 +109,14 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  17::bigint,
-  'the API security-definer boundary contains exactly seventeen reviewed functions'
+  19::bigint,
+  'the API security-definer boundary contains exactly nineteen reviewed functions'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef and p.proname in (
-      'claim_skill_submission', 'complete_skill_submission', 'requeue_skill_submission',
+      'peek_skill_submission_candidate', 'claim_skill_submission',
+      'defer_skill_submission_provider_limit', 'complete_skill_submission', 'requeue_skill_submission',
       'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
@@ -125,7 +126,7 @@ select is(
       'get_skill_submission_queue_summary',
       'list_skill_submission_operator_queue',
       'get_skill_submission_operator_detail')),
-  17::bigint,
+  19::bigint,
   'all API security-definer functions are on the reviewed allowlist'
 );
 
