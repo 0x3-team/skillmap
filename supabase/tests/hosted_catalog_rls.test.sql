@@ -59,6 +59,7 @@ select is(
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
       'list_skill_submission_collisions', 'review_skill_submission_collisions',
       'record_skill_submission_publisher_authorization',
+      'approve_operator_action',
       'record_skill_submission_license_evidence',
       'get_skill_submission_queue_summary',
       'list_skill_submission_operator_queue',

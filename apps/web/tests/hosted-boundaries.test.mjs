@@ -270,13 +270,14 @@ test("public source and owner-result links stay exact, encoded, and current-vers
 });
 
 test("hosted product surfaces expose truthful trust, route, auth, and semantic evidence affordances", async () => {
-  const [detail, submissions, reports, evidence, header, landing] = await Promise.all([
+  const [detail, submissions, reports, evidence, header, landing, gettingStarted] = await Promise.all([
     readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/account/submissions/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/account/reports/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/skillmap/public-evidence.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/skillmap/catalog-header.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8")
+    readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/getting-started/page.tsx", import.meta.url), "utf8")
   ]);
   assert.match(detail, /buildExactGitHubSourceUrl\(skill[.]source\)/);
   assert.match(detail, /skill[.]source[.]path/);
@@ -284,6 +285,9 @@ test("hosted product surfaces expose truthful trust, route, auth, and semantic e
   assert.match(detail, /skill[.]lifecycleState/);
   assert.match(detail, /skill[.]currentVersion[.]publishedAt/);
   assert.match(detail, /skill[.]updatedAt/);
+  assert.match(detail, /Freshness signals/);
+  assert.match(detail, /does not calculate an automatic fresh or current verdict from elapsed time/);
+  assert.match(detail, /skill[.]currentVersion[.]grade[.]receipt[.]gradedAt/);
   assert.match(detail, /View exact source at commit/);
   assert.match(submissions, /buildCurrentPublicSkillLinks/);
   assert.match(submissions, /View published listing/);
@@ -299,6 +303,10 @@ test("hosted product surfaces expose truthful trust, route, auth, and semantic e
   assert.match(header, /resolveHostedAccountState/);
   assert.match(header, /Account status unavailable/);
   assert.match(landing, /accountState === "authenticated" \? "Account" : "Sign in"/);
+  assert.match(gettingStarted, /Hosted visitor workflow/);
+  assert.match(gettingStarted, /Hosted submitter workflow/);
+  assert.match(gettingStarted, /<ol/);
+  assert.match(gettingStarted, /only the reviewed operator workflow can publish/);
 });
 
 test("report form preserves safe values and request identity for recoverable failures", async () => {

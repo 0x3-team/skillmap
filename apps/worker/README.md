@@ -4,7 +4,7 @@ This directory is the constrained Node worker boundary for hosted source ingesti
 
 ## Hard database preflight
 
-Do not start a worker or service-role operator command until `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, `20260714030000_github_provider_rate_limit_deferral.sql`, and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, generated `api` type parity, and the web application typecheck. The raw `database.types.ts` stays byte-exact for generator comparison; `database.runtime.types.ts` corrects nullable return fields for only the three operator `RETURNS TABLE` RPCs. `process-once` peeks one exact candidate, checks an unauthenticated GitHub core budget with a two-request shared-egress reserve, claims only that candidate, and unconditionally renews a successful claim through `api.renew_skill_submission_claim`. A raced primary or secondary provider limit returns the exact claim to `queued`, retains a bounded retry time, and refunds the audit attempt without a worker-run row. Publication requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority. Report confirmation requires one atomic exact-version quarantine or revocation, and both operator queues use paired cursors. The atomic-enforcement migration fails closed if the target contains legacy resolved reports; reconcile those exact targets through a reviewed forward migration instead of bypassing the guard. Operator-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
+Do not start a worker or service-role operator command until `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, `20260714030000_github_provider_rate_limit_deferral.sql`, `20260714050000_report_authorization_enforcement.sql`, `20260714060000_operator_dual_control.sql`, and every preceding migration are applied and the exact candidate has passed database lint, full pgTAP, generated `api` type parity, and the web application typecheck. The raw `database.types.ts` stays byte-exact for generator comparison; `database.runtime.types.ts` corrects nullable return fields for only the three operator `RETURNS TABLE` RPCs. `process-once` peeks one exact candidate, checks an unauthenticated GitHub core budget with a two-request shared-egress reserve, claims only that candidate, and unconditionally renews a successful claim through `api.renew_skill_submission_claim`. A raced primary or secondary provider limit returns the exact claim to `queued`, retains a bounded retry time, and refunds the audit attempt without a worker-run row. Publication requires claim-scoped exact license evidence, current publisher authorization, and target-bound collision authority. Report intake independently requires that same current authorization, report confirmation requires one atomic exact-version quarantine or revocation, and both operator queues use paired cursors. Consequential publisher-authorization, collision-review, publication, lifecycle, and report-disposition commands require a short-lived exact-envelope approval from an approver and execution by a distinct executor. The atomic-enforcement migration fails closed if the target contains legacy resolved reports; reconcile those exact targets through a reviewed forward migration instead of bypassing the guard. Operator-before-migration is a hard `NO_GO`, not a recoverable compatibility mode. Follow [the free public alpha runbook](../../docs/operations/free-public-alpha-runbook.md#hard-worker-migration-gate) before the first run and after every database deploy.
 
 The first executable slice is a non-mutating exact-commit audit rehearsal:
 
@@ -36,13 +36,18 @@ Public visibility does not establish permission to redistribute repository conte
 
 ## Operator queue workflow
 
-Every service-role operator command requires server-only environment variables and an explicit `--execute` flag. For `hosted:queue:list` and `hosted:queue:inspect`, the flag confirms use of the protected credential; both commands remain read-only and report `mutation: false`.
+Every service-role operator command requires server-only environment variables and an explicit supported mode. For `hosted:queue:list` and `hosted:queue:inspect`, `--execute` confirms use of the protected service credential; both commands remain read-only and report `mutation: false`.
+
+Five consequential commands use dual control instead of a single `--execute`: publisher authorization, collision review, publication, catalog lifecycle, and report disposition. An approver loads only their server-side `SKILLMAP_OPERATOR_CREDENTIAL` and runs the exact command with `--approve`. The result returns an `opa_...` approval ID. Before its 30-minute expiry, a distinct executor loads their own credential and repeats every action argument and operation UUID byte-for-byte, replacing `--approve` with `--execute --approval-id opa_...`. Never place either `smo_v1_...` credential on the command line, in metadata, logs, receipts, or shell history. An approval is exact-envelope-bound, single-action, and safe to replay only as the same executor retrying the same operation.
 
 ```bash
 # Load SKILLMAP_SUPABASE_URL and SKILLMAP_SUPABASE_SERVICE_ROLE_KEY from the
 # approved root-only runtime secret source; never type the key into shell history.
 test -n "$SKILLMAP_SUPABASE_URL"
 test -n "$SKILLMAP_SUPABASE_SERVICE_ROLE_KEY"
+# For the five dual-controlled commands only, load one operator's credential
+# from that operator's separate root-only secret source.
+test -n "$SKILLMAP_OPERATOR_CREDENTIAL"
 
 # Read the queue summary and the oldest active submissions without claiming one.
 # Omit --state for queued, processing, accepted, changes-requested, and failed.
@@ -82,7 +87,7 @@ npm run hosted:queue:process-once -- \
 # A collision must receive an explicit reviewed disposition before publication.
 npm run hosted:collisions:list -- --execute --submission-id sub_...
 npm run hosted:collisions:review -- \
-  --execute --submission-id sub_... --disposition approved-distinct \
+  --approve --submission-id sub_... --disposition approved-distinct \
   --reason-code independently-reviewed-source \
   --operation-id 00000000-0000-4000-8000-000000000000
 
@@ -95,7 +100,7 @@ npm run hosted:collisions:review -- \
 # private redacted tombstone and is terminal for the exact repository, commit,
 # and path across accounts and publisher handles.
 npm run hosted:publisher:authorization -- \
-  --execute --submission-id sub_... --publisher-handle publisher-handle \
+  --approve --submission-id sub_... --publisher-handle publisher-handle \
   --decision authorized --basis publisher-owner-approval \
   --evidence-reference authref_0123456789abcdef0123456789abcdef \
   --evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --expires-at 2026-10-01T00:00:00.000Z \
@@ -104,7 +109,7 @@ npm run hosted:publisher:authorization -- \
 # Consent withdrawal is a terminal append-only decision. It accepts no basis or
 # expiry and atomically blocks every version at the exact source coordinates.
 npm run hosted:publisher:authorization -- \
-  --execute --submission-id sub_... --publisher-handle publisher-handle \
+  --approve --submission-id sub_... --publisher-handle publisher-handle \
   --decision revoked \
   --evidence-reference authref_fedcba9876543210fedcba9876543210 \
   --evidence-digest sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
@@ -113,7 +118,8 @@ npm run hosted:publisher:authorization -- \
 # Publish reviewed metadata after the completion state and any collision are accepted.
 cp apps/worker/examples/reviewed-publication.example.json /tmp/reviewed-publication.json
 npm run hosted:queue:publish -- \
-  --execute --submission-id sub_... --metadata /tmp/reviewed-publication.json
+  --approve --submission-id sub_... --metadata /tmp/reviewed-publication.json \
+  --operation-id 22222222-2222-4222-8222-222222222222
 
 # Requeue an eligible failed or changes-requested item.
 npm run hosted:queue:requeue -- --execute --submission-id sub_...
@@ -128,7 +134,7 @@ npm run hosted:queue:dead-letter -- \
 # operation UUID for each consequential operator decision; replay the same UUID
 # only when retrying the exact same decision.
 npm run hosted:catalog:lifecycle -- \
-  --execute --skill-id skl_... --version-id skv_... \
+  --approve --skill-id skl_... --version-id skv_... \
   --action quarantine-version --reason-code security-review \
   --operation-id 00000000-0000-4000-8000-000000000000
 
@@ -136,7 +142,7 @@ npm run hosted:catalog:lifecycle -- \
 # then resolve one with a bounded public reply and atomic exact-target action.
 npm run hosted:reports:queue -- --execute --limit 20
 npm run hosted:reports:disposition -- \
-  --execute --report-id rpt_... --disposition confirmed \
+  --approve --report-id rpt_... --disposition confirmed \
   --reason-code listing-quarantined --public-message "The version was quarantined for review." \
   --lifecycle-action quarantine-version \
   --operation-id 00000000-0000-4000-8000-000000000000

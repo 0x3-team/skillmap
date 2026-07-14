@@ -123,6 +123,8 @@ try {
     { name: "home-desktop-authenticated", path: "/", viewport: { width: 1440, height: 1000 }, heading: /Find agent skills/ },
     { name: "catalog-compact-320", path: "/skills", viewport: { width: 320, height: 760 }, heading: "Inspect the evidence before the instruction body." },
     { name: "catalog-mobile-390", path: "/skills", viewport: { width: 390, height: 844 }, heading: "Inspect the evidence before the instruction body." },
+    { name: "getting-started-compact-320", path: "/getting-started", viewport: { width: 320, height: 760 }, heading: "Start from the capability that exists today." },
+    { name: "getting-started-mobile-390", path: "/getting-started", viewport: { width: 390, height: 844 }, heading: "Start from the capability that exists today." },
     { name: "detail-desktop", path: "/skills/0x3-team/skill-audit", viewport: { width: 1440, height: 1000 }, heading: "Skill Audit" },
     { name: "detail-compact-320", path: "/skills/0x3-team/skill-audit", viewport: { width: 320, height: 760 }, heading: "Skill Audit" },
     { name: "detail-mobile-390", path: "/skills/0x3-team/skill-audit", viewport: { width: 390, height: 844 }, heading: "Skill Audit" },

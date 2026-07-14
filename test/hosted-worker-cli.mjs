@@ -179,6 +179,7 @@ test('hosted audit worker rejects duplicate and unknown options', () => {
 });
 
 test('hosted queue worker is mutation-explicit and documents server-only authority', () => {
+  assert.match(readFileSync(queueScript, 'utf8'), /const WORKER_VERSION = 'skillmap-worker\/0\.2\.0';/);
   const help = spawnSync(process.execPath, [queueScript, '--help'], { encoding: 'utf8' });
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /service-role-only RPCs/i);
@@ -238,13 +239,14 @@ test('catalog lifecycle and report disposition commands are mutation-explicit', 
     const helpResult = spawnSync(process.execPath, [scriptPath, '--help'], { encoding: 'utf8' });
     assert.equal(helpResult.status, 0, helpResult.stderr);
     assert.match(helpResult.stdout, authority);
-    assert.match(helpResult.stdout, /Mutation requires: --execute/i);
+    assert.match(helpResult.stdout, /exactly one mode/i);
+    assert.match(helpResult.stdout, /--approve[\s\S]+--execute requires --approval-id/i);
     const refused = spawnSync(process.execPath, [scriptPath], {
       encoding: 'utf8',
       env: { ...process.env, SKILLMAP_SUPABASE_SERVICE_ROLE_KEY: 'PRIVATE-CANARY-SERVICE-ROLE' }
     });
     assert.equal(refused.status, 1);
-    assert.match(refused.stderr, /without the explicit --execute flag|Refusing report disposition/i);
+    assert.match(refused.stderr, /Exactly one of --approve or --execute/i);
     assert.doesNotMatch(refused.stderr + refused.stdout, /PRIVATE-CANARY/);
   }
   const lifecycleSource = readFileSync(lifecycleScript, 'utf8');
@@ -255,6 +257,7 @@ test('catalog lifecycle and report disposition commands are mutation-explicit', 
 test('confirmed report disposition requires one exact atomic lifecycle action', () => {
   const base = [
     '--execute',
+    '--approval-id', `opa_${'a'.repeat(32)}`,
     '--report-id', `rpt_${'1'.repeat(32)}`,
     '--disposition', 'confirmed',
     '--reason-code', 'credible-security-report',
@@ -272,6 +275,7 @@ test('confirmed report disposition requires one exact atomic lifecycle action', 
   assert.throws(
     () => parseReportDispositionArguments([
       '--execute',
+      '--approval-id', `opa_${'a'.repeat(32)}`,
       '--report-id', `rpt_${'1'.repeat(32)}`,
       '--disposition', 'no-action',
       '--reason-code', 'not-confirmed',
@@ -286,6 +290,7 @@ test('confirmed report disposition requires one exact atomic lifecycle action', 
 test('report disposition command binds the retained enforcement result to the RPC request', async () => {
   const options = parseReportDispositionArguments([
     '--execute',
+    '--approval-id', `opa_${'a'.repeat(32)}`,
     '--report-id', `rpt_${'1'.repeat(32)}`,
     '--disposition', 'confirmed',
     '--reason-code', 'credible-security-report',

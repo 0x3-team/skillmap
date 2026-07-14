@@ -13,7 +13,8 @@ const SECRET_CANARIES = Object.freeze([
   ['Stripe live credential', /(?:sk|rk)_live_[A-Za-z0-9]{20,255}/],
   ['Slack credential', /xox[baprs]-[A-Za-z0-9-]{20,255}/],
   ['Google API credential', /AIza[0-9A-Za-z_-]{35}/],
-  ['Supabase secret key', /sb_secret_[A-Za-z0-9_-]{20,255}/]
+  ['Supabase secret key', /sb_secret_[A-Za-z0-9_-]{20,255}/],
+  ['SkillMap operator credential', /smo_v1_[0-9a-f]{64}/]
 ]);
 
 // This file contains intentionally concrete, generated credential fixtures to

@@ -117,10 +117,16 @@ function staticGates(requireClean) {
   const operatorReadMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713060000_operator_submission_read_plane.sql'), 'utf8');
   const launchReadinessMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714010000_atomic_report_enforcement.sql'), 'utf8');
   const providerDeferralMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714030000_github_provider_rate_limit_deferral.sql'), 'utf8');
+  const reportAuthorizationMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714050000_report_authorization_enforcement.sql'), 'utf8');
+  const operatorDualControlMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714060000_operator_dual_control.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
   const providerGateSource = readFileSync(path.join(repo, 'apps/worker/src/github-provider-gate.mjs'), 'utf8');
   const githubFetcherSource = readFileSync(path.join(repo, 'src/network/github-source-fetcher.ts'), 'utf8');
   const authorizationSource = readFileSync(path.join(repo, 'apps/worker/src/authorization.mjs'), 'utf8');
+  const collisionReviewSource = readFileSync(path.join(repo, 'apps/worker/src/collision-review.mjs'), 'utf8');
+  const publicationSource = readFileSync(path.join(repo, 'apps/worker/src/publish-once.mjs'), 'utf8');
+  const lifecycleSource = readFileSync(path.join(repo, 'apps/worker/src/lifecycle.mjs'), 'utf8');
+  const operatorDualControlSource = readFileSync(path.join(repo, 'apps/worker/src/operator-dual-control.mjs'), 'utf8');
   const submissionQueueSource = readFileSync(path.join(repo, 'apps/worker/src/submission-queue.mjs'), 'utf8');
   const submissionDetailSource = readFileSync(path.join(repo, 'apps/worker/src/submission-detail.mjs'), 'utf8');
   const reportDispositionSource = readFileSync(path.join(repo, 'apps/worker/src/report-disposition.mjs'), 'utf8');
@@ -178,7 +184,7 @@ function staticGates(requireClean) {
     && /version_row\.source_commit is distinct from submission_row\.source_commit[\s\S]+version_row\.source_path is distinct from submission_row\.source_path/i.test(operatorAuthorityMigration)
     && /set publication_state = 'blocked'[\s\S]+revoked_at = coalesce/i.test(authorityCompletionMigration)
     && /rpc\.call\('record_skill_submission_license_evidence'/.test(workerSource)
-    && /rpc\.call\('record_skill_submission_publisher_authorization'/.test(authorizationSource)
+    && /businessRpc: 'record_skill_submission_publisher_authorization'/.test(authorizationSource)
     && /create function api\.get_skill_submission_queue_summary\(\)/i.test(operatorReadMigration)
     && /create function api\.list_skill_submission_operator_queue\s*\(/i.test(operatorReadMigration)
     && /create function api\.get_skill_submission_operator_detail\s*\(/i.test(operatorReadMigration)
@@ -198,6 +204,23 @@ function staticGates(requireClean) {
     && /'sourceReportId', report_row\.public_id/i.test(launchReadinessMigration)
     && /create function api\.list_skill_report_queue\s*\([\s\S]+p_after_created_at timestamptz[\s\S]+p_after_report_id text/i.test(launchReadinessMigration)
     && /\(report\.created_at, report\.public_id\) > \(p_after_created_at, p_after_report_id\)/i.test(launchReadinessMigration)
+    && /create or replace function private\.enforce_skill_report_insert\s*\(\)/i.test(reportAuthorizationMigration)
+    && /private\.version_has_current_publisher_authorization\(version\.id\)/i.test(reportAuthorizationMigration)
+    && /create function api\.approve_operator_action\s*\(/i.test(operatorDualControlMigration)
+    && /x-skillmap-operator-credential/i.test(operatorDualControlMigration)
+    && /x-skillmap-operator-approval/i.test(operatorDualControlMigration)
+    && /operator approver and executor must be distinct/i.test(operatorDualControlMigration)
+    && /'submission\.publisher-authorization'[\s\S]+'submission\.collision-review'[\s\S]+'submission\.publish'[\s\S]+'catalog\.lifecycle'[\s\S]+'report\.disposition'/i.test(operatorDualControlMigration)
+    && /runDualControlledOperatorAction/.test(operatorDualControlSource)
+    && /rpc\.call\('approve_operator_action'/.test(operatorDualControlSource)
+    && /Exactly one of --approve or --execute/.test(operatorDualControlSource)
+    && /x-skillmap-operator-credential/.test(rpcSource)
+    && /x-skillmap-operator-approval/.test(rpcSource)
+    && /businessRpc: 'review_skill_submission_collisions'/.test(collisionReviewSource)
+    && /businessRpc: 'publish_skill_submission'/.test(publicationSource)
+    && /operationId: options\.operationId/.test(publicationSource)
+    && /businessRpc: 'control_catalog_lifecycle'/.test(lifecycleSource)
+    && /businessRpc: 'disposition_skill_report'/.test(reportDispositionSource)
     && /create function api\.peek_skill_submission_candidate\s*\(/i.test(providerDeferralMigration)
     && /create function api\.defer_skill_submission_provider_limit\s*\(/i.test(providerDeferralMigration)
     && /provider_retry_after_at is null[\s\S]+provider_retry_after_at <= clock_timestamp\(\)/i.test(providerDeferralMigration)
@@ -240,7 +263,7 @@ function staticGates(requireClean) {
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker mutation authority, atomic report enforcement, cursor-safe operator queues, provider backpressure deferral, and the redacted operations plane are source-bound through migration 20260714030000; applying and verifying every migration remains a database gate before worker start.'
+      ? 'Worker mutation authority, atomic report enforcement, current-authorization report intake, consequential-action dual control, cursor-safe operator queues, provider backpressure deferral, and the redacted operations plane are source-bound through migration 20260714060000; applying and verifying every migration remains a database gate before worker start.'
       : 'Worker mutation authority or the redacted operator read plane is not bound to every required migration, RPC, service-role grant, and privacy exclusion.'
   });
 

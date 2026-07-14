@@ -21,7 +21,7 @@ import {
 import { assertPublicGithubRepository } from './public-github-repository.mjs';
 import { createSupabaseRpcClientFromEnvironment } from './supabase-rpc.mjs';
 
-const WORKER_VERSION = 'skillmap-worker/0.1.0';
+const WORKER_VERSION = 'skillmap-worker/0.2.0';
 
 let claimed = null;
 let rpc = null;

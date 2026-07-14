@@ -5,6 +5,10 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
+grant usage on schema private to service_role;
+grant execute on function private.record_skill_submission_publisher_authorization_unchecked(text,text,text,text,text,text,timestamptz,text) to service_role;
+alter table private.audit_events alter column operator_attribution_required set default false;
+
 create function pg_temp.operator_audit_payload()
 returns jsonb
 language sql
@@ -106,7 +110,7 @@ select is((select submission_state from api.complete_skill_submission(
 )), 'accepted', 'receipt-backed fixture completes through normal worker authority');
 
 select authorization_receipt_id as operator_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   'sub_f2000000000000000000000000000001', 'operator-owner', 'authorized',
   'publisher-consent', 'authref_' || repeat('a', 32), 'sha256:' || repeat('a', 64),
   statement_timestamp() + interval '30 days', 'sha256:' || repeat('e', 64)
