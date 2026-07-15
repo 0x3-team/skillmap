@@ -3,7 +3,7 @@ import { validateRoutePrompt } from '../contracts/route-ranking.js';
 import { assertContract } from '../contracts/validate.js';
 import { canonicalJson } from '../core/canonical-payload.js';
 import { hashText } from '../core/fs.js';
-import { normalizeRouteLimit, routeSemanticDecision } from '../core/route.js';
+import { normalizeRouteLimit, routeSemanticDecision, type RouteDiscoveryOptions } from '../core/route.js';
 import type { EffectiveRegistry, RevisionRef, RouteDecisionV2, RouteResultV2, RouteServingMode } from '../schemas/types.js';
 
 const ROUTE_RESULT_SCHEMA = 'https://skillmap.dev/contracts/route-result/v2.schema.json';
@@ -27,6 +27,8 @@ export interface RouteUseCaseOutput {
   currentRevision: RevisionRef;
 }
 
+export type RouteUseCaseOptions = Omit<RouteDiscoveryOptions, 'effectiveRevisionDigest'>;
+
 export class ApprovedStateUnavailableError extends Error {
   readonly code: string;
 
@@ -37,11 +39,24 @@ export class ApprovedStateUnavailableError extends Error {
   }
 }
 
-export function executeRouteUseCase(state: ApprovedRoutingState, input: RouteUseCaseInput): RouteUseCaseOutput {
+export function executeRouteUseCase(
+  state: ApprovedRoutingState,
+  input: RouteUseCaseInput,
+  options: RouteUseCaseOptions = {}
+): RouteUseCaseOutput {
   const started = performance.now();
   const prompt = validateRoutePrompt(input.prompt, Boolean(input.qualifiedSkillId));
   const max = normalizeRouteLimit(input.max ?? 3);
-  const semantic = routeSemanticDecision(state.effective, prompt || 'qualified skill selection', max, input.qualifiedSkillId);
+  const semantic = routeSemanticDecision(
+    state.effective,
+    prompt || 'qualified skill selection',
+    max,
+    input.qualifiedSkillId,
+    {
+      ...options,
+      effectiveRevisionDigest: state.servingRevision.effectiveRevisionDigest
+    }
+  );
   const warningCodes = [...new Set(state.warningCodes)].sort().slice(0, 32);
   const decision: RouteDecisionV2 = {
     kind: 'skillmap.route-decision',

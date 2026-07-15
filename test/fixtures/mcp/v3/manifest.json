@@ -1,0 +1,87 @@
+{
+  "version": 2,
+  "readOnly": true,
+  "tools": [
+    {
+      "name": "route_prompt",
+      "description": "Return deterministic, prompt-free SkillMap recommendations from one approved revision.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "prompt": { "type": "string", "minLength": 1, "maxLength": 32768 },
+          "max": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "skillId": { "type": "string", "pattern": "^sk_[A-Za-z0-9_-]{43}$" }
+        },
+        "required": ["prompt"]
+      }
+    },
+    {
+      "name": "search_skills",
+      "description": "Search redacted skill metadata in one approved revision.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": { "type": "string", "maxLength": 256 },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "cursor": { "type": "string", "maxLength": 1024 }
+        }
+      }
+    },
+    {
+      "name": "show_skill",
+      "description": "Show one redacted skill record by qualified skillId.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "skillId": { "type": "string", "pattern": "^sk_[A-Za-z0-9_-]{43}$" }
+        },
+        "required": ["skillId"]
+      }
+    },
+    {
+      "name": "show_skillgraph",
+      "description": "Page through the redacted effective SkillGraph.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "cursor": { "type": "string", "maxLength": 1024 }
+        }
+      }
+    },
+    {
+      "name": "doctor_summary",
+      "description": "Page through compact, redacted doctor findings.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "cursor": { "type": "string", "maxLength": 1024 }
+        }
+      }
+    },
+    {
+      "name": "source_status",
+      "description": "Page through redacted source coverage and freshness state.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+          "cursor": { "type": "string", "maxLength": 1024 }
+        }
+      }
+    }
+  ],
+  "limits": {
+    "requestBytes": 65536,
+    "responseBytes": 524288,
+    "pageSizeMax": 100
+  },
+  "summary": "SkillMap MCP manifest: 6 revision-bound read-only tool(s)."
+}

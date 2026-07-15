@@ -10,6 +10,7 @@
     "prepack": "npm run build",
     "prepublishOnly": "node -e \"throw new Error('Direct npm publish is disabled; use npm run release:candidate with an exact retained tarball and explicit approval.')\"",
     "build": "node scripts/check-product-version.mjs && tsc -p tsconfig.json && node scripts/normalize-build-modes.mjs",
+    "generate:mcp-contracts": "npm run build && node scripts/generate-mcp-output-contracts.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node scripts/run-root-tests.mjs",
     "test:contracts": "npm run build && node scripts/generate-contracts.mjs --check && node --test test/phase1-contracts.mjs test/hosted-contracts.mjs test/hosted-seed-integrity.mjs",
@@ -18,6 +19,14 @@
     "test:migrations": "npm run build && node --test test/slice-b-policy.mjs test/slice-b-identity.mjs test/phase1-workspace-state.mjs",
     "test:failure": "npm run build && node --test test/phase1-github-source-fetcher.mjs test/phase1-workspace-state.mjs test/phase1-skill-tree-limits.mjs test/phase1-route-events.mjs test/phase2-backend-onboarding.mjs test/phase2-filesystem-freshness.mjs test/phase2-job-safety.mjs test/phase2-workspace-switch.mjs",
     "test:connector": "npm run build && node --test test/phase2-local-connector.mjs test/phase2-workspace-switch.mjs",
+    "test:mcp:contracts": "npm run build && node scripts/generate-mcp-output-contracts.mjs --check && node --test test/mcp-contracts.mjs",
+    "test:mcp:protocol": "npm run build && node --test test/mcp-protocol.mjs",
+    "test:mcp:stdio": "npm run build && node --test test/mcp-stdio.mjs",
+    "test:mcp:privacy": "npm run build && node --test test/mcp-protocol.mjs test/mcp-stdio.mjs",
+    "test:mcp:equivalence": "npm run build && node --test test/mcp-discovery-index.mjs && node --expose-gc scripts/benchmark-mcp-discovery.mjs",
+    "test:mcp:performance": "npm run build && node --expose-gc scripts/benchmark-mcp-discovery.mjs",
+    "test:mcp:consumer": "npm run build && node scripts/test-mcp-consumer.mjs",
+    "test:mcp:rollback": "npm run build && node scripts/test-mcp-rollback.mjs",
     "test:browser-fixture": "npm run build && node --test --test-concurrency=1 test/phase3-local-app-browser-fixture.mjs test/browser/phase3-eval-workflow-browser.mjs",
     "test:local-app-browser": "npm run test:browser:chromium",
     "test:e2e": "npm run test:browser:chromium",
@@ -91,8 +100,10 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
     "ajv": "8.20.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "4.4.3"
   },
   "author": "Masih Hedayati",
   "repository": {

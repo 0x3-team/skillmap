@@ -127,8 +127,10 @@ MCP evidence must show read-only tools:
 skillmap mcp manifest --json
 skillmap mcp call route_prompt --prompt "make this dashboard less generic" --json
 skillmap mcp call search_skills --query frontend --json
-skillmap mcp call show_skill --name frontend-design --json
+skillmap mcp call show_skill --skill-id "$SKILL_ID" --json
 skillmap mcp call doctor_summary --json
 skillmap mcp call source_status --json
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_skills","arguments":{"query":"frontend"}}}' | skillmap mcp serve
+npm run test:mcp:stdio
 ```
+
+Use a qualified ID returned by `search_skills`; display names are not accepted as identity. The stdio test uses the official SDK client and covers initialize, initialized notification handling, list, all six calls, close, reconnect, concurrency isolation, and the 64 KiB frame limit.

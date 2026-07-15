@@ -739,6 +739,30 @@ function apiEnvelope() {
   };
 }
 
+function mcpEnvelope(data) {
+  return { ...apiEnvelope(), data };
+}
+
+function mcpSkillSummary() {
+  return {
+    skillId: SKILL_ID,
+    displayName: 'alpha-skill',
+    contentRevision: SHA_A,
+    tier: 'active-default',
+    routeEligible: true,
+    qualifiedExplicitAllowed: true,
+    variantState: 'unique',
+    hasScripts: false,
+    referenceCount: 0,
+    assetCount: 0,
+    trust: 'parsed'
+  };
+}
+
+function mcpPage(items) {
+  return { items, limit: 20, hasMore: false, nextCursor: null, sortKey: 'stable-v1' };
+}
+
 const validVectors = new Map([
   [IDS['workspace-revision-v1'], workspaceRevision()],
   [IDS['skill-identity-v1'], skillIdentityRef()],
@@ -753,7 +777,23 @@ const validVectors = new Map([
   [IDS['eval-run-v2'], evalRunV2()],
   [IDS['eval-run-v3'], evalRunV3()],
   [IDS['sync-envelope-v1'], syncEnvelope()],
-  [IDS['api-envelope-v1'], apiEnvelope()]
+  [IDS['api-envelope-v1'], apiEnvelope()],
+  [IDS['mcp-route-prompt-result-v1'], mcpEnvelope(routeResult())],
+  [IDS['mcp-search-skills-result-v1'], mcpEnvelope(mcpPage([mcpSkillSummary()]))],
+  [IDS['mcp-show-skill-result-v1'], mcpEnvelope({ skill: mcpSkillSummary() })],
+  [IDS['mcp-show-skillgraph-result-v1'], mcpEnvelope({
+    graph: mcpPage([{ kind: 'node', id: `skill:${SKILL_ID}`, type: 'skill', label: 'alpha-skill' }])
+  })],
+  [IDS['mcp-doctor-summary-result-v1'], mcpEnvelope({
+    summary: { skillCount: 1, duplicateNameCount: 0, scriptBearingCount: 0, findingCount: 0 },
+    findings: mcpPage([])
+  })],
+  [IDS['mcp-source-status-result-v1'], mcpEnvelope({
+    coverage: 'covered',
+    inventorySkills: 1,
+    trackedSkills: 1,
+    records: mcpPage([])
+  })]
 ]);
 
 const dedicatedContractSchemas = new Set([
