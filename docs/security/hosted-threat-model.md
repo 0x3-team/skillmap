@@ -1,6 +1,6 @@
 # Hosted Skill Library Threat Model
 
-Status: historical Phase 0 baseline plus a locally accepted hosted launch candidate. The current source adds exact-source audit/grade hard gates, report authorization enforcement, and five-RPC operator dual control, but it is not yet an exact remotely accepted candidate and has not been deployed or verified live. Revisit before remote provisioning, artifact serving, signing keys, new evaluation authority, or production traffic.
+Status: historical Phase 0 baseline plus a remotely accepted product-code boundary. The last accepted product candidate and merge are recorded below. At the 2026-07-15 checkpoint anchor, GitHub and protected Gitea `main` both resolve to the later documentation/release-receipt commit `5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a` with tree `8d74d820235657a0060bcca7b514392c073bb3b1`. Gitea runs `75` through `77` passed that anchor, but GitHub workflow run `29320562416` failed before any job steps because hosted-runner allowance was unavailable; exact-current GitHub `hosted-web-browser` acceptance therefore remains open. Nothing in this document claims deployment or live verification. Revisit before remote provisioning, artifact serving, signing keys, new evaluation authority, or production traffic.
 
 ## Security objectives
 
@@ -74,9 +74,9 @@ Phase 1 has anonymous catalog reads and account-owned saves only. It does not fe
 
 Implemented controls include explicit `api`/`private` schemas, forced RLS, parent visibility composition, immutable identities, positive-evidence promotion blocks, no-store server responses, hidden/nonexistent parity, missing-config/backend-outage states, OAuth privacy disclosure, client-secret canaries, synthetic-user cleanup, and mobile/browser diagnostics.
 
-## Current locally accepted candidate posture
+## Historical accepted candidate and current local checkpoint
 
-The current source candidate now includes exact-commit public GitHub ingestion,
+The last remotely accepted product-code candidate includes exact-commit public GitHub ingestion,
 bounded inert audit and provisional grading, authenticated report intake,
 operator-reviewed publication/lifecycle, and account-owned submission workflows.
 It still does not execute submitted content, mirror third-party packages, publish
@@ -88,7 +88,7 @@ publisher authorization. Migration `20260714060000_operator_dual_control.sql`
 keeps the service role as transport but requires immutable 30-minute
 exact-envelope approval and distinct execution for five consequential RPCs.
 Opaque binary/non-UTF-8 admitted files are critical audit findings and block the
-grade. The final local acceptance receipt records audit policy
+grade. The historical local acceptance receipt records audit policy
 `skillmap-static-audit/v2` and worker `skillmap-worker/0.2.0`. Authorization,
 collision-review, and publication clients accept a protected RPC success only
 after strict validation of the exact single-row projection and expected
@@ -102,7 +102,38 @@ journeys retained three approvals and three executions, denied
 service-role-only and approver-as-executor calls with SQLSTATE `42501`, and
 cleaned all synthetic operator/catalog/auth state.
 
-The current repository integration boundary is candidate
+Those `440/440`, `45/45`, `585/585`, and thirteen-baseline results are the
+historical candidate's acceptance record; they are not claimed as the current
+checkpoint's final test receipt.
+
+The local 2026-07-15 checkpoint patch adds migration
+`20260715010000_hosted_evidence_version_authority.sql` to bind worker, audit,
+grade, and publication success to one exact current evidence-authority tuple.
+It also adds migration
+`20260715020000_hosted_report_idempotency_recovery.sql` so owner-scoped request
+identity distinguishes a true report replay from a reused request ID and from a
+different queued payload. The patch also closes the recorded accessibility,
+production-seed, metadata, mutable-CI-source, and release-truth gaps. It remains
+local, uncommitted, unpushed, undeployed, and not remotely accepted; its final
+local gate passed root tests `448/448`, hosted boundary tests `35/35`, release
+path tests `47/47`, pgTAP `621/621`, schema lint, generated-type parity, web
+typecheck/lint/build, clean consumer installation, package inspection,
+production dependency audits, secret scanning, and the static preflight. The
+composed hosted gate also passed three-browser authentication, the report
+request-ID/queued-target conflict journeys, dual control, private/public runtime
+stages, accessibility, and thirteen strict zero-diff Linux Chromium baselines.
+The final performance gate stayed below its budgets on all seven routes. These
+receipts validate the local patch only; the product-checkpoint implementation
+ledger retains the aggregate result and the remaining launch boundary.
+
+Accepted non-blocking follow-up risks are a missing visible current-page
+navigation state, the mutable upstream Playwright container tag in CI, and the
+absence of a dedicated dirty-upgrade harness that deliberately seeds stale
+authority rows before the migration preflight. Fresh reset, constraint, RPC,
+and full pgTAP coverage are green, but these follow-ups must not be described as
+closed by the checkpoint.
+
+The historical remotely accepted product-code boundary is candidate
 `413d8759e244005406280cd8d7c2fe2ec01b84bf` with tree
 `00273fce90c0294f4f3aea2407d4ba0c65aec1f9`, squash-merged as
 `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` on both GitHub and protected
@@ -111,6 +142,13 @@ passed their recorded candidate, sync, pull-request, and post-merge scopes. GitH
 one-shot hosted-web job `87033792983` passed all fifteen steps; unrelated
 GitHub-hosted jobs were allowance-blocked, so that acceptance remains scoped to
 the named job.
+
+That `413d8759`/`8bb2b1d2` receipt remains the last exact product-code receipt;
+it must not be misreported as the repository's current remote head. The later
+dual-remote `5b9fb6e4` checkpoint anchor records release documentation and does
+not supply the missing exact-current GitHub authority receipt. This checkpoint
+remediation is neither pushed nor remotely accepted until it receives its own
+candidate, merge, and required-CI receipts.
 
 This posture is remote source acceptance, not a production claim. Deployment,
 live OAuth, operator credential custody, live RLS probes, encrypted off-host

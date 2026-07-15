@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import { BoundaryList, TrustPage, TrustSection } from "@/components/skillmap/trust-page";
+import { buildPublicPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = { title: "Privacy | SkillMap" };
+export const metadata: Metadata = buildPublicPageMetadata({
+  title: "Privacy | SkillMap",
+  description: "Understand which SkillMap data stays local and which account, save, submission, and report data the hosted service stores.",
+  path: "/privacy"
+});
 
 export default function PrivacyPage() {
   return (
-    <TrustPage eyebrow="Data handling" title="Private input stays local by default." intro="The local product separates raw operator material from the redacted evidence needed to understand routing and recovery.">
+    <TrustPage eyebrow="Data handling" title="Know what stays local and what the hosted service stores." intro="Raw local operator material stays on-device by default. Hosted accounts, saves, submissions, and private reports cross a separate, explicitly disclosed service boundary.">
       <TrustSection title="Not retained by default">
         <BoundaryList items={["Raw Route Lab and hook prompts.", "Prompt fingerprints or guessed hashes.", "Raw skill bodies in route, event, dashboard, and safe-export payloads.", "Absolute paths, secrets, hook tokens, or free-form private comments in redacted events."]} />
       </TrustSection>

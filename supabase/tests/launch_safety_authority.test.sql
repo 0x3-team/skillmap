@@ -26,7 +26,7 @@ insert into api.skill_submissions (
 );
 update api.skill_submissions set state = 'processing',
   active_claim_id = '90000000-0000-4000-8000-000000000003',
-  current_worker_version = 'skillmap-worker/1.0.0', attempt_count = 1,
+  current_worker_version = 'skillmap-worker/0.2.0', attempt_count = 1,
   claimed_at = now(), claim_expires_at = now() + interval '5 minutes'
 where id = '90000000-0000-4000-8000-000000000001';
 
@@ -39,8 +39,8 @@ insert into private.skill_audit_receipts (
   '91000000-0000-4000-8000-000000000001', 'aud_91000000000000000000000000000001',
   '90000000-0000-4000-8000-000000000001', 'passed', 'sha256:' || repeat('1', 64),
   'sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a',
-  'sha256:' || repeat('2', 64), 'skillmap-static-audit/v1', 'codex-host/v1',
-  'skillmap-worker/1.0.0', '{"critical":0,"high":0,"medium":0,"low":0,"info":0}',
+  'sha256:' || repeat('2', 64), 'skillmap-static-audit/v2', 'codex-host/v1',
+  'skillmap-worker/0.2.0', '{"critical":0,"high":0,"medium":0,"low":0,"info":0}',
   '[{"code":"source-integrity","outcome":"passed","severity":"info","evidenceDigest":null}]',
   '{}'::text[], 'sha256:' || repeat('3', 64), 'confirmed', 'MIT', false, false, false
 );
@@ -54,7 +54,7 @@ insert into private.skill_grade_receipts (
   '90000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000001',
   'provisional', 82, 0.35, 'sha256:' || repeat('5', 64), 'sha256:' || repeat('2', 64),
   'sha256:' || repeat('1', 64), 'sha256:' || repeat('4', 64), null,
-  'skillmap-rubric/v1', 'codex-host/v1', 'skillmap-grader/1.0.0',
+  'skillmap-rubric/v1', 'codex-host/v1', 'skillmap-grader/0.1.0',
   '[{"code":"source-identity","passed":true,"evidenceDigest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}]',
   '[{"code":"instruction-quality","weight":1,"score":82,"evidenceDigest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}]',
   array['behavioral-evidence-incomplete']
@@ -73,7 +73,7 @@ insert into private.worker_runs (
   disposition_state, input_digest, result_digest, started_at, completed_at
 ) values (
   '90000000-0000-4000-8000-000000000003', 'wrk_94000000000000000000000000000001',
-  '90000000-0000-4000-8000-000000000001', 'skillmap-worker/1.0.0', 1,
+  '90000000-0000-4000-8000-000000000001', 'skillmap-worker/0.2.0', 1,
   'succeeded', 'accepted', 'sha256:' || repeat('7', 64), 'sha256:' || repeat('8', 64),
   now() - interval '1 second', now()
 );
@@ -122,14 +122,64 @@ update api.skill_submissions set state = 'published', review_state = 'published'
   last_transition_digest = 'sha256:' || repeat('9', 64)
 where id = '90000000-0000-4000-8000-000000000001';
 
-select plan(93);
+select plan(100);
+
+-- The final exposed publication wrapper must reject retained stale authority
+-- before it can enter dual control or append a protected publication event.
+update api.skill_submissions
+set current_worker_version = null
+where public_id = 'sub_90000000000000000000000000000001';
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.headers', '{}'::jsonb::text, true);
+select throws_ok($sql$
+  select * from api.publish_skill_submission(
+    'sub_90000000000000000000000000000001', 'sha256:' || repeat('9', 64),
+    '0x3-team', '0x3 Team', 'skill-audit', 'Skill Audit',
+    'Audit a skill without treating structural checks as a safety certificate.',
+    'Audits one immutable Agent Skill version for structure, scope, provenance, license, permissions, and operational risk. It reports evidence and remediation without running bundled scripts.',
+    array['skill.audit','skill.provenance','skill.license'],
+    'confirmed', 'MIT', false, '{}'::text[], '{}'::text[]
+  )
+$sql$, 55000, 'submission evidence authority is stale or unsupported',
+  'the real publication RPC rejects retained stale authority before execution');
+reset role;
+select is((select count(*) from private.operator_action_executions execution
+  join private.operator_action_approvals approval on approval.id = execution.approval_id
+  where approval.action_kind = 'submission.publish'
+    and approval.subject_id = 'sub_90000000000000000000000000000001'), 0::bigint,
+  'stale publication creates no dual-control execution');
+select is((select count(*) from private.audit_events
+  where event_type = 'submission.published'
+    and subject_id = 'sub_90000000000000000000000000000001'), 0::bigint,
+  'stale publication appends no protected publication event');
+update api.skill_submissions
+set current_worker_version = 'skillmap-worker/0.2.0'
+where public_id = 'sub_90000000000000000000000000000001';
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.headers', '{}'::jsonb::text, true);
+select throws_ok($sql$
+  select * from api.publish_skill_submission(
+    'sub_90000000000000000000000000000001', 'sha256:' || repeat('9', 64),
+    '0x3-team', '0x3 Team', 'skill-audit', 'Skill Audit',
+    'Audit a skill without treating structural checks as a safety certificate.',
+    'Audits one immutable Agent Skill version for structure, scope, provenance, license, permissions, and operational risk. It reports evidence and remediation without running bundled scripts.',
+    array['skill.audit','skill.provenance','skill.license'],
+    'confirmed', 'MIT', false, '{}'::text[], '{}'::text[]
+  )
+$sql$, 42501, 'operator credential is invalid',
+  'restored current authority reaches the unchanged dual-control boundary');
+reset role;
 
 select has_table('api', 'skill_reports', 'authenticated suspicious-listing report table exists');
 select has_view('api', 'my_skill_reports', 'owner-safe report projection exists');
+select has_column('api', 'my_skill_reports', 'idempotency_key', 'owner-safe report projection exposes exact request-ID recovery authority');
 select has_view('api', 'catalog_audit_evidence', 'bounded audit evidence view exists');
 select has_view('api', 'catalog_grade_evidence', 'bounded grade evidence view exists');
 select ok((select relrowsecurity and relforcerowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'api' and c.relname = 'skill_reports'), 'report table enables and forces RLS');
 select ok(has_column_privilege('authenticated', 'api.skill_reports', 'skill_id', 'insert'), 'authenticated accounts can insert report targets');
+select ok(has_column_privilege('authenticated', 'api.skill_reports', 'idempotency_key', 'select'), 'authenticated owners can resolve only their RLS-filtered request IDs');
 select ok(not has_table_privilege('anon', 'api.skill_reports', 'insert'), 'anonymous reporting is explicitly deferred');
 select ok(not has_column_privilege('authenticated', 'api.skill_reports', 'state', 'update'), 'browser roles cannot mutate report disposition');
 select ok(has_function_privilege('service_role', 'api.disposition_skill_report(text,text,text,text,text,text)', 'execute'), 'service role can atomically disposition reports');
@@ -170,6 +220,7 @@ select lives_ok($$insert into api.skill_reports (skill_id, version_id, category,
     'a1000000-0000-4000-8000-000000000001')$$, 'an authenticated account can report an exact current public listing');
 select is((select count(*) from api.my_skill_reports), 1::bigint, 'reporter sees exactly their own report');
 select is((select skill_id || ':' || version_id from api.my_skill_reports), 'skl_00000000000000000000000000000001:skv_00000000000000000000000000000001', 'owner view preserves the exact public target without account identifiers');
+select is((select idempotency_key::text from api.my_skill_reports), 'a1000000-0000-4000-8000-000000000001', 'owner view binds report recovery to the exact request ID');
 select report_id as report_a_id from api.my_skill_reports \gset
 
 reset role;
@@ -440,17 +491,17 @@ select submission_id as lease_submission_id from api.my_skill_submissions where 
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/renew', :'lease_submission_id', 30)), 1::bigint, 'service worker claims renewal fixture');
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0', :'lease_submission_id', 30)), 1::bigint, 'service worker claims renewal fixture');
 reset role;
 select active_claim_id as lease_claim_id, claim_expires_at as lease_old_expiry from api.skill_submissions where public_id = :'lease_submission_id' \gset
 select set_config('request.jwt.claim.role', 'service_role', true);
-select throws_ok(format('select * from api.renew_skill_submission_claim(%L,gen_random_uuid(),''skillmap-worker/renew'',900)', :'lease_submission_id'), 55000, 'only the exact live claim can be renewed', 'wrong claim cannot renew a live lease');
-select ok((select claim_expires_at > :'lease_old_expiry'::timestamptz from api.renew_skill_submission_claim(:'lease_submission_id',:'lease_claim_id'::uuid,'skillmap-worker/renew',900)), 'exact live claim renews and never shortens its deadline');
+select throws_ok(format('select * from api.renew_skill_submission_claim(%L,gen_random_uuid(),''skillmap-worker/0.2.0'',900)', :'lease_submission_id'), 55000, 'only the exact live claim can be renewed', 'wrong claim cannot renew a live lease');
+select ok((select claim_expires_at > :'lease_old_expiry'::timestamptz from api.renew_skill_submission_claim(:'lease_submission_id',:'lease_claim_id'::uuid,'skillmap-worker/0.2.0',900)), 'exact live claim renews and never shortens its deadline');
 update api.skill_submissions set claimed_at = now() - interval '20 minutes', claim_expires_at = now() - interval '1 minute' where public_id = :'lease_submission_id';
-select throws_ok(format('select * from api.renew_skill_submission_claim(%L,%L::uuid,''skillmap-worker/renew'',300)', :'lease_submission_id', :'lease_claim_id'), 55000, 'only the exact live claim can be renewed', 'expired claim cannot be resurrected by renewal');
+select throws_ok(format('select * from api.renew_skill_submission_claim(%L,%L::uuid,''skillmap-worker/0.2.0'',300)', :'lease_submission_id', :'lease_claim_id'), 55000, 'only the exact live claim can be renewed', 'expired claim cannot be resurrected by renewal');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/reclaim', :'lease_submission_id', 300)), 1::bigint, 'expired lease remains reclaimable through the rotating claim path');
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0', :'lease_submission_id', 300)), 1::bigint, 'expired lease remains reclaimable through the exact current-worker claim path');
 
 reset role;
 set local role authenticated;

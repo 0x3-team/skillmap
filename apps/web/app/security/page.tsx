@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { BoundaryList, TrustPage, TrustSection } from "@/components/skillmap/trust-page";
+import { buildPublicPageMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = { title: "Security | SkillMap" };
+export const metadata: Metadata = buildPublicPageMetadata({
+  title: "Security | SkillMap",
+  description: "Review SkillMap's local connector controls, hosted evidence boundaries, immutable source identity, and deliberate security limits.",
+  path: "/security"
+});
 
 export default function SecurityPage() {
   return (

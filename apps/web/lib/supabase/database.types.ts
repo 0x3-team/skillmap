@@ -619,6 +619,7 @@ export type Database = {
           category: string | null
           created_at: string | null
           disposition_code: string | null
+          idempotency_key: string | null
           message: string | null
           public_resolution_message: string | null
           report_id: string | null
@@ -633,6 +634,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           disposition_code?: string | null
+          idempotency_key?: string | null
           message?: string | null
           public_resolution_message?: string | null
           report_id?: string | null
@@ -647,6 +649,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           disposition_code?: string | null
+          idempotency_key?: string | null
           message?: string | null
           public_resolution_message?: string | null
           report_id?: string | null

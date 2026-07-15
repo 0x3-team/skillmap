@@ -5,6 +5,8 @@ import test from 'node:test';
 const releaseCandidate = '413d8759e244005406280cd8d7c2fe2ec01b84bf';
 const releaseMergedMain = '8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7';
 const releaseTree = '00273fce90c0294f4f3aea2407d4ba0c65aec1f9';
+const checkpointRemoteMain = '5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a';
+const checkpointRemoteTree = '8d74d820235657a0060bcca7b514392c073bb3b1';
 const sources = Object.fromEntries([
   'README.md',
   'HANDOFF.md',
@@ -17,7 +19,10 @@ const sources = Object.fromEntries([
   'apps/web/app/release-status/page.tsx',
   'apps/web/lib/supabase/database.runtime.types.ts',
   'apps/worker/README.md',
-  'docs/operations/free-public-alpha-runbook.md'
+  'docs/operations/free-public-alpha-runbook.md',
+  'docs/operations/hosted-alpha-deploy.md',
+  'docs/launch/initial-corpus-operations.md',
+  'supabase/seed.sql'
 ].map(file => [file, readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')]));
 
 test('canonical release truth binds the merged source and scoped CI receipts', () => {
@@ -35,7 +40,7 @@ test('canonical release truth binds the merged source and scoped CI receipts', (
   assert.match(sources['HANDOFF.md'], /Gitea candidate run ID `70` \(UI run `53`\) passed/i);
   assert.match(sources['HANDOFF.md'], /job `87033792983` passed all fifteen steps in the one-shot self-hosted hosted-web scope/i);
   assert.match(sources['HANDOFF.md'], /post-merge `main` run ID `73` \(UI `56`\) (?:all )?passed/i);
-  assert.match(sources['HANDOFF.md'], /now bound to the newest append-only release-ledger product row/i);
+  assert.match(sources['HANDOFF.md'], /historical receipt is retained in the append-only release-ledger product row/i);
   const releaseLedger = sources['docs/plans/2026-07-12-skillmap-release-ledger.md'];
   assert.match(releaseLedger, new RegExp(releaseCandidate));
   assert.match(releaseLedger, /Go-to-market hardening and five-RPC dual-control source locally validated, pushed, merged, dual-remote reconciled, and accepted by the named scoped CI/i);
@@ -106,6 +111,99 @@ test('canonical release truth does not collapse source acceptance into deploymen
   assert.match(sources['apps/web/app/release-status/page.tsx'], /No remote Supabase or web deployment, live OAuth path, hosted backup, public indexing, or open-user launch is claimed/i);
 });
 
+test('checkpoint truth distinguishes historical product acceptance from the current remote head', () => {
+  const plan = sources['docs/plans/2026-07-12-skillmap-free-public-launch-implementation-plan.md'];
+  const threatModel = sources['docs/security/hosted-threat-model.md'];
+  const handoff = sources['HANDOFF.md'];
+  const goToMarket = sources['docs/launch/free-public-alpha-go-to-market.md'];
+
+  for (const [file, source] of [
+    ['implementation plan', plan],
+    ['threat model', threatModel],
+    ['operator handoff', handoff],
+    ['go-to-market kit', goToMarket]
+  ]) {
+    assert.match(source, new RegExp(checkpointRemoteMain), `${file}: current checkpoint head is absent`);
+    assert.match(source, new RegExp(checkpointRemoteTree), `${file}: current checkpoint tree is absent`);
+    assert.match(source, new RegExp(releaseCandidate), `${file}: historical accepted candidate is absent`);
+    assert.match(source, new RegExp(releaseMergedMain), `${file}: historical accepted merge is absent`);
+    assert.match(source, /Gitea runs? `75` through `77`/i, `${file}: current Gitea receipt is absent`);
+    assert.match(source, /GitHub (?:workflow|Actions) run `29320562416`/i,
+      `${file}: exact-current GitHub failure receipt is absent`);
+    assert.match(source, /exact-current GitHub[^.]+(?:still|remains) open/i,
+      `${file}: missing GitHub acceptance is not kept open`);
+    assert.match(source, /no deployment|not deployed|neither pushed nor remotely accepted/i,
+      `${file}: source truth is collapsed into deployment truth`);
+  }
+
+  assert.doesNotMatch(threatModel, /not yet an exact remotely accepted candidate/i,
+    'threat model reintroduced the stale pre-8bb source-acceptance claim');
+  assert.doesNotMatch(threatModel, /^## Current locally accepted candidate posture$/im,
+    'threat model relabeled historical acceptance evidence as the current checkpoint');
+  assert.match(threatModel, /Those `440\/440`, `45\/45`, `585\/585`, and thirteen-baseline results are the\s+historical candidate's acceptance record/i);
+  assert.match(threatModel, /20260715010000_hosted_evidence_version_authority[.]sql/);
+  assert.match(threatModel, /20260715020000_hosted_report_idempotency_recovery[.]sql/);
+  assert.match(threatModel, /remains\s+local, uncommitted, unpushed, undeployed, and not remotely accepted/i);
+  assert.doesNotMatch(plan,
+    /Latest dual-remote repository-main truth:[\s\S]{0,240}`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`/i,
+    'implementation plan reintroduced 8bb as the current remote head');
+  assert.doesNotMatch(plan,
+    /\| Quality \|[^\n]+\| GitHub and Gitea `main` both resolve to `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`/i,
+    'readiness table reintroduced the historical merge as current remote truth');
+  assert.doesNotMatch(handoff, /Current status: the go-to-market\/dual-control candidate was/i,
+    'operator handoff reintroduced the historical product candidate as current status');
+  assert.match(handoff, /present `codex\/product-checkpoint` remediation is local, uncommitted, unpushed, and not remotely accepted/i);
+  assert.match(goToMarket, /present product-checkpoint\s+patch is local, uncommitted, unpushed, and not remotely accepted/i);
+  assert.match(goToMarket, /historical source-integration proof[\s\S]{0,80}not the\s+current remote head/i);
+  assert.doesNotMatch(goToMarket,
+    /current integrated repository head is\s+`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`/i,
+    'go-to-market kit reintroduced the historical product merge as current truth');
+});
+
+test('production deployment excludes local seed data and requires the normal corpus path', () => {
+  const seed = sources['supabase/seed.sql'];
+  const runbook = sources['docs/operations/hosted-alpha-deploy.md'];
+  const handoff = sources['HANDOFF.md'];
+
+  assert.match(seed, /LOCAL DEVELOPMENT AND TEST DATA ONLY/i);
+  assert.match(seed, /Never apply this seed to a hosted or\s+(?:--\s*)?production project/i);
+  assert.doesNotMatch(runbook, /^supabase db push[^\n]*--include-seed/gm,
+    'production migration commands must never include local seed data');
+  assert.doesNotMatch(runbook, /reapply[^.\n]*migration[^.\n]*and seed/i,
+    'database recovery must not reintroduce the local seed');
+  assert.doesNotMatch(handoff, /apply[^.\n]*migrations? and seed/i,
+    'operator handoff must not instruct a hosted seed application');
+  assert.match(runbook, /checked-in `supabase\/seed[.]sql` is local development and test data only/i);
+  assert.match(runbook, /Never apply the checked-in local seed/i);
+  assert.match(handoff, /migrations without the local development seed/i);
+  assert.doesNotMatch(runbook, /each first-party detail/i);
+  assert.match(runbook, /each reviewed public-corpus detail/i);
+  assert.match(runbook, /authenticated account submission[^.]+worker and evidence gates[^.]+distinct approver\/executor dual-control publication/i);
+  assert.match(runbook, /Public launch remains blocked until 20 owner-authorized listings resolve to their exact anonymous public sources/i);
+});
+
+test('initial corpus authorization documents an exact approval and distinct execution pair', () => {
+  const source = sources['docs/launch/initial-corpus-operations.md'];
+  const templateSection = source.slice(source.indexOf('Use this mutation-explicit template'));
+  const bashBlock = templateSection.match(/```bash\n([\s\S]*?)\n```/)?.[1] ?? '';
+  const commands = bashBlock.match(/npm run hosted:publisher:authorization -- \\\n(?:  .*\n?)+/g) ?? [];
+
+  assert.equal(commands.length, 2, 'authorization template must contain one approval and one execution command');
+  assert.match(commands[0], /--approve --submission-id "\$SUBMISSION_ID"/);
+  assert.doesNotMatch(commands[0], /--approval-id/);
+  assert.match(commands[1], /--execute --approval-id "\$APPROVAL_ID" --submission-id "\$SUBMISSION_ID"/);
+  assert.equal((bashBlock.match(/--operation-id "\$FRESH_OPERATION_UUID"/g) ?? []).length, 2,
+    'both authorization modes must use the same explicit operation UUID variable');
+  const actionPayload = command => command
+    .replace('--approve ', '')
+    .replace('--execute --approval-id "$APPROVAL_ID" ', '')
+    .trimEnd();
+  assert.equal(actionPayload(commands[0]), actionPayload(commands[1]),
+    'approval and execution action arguments must remain byte-identical');
+  assert.match(source, /distinct executor[^.]+byte-identical action arguments and operation UUID[^.]+30-minute expiry/i);
+  assert.match(source, /Never copy credentials[^.]+logs, or ledger/i);
+});
+
 test('go-to-market checklist records source integration without claiming external gates', () => {
   const checklist = sources['docs/launch/free-public-alpha-go-to-market.md'];
   assert.match(checklist, /- \[x\].*Baseline-only candidate `67129297d08f7f7bc88800015b336a2a7bb1b139`/i);
@@ -131,6 +229,8 @@ test('operator documentation, commands, and application types bind the final rea
     assert.match(source, /20260714030000_github_provider_rate_limit_deferral[.]sql/, file);
     assert.match(source, /20260714050000_report_authorization_enforcement[.]sql/, file);
     assert.match(source, /20260714060000_operator_dual_control[.]sql/, file);
+    assert.match(source, /20260715010000_hosted_evidence_version_authority[.]sql/, file);
+    assert.match(source, /20260715020000_hosted_report_idempotency_recovery[.]sql/, file);
     assert.match(source, /hosted:queue:list/, file);
     assert.match(source, /hosted:queue:inspect/, file);
     assert.match(source, /best-effort[^.]+live/i, file);

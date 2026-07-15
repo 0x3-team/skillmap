@@ -25,6 +25,7 @@ const dualControlEvidence = {
 };
 const detailPath = "/skills/0x3-team/skill-audit";
 const reportMessage = "Potential issue: <img src=x onerror=alert(1)> appears in listing metadata.";
+const queuedConflictMessage = "A second explanation must recover the existing queued target instead of claiming an unavailable service.";
 const userIds = [];
 let browser;
 let smokeStage = "browser-start";
@@ -315,7 +316,7 @@ try {
   await page.getByText("skills/frontend-design/SKILL.md", { exact: true }).waitFor();
 
   smokeStage = "receipt-backed-publication";
-  const workerVersion = "skillmap-browser-smoke/1.0.0";
+  const workerVersion = "skillmap-worker/0.2.0";
   const { data: claims, error: claimError } = await admin.rpc("claim_skill_submission", {
     p_worker_version: workerVersion,
     p_submission_id: submissionId,
@@ -601,6 +602,8 @@ try {
 
   await page.getByLabel("Concern category").selectOption("security");
   await page.getByLabel("What is wrong with this listing?").fill(reportMessage);
+  const reportRequestId = await page.getByLabel("Request ID").inputValue();
+  if (!/^[0-9a-f-]{36}$/.test(reportRequestId)) throw new Error("Report form did not mint a canonical request ID.");
   if (await page.getByLabel("What is wrong with this listing?").inputValue() !== reportMessage) throw new Error("Valid report message did not settle in the current form.");
   await page.waitForTimeout(500);
   await submitForm(page.getByRole("button", { name: "Queue private report" }));
@@ -629,6 +632,28 @@ try {
     || preservedCooldown.message !== reportMessage
     || preservedCooldown.requestId !== cooldownRequestId) {
     throw new Error(`Recoverable report cooldown did not preserve category, message, and request ID (${JSON.stringify(preservedCooldown)}).`);
+  }
+
+  smokeStage = "report-queued-constraint-recovery";
+  // A queued report can outlive the 24-hour cooldown. Reproduce that valid
+  // state without weakening the production immutability trigger, then prove
+  // the partial unique-index conflict resolves to the account-owned row.
+  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+    `begin; set local session_replication_role = replica; update api.skill_reports set created_at = now() - interval '25 hours' where public_id = '${reportId}'; commit;`
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(queuedConflictMessage);
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await page.getByText("That report request already exists", { exact: true }).waitFor();
+  await page.getByText(`Existing report ${reportId} remains the account-owned source of truth. No second report was created.`, { exact: true }).waitFor();
+  const { count: queuedTargetCount, error: queuedTargetCountError } = await primary.client
+    .from("my_skill_reports")
+    .select("report_id", { count: "exact", head: true })
+    .eq("category", "security")
+    .eq("state", "queued");
+  if (queuedTargetCountError || queuedTargetCount !== 1) {
+    throw queuedTargetCountError ?? new Error(`Queued-target conflict created an unexpected row count (${queuedTargetCount}).`);
   }
 
   smokeStage = "report-no-javascript-boundary";
@@ -720,6 +745,58 @@ try {
   await page.getByText(dispositionPublicMessage).waitFor();
   assertNoOverflow(await dimensions(page), "resolved report history");
 
+  smokeStage = "report-request-id-payload-conflict";
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(queuedConflictMessage);
+  await page.getByLabel("Request ID").evaluate((input, value) => {
+    input.removeAttribute("readonly");
+    input.value = value;
+  }, reportRequestId);
+  if (await page.getByLabel("Request ID").inputValue() !== reportRequestId) {
+    throw new Error("Request-ID conflict fixture did not preserve the prior request UUID.");
+  }
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await page.getByText("Reporting service unavailable", { exact: true }).waitFor();
+  const { count: requestConflictCount, error: requestConflictCountError } = await primary.client
+    .from("my_skill_reports")
+    .select("report_id", { count: "exact", head: true });
+  if (requestConflictCountError || requestConflictCount !== 1) {
+    throw requestConflictCountError ?? new Error(`Conflicting request UUID changed the report row count (${requestConflictCount}).`);
+  }
+
+  smokeStage = "report-resolved-history-queued-authority-recovery";
+  // Reproduce the ambiguous 23505 boundary: historical report A is resolved,
+  // report B is the current queued target, and a fresh submission matching A's
+  // old text is blocked by B's partial unique index. Recovery must identify B.
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(queuedConflictMessage);
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await waitForUrl(page, (url) => url.searchParams.get("reportStatus") === "queued", "second queued report redirect");
+  const blockingQueuedReportId = new URL(page.url()).searchParams.get("report");
+  if (!blockingQueuedReportId || !/^rpt_[0-9a-f]{32}$/.test(blockingQueuedReportId)
+    || blockingQueuedReportId === reportId) {
+    throw new Error("Second queued report did not return a distinct canonical receipt ID.");
+  }
+  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+    `begin; set local session_replication_role = replica; update api.skill_reports set created_at = now() - interval '25 hours' where public_id = '${blockingQueuedReportId}'; commit;`
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(reportMessage);
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await page.getByText("That report request already exists", { exact: true }).waitFor();
+  await page.getByText(`Existing report ${blockingQueuedReportId} remains the account-owned source of truth. No second report was created.`, { exact: true }).waitFor();
+  const { count: recoveredQueuedCount, error: recoveredQueuedCountError } = await primary.client
+    .from("my_skill_reports")
+    .select("report_id", { count: "exact", head: true })
+    .eq("category", "security")
+    .eq("state", "queued");
+  if (recoveredQueuedCountError || recoveredQueuedCount !== 1) {
+    throw recoveredQueuedCountError ?? new Error(`Resolved-history recovery changed the queued row count (${recoveredQueuedCount}).`);
+  }
+
   smokeStage = "account-export";
   const exportResponse = await primaryContext.request.get(new URL("/account/export", baseUrl).toString());
   if (exportResponse.status() !== 200) throw new Error(`Account export returned HTTP ${exportResponse.status()}.`);
@@ -771,7 +848,7 @@ try {
       serviceRoleOnlyDenied: dualControlEvidence.serviceRoleOnlyDenied,
       credentialCanaries: "absent"
     },
-    report: { strictInputCoveredByFocusedTest: true, queued: reportId, cooldown: true, escapedText: true },
+    report: { strictInputCoveredByFocusedTest: true, queued: reportId, cooldown: true, requestIdPayloadConflictFailedClosed: true, queuedConstraintConflictRecovered: true, resolvedHistoryQueuedAuthorityRecovered: true, escapedText: true },
     ownerIsolation: "passed",
     dispositionHistory: "resolved",
     export: "owner-report-included-private-no-store",
@@ -1226,7 +1303,7 @@ function gradeReceiptPayload(auditReceiptDigest) {
     evaluationSuiteDigest: null,
     rubricVersion: "skillmap-rubric/v1",
     hostProfileVersion: "codex-host/v1",
-    evaluatorVersion: "skillmap-grader/1.0.0",
+    evaluatorVersion: "skillmap-grader/0.1.0",
     hardGates: [
       { code: "source-identity", passed: true, evidenceDigest: digest("8") },
       { code: "audit-acceptable", passed: true, evidenceDigest: digest("8") },

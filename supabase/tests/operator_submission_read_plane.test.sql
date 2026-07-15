@@ -91,7 +91,7 @@ insert into api.skill_submissions (
 update api.skill_submissions
 set state = 'processing',
   active_claim_id = 'f1000000-0000-4000-8000-000000000023',
-  current_worker_version = 'skillmap-worker/0.1.0',
+  current_worker_version = 'skillmap-worker/0.2.0',
   attempt_count = 5,
   claimed_at = statement_timestamp() - interval '2 minutes',
   claim_expires_at = statement_timestamp() - interval '1 minute'

@@ -15,7 +15,7 @@ export function TrustPage({
   children: ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader />
       <article className="mx-auto min-w-0 max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
         <Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">

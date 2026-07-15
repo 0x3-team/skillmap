@@ -119,6 +119,8 @@ function staticGates(requireClean) {
   const providerDeferralMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714030000_github_provider_rate_limit_deferral.sql'), 'utf8');
   const reportAuthorizationMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714050000_report_authorization_enforcement.sql'), 'utf8');
   const operatorDualControlMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714060000_operator_dual_control.sql'), 'utf8');
+  const evidenceAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260715010000_hosted_evidence_version_authority.sql'), 'utf8');
+  const reportIdempotencyMigration = readFileSync(path.join(repo, 'supabase/migrations/20260715020000_hosted_report_idempotency_recovery.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
   const providerGateSource = readFileSync(path.join(repo, 'apps/worker/src/github-provider-gate.mjs'), 'utf8');
   const githubFetcherSource = readFileSync(path.join(repo, 'src/network/github-source-fetcher.ts'), 'utf8');
@@ -211,6 +213,13 @@ function staticGates(requireClean) {
     && /x-skillmap-operator-approval/i.test(operatorDualControlMigration)
     && /operator approver and executor must be distinct/i.test(operatorDualControlMigration)
     && /'submission\.publisher-authorization'[\s\S]+'submission\.collision-review'[\s\S]+'submission\.publish'[\s\S]+'catalog\.lifecycle'[\s\S]+'report\.disposition'/i.test(operatorDualControlMigration)
+    && /create function private\.supported_submission_evidence_authority\s*\(/i.test(evidenceAuthorityMigration)
+    && /skillmap-worker\/0\.2\.0[\s\S]+skillmap-static-audit\/v2[\s\S]+skillmap-grader\/0\.1\.0/i.test(evidenceAuthorityMigration)
+    && /create function private\.assert_current_submission_evidence_authority\s*\(/i.test(evidenceAuthorityMigration)
+    && /perform private\.assert_current_submission_evidence_authority\(p_submission_id\)/i.test(evidenceAuthorityMigration)
+    && /create or replace view api\.my_skill_reports/i.test(reportIdempotencyMigration)
+    && /idempotency_key/i.test(reportIdempotencyMigration)
+    && /grant select \(idempotency_key\) on api\.skill_reports to authenticated/i.test(reportIdempotencyMigration)
     && /runDualControlledOperatorAction/.test(operatorDualControlSource)
     && /rpc\.call\('approve_operator_action'/.test(operatorDualControlSource)
     && /Exactly one of --approve or --execute/.test(operatorDualControlSource)
@@ -263,7 +272,7 @@ function staticGates(requireClean) {
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker mutation authority, atomic report enforcement, current-authorization report intake, consequential-action dual control, cursor-safe operator queues, provider backpressure deferral, and the redacted operations plane are source-bound through migration 20260714060000; applying and verifying every migration remains a database gate before worker start.'
+      ? 'Worker mutation authority, atomic report enforcement, current-authorization report intake, consequential-action dual control, cursor-safe operator queues, provider backpressure deferral, exact evidence-version authority, owner-safe report request recovery, and the redacted operations plane are source-bound through migration 20260715020000; applying and verifying every migration remains a database gate before worker start.'
       : 'Worker mutation authority or the redacted operator read plane is not bound to every required migration, RPC, service-role grant, and privacy exclusion.'
   });
 

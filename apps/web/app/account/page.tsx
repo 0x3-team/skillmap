@@ -73,7 +73,7 @@ export default async function AccountPage({
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
@@ -180,7 +180,7 @@ async function loadAccountData(supabase: SupabaseClient<Database>, userId: strin
 
 function AccountUnavailable() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState="unavailable" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6"><CatalogUnavailable /></section>
     </main>
@@ -189,7 +189,7 @@ function AccountUnavailable() {
 
 function InvalidSavedSkillsPage() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState="authenticated" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-border bg-card p-8 text-center">
