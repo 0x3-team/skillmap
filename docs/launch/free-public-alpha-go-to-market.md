@@ -1,14 +1,27 @@
 # SkillMap free public alpha go-to-market kit
 
-Status: launch-ready copy and operating template; the current go-to-market/dual-control source is locally accepted, pushed, remotely accepted in the recorded scoped CI, merged, and dual-remote reconciled. It is not deployed or verified live. Publishing is blocked until the production-readiness gate records a live `GO` or explicitly scoped `CONDITIONAL GO`.
+Status: launch-ready copy and operating template. The last remotely accepted
+product-code slice is the historical go-to-market/dual-control receipt described
+below. The current dual-remote source anchor is later commit
+`5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a` with tree
+`8d74d820235657a0060bcca7b514392c073bb3b1`; the present product-checkpoint
+patch is local, uncommitted, unpushed, and not remotely accepted. The product is
+not deployed or verified live. Publishing is blocked until the
+production-readiness gate records a live `GO` or explicitly scoped
+`CONDITIONAL GO`.
 
-## Current handoff
+## Current source boundary
 
-The current integrated repository head is
-`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` with tree
-`00273fce90c0294f4f3aea2407d4ba0c65aec1f9` on both GitHub `main` and protected
-Gitea `main`. Candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf`
-records audit policy `skillmap-static-audit/v2` and worker
+At the 2026-07-15 checkpoint, GitHub and protected Gitea `main` both resolve to
+`5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a` with tree
+`8d74d820235657a0060bcca7b514392c073bb3b1`. Gitea runs `75` through `77`
+passed that anchor. GitHub workflow run `29320562416` failed before any job
+steps because hosted-runner allowance was unavailable, so exact-current GitHub
+acceptance remains open.
+
+The historical product-code candidate
+`413d8759e244005406280cd8d7c2fe2ec01b84bf` records audit policy
+`skillmap-static-audit/v2` and worker
 `skillmap-worker/0.2.0`, adds an opaque-file audit/grade hard gate,
 current-publisher-authorization enforcement for report intake, literal
 visitor/submitter acquisition paths, recorded freshness signals, and mandatory
@@ -17,10 +30,15 @@ dual control for five consequential operator RPCs. Gitea candidate run ID `70`
 passed; GitHub Actions run `29317179590` one-shot hosted-web job `87033792983`
 passed all fifteen steps and retained artifact `8304546847`; GitHub PR `#17`
 squash-merged the identical tree; and Gitea protected sync PR `#7` retained the
-exact commit through sync-branch run ID `71` (UI `54`), PR run ID `72` (UI
+exact commit as merge `8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`
+with tree `00273fce90c0294f4f3aea2407d4ba0c65aec1f9` through sync-branch run ID `71` (UI `54`), PR run ID `72` (UI
 `55`), and post-merge `main` run ID `73` (UI `56`). The GitHub acceptance is scoped to the named job because unrelated
 GitHub-hosted jobs were organization-allowance blocked. Runner, DinD,
 temporary-credential, and branch cleanup verified zero.
+
+That recorded receipt is historical source-integration proof. It is not the
+current remote head, does not cover the local checkpoint patch, and does not
+prove deployment or live operation.
 
 Next action: select and provision the approved zero-recurring-cost Supabase and
 web-hosting targets, owners, region, OAuth application, support identity, and

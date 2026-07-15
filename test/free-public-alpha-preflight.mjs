@@ -47,6 +47,8 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /20260714030000_github_provider_rate_limit_deferral\.sql/);
   assert.match(source, /20260714050000_report_authorization_enforcement\.sql/);
   assert.match(source, /20260714060000_operator_dual_control\.sql/);
+  assert.match(source, /20260715010000_hosted_evidence_version_authority\.sql/);
+  assert.match(source, /20260715020000_hosted_report_idempotency_recovery\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
   assert.match(source, /dead_letter_expired_skill_submission/);
   assert.match(source, /list_skill_submission_collisions/);
@@ -66,6 +68,10 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /approve_operator_action/);
   assert.match(source, /x-skillmap-operator-credential/);
   assert.match(source, /x-skillmap-operator-approval/);
+  assert.match(source, /supported_submission_evidence_authority/);
+  assert.match(source, /assert_current_submission_evidence_authority/);
+  assert.match(source, /reportIdempotencyMigration/);
+  assert.match(source, /grant select .*idempotency_key/);
   assert.match(source, /peek_skill_submission_candidate/);
   assert.match(source, /defer_skill_submission_provider_limit/);
   assert.match(source, /CORE_REQUEST_RESERVE/);

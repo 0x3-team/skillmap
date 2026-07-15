@@ -43,18 +43,24 @@ select ok(
   and not has_function_privilege('service_role',
     'private.control_catalog_lifecycle_unchecked(text,text,text,text,text)', 'execute'),
   'service role cannot execute any relocated unchecked authority body');
-select is((
-  select count(*)
+select ok((
+  select count(*) = 4
   from pg_proc function_row
   join pg_namespace namespace on namespace.oid = function_row.pronamespace
   where namespace.nspname = 'api'
     and function_row.proname in (
       'record_skill_submission_publisher_authorization',
-      'review_skill_submission_collisions', 'publish_skill_submission',
+      'review_skill_submission_collisions',
       'disposition_skill_report', 'control_catalog_lifecycle'
     )
     and position('begin_operator_execution' in pg_get_functiondef(function_row.oid)) > 0
-), 5::bigint, 'all five exposed consequential RPCs require the execution helper');
+) and position(
+  'publish_skill_submission_dual_control_unchecked'
+  in pg_get_functiondef('api.publish_skill_submission(text,text,text,text,text,text,text,text,text[],text,text,boolean,text[],text[])'::regprocedure)
+) > 0 and position(
+  'begin_operator_execution'
+  in pg_get_functiondef('private.publish_skill_submission_dual_control_unchecked(text,text,text,text,text,text,text,text,text[],text,text,boolean,text[],text[])'::regprocedure)
+) > 0, 'all five exposed consequential RPCs retain the execution helper behind the evidence guard');
 select ok(position('pg_advisory_xact_lock(hashtextextended(p_operation_id::text, 7461))'
   in pg_get_functiondef('api.approve_operator_action(text,text,text,jsonb,text,uuid)'::regprocedure)) > 0
   and position('pg_advisory_xact_lock(hashtextextended(p_action_digest, 7462))'
@@ -82,7 +88,7 @@ insert into private.operator_principals (
       convert_to('smo_v1_' || repeat('f', 64), 'UTF8'), 'sha256'), 'hex'), null),
   ('a2000000-0000-4000-8000-000000000002', 'opr_a2000000000000000000000000000002',
     'revoked-approver', 'approver', 'sha256:' || encode(extensions.digest(
-      convert_to('smo_v1_' || repeat('b', 64), 'UTF8'), 'sha256'), 'hex'), clock_timestamp());
+      convert_to('smo_v1_' || repeat('b', 64), 'UTF8'), 'sha256'), 'hex'), clock_timestamp() + interval '1 second');
 
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);

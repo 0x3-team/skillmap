@@ -359,7 +359,7 @@ function SkillActionPanel({
 }
 
 function DetailShell({ children, accountState }: { children: React.ReactNode; accountState?: HostedAccountState }) {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader accountState={accountState} /><section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">{children}</section></main>;
+  return <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground"><CatalogHeader accountState={accountState} /><section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">{children}</section></main>;
 }
 
 function TrustStatePill({ label, state }: { label: string; state: string }) {

@@ -30,7 +30,7 @@ as $$
     'receiptDigest', 'sha256:' || repeat(receipt_seed, 64),
     'sourceContentDigest', source_digest,
     'normalizedContentDigest', normalized_digest,
-    'policyVersion', 'skillmap-static-audit/v1',
+    'policyVersion', 'skillmap-static-audit/v2',
     'hostProfileVersion', 'codex-host/v1',
     'workerVersion', worker_version,
     'findingCounts', case when audit_state = 'blocked'
@@ -141,7 +141,7 @@ insert into api.skill_submissions (
 );
 update api.skill_submissions set state = 'processing',
   active_claim_id = 'a0000000-0000-4000-8000-000000000003',
-  current_worker_version = 'skillmap-worker/0.1.0', attempt_count = 5,
+  current_worker_version = 'skillmap-worker/0.2.0', attempt_count = 5,
   claimed_at = now() - interval '2 minutes', claim_expires_at = now() + interval '1 minute'
 where id = 'a0000000-0000-4000-8000-000000000001';
 
@@ -189,12 +189,12 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as blocked_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_b0000000000000000000000000000001',300) \gset
+  'skillmap-worker/0.2.0','sub_b0000000000000000000000000000001',300) \gset
 select is((select submission_state from api.complete_skill_submission(
   'sub_b0000000000000000000000000000001', :'blocked_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'changes-requested', 'sha256:' || repeat('3',64),
+  'skillmap-worker/0.2.0', 'changes-requested', 'sha256:' || repeat('3',64),
   'sha256:' || repeat('4',64),
-  pg_temp.audit_payload('blocked','5','sha256:' || repeat('6',64),'sha256:' || repeat('7',64),'skillmap-worker/0.1.0'),
+  pg_temp.audit_payload('blocked','5','sha256:' || repeat('6',64),'sha256:' || repeat('7',64),'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('blocked','8','sha256:' || repeat('5',64),'sha256:' || repeat('7',64),null),
   array['invalid-frontmatter'], 'Repair the malformed frontmatter before resubmission.',
   'sha256:' || repeat('9',64))), 'changes-requested', 'blocked worker adapter evidence persists transactionally');
@@ -216,11 +216,11 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as collision_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_c0000000000000000000000000000001',300) \gset
+  'skillmap-worker/0.2.0','sub_c0000000000000000000000000000001',300) \gset
 select set_config('skillmap.test_collision_claim_id', :'collision_claim_id', true);
 select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'sub_c0000000000000000000000000000001', current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('c',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('c',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/copy-owner/copied-skill',
     'sourceCommit',repeat('c',40),'path','../LICENSE',
@@ -231,7 +231,7 @@ select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'license evidence rejects traversal before persistence');
 select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'sub_c0000000000000000000000000000001', current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('c',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('c',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/other-owner/other-skill',
     'sourceCommit',repeat('c',40),'path','LICENSE',
@@ -242,7 +242,7 @@ select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'license evidence rejects a mismatched repository identity');
 select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'sub_c0000000000000000000000000000001', current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('c',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('c',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/copy-owner/copied-skill',
     'sourceCommit',repeat('c',40),'path','LICENSE',
@@ -260,7 +260,7 @@ select set_config('request.jwt.claim.role', 'service_role', true);
 select license_evidence_receipt_id as collision_license_receipt_id
 from api.record_skill_submission_license_evidence(
   'sub_c0000000000000000000000000000001', :'collision_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('c',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('c',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/copy-owner/copied-skill',
     'sourceCommit',repeat('c',40),'path','LICENSE',
@@ -271,13 +271,13 @@ from api.record_skill_submission_license_evidence(
 select throws_ok($sql$select * from api.complete_skill_submission(
   'sub_c0000000000000000000000000000001',
   current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || encode(digest('null-severity-input','sha256'),'hex'),
   'sha256:' || encode(digest('null-severity-result','sha256'),'hex'),
   jsonb_set(
     pg_temp.audit_payload('passed','c',
       'sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a',
-      'sha256:' || repeat('d',64),'skillmap-worker/0.1.0'),
+      'sha256:' || repeat('d',64),'skillmap-worker/0.2.0'),
     '{publicChecks,0,severity}', 'null'::jsonb, false
   ),
   pg_temp.grade_payload('provisional','e','sha256:' || repeat('c',64),
@@ -289,13 +289,13 @@ select throws_ok($sql$select * from api.complete_skill_submission(
 select throws_ok($sql$select * from api.complete_skill_submission(
   'sub_c0000000000000000000000000000001',
   current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || encode(digest('null-outcome-input','sha256'),'hex'),
   'sha256:' || encode(digest('null-outcome-result','sha256'),'hex'),
   jsonb_set(
     pg_temp.audit_payload('passed','c',
       'sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a',
-      'sha256:' || repeat('d',64),'skillmap-worker/0.1.0'),
+      'sha256:' || repeat('d',64),'skillmap-worker/0.2.0'),
     '{publicChecks,0,outcome}', 'null'::jsonb, false
   ),
   pg_temp.grade_payload('provisional','e','sha256:' || repeat('c',64),
@@ -307,12 +307,12 @@ select throws_ok($sql$select * from api.complete_skill_submission(
 select throws_ok($sql$select * from api.complete_skill_submission(
   'sub_c0000000000000000000000000000001',
   current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'changes-requested',
+  'skillmap-worker/0.2.0', 'changes-requested',
   'sha256:' || encode(digest('invalid-failed-gate-input','sha256'),'hex'),
   'sha256:' || encode(digest('invalid-failed-gate-result','sha256'),'hex'),
   pg_temp.audit_payload('blocked','1',
     'sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a',
-    'sha256:' || repeat('d',64),'skillmap-worker/0.1.0'),
+    'sha256:' || repeat('d',64),'skillmap-worker/0.2.0'),
   jsonb_set(
     pg_temp.grade_payload('blocked','2','sha256:' || repeat('1',64),
       'sha256:' || repeat('d',64),'sha256:' || repeat('f',64)),
@@ -333,14 +333,14 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is((select submission_state from api.complete_skill_submission(
   'sub_c0000000000000000000000000000001', :'collision_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'accepted', 'sha256:' || repeat('a',64),
+  'skillmap-worker/0.2.0', 'accepted', 'sha256:' || repeat('a',64),
   'sha256:' || repeat('b',64),
-  pg_temp.audit_payload('passed','c','sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a','sha256:' || repeat('d',64),'skillmap-worker/0.1.0'),
+  pg_temp.audit_payload('passed','c','sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a','sha256:' || repeat('d',64),'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('provisional','e','sha256:' || repeat('c',64),'sha256:' || repeat('d',64),'sha256:' || repeat('f',64)),
   '{}'::text[], null, 'sha256:' || repeat('0',64))), 'accepted', 'duplicate-content fixture completes with positive static evidence');
 select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'sub_c0000000000000000000000000000001', current_setting('skillmap.test_collision_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('8',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('8',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/copy-owner/copied-skill',
     'sourceCommit',repeat('c',40),'path','LICENSE',
@@ -480,12 +480,12 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as update_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_d0000000000000000000000000000001',300
+  'skillmap-worker/0.2.0','sub_d0000000000000000000000000000001',300
 ) \gset
 select set_config('skillmap.test_update_claim_id', :'update_claim_id', true);
 select throws_ok($$select * from api.record_skill_submission_license_evidence(
   'sub_d0000000000000000000000000000001', current_setting('skillmap.test_update_claim_id')::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('7',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('7',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/0x3-team/skillmap',
     'sourceCommit',repeat('9',40),'path','unrelated/LICENSE',
@@ -497,7 +497,7 @@ select throws_ok($$select * from api.record_skill_submission_license_evidence(
 select license_evidence_receipt_id as update_license_receipt_id
 from api.record_skill_submission_license_evidence(
   'sub_d0000000000000000000000000000001', :'update_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('7',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('7',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/0x3-team/skillmap',
     'sourceCommit',repeat('9',40),'path','LICENSE',
@@ -507,9 +507,9 @@ from api.record_skill_submission_license_evidence(
 ) \gset
 select submission_state as update_completion_state from api.complete_skill_submission(
   'sub_d0000000000000000000000000000001', :'update_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'accepted', 'sha256:' || repeat('6',64),
+  'skillmap-worker/0.2.0', 'accepted', 'sha256:' || repeat('6',64),
   'sha256:' || repeat('7',64),
-  pg_temp.audit_payload('passed','7','sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a','sha256:' || repeat('9',64),'skillmap-worker/0.1.0'),
+  pg_temp.audit_payload('passed','7','sha256:4412e0649064c4729dc74959a329dc4b042ff9a0a5bdf74200889b8cd1fa4f4a','sha256:' || repeat('9',64),'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('provisional','8','sha256:' || repeat('7',64),'sha256:' || repeat('9',64),'sha256:' || repeat('a',64)),
   '{}'::text[], null, 'sha256:' || repeat('b',64)
 ) \gset
@@ -571,12 +571,12 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as retry_claim_a from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_e0000000000000000000000000000001',300
+  'skillmap-worker/0.2.0','sub_e0000000000000000000000000000001',300
 ) \gset
 select license_evidence_receipt_id as retry_license_receipt_a
 from api.record_skill_submission_license_evidence(
   'sub_e0000000000000000000000000000001', :'retry_claim_a'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('6',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('6',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/retry-owner/nested-skill',
     'sourceCommit',repeat('e',40),'path','LICENSE',
@@ -591,14 +591,14 @@ where id = 'e0000000-0000-4000-8000-000000000001';
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as retry_claim_b from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_e0000000000000000000000000000001',300
+  'skillmap-worker/0.2.0','sub_e0000000000000000000000000000001',300
 ) \gset
 select ok(:'retry_claim_a'::uuid <> :'retry_claim_b'::uuid,
   'expired retry rotates to a new claim after the first receipt-only attempt');
 select license_evidence_receipt_id as retry_license_receipt_b
 from api.record_skill_submission_license_evidence(
   'sub_e0000000000000000000000000000001', :'retry_claim_b'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('6',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('6',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/retry-owner/nested-skill',
     'sourceCommit',repeat('e',40),'path','LICENSE',
@@ -617,11 +617,11 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is((select submission_state from api.complete_skill_submission(
   'sub_e0000000000000000000000000000001', :'retry_claim_b'::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || encode(digest('retry-input','sha256'),'hex'),
   'sha256:' || encode(digest('retry-result','sha256'),'hex'),
   pg_temp.audit_payload('passed','6','sha256:' || repeat('2',64),
-    'sha256:' || repeat('3',64),'skillmap-worker/0.1.0'),
+    'sha256:' || repeat('3',64),'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('provisional','5','sha256:' || repeat('6',64),
     'sha256:' || repeat('3',64),'sha256:' || repeat('4',64)),
   '{}'::text[], null,
@@ -816,12 +816,12 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as bulk_collision_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_f0000000000000000000000000000001',300
+  'skillmap-worker/0.2.0','sub_f0000000000000000000000000000001',300
 ) \gset
 select license_evidence_receipt_id as bulk_collision_license_id
 from api.record_skill_submission_license_evidence(
   'sub_f0000000000000000000000000000001', :'bulk_collision_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('1',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('1',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/bulk-owner/collision-corpus',
     'sourceCommit',repeat('f',40),'path','LICENSE',
@@ -832,13 +832,13 @@ from api.record_skill_submission_license_evidence(
 ) \gset
 select is((select submission_state from api.complete_skill_submission(
   'sub_f0000000000000000000000000000001', :'bulk_collision_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || encode(digest('bulk-input','sha256'),'hex'),
   'sha256:' || encode(digest('bulk-result','sha256'),'hex'),
   pg_temp.audit_payload('passed','1',
     'sha256:' || encode(digest('bulk-collision-source','sha256'),'hex'),
     'sha256:' || encode(digest('bulk-collision-normalized','sha256'),'hex'),
-    'skillmap-worker/0.1.0'),
+    'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('provisional','2','sha256:' || repeat('1',64),
     'sha256:' || encode(digest('bulk-collision-normalized','sha256'),'hex'),
     'sha256:' || encode(digest('bulk-compatibility','sha256'),'hex')),
@@ -955,12 +955,12 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as terminal_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_a4000000000000000000000000000001',300
+  'skillmap-worker/0.2.0','sub_a4000000000000000000000000000001',300
 ) \gset
 select license_evidence_receipt_id as terminal_license_id
 from api.record_skill_submission_license_evidence(
   'sub_a4000000000000000000000000000001', :'terminal_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('a',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('a',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/terminal-owner/terminal-skill',
     'sourceCommit',repeat('1',40),'path','LICENSE',
@@ -972,13 +972,13 @@ from api.record_skill_submission_license_evidence(
 select submission_state as terminal_completion_state
 from api.complete_skill_submission(
   'sub_a4000000000000000000000000000001', :'terminal_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || encode(digest('terminal-input','sha256'),'hex'),
   'sha256:' || encode(digest('terminal-result','sha256'),'hex'),
   pg_temp.audit_payload('passed','a',
     'sha256:' || encode(digest('terminal-source','sha256'),'hex'),
     'sha256:' || encode(digest('terminal-normalized','sha256'),'hex'),
-    'skillmap-worker/0.1.0'),
+    'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('provisional','b','sha256:' || repeat('a',64),
     'sha256:' || encode(digest('terminal-normalized','sha256'),'hex'),
     'sha256:' || encode(digest('terminal-compatibility','sha256'),'hex')),
@@ -1153,12 +1153,12 @@ insert into api.skill_submissions (
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as terminal_second_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0','sub_b4000000000000000000000000000001',300
+  'skillmap-worker/0.2.0','sub_b4000000000000000000000000000001',300
 ) \gset
 select license_evidence_receipt_id as terminal_second_license_id
 from api.record_skill_submission_license_evidence(
   'sub_b4000000000000000000000000000001', :'terminal_second_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('c',64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('c',64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl','https://github.com/terminal-owner/terminal-skill',
     'sourceCommit',repeat('1',40),'path','LICENSE',
@@ -1169,13 +1169,13 @@ from api.record_skill_submission_license_evidence(
 ) \gset
 select is((select submission_state from api.complete_skill_submission(
   'sub_b4000000000000000000000000000001', :'terminal_second_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || encode(digest('terminal-second-input','sha256'),'hex'),
   'sha256:' || encode(digest('terminal-second-result','sha256'),'hex'),
   pg_temp.audit_payload('passed','c',
     'sha256:' || encode(digest('terminal-source','sha256'),'hex'),
     'sha256:' || encode(digest('terminal-second-normalized','sha256'),'hex'),
-    'skillmap-worker/0.1.0'),
+    'skillmap-worker/0.2.0'),
   pg_temp.grade_payload('provisional','d','sha256:' || repeat('c',64),
     'sha256:' || encode(digest('terminal-second-normalized','sha256'),'hex'),
     'sha256:' || encode(digest('terminal-second-compatibility','sha256'),'hex')),

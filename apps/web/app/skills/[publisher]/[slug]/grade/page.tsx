@@ -55,7 +55,7 @@ export default async function PublicGradeEvidencePage({ params }: { params: Prom
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader />
       <EvidencePageShell publisher={publisher} slug={slug} eyebrow="Current version evidence" title={`${skill.displayName} grade evidence`} intro="Version-bound evaluation evidence for the exact currently published source commit. Alpha grades remain provisional or blocked; this page does not promote them to a current grade.">
         <ProjectionBoundary viewName="api.catalog_grade_evidence" methodologyPath="/trust/grading" methodologyLabel="Read the grading methodology" />
@@ -94,7 +94,7 @@ export default async function PublicGradeEvidencePage({ params }: { params: Prom
 }
 
 function EvidenceError() {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><h1 className="text-xl font-semibold">Public grade evidence unavailable</h1><p className="mt-2 text-sm text-muted-foreground">The public catalog or bounded evidence projection could not be validated. No stale or private fallback was shown.</p></div></section></main>;
+  return <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><h1 className="text-xl font-semibold">Public grade evidence unavailable</h1><p className="mt-2 text-sm text-muted-foreground">The public catalog or bounded evidence projection could not be validated. No stale or private fallback was shown.</p></div></section></main>;
 }
 
 function humanize(value: string) { return value.replaceAll("-", " "); }

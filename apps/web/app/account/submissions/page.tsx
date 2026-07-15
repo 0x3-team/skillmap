@@ -100,7 +100,7 @@ export default async function AccountSubmissionsPage({
   const verifiedStatus = await verifyListStatus(supabase, status, statusSubmissionId);
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
@@ -359,7 +359,7 @@ function formatDate(value: string) {
 
 function SubmissionsUnavailable() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState="unavailable" />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-warning/35 bg-warning/10 p-6 sm:p-8" role="status">
@@ -373,7 +373,7 @@ function SubmissionsUnavailable() {
 
 function InvalidSubmissionsPage() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader />
       <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="rounded-xl border border-border bg-card p-8 text-center">

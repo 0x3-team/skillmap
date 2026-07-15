@@ -60,7 +60,7 @@ select throws_ok(
 select throws_ok(
   $$select * from api.defer_skill_submission_provider_limit(
       'sub_11111111111111111111111111111111', gen_random_uuid(),
-      'skillmap-worker/0.1.0', 60, 'sha256:' || repeat('1', 64))$$,
+      'skillmap-worker/0.2.0', 60, 'sha256:' || repeat('1', 64))$$,
   42501, null, 'browser authority cannot invoke provider deferral'
 );
 
@@ -73,12 +73,12 @@ select is(
   'the read-only peek returns the exact eligible candidate before claim'
 );
 select claim_id as cooldown_claim_id, attempt_number as cooldown_attempt
-from api.claim_skill_submission('skillmap-worker/0.1.0', :'cooldown_submission_id', 300) \gset
+from api.claim_skill_submission('skillmap-worker/0.2.0', :'cooldown_submission_id', 300) \gset
 select ok(:'cooldown_claim_id'::uuid is not null, 'the exact candidate is claimed');
 select is(:'cooldown_attempt'::integer, 1, 'the first claim reserves audit attempt one');
 select throws_ok(
   format($sql$select * from api.defer_skill_submission_provider_limit(
-    %L, %L::uuid, 'skillmap-worker/0.1.0', 59, 'sha256:%s')$sql$,
+    %L, %L::uuid, 'skillmap-worker/0.2.0', 59, 'sha256:%s')$sql$,
     :'cooldown_submission_id', :'cooldown_claim_id', repeat('1', 64)),
   22023, null, 'provider retry timing is bounded'
 );
@@ -86,7 +86,7 @@ select submission_state as deferred_state, attempt_count as deferred_attempt,
   provider_retry_after_at as deferred_retry, provider_defer_count as deferred_count
 from api.defer_skill_submission_provider_limit(
   :'cooldown_submission_id', :'cooldown_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 3600, 'sha256:' || repeat('2', 64)
+  'skillmap-worker/0.2.0', 3600, 'sha256:' || repeat('2', 64)
 ) \gset
 select is(:'deferred_state'::text, 'queued'::text, 'provider exhaustion returns processing to queued');
 select is(:'deferred_attempt'::integer, 0, 'provider exhaustion refunds the audit attempt');
@@ -104,10 +104,10 @@ select is((select count(*) from private.submission_events where submission_id = 
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is((select count(*) from api.peek_skill_submission_candidate(:'cooldown_submission_id')), 0::bigint, 'peek skips a candidate during provider cooldown');
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.1.0', :'cooldown_submission_id', 300)), 0::bigint, 'claim skips a candidate during provider cooldown');
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0', :'cooldown_submission_id', 300)), 0::bigint, 'claim skips a candidate during provider cooldown');
 select is((select provider_defer_count from api.defer_skill_submission_provider_limit(
   :'cooldown_submission_id', :'cooldown_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 3600, 'sha256:' || repeat('2', 64)
+  'skillmap-worker/0.2.0', 3600, 'sha256:' || repeat('2', 64)
 )), 1, 'an exact idempotent replay does not refund twice');
 reset role;
 select is((select count(*) from private.submission_events where submission_id = (
@@ -118,7 +118,7 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select throws_ok(
   format($sql$select * from api.defer_skill_submission_provider_limit(
-    %L, %L::uuid, 'skillmap-worker/0.1.0', 3600, 'sha256:%s')$sql$,
+    %L, %L::uuid, 'skillmap-worker/0.2.0', 3600, 'sha256:%s')$sql$,
     :'cooldown_submission_id', :'cooldown_claim_id', repeat('3', 64)),
   55000, null, 'the same stale claim with a different digest cannot mutate again'
 );
@@ -128,18 +128,18 @@ select is(
   'a past provider retry time restores exact eligibility'
 );
 select is((select attempt_number from api.claim_skill_submission(
-  'skillmap-worker/0.1.0', :'eligible_submission_id', 300
+  'skillmap-worker/0.2.0', :'eligible_submission_id', 300
 )), 1, 'claim clears an elapsed provider retry time');
 
 select claim_id as evidence_claim_id, attempt_number as evidence_attempt
-from api.claim_skill_submission('skillmap-worker/0.1.0', :'evidence_submission_id', 300) \gset
+from api.claim_skill_submission('skillmap-worker/0.2.0', :'evidence_submission_id', 300) \gset
 select is(:'evidence_attempt'::integer, 1, 'the evidence fixture receives attempt one');
 reset role;
 select lives_ok(
   format($sql$insert into private.worker_runs (
     id, submission_id, worker_version, attempt_number, outcome, disposition_state,
     input_digest, result_digest, error_code, public_error_message, started_at, completed_at
-  ) select %L::uuid, id, 'skillmap-worker/0.1.0', 1, 'failed', 'failed',
+  ) select %L::uuid, id, 'skillmap-worker/0.2.0', 1, 'failed', 'failed',
     'sha256:%s', 'sha256:%s', 'WORKER_FAILED', 'A durable test run exists.',
     claimed_at, clock_timestamp()
   from api.skill_submissions where public_id = %L$sql$,
@@ -150,7 +150,7 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select throws_ok(
   format($sql$select * from api.defer_skill_submission_provider_limit(
-    %L, %L::uuid, 'skillmap-worker/0.1.0', 60, 'sha256:%s')$sql$,
+    %L, %L::uuid, 'skillmap-worker/0.2.0', 60, 'sha256:%s')$sql$,
     :'evidence_submission_id', :'evidence_claim_id', repeat('6', 64)),
   55000, null, 'a claim with durable audit evidence cannot be refunded'
 );
@@ -161,7 +161,7 @@ select is((select row(state, attempt_count)::text from api.skill_submissions
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as stale_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0', :'stale_submission_id', 300
+  'skillmap-worker/0.2.0', :'stale_submission_id', 300
 ) \gset
 select ok(:'stale_claim_id'::uuid is not null, 'the stale-claim fixture receives its first claim');
 reset role;
@@ -176,18 +176,18 @@ select is((select count(*) from api.claim_skill_submission(
 )), 1::bigint, 'an expired exact claim can be reclaimed');
 select throws_ok(
   format($sql$select * from api.defer_skill_submission_provider_limit(
-    %L, %L::uuid, 'skillmap-worker/0.1.0', 60, 'sha256:%s')$sql$,
+    %L, %L::uuid, 'skillmap-worker/0.2.0', 60, 'sha256:%s')$sql$,
     :'stale_submission_id', :'stale_claim_id', repeat('7', 64)),
-  55000, null, 'a rotated stale claim cannot refund the replacement claim'
+  55000, null, 'a stale claim ID cannot refund the replacement claim'
 );
 reset role;
 select ok((select active_claim_id <> :'stale_claim_id'::uuid from api.skill_submissions
-  where public_id = :'stale_submission_id'), 'claim rotation preserves exact ownership');
+  where public_id = :'stale_submission_id'), 'claim replacement preserves exact ownership');
 
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as expired_current_claim_id from api.claim_skill_submission(
-  'skillmap-worker/0.1.0', :'expired_current_submission_id', 300
+  'skillmap-worker/0.2.0', :'expired_current_submission_id', 300
 ) \gset
 reset role;
 update api.skill_submissions
@@ -198,7 +198,7 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is((select submission_state from api.defer_skill_submission_provider_limit(
   :'expired_current_submission_id', :'expired_current_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 60, 'sha256:' || repeat('9', 64)
+  'skillmap-worker/0.2.0', 60, 'sha256:' || repeat('9', 64)
 )), 'queued', 'an expired-but-still-current exact claim can defer safely');
 reset role;
 select is((select attempt_count from api.skill_submissions
@@ -207,12 +207,12 @@ select is((select attempt_count from api.skill_submissions
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as high_claim_id, attempt_number as high_attempt
-from api.claim_skill_submission('skillmap-worker/0.1.0', :'high_submission_id', 300) \gset
+from api.claim_skill_submission('skillmap-worker/0.2.0', :'high_submission_id', 300) \gset
 select is(:'high_attempt'::integer, 5, 'provider deferral works at the final audit-attempt boundary');
 select attempt_count as high_deferred_attempt, provider_defer_count as high_deferred_count
 from api.defer_skill_submission_provider_limit(
   :'high_submission_id', :'high_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 60, 'sha256:' || repeat('8', 64)
+  'skillmap-worker/0.2.0', 60, 'sha256:' || repeat('8', 64)
 ) \gset
 select is(:'high_deferred_attempt'::integer, 4, 'attempt five refunds to four instead of dead-lettering');
 select is(:'high_deferred_count'::integer, 10001, 'provider deferral telemetry remains practical beyond ten thousand outages');

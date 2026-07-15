@@ -9,6 +9,7 @@ const workflowFile = path.join(repo, '.github', 'workflows', 'ci.yml');
 const source = readFileSync(workflowFile, 'utf8');
 const workflow = YAML.parse(source);
 const jobs = workflow.jobs;
+const pinnedDownloadArtifact = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093';
 const verifierId = 'verify_candidate';
 const tarballBinding = `\${{ steps.${verifierId}.outputs.tarball }}`;
 const candidateCommands = [
@@ -24,7 +25,7 @@ test('every release-CI candidate consumer is explicitly bound to its verified re
 
   for (const [jobName, job] of Object.entries(jobs)) {
     const steps = Array.isArray(job.steps) ? job.steps : [];
-    const downloadIndex = steps.findIndex(step => step.uses === 'actions/download-artifact@v4'
+    const downloadIndex = steps.findIndex(step => step.uses === pinnedDownloadArtifact
       && step.with?.name === 'skillmap-package-candidate');
     if (downloadIndex >= 0) downloadedCandidateJobs.push(jobName);
 

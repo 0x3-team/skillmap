@@ -18,9 +18,9 @@ as $$
     'receiptDigest', 'sha256:' || repeat('5', 64),
     'sourceContentDigest', 'sha256:' || repeat('6', 64),
     'normalizedContentDigest', 'sha256:' || repeat('7', 64),
-    'policyVersion', 'skillmap-static-audit/v1',
+    'policyVersion', 'skillmap-static-audit/v2',
     'hostProfileVersion', 'codex-host/v1',
-    'workerVersion', 'skillmap-worker/0.1.0',
+    'workerVersion', 'skillmap-worker/0.2.0',
     'findingCounts', '{"critical":0,"high":0,"medium":0,"low":0,"info":0}'::jsonb,
     'publicChecks', '[{"code":"static-audit-complete","outcome":"passed","severity":"info","evidenceDigest":null}]'::jsonb,
     'reasonCodes', '[]'::jsonb,
@@ -84,13 +84,13 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as operator_claim_id
 from api.claim_skill_submission(
-  'skillmap-worker/0.1.0', 'sub_f2000000000000000000000000000001', 300
+  'skillmap-worker/0.2.0', 'sub_f2000000000000000000000000000001', 300
 ) \gset
 
 select license_evidence_receipt_id as operator_license_receipt_id
 from api.record_skill_submission_license_evidence(
   'sub_f2000000000000000000000000000001', :'operator_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'sha256:' || repeat('5', 64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('5', 64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl', 'https://github.com/operator-owner/receipt-skill',
     'sourceCommit', repeat('2', 40),
@@ -103,7 +103,7 @@ from api.record_skill_submission_license_evidence(
 
 select is((select submission_state from api.complete_skill_submission(
   'sub_f2000000000000000000000000000001', :'operator_claim_id'::uuid,
-  'skillmap-worker/0.1.0', 'accepted',
+  'skillmap-worker/0.2.0', 'accepted',
   'sha256:' || repeat('a', 64), 'sha256:' || repeat('b', 64),
   pg_temp.operator_audit_payload(), pg_temp.operator_grade_payload(),
   '{}'::text[], null, 'sha256:' || repeat('9', 64)

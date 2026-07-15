@@ -42,7 +42,9 @@ export async function GET() {
   const [savedResult, submissionsResult, reportsResult] = await Promise.all([
     supabase.from("saved_skills").select("skill_id,created_at").eq("user_id", auth.userId).order("created_at", { ascending: true }).order("skill_id", { ascending: true }).range(0, MAX_SAVED_SKILLS - 1),
     supabase.from("my_skill_submissions").select("*").order("created_at", { ascending: true }).order("submission_id", { ascending: true }).range(0, MAX_SUBMISSIONS - 1),
-    supabase.from("my_skill_reports").select("*").order("created_at", { ascending: true }).order("report_id", { ascending: true }).range(0, MAX_REPORTS - 1)
+    supabase.from("my_skill_reports")
+      .select("report_id,skill_id,version_id,category,message,state,disposition_code,resolution_reason_code,public_resolution_message,created_at,updated_at,resolved_at")
+      .order("created_at", { ascending: true }).order("report_id", { ascending: true }).range(0, MAX_REPORTS - 1)
   ]);
   if (savedResult.error || submissionsResult.error || reportsResult.error
     || (savedResult.data?.length ?? 0) !== savedCountResult.count

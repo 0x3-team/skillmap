@@ -248,7 +248,7 @@ export function DashboardClient({ data }: { data: DashboardPageData }) {
   );
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} items={commandItems} />
       <AnimatedToastStack toasts={toasts} onDismiss={dismissToast} />
 

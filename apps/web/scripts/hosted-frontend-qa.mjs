@@ -149,6 +149,54 @@ try {
     visuals.push(await captureVisual(page, visualCase.name));
   }
 
+  for (const [metadataIndex, metadataCase] of [
+    { path: "/skills", title: "Skill library | SkillMap", description: "Browse exact-source agent skills with separate provenance, license, audit, compatibility, lifecycle, and grade evidence.", heading: "Inspect the evidence before the instruction body." },
+    { path: "/privacy", title: "Privacy | SkillMap", description: "Understand which SkillMap data stays local and which account, save, submission, and report data the hosted service stores.", heading: "Know what stays local and what the hosted service stores.", intro: "Raw local operator material stays on-device by default. Hosted accounts, saves, submissions, and private reports cross a separate, explicitly disclosed service boundary." },
+    { path: "/security", title: "Security | SkillMap", description: "Review SkillMap's local connector controls, hosted evidence boundaries, immutable source identity, and deliberate security limits.", heading: "Explicit authority from local routing to public evidence." }
+  ].entries()) {
+    await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `203.0.113.${120 + metadataIndex}` });
+    const response = await page.goto(new URL(metadataCase.path, baseUrl).toString(), { waitUntil: "load" });
+    assert.equal(response?.status(), 200, `${metadataCase.path} metadata route returned HTTP ${response?.status()}.`);
+    await page.getByRole("heading", { level: 1, name: metadataCase.heading }).waitFor();
+    if (metadataCase.intro) await page.getByText(metadataCase.intro, { exact: true }).waitFor();
+    await assertRouteMetadata(page, metadataCase);
+  }
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: width === 320 ? 760 : 844 });
+    await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `203.0.113.${130 + width / 10}` });
+    const response = await page.goto(new URL("/", baseUrl).toString(), { waitUntil: "load" });
+    assert.equal(response?.status(), 200, `Authenticated home at ${width}px returned HTTP ${response?.status()}.`);
+    await assertMobileAccountControl(page, "authenticated", "Account", "/account", `authenticated home at ${width}px`);
+    await assertPageSemantics(page, `authenticated home at ${width}px`);
+  }
+
+  const signedOutContext = await browser.newContext({
+    viewport: { width: 320, height: 760 },
+    colorScheme: "light",
+    locale: "en-US",
+    timezoneId: "UTC",
+    reducedMotion: "reduce",
+    deviceScaleFactor: 1
+  });
+  try {
+    const signedOutPage = await signedOutContext.newPage();
+    signedOutPage.on("console", (message) => {
+      if (message.type() === "error" || message.type() === "warning") diagnostics.push(`${message.type()}: ${message.text()}`);
+    });
+    signedOutPage.on("pageerror", (error) => diagnostics.push(`pageerror: ${error.message}`));
+    for (const width of [320, 390]) {
+      await signedOutPage.setViewportSize({ width, height: width === 320 ? 760 : 844 });
+      await signedOutPage.setExtraHTTPHeaders({ "x-vercel-forwarded-for": `203.0.113.${140 + width / 10}` });
+      const response = await signedOutPage.goto(new URL("/", baseUrl).toString(), { waitUntil: "load" });
+      assert.equal(response?.status(), 200, `Signed-out home at ${width}px returned HTTP ${response?.status()}.`);
+      await assertMobileAccountControl(signedOutPage, "signed-out", "Sign in", "/sign-in", `signed-out home at ${width}px`);
+      await assertPageSemantics(signedOutPage, `signed-out home at ${width}px`);
+    }
+  } finally {
+    await signedOutContext.close();
+  }
+
   await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": "203.0.113.110" });
   await page.setViewportSize({ width: 320, height: 760 });
   const invalidResponse = await page.goto(new URL("/skills?q=one&q=two", baseUrl).toString(), { waitUntil: "load" });
@@ -162,6 +210,10 @@ try {
   const keyboardResponse = await page.goto(new URL("/", baseUrl).toString(), { waitUntil: "load" });
   assert.equal(keyboardResponse?.status(), 200, `Keyboard QA route returned HTTP ${keyboardResponse?.status()}.`);
   await page.getByRole("heading", { level: 1, name: /Find agent skills/ }).waitFor();
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Skip to main content", "First keyboard focus did not reach the hosted skip link.");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.activeElement?.id === "main-content");
   await page.locator("body").click({ position: { x: 4, y: 4 } });
   const focusTrail = [];
   for (let index = 0; index < 12 && focusTrail.length < 6; index += 1) {
@@ -252,7 +304,7 @@ await writeFile(path.join(artifactDir, "hosted-frontend-qa.json"), `${JSON.strin
   schemaVersion: "skillmap-hosted-frontend-qa/v1",
   status: failure ? "failed" : "passed",
   browser: { name: "chromium", version: browserVersion },
-  checks: ["semantic-controls", "six-step-keyboard-focus", "mobile-save-before-report", "320-and-390-responsive", "invalid-query-heading", "200-percent-zoom", "forced-colors-structure-and-focus", "reviewed-visual-baselines"],
+  checks: ["semantic-controls", "shared-skip-link-and-focus-target", "six-step-keyboard-focus", "mobile-account-control-320-and-390", "route-specific-public-metadata", "mobile-save-before-report", "320-and-390-responsive", "invalid-query-heading", "200-percent-zoom", "forced-colors-structure-and-focus", "reviewed-visual-baselines"],
   visuals,
   diagnostics: diagnostics.length,
   cleanup: failure ? "see-error" : "browser-context-user-profile-removed"
@@ -278,6 +330,10 @@ async function assertPageSemantics(page, label) {
     const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
     return {
       mains: document.querySelectorAll("main").length,
+      mainContentTargets: document.querySelectorAll("#main-content").length,
+      mainContentTag: document.querySelector("#main-content")?.tagName ?? null,
+      mainContentTabIndex: document.querySelector("#main-content")?.getAttribute("tabindex") ?? null,
+      skipLinks: document.querySelectorAll('a[href="#main-content"]').length,
       headings: document.querySelectorAll("h1").length,
       innerWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -287,11 +343,48 @@ async function assertPageSemantics(page, label) {
     };
   });
   assert.equal(result.mains, 1, `${label} did not expose exactly one main landmark.`);
+  assert.equal(result.mainContentTargets, 1, `${label} did not expose exactly one #main-content target.`);
+  assert.equal(result.mainContentTag, "MAIN", `${label} did not bind #main-content to its main landmark.`);
+  assert.equal(result.mainContentTabIndex, "-1", `${label} did not make #main-content programmatically focusable.`);
+  assert.equal(result.skipLinks, 1, `${label} did not expose exactly one hosted skip link.`);
   assert.equal(result.headings, 1, `${label} did not expose exactly one h1.`);
   assert.ok(result.scrollWidth <= result.innerWidth, `${label} overflowed (${result.scrollWidth} > ${result.innerWidth}).`);
   assert.deepEqual(result.unlabeledControls, [], `${label} has unlabeled controls.`);
   assert.deepEqual(result.unnamedActions, [], `${label} has unnamed actions.`);
   assert.deepEqual(result.duplicateIds, [], `${label} has duplicate IDs.`);
+}
+
+async function assertMobileAccountControl(page, state, label, href, contextLabel) {
+  const control = page.locator(`[data-account-control="${state}"]`);
+  await control.waitFor({ state: "visible" });
+  assert.equal((await control.textContent())?.trim(), label, `${contextLabel} mislabeled its direct account control.`);
+  assert.equal(await control.getAttribute("href"), href, `${contextLabel} pointed its direct account control at the wrong route.`);
+  const bounds = await control.boundingBox();
+  assert.ok(bounds, `${contextLabel} did not render a measurable direct account control.`);
+  assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= await page.evaluate(() => window.innerWidth),
+    `${contextLabel} pushed its direct account control outside the viewport (${JSON.stringify(bounds)}).`);
+}
+
+async function assertRouteMetadata(page, { path: routePath, title, description }) {
+  const metadata = await page.evaluate(() => ({
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content") ?? null,
+    canonical: [...document.querySelectorAll('link[rel="canonical"]')].map((element) => element.getAttribute("href")),
+    openGraphTitle: document.querySelector('meta[property="og:title"]')?.getAttribute("content") ?? null,
+    openGraphDescription: document.querySelector('meta[property="og:description"]')?.getAttribute("content") ?? null,
+    openGraphUrl: document.querySelector('meta[property="og:url"]')?.getAttribute("content") ?? null,
+    twitterTitle: document.querySelector('meta[name="twitter:title"]')?.getAttribute("content") ?? null,
+    twitterDescription: document.querySelector('meta[name="twitter:description"]')?.getAttribute("content") ?? null
+  }));
+  const canonical = new URL(routePath, baseUrl).toString();
+  assert.equal(metadata.title, title, `${routePath} rendered the wrong document title.`);
+  assert.equal(metadata.description, description, `${routePath} rendered the wrong meta description.`);
+  assert.deepEqual(metadata.canonical, [canonical], `${routePath} did not render one route-specific canonical URL.`);
+  assert.equal(metadata.openGraphTitle, title, `${routePath} rendered the wrong Open Graph title.`);
+  assert.equal(metadata.openGraphDescription, description, `${routePath} rendered the wrong Open Graph description.`);
+  assert.equal(metadata.openGraphUrl, canonical, `${routePath} rendered the wrong Open Graph URL.`);
+  assert.equal(metadata.twitterTitle, title, `${routePath} rendered the wrong Twitter title.`);
+  assert.equal(metadata.twitterDescription, description, `${routePath} rendered the wrong Twitter description.`);
 }
 
 async function assertMobileSkillActionOrder(page, label) {
