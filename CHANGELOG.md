@@ -2,19 +2,45 @@
 
 ## Unreleased — experimental free public alpha
 
-The latest completed product source-integration boundary recorded here is the
-go-to-market/dual-control candidate
-`413d8759e244005406280cd8d7c2fe2ec01b84bf` and tree
-`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`, merged as `main` commit
-`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`. The earlier baselines remain
-separate historical rows in the append-only release ledger. This
-source-integration boundary does not prove a tag, package publication,
-deployment, live OAuth, public indexing, open-user launch, or verified-live
-status. Subsequent Unreleased product changes require their own candidate and
-merge receipt before this boundary covers them.
+The latest completed product source-integration boundary recorded here is
+product-checkpoint candidate `33e66c4175676355c275db091eb876bae81e29cf`
+and tree `c0fc2ce7e8d4584ee2f7ed5ae2fb72e54b69ade6`, merged as product-code
+commit `72ce471f378db36dfeb4faa31ec52c05e2e57654`. The earlier baselines remain
+separate historical rows in the append-only release ledger. This is an
+accepted product-code boundary, not an immutable claim about moving remote
+heads; verify GitHub and Gitea live. It does not prove a tag, package
+publication, deployment, live OAuth, public indexing, open-user launch, or
+verified-live status. Subsequent Unreleased product changes require their own
+candidate and merge receipt before this boundary covers them.
 
-The go-to-market/dual-control slice and all earlier Unreleased changes below
-are included in that source-integration boundary:
+The product-checkpoint slice and all earlier Unreleased changes below are
+included in that source-integration boundary:
+
+- Bound worker, audit, provisional-grade, host-profile, rubric, and publication
+  success to an exact current evidence-authority tuple; made report request-ID
+  replay and queued-target conflict recovery owner-safe; and closed the hosted
+  skip-navigation, mobile-account, privacy hierarchy, production-seed, route
+  metadata, mutable-CI-source, and release-truth defects.
+- Recorded local candidate receipt
+  `sha256:46ce7276a7e4c8206245651182376e615c1878d168fff1daa002cc4400f39dcf`,
+  protected Gitea candidate run ID `78` (UI `61`), GitHub Actions run
+  `29388840669` named one-shot self-hosted hosted-web job `87267621311`,
+  unexpired artifact `8332525171`, GitHub PR `#19`, Gitea protected sync PR
+  `#9`, and Gitea sync-branch, PR, and post-merge `main` run IDs `79`, `80`,
+  and `81` (UI runs `62`, `63`, and `64`) as passed. The target GitHub job
+  passed all fifteen steps; the other sixteen failed jobs and two skipped jobs
+  executed zero steps and are excluded from acceptance authority. One-shot
+  runner `32` and all isolated runner/DinD resources were removed. The retained
+  candidate receipts are
+  `sha256:c65091486359bc69286b0a65fd2e4935be57cc2535125e3a527250550eeb7ae1`
+  (static) and
+  `sha256:8f94a6b39c6f3a60686b24da2b62a99d9a619e08d1bed06a301b24dd14d3a4bf`
+  (database); the post-merge receipts are
+  `sha256:f718f5cde176c4b5260808f2c228a4bf19541d7c4a61f10451d19c436cc5c50e`
+  (static) and
+  `sha256:fb26de51345999ddce4f85a5bff4d42b9c6a9b854e874349546b34b714116a34`
+  (database). These are source and scoped-CI receipts, not deployment or
+  live-product proof.
 
 - Recorded Gitea candidate run ID `70` (UI run `53`), GitHub Actions run `29317179590`
   one-shot self-hosted hosted-web job `87033792983`, artifact `8304546847`,

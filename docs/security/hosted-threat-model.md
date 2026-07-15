@@ -1,6 +1,6 @@
 # Hosted Skill Library Threat Model
 
-Status: historical Phase 0 baseline plus a remotely accepted product-code boundary. The last accepted product candidate and merge are recorded below. At the 2026-07-15 checkpoint anchor, GitHub and protected Gitea `main` both resolve to the later documentation/release-receipt commit `5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a` with tree `8d74d820235657a0060bcca7b514392c073bb3b1`. Gitea runs `75` through `77` passed that anchor, but GitHub workflow run `29320562416` failed before any job steps because hosted-runner allowance was unavailable; exact-current GitHub `hosted-web-browser` acceptance therefore remains open. Nothing in this document claims deployment or live verification. Revisit before remote provisioning, artifact serving, signing keys, new evaluation authority, or production traffic.
+Status: historical Phase 0 baseline plus an accepted product-checkpoint boundary. Candidate `33e66c4175676355c275db091eb876bae81e29cf` with tree `c0fc2ce7e8d4584ee2f7ed5ae2fb72e54b69ade6` was accepted and merged as product-code commit `72ce471f378db36dfeb4faa31ec52c05e2e57654`. At integration, GitHub and protected Gitea both resolved that exact merge and tree; moving branch heads require live verification and are not frozen by this threat model. Nothing in this document claims deployment or live verification. Revisit before remote provisioning, artifact serving, signing keys, new evaluation authority, or production traffic.
 
 ## Security objectives
 
@@ -74,13 +74,14 @@ Phase 1 has anonymous catalog reads and account-owned saves only. It does not fe
 
 Implemented controls include explicit `api`/`private` schemas, forced RLS, parent visibility composition, immutable identities, positive-evidence promotion blocks, no-store server responses, hidden/nonexistent parity, missing-config/backend-outage states, OAuth privacy disclosure, client-secret canaries, synthetic-user cleanup, and mobile/browser diagnostics.
 
-## Historical accepted candidate and current local checkpoint
+## Accepted product checkpoint and historical predecessor
 
-The last remotely accepted product-code candidate includes exact-commit public GitHub ingestion,
-bounded inert audit and provisional grading, authenticated report intake,
-operator-reviewed publication/lifecycle, and account-owned submission workflows.
-It still does not execute submitted content, mirror third-party packages, publish
-TUF metadata, or issue a current letter grade from static evidence alone.
+The earlier accepted go-to-market/dual-control product candidate includes
+exact-commit public GitHub ingestion, bounded inert audit and provisional
+grading, authenticated report intake, operator-reviewed publication/lifecycle,
+and account-owned submission workflows. It still does not execute submitted
+content, mirror third-party packages, publish TUF metadata, or issue a current
+letter grade from static evidence alone.
 
 Migration `20260714050000_report_authorization_enforcement.sql` requires a new
 report target to remain the exact current public version and to retain current
@@ -88,43 +89,34 @@ publisher authorization. Migration `20260714060000_operator_dual_control.sql`
 keeps the service role as transport but requires immutable 30-minute
 exact-envelope approval and distinct execution for five consequential RPCs.
 Opaque binary/non-UTF-8 admitted files are critical audit findings and block the
-grade. The historical local acceptance receipt records audit policy
-`skillmap-static-audit/v2` and worker `skillmap-worker/0.2.0`. Authorization,
-collision-review, and publication clients accept a protected RPC success only
-after strict validation of the exact single-row projection and expected
-key/value. Root `npm test` passed `440/440` with zero failures, cancellations,
-or skips; focused tests passed `45/45`; and pgTAP passed `585/585`. Final
-`npm --prefix apps/web run test:hosted-gates` passed API,
-Chromium/Firefox/WebKit authentication, acquisition/composed-launch,
-dual-control, accessibility/responsive/forced-colors, private/public-stage,
-thirteen strict zero-diff visual, and cleanup gates. Representative browser
-journeys retained three approvals and three executions, denied
-service-role-only and approver-as-executor calls with SQLSTATE `42501`, and
-cleaned all synthetic operator/catalog/auth state.
+grade. That historical acceptance receipt records audit policy
+`skillmap-static-audit/v2` and worker `skillmap-worker/0.2.0`. Root `npm test`
+passed `440/440`; focused tests passed `45/45`; pgTAP passed `585/585`; and the
+hosted gates passed three-browser authentication, dual control, accessibility,
+private/public runtime, thirteen strict zero-diff baselines, and cleanup. Those
+results belong to candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf`, tree
+`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`, and product merge
+`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7`, covered by Gitea run IDs `70`
+through `73` (UI `53` through `56`) and GitHub named job `87033792983`.
 
-Those `440/440`, `45/45`, `585/585`, and thirteen-baseline results are the
-historical candidate's acceptance record; they are not claimed as the current
-checkpoint's final test receipt.
-
-The local 2026-07-15 checkpoint patch adds migration
+The accepted 2026-07-15 product checkpoint adds migration
 `20260715010000_hosted_evidence_version_authority.sql` to bind worker, audit,
-grade, and publication success to one exact current evidence-authority tuple.
-It also adds migration
-`20260715020000_hosted_report_idempotency_recovery.sql` so owner-scoped request
-identity distinguishes a true report replay from a reused request ID and from a
-different queued payload. The patch also closes the recorded accessibility,
-production-seed, metadata, mutable-CI-source, and release-truth gaps. It remains
-local, uncommitted, unpushed, undeployed, and not remotely accepted; its final
-local gate passed root tests `448/448`, hosted boundary tests `35/35`, release
-path tests `47/47`, pgTAP `621/621`, schema lint, generated-type parity, web
-typecheck/lint/build, clean consumer installation, package inspection,
-production dependency audits, secret scanning, and the static preflight. The
-composed hosted gate also passed three-browser authentication, the report
-request-ID/queued-target conflict journeys, dual control, private/public runtime
-stages, accessibility, and thirteen strict zero-diff Linux Chromium baselines.
-The final performance gate stayed below its budgets on all seven routes. These
-receipts validate the local patch only; the product-checkpoint implementation
-ledger retains the aggregate result and the remaining launch boundary.
+grade, host profile, rubric, and publication success to one exact current
+evidence-authority tuple. Migration
+`20260715020000_hosted_report_idempotency_recovery.sql` makes owner-scoped
+request identity distinguish a true report replay from a reused request ID and
+from a different queued payload. The checkpoint also closes the recorded skip
+navigation, mobile account route, privacy hierarchy, production-seed,
+metadata, mutable-CI-source, and release-truth gaps.
+
+Its final local gate passed root tests `448/448`, hosted boundary tests `35/35`,
+release path tests `47/47`, pgTAP `621/621` across ten files, schema lint,
+generated-type parity, web typecheck/lint/build, clean consumer installation,
+package inspection, production dependency audits, secret scanning, and the
+static preflight. The composed hosted gate passed three-browser authentication,
+the report request-ID/queued-target conflict journeys, dual control,
+private/public runtime stages, accessibility, thirteen strict zero-diff Linux
+Chromium baselines, and seven-route performance budgets.
 
 Accepted non-blocking follow-up risks are a missing visible current-page
 navigation state, the mutable upstream Playwright container tag in CI, and the
@@ -133,22 +125,34 @@ authority rows before the migration preflight. Fresh reset, constraint, RPC,
 and full pgTAP coverage are green, but these follow-ups must not be described as
 closed by the checkpoint.
 
-The historical remotely accepted product-code boundary is candidate
-`413d8759e244005406280cd8d7c2fe2ec01b84bf` with tree
-`00273fce90c0294f4f3aea2407d4ba0c65aec1f9`, squash-merged as
-`8bb2b1d25befeb53e13d0e05a6934dacc9d45cd7` on both GitHub and protected
-Gitea `main`. Gitea run IDs `70` through `73` (UI runs `53` through `56`)
-passed their recorded candidate, sync, pull-request, and post-merge scopes. GitHub Actions run `29317179590`
-one-shot hosted-web job `87033792983` passed all fifteen steps; unrelated
-GitHub-hosted jobs were allowance-blocked, so that acceptance remains scoped to
-the named job.
+The checkpoint was frozen from parent
+`5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a` as candidate
+`33e66c4175676355c275db091eb876bae81e29cf` with tree
+`c0fc2ce7e8d4584ee2f7ed5ae2fb72e54b69ade6`. The exact local receipt is
+`sha256:46ce7276a7e4c8206245651182376e615c1878d168fff1daa002cc4400f39dcf`.
+Gitea candidate run ID `78` (UI `61`) passed both required jobs. GitHub Actions
+run `29388840669` named one-shot hosted-web job `87267621311` passed all
+fifteen target steps and retained unexpired artifact `8332525171`; sixteen
+other failed jobs and two skipped jobs executed zero steps, so acceptance is
+scoped to the named job.
 
-That `413d8759`/`8bb2b1d2` receipt remains the last exact product-code receipt;
-it must not be misreported as the repository's current remote head. The later
-dual-remote `5b9fb6e4` checkpoint anchor records release documentation and does
-not supply the missing exact-current GitHub authority receipt. This checkpoint
-remediation is neither pushed nor remotely accepted until it receives its own
-candidate, merge, and required-CI receipts.
+GitHub PR `#19` squash-merged the identical tree as product-code commit
+`72ce471f378db36dfeb4faa31ec52c05e2e57654`. Gitea protected sync PR `#9`
+fast-forwarded that exact merge after sync-branch run ID `79` (UI `62`) and PR
+run ID `80` (UI `63`) passed; post-merge `main` run ID `81` (UI `64`) passed
+both required jobs. Candidate static/database receipts are
+`sha256:c65091486359bc69286b0a65fd2e4935be57cc2535125e3a527250550eeb7ae1`
+and `sha256:8f94a6b39c6f3a60686b24da2b62a99d9a619e08d1bed06a301b24dd14d3a4bf`;
+post-merge receipts are
+`sha256:f718f5cde176c4b5260808f2c228a4bf19541d7c4a61f10451d19c436cc5c50e`
+and `sha256:fb26de51345999ddce4f85a5bff4d42b9c6a9b854e874349546b34b714116a34`.
+One-shot runner `32` and all isolated resources were removed.
+
+At integration, GitHub and protected Gitea both resolved the exact product
+merge and tree. The later documentation/tests-only receipt descendant records
+that boundary but is not a new product candidate. Moving remote heads must be
+verified live; `72ce471f378db36dfeb4faa31ec52c05e2e57654` is the latest accepted
+product-code merge, not an immutable current-`main` assertion.
 
 This posture is remote source acceptance, not a production claim. Deployment,
 live OAuth, operator credential custody, live RLS probes, encrypted off-host
