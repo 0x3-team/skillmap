@@ -113,3 +113,10 @@ test('hook input rejects streamed data beyond 64 KiB before retaining it', async
     /hook input exceeds the 64 KiB limit/
   );
 });
+
+test('hook input reports an injected custom byte limit accurately', async () => {
+  await assert.rejects(
+    readBoundedHookInput(Readable.from(['12345']), 4),
+    /hook input exceeds the 4 bytes limit/
+  );
+});

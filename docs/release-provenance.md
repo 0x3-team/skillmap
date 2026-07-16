@@ -209,8 +209,11 @@ runtime, then submits that exact finalized v3 object to the revision-bound local
 import endpoint. Private prompts live only in the in-memory draft before that
 explicit import and are cleared from the page afterward. The browser parser
 admits documents up to and including 500 KiB so the 150-case floor is feasible.
-Documents above 500 KiB use the local CLI/file workflow; the authenticated
-browser/API import request remains capped at 512 KiB inclusive. Neither path
+The browser explicitly rejects a larger document with an instruction to use the
+local CLI/file workflow. Separately, the authenticated connector API accepts a
+schema-valid non-browser import only when its complete JSON request, including
+the revision envelope, is at most 512 KiB; it does not reuse the browser parser.
+Requests above that transport cap fail with `REQUEST_TOO_LARGE`. Neither path
 grants approval by importing.
 
 The local `reviewedBy`, real UTC label-review/freeze timestamps, frozen case-set

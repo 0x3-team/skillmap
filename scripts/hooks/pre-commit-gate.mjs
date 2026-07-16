@@ -42,7 +42,8 @@ export async function readBoundedHookInput(stream, maxBytes = MAX_HOOK_INPUT_BYT
   for await (const chunk of stream) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     if (bytes.length > maxBytes - totalBytes) {
-      throw new Error('hook input exceeds the 64 KiB limit');
+      const limit = maxBytes === MAX_HOOK_INPUT_BYTES ? '64 KiB' : `${maxBytes} bytes`;
+      throw new Error(`hook input exceeds the ${limit} limit`);
     }
     chunks.push(bytes);
     totalBytes += bytes.length;
