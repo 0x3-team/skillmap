@@ -2,17 +2,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash(git commit*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "npm ci",
-            "timeout": 60
-          },
-          {
-            "type": "command",
-            "command": "npm test",
-            "timeout": 300
+            "command": "node scripts/hooks/pre-commit-gate.mjs",
+            "timeout": 390
           }
         ]
       }
