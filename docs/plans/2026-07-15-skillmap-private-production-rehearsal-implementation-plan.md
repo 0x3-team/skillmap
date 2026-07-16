@@ -1,5 +1,9 @@
 # SkillMap Private Production Rehearsal Implementation Plan
 
+> Status update (2026-07-16): planning artifact only. The Vercel, Supabase,
+> Cloudflare, invite-only access, live MCP, and pilot environment described here
+> have not been provisioned, deployed, or verified live.
+
 ## Planner Metadata
 
 - Repository workspace: /home/codex/projects/skillmap

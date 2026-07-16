@@ -4,6 +4,27 @@ SkillMap is not published by this worktree. This document defines the release
 boundary and the repository's one supported release wrapper; it does not grant
 registry access or publication approval.
 
+## Source-ref taxonomy
+
+Source preservation tags and package release tags have different meanings:
+
+- `checkpoint/<date>/<name>` records an accepted or historically useful source
+  boundary. It does not claim npm publication, deployment, or a GitHub Release.
+- `candidate/<date>/<name>` records an exact active candidate that has not yet
+  crossed its merge/release acceptance boundary.
+- `archive/<scope>/<date>/<name>` keeps superseded Git history recoverable. It
+  is archaeology only and must not be merged or treated as a release input.
+- `vX.Y.Z[-prerelease]` is reserved for an explicitly approved exact package
+  release whose semantic version, tarball, commit, CI evidence, and publication
+  approval all agree.
+
+The current source inventory and exact annotated tags are listed in
+[`PROJECT_STATUS.md`](https://github.com/0x3-team/skillmap/blob/main/PROJECT_STATUS.md).
+There is intentionally no
+`v0.1.0` tag or GitHub Release while `skillmap@0.1.0` remains an unpublished
+development package. Creating a checkpoint, candidate, or archive tag never
+authorizes npm publication or deployment.
+
 ## Current registry and bootstrap boundary
 
 An unauthenticated `npm view skillmap name version --json` read returned `E404`

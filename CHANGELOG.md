@@ -2,15 +2,33 @@
 
 ## Unreleased — experimental free public alpha
 
+### Active unmerged MCP continuation
+
+- Candidate `fee340a2e4a86e13421696355fe9480e68285090`, tagged
+  `candidate/2026-07-16/mcp-foundation` and published in draft GitHub PR `#21`,
+  replaces the hand-written local MCP dispatcher with the official SDK,
+  preserves the six-tool compatibility surface, adds structured output
+  contracts, and adds a revision-bound deterministic discovery index.
+- The candidate passed its exact local foundation, official-client, privacy,
+  package, consumer-install, rollback, parity, and 500/5,000/25,000-skill
+  evidence gates. It is not merged, packaged, deployed, or released.
+- GitHub's hosted jobs for PR `#21` were blocked before execution by the account
+  billing/spending allowance. Zero-step infrastructure failures are not code
+  failures and do not provide remote acceptance evidence.
+- The repository preservation pass added non-release checkpoint/candidate tags,
+  archived the two previously GitHub-absent superseded lineages, and committed
+  the safe project plans/configuration. `PROJECT_STATUS.md` is the complete
+  mapping; raw owner-only `.skillmap` receipts remain intentionally local.
+
 The latest completed product source-integration boundary recorded here is
 product-checkpoint candidate `33e66c4175676355c275db091eb876bae81e29cf`
 and tree `c0fc2ce7e8d4584ee2f7ed5ae2fb72e54b69ade6`, merged as product-code
 commit `72ce471f378db36dfeb4faa31ec52c05e2e57654`. The earlier baselines remain
 separate historical rows in the append-only release ledger. This is an
 accepted product-code boundary, not an immutable claim about moving remote
-heads; verify GitHub and Gitea live. It does not prove a tag, package
-publication, deployment, live OAuth, public indexing, open-user launch, or
-verified-live status. Subsequent Unreleased product changes require their own
+heads; verify GitHub and Gitea live. Its source checkpoint tag does not prove a
+package publication, deployment, live OAuth, public indexing, open-user launch,
+or verified-live status. Subsequent Unreleased product changes require their own
 candidate and merge receipt before this boundary covers them.
 
 The product-checkpoint slice and all earlier Unreleased changes below are

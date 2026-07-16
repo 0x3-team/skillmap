@@ -1,5 +1,11 @@
 # SkillMap MCP Transport And Discovery Foundation Implementation Plan
 
+> Status update (2026-07-16): implemented on exact candidate
+> `fee340a2e4a86e13421696355fe9480e68285090` and published in draft GitHub
+> PR `#21`. The candidate passed its local exact-candidate gates but remains
+> unmerged and unreleased; GitHub-hosted jobs were allowance-blocked before
+> execution. The original planning metadata below is retained as dated evidence.
+
 ## Planner Metadata
 
 - Repository/path: `/home/codex/projects/skillmap`

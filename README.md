@@ -4,7 +4,23 @@ SkillMap is a local-first SkillOps CLI for people with too many agent skills. It
 
 The repository now also contains a locally validated hosted trust-alpha candidate: a Supabase-backed public catalog, version-bound evidence contracts, GitHub OAuth integration points, free saved-skill accounts, exact-commit submissions, a public-only inert audit worker, provisional grading, operator review/publication RPCs, account export/deletion, and metadata-only catalog publication. These paths are tested against local Supabase. Any remote alpha state must be proven by an exact-commit deployment receipt in the implementation ledger; this README does not claim public release or production readiness.
 
-Status: experimental alpha moving toward v1. The current release is useful for local inventory, doctoring, native-agent policy curation, route-quality dogfooding, source provenance experiments, and controlled Codex hook dry-runs. It does not mutate global skill roots and does not install hooks unless you explicitly run a hook install command.
+**Start here:** [PROJECT_STATUS.md](https://github.com/0x3-team/skillmap/blob/main/PROJECT_STATUS.md) is the concise map of the
+canonical source, active MCP candidate, checkpoint/archive tags, deployment
+truth, and preserved branch history.
+
+| Surface | Current truth |
+| --- | --- |
+| Canonical source | `main` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
+| Development package | `skillmap@0.1.0`; not published |
+| Hosted product | Locally validated source; not provisioned or deployed |
+| Official MCP | Candidate `fee340a2e4a86e13421696355fe9480e68285090` in draft [PR #21](https://github.com/0x3-team/skillmap/pull/21); not merged or released |
+| Launch | `NO-GO`; no public users, package release, deployment, live OAuth, or indexing is claimed |
+
+Status: experimental source alpha moving toward v1. The current development
+build is useful for local inventory, doctoring, native-agent policy curation,
+route-quality dogfooding, source provenance experiments, and controlled Codex
+hook dry-runs. It does not mutate global skill roots and does not install hooks
+unless you explicitly run a hook install command.
 
 ## Why this exists
 
