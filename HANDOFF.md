@@ -1,7 +1,7 @@
 # SkillMap Handoff
 
 Originally created: 2026-07-08
-Last reconciled: 2026-07-15
+Last reconciled: 2026-07-16
 Repo: https://github.com/0x3-team/skillmap
 Current canonical branch: `main`
 Historical pushed baseline: `2709937347cb4f556ceb0c123306f6db3df8f8af`
@@ -9,7 +9,20 @@ Previous dual-remote source anchor: `5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a`
 Latest accepted product-code candidate: `33e66c4175676355c275db091eb876bae81e29cf`
 Latest accepted product-code merge: `72ce471f378db36dfeb4faa31ec52c05e2e57654`
 Latest accepted product-code tree: `c0fc2ce7e8d4584ee2f7ed5ae2fb72e54b69ade6`
+Latest accepted source checkpoint: `checkpoint/2026-07-15/product-alpha-source` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e`
+Active unmerged candidate: `candidate/2026-07-16/mcp-foundation` at `fee340a2e4a86e13421696355fe9480e68285090`, draft GitHub PR `#21`
+Current repository map: [`PROJECT_STATUS.md`](https://github.com/0x3-team/skillmap/blob/main/PROJECT_STATUS.md)
 Current status: the product-checkpoint candidate `33e66c4175676355c275db091eb876bae81e29cf` was frozen from direct parent `5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a`, locally validated, pushed, accepted by protected Gitea candidate run ID `78` (UI run `61`), and accepted for the exact commit by GitHub Actions run `29388840669` one-shot self-hosted hosted-web job `87267621311`, which passed all fifteen target steps and retained unexpired artifact `8332525171`. GitHub PR `#19` squash-merged the identical tree as product-code merge `72ce471f378db36dfeb4faa31ec52c05e2e57654` at 2026-07-15T04:32:15Z. Protected Gitea PR `#9` fast-forwarded that exact merge at 2026-07-15T04:46:15Z after sync-branch run ID `79` (UI `62`) and PR run ID `80` (UI `63`) passed; post-merge `main` run ID `81` (UI `64`) then passed both required jobs. The one-shot runner and isolated resources were removed. At that integration point both remotes resolved the exact merge and tree; moving branch heads must still be verified live rather than inferred from this handoff. The product is not deployed or verified live, and no remote database/web project, OAuth path, backup destination, worker schedule, domain, public indexing, or open-user launch is claimed. Launch remains `NO-GO`.
+
+Repository continuation: the official-SDK MCP transport/discovery foundation is
+locally validated on exact candidate `fee340a2e4a86e13421696355fe9480e68285090`
+and published in draft PR `#21`. GitHub's hosted jobs were blocked by the
+account billing/spending allowance before any step executed, so the red checks
+are infrastructure state rather than code-test results and are not remote
+acceptance. The two genuinely GitHub-absent superseded local lineages and the
+previously uncommitted safe plans/configuration are now preserved by annotated
+`archive/local-heads/2026-07-16/*` tags; see `PROJECT_STATUS.md`. Owner-only
+`.skillmap` state remains intentionally local.
 
 Current continuation boundary: the exact accepted product-code evidence covers candidate `33e66c4175676355c275db091eb876bae81e29cf` and tree `c0fc2ce7e8d4584ee2f7ed5ae2fb72e54b69ade6`; product merge `72ce471f378db36dfeb4faa31ec52c05e2e57654` has that identical tree and direct parent `5b9fb6e49ee3fcbcfc63336c810cbb1cc3bff93a`. The later documentation/tests-only receipt descendant records this evidence but does not create a new product candidate or change the accepted product tree. Verify GitHub and Gitea moving heads live before operational work, and require every later product change to obtain its own candidate, CI, merge, and append-only receipt. The raw generated Supabase types remain byte-exact for schema parity, and the web application uses a narrow override for nullable return fields from the three operator `RETURNS TABLE` RPCs.
 
