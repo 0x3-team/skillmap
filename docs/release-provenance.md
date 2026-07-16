@@ -97,9 +97,10 @@ publication. It accepts one exact candidate `.tgz`, its distinct reviewed prior
 version, and an explicit non-`latest` dist-tag. The adjacent
 `pack-manifest.json` and `SHA256SUMS` must bind to the candidate bytes.
 
-The default mode is validation-only and never invokes npm. Add `--dry-run` when
-the release operator also wants npm to inspect the exact gated candidate using
-its non-publishing `npm publish --dry-run` path:
+The default mode is validation-only: it never publishes and does not invoke
+npm's publishing path. Add `--dry-run` when the release operator also wants npm
+to inspect the exact gated candidate using its non-publishing
+`npm publish --dry-run` path:
 
 ```bash
 npm run release:candidate -- \
@@ -164,10 +165,14 @@ exclusively creates `release-candidate.jsonl` with no-follow semantics. An
 fsynced `publish-outcome-unknown` record exists before npm can contact the
 registry. The same open file descriptor appends and fsyncs a complete success or
 command-failure record, so a failed final write cannot truncate the conservative
-preflight. A post-success evidence update fault is warned rather than converting
-a successful registry command into a reported command failure. Existing files,
-broken or live symlinks, and path replacement are never overwritten. Treat the
-last complete JSONL record as current and retain every preceding record as the
+preflight. A post-success evidence update fault cannot truthfully convert a
+successful registry command into a command failure: it returns
+`evidenceUpdate: failed-after-publish`, leaves the durable outcome unknown, and
+emits a warning. That attempt is incomplete and blocks every promotion, tag,
+release, or automated retry until an operator explicitly reconciles the npm
+registry outcome and records a new reviewed attempt. Existing files, broken or
+live symlinks, and path replacement are never overwritten. Treat the last
+complete JSONL record as current and retain every preceding record as the
 attempt journal.
 
 Only after all prior checks pass does approved publish mode invoke `npm publish`
@@ -202,10 +207,11 @@ The local v3 editor computes `frozenCaseSetDigest`, `datasetDigest`, and
 `payloadDigest` over the same sorted-key canonical JSON projections as the
 runtime, then submits that exact finalized v3 object to the revision-bound local
 import endpoint. Private prompts live only in the in-memory draft before that
-explicit import and are cleared from the page afterward. The browser admits up
-to 500 KiB so the 150-case floor is feasible; larger reviewed documents use the
-CLI above the dedicated 512 KiB eval-import boundary. Neither path grants
-approval by importing.
+explicit import and are cleared from the page afterward. The browser parser
+admits documents up to and including 500 KiB so the 150-case floor is feasible.
+Documents above 500 KiB use the local CLI/file workflow; the authenticated
+browser/API import request remains capped at 512 KiB inclusive. Neither path
+grants approval by importing.
 
 The local `reviewedBy`, real UTC label-review/freeze timestamps, frozen case-set
 digest, per-case label provenance, and historical baseline provenance make the

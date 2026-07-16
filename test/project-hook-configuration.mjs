@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
   isDirectGitCommitCommand,
+  MAX_HOOK_INPUT_BYTES,
+  readBoundedHookInput,
   runPreCommitGate,
   shouldRunPreCommitGate
 } from '../scripts/hooks/pre-commit-gate.mjs';
@@ -17,7 +20,7 @@ function readJson(relativePath) {
 }
 
 test('Claude and Codex project hooks match Bash and delegate command filtering', () => {
-  const expectedCommand = 'node scripts/hooks/pre-commit-gate.mjs';
+  const expectedCommand = 'node "${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/pre-commit-gate.mjs"';
   for (const relativePath of ['.claude/settings.json', '.codex/hooks.json']) {
     const config = readJson(relativePath);
     const entry = config.hooks.PreToolUse[0];
@@ -26,6 +29,9 @@ test('Claude and Codex project hooks match Bash and delegate command filtering',
     assert.equal(entry.hooks[0].type, 'command');
     assert.equal(entry.hooks[0].command, expectedCommand);
     assert.equal(entry.hooks[0].timeout, 390);
+    const stop = config.hooks.Stop[0].hooks[0];
+    assert.equal(stop.command, 'cd -- "${CLAUDE_PROJECT_DIR:-.}" && chunk validate');
+    assert.equal(stop.timeout, 600);
   }
 });
 
@@ -33,6 +39,7 @@ test('pre-commit gate recognizes only a direct git commit Bash command', () => {
   assert.equal(isDirectGitCommitCommand('git commit -m "message"'), true);
   assert.equal(isDirectGitCommitCommand('  git   commit --amend'), true);
   assert.equal(isDirectGitCommitCommand('git status'), false);
+  assert.equal(isDirectGitCommitCommand('git\ncommit -m message'), false);
   assert.equal(isDirectGitCommitCommand('git add . && git commit -m message'), false);
   assert.equal(isDirectGitCommitCommand('echo git commit'), false);
   assert.equal(isDirectGitCommitCommand(undefined), false);
@@ -47,7 +54,7 @@ test('pre-commit gate recognizes only a direct git commit Bash command', () => {
   }), false);
 });
 
-test('pre-commit gate skips non-commit commands and runs npm ci then npm test', () => {
+test('pre-commit gate skips non-commit commands and runs npm test once', () => {
   const skipped = [];
   assert.equal(runPreCommitGate({
     tool_name: 'Bash',
@@ -68,12 +75,12 @@ test('pre-commit gate skips non-commit commands and runs npm ci then npm test', 
   });
 
   assert.equal(status, 0);
-  assert.deepEqual(calls.map(call => call.args), [['ci'], ['test']]);
-  assert.deepEqual(calls.map(call => call.cwd), [repo, repo]);
-  assert.deepEqual(calls.map(call => call.stdio), ['inherit', 'inherit']);
+  assert.deepEqual(calls.map(call => call.args), [['test']]);
+  assert.deepEqual(calls.map(call => call.cwd), [repo]);
+  assert.deepEqual(calls.map(call => call.stdio), ['inherit']);
 });
 
-test('pre-commit gate stops after the first failing npm command', () => {
+test('pre-commit gate returns the npm test failure status', () => {
   const calls = [];
   const status = runPreCommitGate({
     tool_name: 'Bash',
@@ -84,5 +91,25 @@ test('pre-commit gate stops after the first failing npm command', () => {
   });
 
   assert.equal(status, 7);
-  assert.deepEqual(calls, [['ci']]);
+  assert.deepEqual(calls, [['test']]);
+});
+
+test('hook input is parsed from bounded streamed chunks', async () => {
+  const input = { tool_name: 'Bash', tool_input: { command: 'git commit' } };
+  const encoded = JSON.stringify(input);
+  const parsed = await readBoundedHookInput(Readable.from([
+    encoded.slice(0, 12),
+    encoded.slice(12)
+  ]));
+  assert.deepEqual(parsed, input);
+});
+
+test('hook input rejects streamed data beyond 64 KiB before retaining it', async () => {
+  await assert.rejects(
+    readBoundedHookInput(Readable.from([
+      Buffer.alloc(MAX_HOOK_INPUT_BYTES),
+      Buffer.from('x')
+    ])),
+    /hook input exceeds the 64 KiB limit/
+  );
 });

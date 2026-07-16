@@ -19,8 +19,10 @@ truth, and preserved branch history.
 Status: experimental source alpha moving toward v1. The current development
 build is useful for local inventory, doctoring, native-agent policy curation,
 route-quality dogfooding, source provenance experiments, and controlled Codex
-hook dry-runs. It does not mutate global skill roots and does not install hooks
-unless you explicitly run a hook install command.
+hook dry-runs. It does not mutate global skill roots or install Git hooks. The
+optional passive Codex route-hint hook is installed only by its explicit install
+command. This repository also tracks reviewed project-level Claude and Codex
+validation hooks, which supported clients may enable after repository trust.
 
 ## Why this exists
 

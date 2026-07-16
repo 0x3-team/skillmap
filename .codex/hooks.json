@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/pre-commit-gate.mjs",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/pre-commit-gate.mjs\"",
             "timeout": 390
           }
         ]
@@ -17,8 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "chunk validate",
-            "timeout": 390
+            "command": "cd -- \"${CLAUDE_PROJECT_DIR:-.}\" && chunk validate",
+            "timeout": 600
           }
         ]
       }
