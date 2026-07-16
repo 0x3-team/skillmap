@@ -10,7 +10,7 @@ truth, and preserved branch history.
 
 | Surface | Current truth |
 | --- | --- |
-| Canonical source | `main` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
+| Canonical source | Moving branch `main`; accepted product-source checkpoint `checkpoint/2026-07-15/product-alpha-source` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
 | Development package | `skillmap@0.1.0`; not published |
 | Hosted product | Locally validated source; not provisioned or deployed |
 | Official MCP | Candidate `fee340a2e4a86e13421696355fe9480e68285090` in draft [PR #21](https://github.com/0x3-team/skillmap/pull/21); not merged or released |

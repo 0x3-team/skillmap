@@ -1,13 +1,15 @@
 # SkillMap Project Status
 
 Last reconciled against the local repository and GitHub on 2026-07-16 UTC.
-This is the shortest source-of-truth map for maintainers and reviewers.
+This is the shortest source-of-truth map for maintainers and reviewers. Branch
+heads move; immutable candidate, checkpoint, archive, and PR-head refs below
+identify the exact evidence boundaries.
 
 ## Current truth
 
 | Surface | Current state |
 | --- | --- |
-| Canonical source | `main` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
+| Canonical source | Moving branch `main`; accepted product-source checkpoint `checkpoint/2026-07-15/product-alpha-source` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
 | Accepted product boundary | Product candidate `33e66c4175676355c275db091eb876bae81e29cf`, squash merge `72ce471f378db36dfeb4faa31ec52c05e2e57654`, receipt descendant `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
 | Development package | `skillmap@0.1.0`; not published to npm and not represented by a semantic-version release tag |
 | Hosted catalog and web | Source-integrated and locally validated; not provisioned, deployed, or verified live |
