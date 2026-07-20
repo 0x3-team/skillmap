@@ -345,7 +345,7 @@ function searchHaystack(skill: RouteRankingSkill): string {
  * if ranking semantics later become more permissive.
  */
 function conservativeIndexTokens(value: string): string[] {
-  return [...new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 3))];
+  return [...new Set(normalizeIndexedText(value).split(/[^a-z0-9]+/).filter((token) => token.length >= 3))];
 }
 
 function normalizeIndexedText(value: string): string {

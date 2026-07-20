@@ -152,6 +152,23 @@ test('indexed and shadow routing are exactly equal to the full scanner', () => {
   assert.deepEqual(explicit.result, rankRoutePrompt(skills, '', 1, qualified.skillId));
 });
 
+test('indexed routing normalizes Unicode compatibility characters before candidate selection', () => {
+  const skills = [
+    skill(70, { name: 'foo', aliases: [], preferredFor: [] }),
+    skill(71, { name: 'unrelated', aliases: [], preferredFor: [] })
+  ];
+  const prompt = String.fromCodePoint(0xff26, 0xff2f, 0xff2f);
+  const reference = rankRoutePrompt(skills, prompt, 3);
+  assert.equal(reference.recommendations[0]?.skillId, skills[0].skillId);
+
+  const index = compileSkillDiscoveryIndex(skills, REVISION_A);
+  const indexed = rankRoutePromptWithDiscoveryIndex(skills, prompt, 3, undefined, {
+    strategy: 'indexed', index, effectiveRevisionDigest: REVISION_A, verifyIndexed: true
+  });
+  assert.deepEqual(indexed.result, reference);
+  assert.equal(indexed.comparison.matched, true);
+});
+
 test('prepared scoring preserves unique-token semantics for repeated metadata', () => {
   const repeated = skill(88, {
     name: 'unrelated-name',
