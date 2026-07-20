@@ -4,6 +4,27 @@ SkillMap is not published by this worktree. This document defines the release
 boundary and the repository's one supported release wrapper; it does not grant
 registry access or publication approval.
 
+## Source-ref taxonomy
+
+Source preservation tags and package release tags have different meanings:
+
+- `checkpoint/<date>/<name>` records an accepted or historically useful source
+  boundary. It does not claim npm publication, deployment, or a GitHub Release.
+- `candidate/<date>/<name>` records an exact active candidate that has not yet
+  crossed its merge/release acceptance boundary.
+- `archive/<scope>/<date>/<name>` keeps superseded Git history recoverable. It
+  is archaeology only and must not be merged or treated as a release input.
+- `vX.Y.Z[-prerelease]` is reserved for an explicitly approved exact package
+  release whose semantic version, tarball, commit, CI evidence, and publication
+  approval all agree.
+
+The current source inventory and exact annotated tags are listed in
+[`PROJECT_STATUS.md`](https://github.com/0x3-team/skillmap/blob/main/PROJECT_STATUS.md).
+There is intentionally no
+`v0.1.0` tag or GitHub Release while `skillmap@0.1.0` remains an unpublished
+development package. Creating a checkpoint, candidate, or archive tag never
+authorizes npm publication or deployment.
+
 ## Current registry and bootstrap boundary
 
 An unauthenticated `npm view skillmap name version --json` read returned `E404`
@@ -76,9 +97,10 @@ publication. It accepts one exact candidate `.tgz`, its distinct reviewed prior
 version, and an explicit non-`latest` dist-tag. The adjacent
 `pack-manifest.json` and `SHA256SUMS` must bind to the candidate bytes.
 
-The default mode is validation-only and never invokes npm. Add `--dry-run` when
-the release operator also wants npm to inspect the exact gated candidate using
-its non-publishing `npm publish --dry-run` path:
+The default mode is validation-only: it never publishes and does not invoke
+npm's publishing path. Add `--dry-run` when the release operator also wants npm
+to inspect the exact gated candidate using its non-publishing
+`npm publish --dry-run` path:
 
 ```bash
 npm run release:candidate -- \
@@ -143,10 +165,14 @@ exclusively creates `release-candidate.jsonl` with no-follow semantics. An
 fsynced `publish-outcome-unknown` record exists before npm can contact the
 registry. The same open file descriptor appends and fsyncs a complete success or
 command-failure record, so a failed final write cannot truncate the conservative
-preflight. A post-success evidence update fault is warned rather than converting
-a successful registry command into a reported command failure. Existing files,
-broken or live symlinks, and path replacement are never overwritten. Treat the
-last complete JSONL record as current and retain every preceding record as the
+preflight. A post-success evidence update fault cannot truthfully convert a
+successful registry command into a command failure: it returns
+`evidenceUpdate: failed-after-publish`, leaves the durable outcome unknown, and
+emits a warning. That attempt is incomplete and blocks every promotion, tag,
+release, or automated retry until an operator explicitly reconciles the npm
+registry outcome and records a new reviewed attempt. Existing files, broken or
+live symlinks, and path replacement are never overwritten. Treat the last
+complete JSONL record as current and retain every preceding record as the
 attempt journal.
 
 Only after all prior checks pass does approved publish mode invoke `npm publish`
@@ -181,10 +207,14 @@ The local v3 editor computes `frozenCaseSetDigest`, `datasetDigest`, and
 `payloadDigest` over the same sorted-key canonical JSON projections as the
 runtime, then submits that exact finalized v3 object to the revision-bound local
 import endpoint. Private prompts live only in the in-memory draft before that
-explicit import and are cleared from the page afterward. The browser admits up
-to 500 KiB so the 150-case floor is feasible; larger reviewed documents use the
-CLI above the dedicated 512 KiB eval-import boundary. Neither path grants
-approval by importing.
+explicit import and are cleared from the page afterward. The browser parser
+admits documents up to and including 500 KiB so the 150-case floor is feasible.
+The browser explicitly rejects a larger document with an instruction to use the
+local CLI/file workflow. Separately, the authenticated connector API accepts a
+schema-valid non-browser import only when its complete JSON request, including
+the revision envelope, is at most 512 KiB; it does not reuse the browser parser.
+Requests above that transport cap fail with `REQUEST_TOO_LARGE`. Neither path
+grants approval by importing.
 
 The local `reviewedBy`, real UTC label-review/freeze timestamps, frozen case-set
 digest, per-case label provenance, and historical baseline provenance make the

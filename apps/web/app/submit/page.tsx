@@ -40,7 +40,7 @@ export default async function SubmitPage({
     : status;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState={authState} />
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <div className="max-w-3xl">

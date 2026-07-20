@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   AuthApiError,
@@ -114,9 +114,68 @@ const SKILL_ID = `skl_${"0".repeat(31)}1`;
 test("streaming fallback announces without creating a second main landmark", async () => {
   const source = await readFile(new URL("../app/loading.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /<main\b/);
+  assert.match(source, /id="main-content"/);
+  assert.match(source, /tabIndex=\{-1\}/);
   assert.match(source, /role="status"/);
   assert.match(source, /aria-live="polite"/);
   assert.doesNotMatch(source, /aria-busy=/);
+});
+
+test("hosted routes share one keyboard skip target across every main outcome", async () => {
+  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const skipLink = await readFile(new URL("../components/skillmap/hosted-skip-link.tsx", import.meta.url), "utf8");
+  assert.match(layout, /import \{ HostedSkipLink \}/);
+  assert.match(layout, /<HostedSkipLink \/>/);
+  assert.match(skipLink, /href="#main-content"/);
+  assert.match(skipLink, />\s*Skip to main content\s*</);
+  assert.match(skipLink, /focus:translate-y-0/);
+
+  const sourceUrls = [
+    ...await collectTsxFiles(new URL("../app/", import.meta.url)),
+    ...await collectTsxFiles(new URL("../components/", import.meta.url))
+  ];
+  let mainCount = 0;
+  for (const sourceUrl of sourceUrls) {
+    const source = await readFile(sourceUrl, "utf8");
+    for (const opening of source.match(/<main\b[^>]*>/g) ?? []) {
+      mainCount += 1;
+      assert.match(opening, /\bid="main-content"/, `${sourceUrl.pathname} has a main without the hosted target ID`);
+      assert.match(opening, /\btabIndex=\{-1\}/, `${sourceUrl.pathname} has a main that cannot receive skip-link focus`);
+    }
+  }
+  assert.ok(mainCount >= 20, `Hosted main coverage unexpectedly shrank to ${mainCount} outcomes.`);
+});
+
+test("hosted home exposes a truthful account control below the sm breakpoint", async () => {
+  const source = await readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8");
+  const unavailableOpening = source.match(/<span data-account-control="unavailable"[^>]*>/)?.[0];
+  const accountOpening = source.match(/<Link data-account-control=\{accountState\}[^>]*>/)?.[0];
+  assert.ok(unavailableOpening, "Hosted home omitted its unavailable account state.");
+  assert.ok(accountOpening, "Hosted home omitted its direct account or sign-in action.");
+  assert.match(unavailableOpening, /className="inline-flex/);
+  assert.doesNotMatch(unavailableOpening, /className="[^"]*\bhidden\b/);
+  assert.match(accountOpening, /className="inline-flex/);
+  assert.doesNotMatch(accountOpening, /className="[^"]*\bhidden\b/);
+  assert.match(source, /accountState === "authenticated" \? "Account" : "Sign in"/);
+  assert.match(source, /<span className="sm:hidden">Unavailable<\/span>/);
+});
+
+test("public catalog, privacy, and security pages publish route-specific metadata", async () => {
+  for (const [relativePath, canonicalPath, title] of [
+    ["../app/skills/page.tsx", "/skills", "Skill library | SkillMap"],
+    ["../app/privacy/page.tsx", "/privacy", "Privacy | SkillMap"],
+    ["../app/security/page.tsx", "/security", "Security | SkillMap"]
+  ]) {
+    const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
+    assert.match(source, /buildPublicPageMetadata\(\{/);
+    assert.match(source, new RegExp(`title: "${title.replace(/[|]/g, "\\|")}"`));
+    assert.match(source, new RegExp(`path: "${canonicalPath}"`));
+    assert.match(source, /description: "[^"\n]{40,}"/);
+  }
+  const privacy = await readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
+  assert.match(privacy, /title="Know what stays local and what the hosted service stores[.]"/);
+  assert.match(privacy, /Hosted accounts, saves, submissions, and private reports cross a separate, explicitly disclosed service boundary[.]/);
+  assert.doesNotMatch(privacy, /title="Private input stays local by default[.]"/);
 });
 
 test("safe next paths remain same-origin after URL normalization", () => {
@@ -222,15 +281,21 @@ test("submission server action mints attestations only after acknowledgement val
   assert.match(source, /untrusted_processing_accepted:\s*true/);
   assert.doesNotMatch(source, /submitter_user_id\s*:/);
   assert.doesNotMatch(source, /\bstate\s*:\s*"(?:queued|processing|withdrawn)"/);
+  assert.match(source, /if \(error[.]code === "P0001"\) \{\s*return \{\s*status: "quota"/);
+  assert.doesNotMatch(source, /if \(error[.]code === "P0001"\) redirect/);
+  assert.match(source, /context[.]state === "unavailable"[\s\S]*status: "auth-unavailable"/);
   assert.match(formSource, /event[.]preventDefault\(\)/);
   assert.match(formSource, /new FormData\(form\)/);
   assert.match(formSource, /setValidation\(result\)/);
-  assert.match(formSource, /catch \{/);
+  assert.match(formSource, /import \{ unstable_rethrow \} from "next\/navigation"/);
+  assert.match(formSource, /catch \(error\) \{\s*unstable_rethrow\(error\);\s*setValidation\(/);
   assert.match(formSource, /status: "service-unavailable"/);
   assert.match(formSource, /finally \{\s*setPending\(false\)/);
   assert.match(formSource, /noticeRef[.]current[?][.]focus\(\)/);
   assert.match(formSource, /Your other entries and request ID remain in this form/);
   assert.match(formSource, /Your entries and request ID remain in this form so you can retry safely/);
+  assert.match(formSource, /Submission quota reached/);
+  assert.match(formSource, /Authentication could not be verified/);
   assert.match(formSource, /value=\{requestId\}/);
   assert.match(formSource, /aria-invalid=\{Boolean\(errorFor\("sourcePath"\)\)\}/);
 });
@@ -264,25 +329,33 @@ test("public source and owner-result links stay exact, encoded, and current-vers
 });
 
 test("hosted product surfaces expose truthful trust, route, auth, and semantic evidence affordances", async () => {
-  const [detail, submissions, reports, evidence, header, landing] = await Promise.all([
+  const [catalog, detail, submissions, reports, evidence, header, landing, gettingStarted] = await Promise.all([
+    readFile(new URL("../app/skills/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/skills/[publisher]/[slug]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/account/submissions/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/account/reports/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/skillmap/public-evidence.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/skillmap/catalog-header.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8")
+    readFile(new URL("../components/skillmap/landing-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/getting-started/page.tsx", import.meta.url), "utf8")
   ]);
+  assert.match(catalog, /Catalog size and evidence state reflect the current environment/);
+  assert.doesNotMatch(catalog, /first-party seed set/i);
   assert.match(detail, /buildExactGitHubSourceUrl\(skill[.]source\)/);
   assert.match(detail, /skill[.]source[.]path/);
   assert.match(detail, /skill[.]publisher[.]verificationState/);
   assert.match(detail, /skill[.]lifecycleState/);
   assert.match(detail, /skill[.]currentVersion[.]publishedAt/);
   assert.match(detail, /skill[.]updatedAt/);
+  assert.match(detail, /Freshness signals/);
+  assert.match(detail, /does not calculate an automatic fresh or current verdict from elapsed time/);
+  assert.match(detail, /skill[.]currentVersion[.]grade[.]receipt[.]gradedAt/);
   assert.match(detail, /View exact source at commit/);
   assert.match(submissions, /buildCurrentPublicSkillLinks/);
   assert.match(submissions, /View published listing/);
   assert.match(submissions, /View audit evidence/);
   assert.match(submissions, /View grade evidence/);
+  assert.match(submissions, /Updated \{formatDate\(submission[.]updatedAt\)\}/);
   assert.match(reports, /buildCurrentPublicSkillLinks/);
   assert.match(reports, /View reported listing/);
   assert.match(evidence, /Every gate must pass before this version can receive a current letter grade/);
@@ -292,6 +365,12 @@ test("hosted product surfaces expose truthful trust, route, auth, and semantic e
   assert.match(header, /resolveHostedAccountState/);
   assert.match(header, /Account status unavailable/);
   assert.match(landing, /accountState === "authenticated" \? "Account" : "Sign in"/);
+  assert.match(landing, /Listings without current receipts remain visibly not run, not tested, and ungraded/);
+  assert.doesNotMatch(landing, /Current seeds remain/i);
+  assert.match(gettingStarted, /Hosted visitor workflow/);
+  assert.match(gettingStarted, /Hosted submitter workflow/);
+  assert.match(gettingStarted, /<ol/);
+  assert.match(gettingStarted, /only the reviewed operator workflow can publish/);
 });
 
 test("report form preserves safe values and request identity for recoverable failures", async () => {
@@ -302,7 +381,8 @@ test("report form preserves safe values and request identity for recoverable fai
   assert.match(form, /event[.]preventDefault\(\)/);
   assert.match(form, /new FormData\(event[.]currentTarget\)/);
   assert.match(form, /value=\{requestId\}/);
-  assert.match(form, /catch \{/);
+  assert.match(form, /import \{ unstable_rethrow \} from "next\/navigation"/);
+  assert.match(form, /catch \(error\) \{\s*unstable_rethrow\(error\);\s*actionResult = \{ status: "service-unavailable" \}/);
   assert.match(form, /actionResult = \{ status: "service-unavailable" \}/);
   assert.match(form, /finally \{\s*setPending\(false\)/);
   assert.match(form, /setResult\(actionResult\)/);
@@ -392,6 +472,8 @@ test("account submission mutation and export stay owner-filtered and bounded", a
   assert.match(submitPage, /Open submission history/);
   assert.doesNotMatch(submitPage, /That exact source is already in your queue/);
   assert.match(launchSmoke, /smokeStage = "terminal-submission-duplicate"/);
+  assert.match(launchSmoke, /smokeStage = "submission-server-quota-failure"/);
+  assert.match(launchSmoke, /quotaFailureInsertedRows: 0/);
   assert.match(launchSmoke, /url[.]searchParams[.]get\("submission"\) === withdrawalId/);
   assert.match(launchSmoke, /A terminal duplicate was mislabeled as still queued/);
   assert.match(submissionsPage, /data[.]state === status/);
@@ -410,6 +492,8 @@ test("account submission mutation and export stay owner-filtered and bounded", a
   assert.match(accountExport, /from\("saved_skills"\)/);
   assert.match(accountExport, /from\("my_skill_submissions"\)/);
   assert.match(accountExport, /from\("my_skill_reports"\)/);
+  assert.match(accountExport, /select\("report_id,skill_id,version_id,category,message,state,disposition_code,resolution_reason_code,public_resolution_message,created_at,updated_at,resolved_at"\)/);
+  assert.doesNotMatch(accountExport, /select\("[^"\n]*idempotency_key[^"\n]*"\)/);
   assert.match(accountExport, /MAX_EXPORT_BYTES/);
   assert.match(accountExport, /private, no-store/);
   assert.doesNotMatch(accountExport, /service_role|SUPABASE_SERVICE_ROLE/);
@@ -541,8 +625,31 @@ test("report action and public evidence pages preserve database authority bounda
   assert.match(action, /error\.code === "P0004"/);
   assert.match(action, /return \{ status: "daily-limit" \}/);
   assert.match(action, /redirect\(`\$\{flash\.returnPath\}\?reportFlash=/);
+  assert.match(action, /const replay = await findReportByRequestId\(context\.supabase, report\.idempotency_key\)/);
+  assert.match(action, /if \(replay && !reportPayloadMatches\(replay, report\)\) return \{ status: "service-unavailable" \}/);
+  assert.match(action, /const existingId = replay\?\.reportId\s*\?\? await findQueuedReportForTarget\(context\.supabase, report\)/);
+  assert.match(action, /const inserted = await findReportByRequestId\(context\.supabase, report\.idempotency_key\)/);
+  assert.match(action, /!inserted \|\| !reportPayloadMatches\(inserted, report\)/);
   assert.doesNotMatch(action, /reporter_user_id\s*:|disposition_code\s*:|\bstate\s*:\s*"(?:queued|resolved)"/);
   assert.doesNotMatch(action, /service_role|SUPABASE_SERVICE_ROLE/);
+
+  const requestIdLookup = action.slice(
+    action.indexOf("async function findReportByRequestId"),
+    action.indexOf("function reportPayloadMatches")
+  );
+  const queuedTargetLookup = action.slice(
+    action.indexOf("async function findQueuedReportForTarget"),
+    action.indexOf("function publicOriginUsesHttps")
+  );
+  assert.match(requestIdLookup, /\.select\("report_id,skill_id,version_id,category,message"\)/);
+  assert.match(requestIdLookup, /\.eq\("idempotency_key", requestId\)/);
+  assert.doesNotMatch(requestIdLookup, /\.eq\("message",/);
+  assert.match(action, /existing\.skillId === report\.skill_id[\s\S]*existing\.versionId === report\.version_id[\s\S]*existing\.category === report\.category[\s\S]*existing\.message === report\.message/);
+  assert.match(queuedTargetLookup, /\.eq\("skill_id", report\.skill_id\)/);
+  assert.match(queuedTargetLookup, /\.eq\("version_id", report\.version_id\)/);
+  assert.match(queuedTargetLookup, /\.eq\("category", report\.category\)/);
+  assert.match(queuedTargetLookup, /\.eq\("state", "queued"\)/);
+  assert.doesNotMatch(queuedTargetLookup, /\.eq\("message", report\.message\)/);
 
   const repository = await readFile(new URL("../lib/evidence/repository.server.ts", import.meta.url), "utf8");
   assert.match(repository, /from\("catalog_audit_evidence"\)/);
@@ -563,9 +670,22 @@ test("report action and public evidence pages preserve database authority bounda
   assert.doesNotMatch(detail, /verifiedReportStatus[^;]*requestedReportStatus === "queued"[^;]*\? null\s*:\s*requestedReportStatus/);
 
   const smoke = await readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8");
+  assert.match(smoke, /smokeStage = "report-queued-constraint-recovery"/);
+  assert.match(smoke, /set local session_replication_role = replica; update api\.skill_reports set created_at = now\(\) - interval '25 hours'/);
+  assert.match(smoke, /Queued-target conflict created an unexpected row count/);
+  assert.match(smoke, /smokeStage = "report-resolved-history-queued-authority-recovery"/);
+  assert.match(smoke, /Existing report \$\{blockingQueuedReportId\} remains the account-owned source of truth/);
+  assert.match(smoke, /Resolved-history recovery changed the queued row count/);
+  assert.match(smoke, /smokeStage = "report-request-id-payload-conflict"/);
+  assert.match(smoke, /Conflicting request UUID changed the report row count/);
   assert.match(smoke, /rpc\("claim_skill_submission"/);
   assert.match(smoke, /rpc\("complete_skill_submission"/);
-  assert.match(smoke, /rpc\("publish_skill_submission"/);
+  assert.match(smoke, /const published = await runDualControlledBusinessRpc\(\{\s*actionKind: "submission[.]publish",[\s\S]*?rpcName: "publish_skill_submission",\s*rpcParameters: publicationParameters,\s*label: "publication"\s*\}\);/);
+  assert.match(smoke, /const serviceOnlyOutcome = await admin[.]rpc\(rpcName, rpcParameters\);\s*assertOperatorCredentialCanariesAbsent\(serviceOnlyOutcome, `\$\{label\} service-role denial`\);\s*assertPermissionDenied\(serviceOnlyOutcome, `\$\{label\} service-role-only call`\);/);
+  assert.match(smoke, /const approvalOutcome = await approver[.]rpc\("approve_operator_action"/);
+  assert.match(smoke, /const executor = createOperatorClient\(operatorAuthority[.]executor[.]credential, approval[.]approval_id\);\s*const executionOutcome = await executor[.]rpc\(rpcName, rpcParameters\);/);
+  assert.match(smoke, /assertCompleteDualControlEvidence\(dualControlEvidence\)/);
+  assert.doesNotMatch(smoke, /admin[.]rpc\("publish_skill_submission"/);
   assert.match(smoke, /receiptDetailPath}\/audit/);
   assert.match(smoke, /receiptDetailPath}\/grade/);
   assert.match(smoke, /Public audit page exposed the private evidence digest/);
@@ -739,6 +859,40 @@ test("release stage and public indexing fail closed and require two exact public
   });
   assert.equal(publicHeaders["X-Robots-Tag"], undefined);
   assert.equal(publicHeaders["Strict-Transport-Security"], undefined);
+});
+
+test("public health route is identifier-free, fail-closed, and explicitly no-store", async () => {
+  const [route, projection] = await Promise.all([
+    readFile(new URL("../app/api/v1/health/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/operations/health.ts", import.meta.url), "utf8")
+  ]);
+  assert.match(route, /export const dynamic = "force-dynamic"/);
+  assert.match(route, /export const revalidate = 0/);
+  assert.match(route, /"Cache-Control": "no-store, max-age=0"/);
+  assert.match(route, /"CDN-Cache-Control": "no-store"/);
+  assert.match(route, /"Vercel-CDN-Cache-Control": "no-store"/);
+  assert.match(route, /health[.]status === "ready" \? 200 : 503/);
+  assert.match(projection, /getPublicSupabaseConfig\(environment\)/);
+  assert.match(projection, /getApprovedSupportUrl\(environment\)/);
+  assert.match(projection, /isPublicIndexingEnabled\(environment\)/);
+  assert.doesNotMatch(projection, /userId|accountId|email|queueCount|errorMessage/);
+
+  assert.deepEqual(getPublicSupabaseConfig({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key"
+  }), {
+    url: "https://project.supabase.co",
+    publishableKey: "test-publishable-key"
+  });
+  assert.match(
+    await readFile(new URL("../lib/supabase/config.ts", import.meta.url), "utf8"),
+    /process[.]env[.]NEXT_PUBLIC_SUPABASE_URL/
+  );
+  assert.equal(getSiteUrl({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SITE_URL: "https://skillmap.example"
+  }), "https://skillmap.example");
 });
 
 test("nonce CSP is strict, environment-aware, and rejects malformed sources", () => {
@@ -932,6 +1086,16 @@ test("public catalog failures distinguish retryable upstream 503 from unexpected
     retryable: true
   });
 });
+
+async function collectTsxFiles(directoryUrl) {
+  const files = [];
+  for (const entry of await readdir(directoryUrl, { withFileTypes: true })) {
+    const childUrl = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, directoryUrl);
+    if (entry.isDirectory()) files.push(...await collectTsxFiles(childUrl));
+    else if (entry.isFile() && entry.name.endsWith(".tsx")) files.push(childUrl);
+  }
+  return files;
+}
 
 function validSubmissionForm() {
   const form = new FormData();

@@ -39,7 +39,7 @@ import {
 } from "@/lib/registry/saved-cursor";
 import type { PublicSkillRoute } from "@/lib/registry/public-links";
 import { createPublicCatalogClient } from "@/lib/supabase/catalog.server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 
 const HOSTED_LIST_SCHEMA = "https://skillmap.dev/contracts/hosted-skill-list/v1.schema.json";
 const HOSTED_SKILL_SCHEMA = "https://skillmap.dev/contracts/hosted-skill/v1.schema.json";

@@ -1,4 +1,10 @@
 import { normalizeRouteRankingLimit, rankRoutePrompt } from '../contracts/route-ranking.js';
+import {
+  SkillDiscoveryIndexCache,
+  rankRoutePromptWithDiscoveryIndex,
+  type SkillDiscoveryStrategy,
+  type SkillDiscoveryStrategyComparison
+} from './skill-discovery-index.js';
 import type { EffectiveRegistry, RouteDecisionCandidate, RouteDecisionExclusion, RouteResult } from '../schemas/types.js';
 import { redactedMetadataLabel } from './redacted-metadata.js';
 
@@ -8,8 +14,22 @@ export interface SemanticRouteDecision {
   hookText: string;
 }
 
-export function routePrompt(registry: EffectiveRegistry, prompt: string, max = 3, qualifiedSkillId?: string): RouteResult {
-  const ranked = rankRoutePrompt(registry.skills, prompt, max, qualifiedSkillId);
+export interface RouteDiscoveryOptions {
+  strategy?: SkillDiscoveryStrategy;
+  indexCache?: SkillDiscoveryIndexCache;
+  effectiveRevisionDigest?: string | null;
+  verifyIndexed?: boolean;
+  onStrategyComparison?: (comparison: SkillDiscoveryStrategyComparison) => void;
+}
+
+export function routePrompt(
+  registry: EffectiveRegistry,
+  prompt: string,
+  max = 3,
+  qualifiedSkillId?: string,
+  options: RouteDiscoveryOptions = {}
+): RouteResult {
+  const ranked = executeRouteRanking(registry, prompt, max, qualifiedSkillId, options);
   return {
     version: 1,
     generatedAt: new Date().toISOString(),
@@ -28,9 +48,10 @@ export function routeSemanticDecision(
   registry: EffectiveRegistry,
   prompt: string,
   max = 3,
-  qualifiedSkillId?: string
+  qualifiedSkillId?: string,
+  options: RouteDiscoveryOptions = {}
 ): SemanticRouteDecision {
-  const legacy = routePrompt(registry, prompt, normalizeRouteLimit(max), qualifiedSkillId);
+  const legacy = routePrompt(registry, prompt, normalizeRouteLimit(max), qualifiedSkillId, options);
   const recommendations = legacy.recommendations.map((candidate) => ({
     skillId: candidate.skillId,
     displayName: redactedMetadataLabel(candidate.name, candidate.skillId),
@@ -48,6 +69,30 @@ export function routeSemanticDecision(
     exclusions,
     hookText: legacy.hookText
   };
+}
+
+function executeRouteRanking(
+  registry: EffectiveRegistry,
+  prompt: string,
+  max: number,
+  qualifiedSkillId: string | undefined,
+  options: RouteDiscoveryOptions
+) {
+  const strategy = options.strategy ?? 'reference';
+  if (strategy === 'reference') return rankRoutePrompt(registry.skills, prompt, max, qualifiedSkillId);
+  const effectiveRevisionDigest = options.effectiveRevisionDigest;
+  if (!effectiveRevisionDigest) throw new Error(`${strategy} route discovery requires an approved effective revision digest.`);
+  const indexCache = options.indexCache;
+  if (!indexCache) throw new Error(`${strategy} route discovery requires an injected bounded index cache.`);
+  const index = indexCache.getOrCompile(registry.skills, effectiveRevisionDigest);
+  const execution = rankRoutePromptWithDiscoveryIndex(registry.skills, prompt, max, qualifiedSkillId, {
+    strategy,
+    index,
+    effectiveRevisionDigest,
+    ...(options.verifyIndexed ? { verifyIndexed: true } : {})
+  });
+  options.onStrategyComparison?.(execution.comparison);
+  return execution.result;
 }
 
 export function normalizeRouteLimit(value: number): number {

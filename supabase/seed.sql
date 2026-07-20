@@ -1,6 +1,9 @@
--- Deployable first-party catalog data only. Synthetic users, publisher roles,
--- and hidden lifecycle decoys live under supabase/tests/fixtures with a non-.sql
--- suffix, so only their explicit test runners load them.
+-- LOCAL DEVELOPMENT AND TEST DATA ONLY. Never apply this seed to a hosted or
+-- production project. Production catalog entries must enter through authenticated
+-- submission, the current worker and evidence gates, and distinct approver/executor
+-- dual-control publication. Synthetic users, publisher roles, and hidden lifecycle
+-- decoys live under supabase/tests/fixtures with a non-.sql suffix, so only their
+-- explicit test runners load them.
 begin;
 
 insert into private.publishers (

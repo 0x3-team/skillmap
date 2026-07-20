@@ -78,7 +78,7 @@ export default async function AccountReportsPage({
   const nextCursor = hasMore && last ? encodeReportCursor({ createdAt: last.createdAt, reportId: last.reportId }) : null;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState="authenticated" />
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         <div className="flex flex-col gap-5 border-b border-border pb-8 sm:flex-row sm:items-end sm:justify-between">
@@ -229,9 +229,9 @@ function humanize(value: string): string {
 }
 
 function ReportsUnavailable() {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader accountState="unavailable" /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><FileWarning className="mx-auto h-7 w-7 text-warning" /><h1 className="mt-4 text-xl font-semibold">Report history unavailable</h1><p className="mt-2 text-sm text-muted-foreground">Authentication or the owner-filtered report projection could not be verified. No public or fixture fallback was substituted.</p></div></section></main>;
+  return <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground"><CatalogHeader accountState="unavailable" /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><FileWarning className="mx-auto h-7 w-7 text-warning" /><h1 className="mt-4 text-xl font-semibold">Report history unavailable</h1><p className="mt-2 text-sm text-muted-foreground">Authentication or the owner-filtered report projection could not be verified. No public or fixture fallback was substituted.</p></div></section></main>;
 }
 
 function InvalidReportsPage() {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-xl font-semibold">That report-history page link is invalid.</h1><Link href="/account/reports" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Return to report history</Link></div></section></main>;
+  return <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-border bg-card p-8 text-center"><h1 className="text-xl font-semibold">That report-history page link is invalid.</h1><Link href="/account/reports" className="mt-5 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">Return to report history</Link></div></section></main>;
 }

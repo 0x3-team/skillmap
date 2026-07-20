@@ -111,7 +111,7 @@ export function LandingPage({
   ];
 
   return (
-    <main className="min-h-screen overflow-hidden bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen overflow-hidden bg-background text-foreground">
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={commands} />
       <SiteHeader accountState={accountState} onOpenPalette={() => setPaletteOpen(true)} />
 
@@ -252,7 +252,7 @@ export function LandingPage({
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <SectionIntro
             title="Read the method before you read the grade."
-            text="SkillMap treats audit and grade as version-bound evidence, not shortcuts. Current seeds remain visibly not run, not tested, and ungraded until the named gates exist."
+            text="SkillMap treats audit and grade as version-bound evidence, not shortcuts. Listings without current receipts remain visibly not run, not tested, and ungraded until the named gates exist."
           />
           <div className="mt-8 grid gap-4 lg:grid-cols-2">
             <MethodCard
@@ -355,9 +355,9 @@ function SiteHeader({ accountState, onOpenPalette }: { accountState: HostedAccou
             <Search className="h-4 w-4" />
           </Button>
           {accountState === "unavailable" ? (
-            <span aria-label="Account status unavailable" className="hidden h-10 items-center rounded-lg border border-warning/35 bg-warning/10 px-3 text-sm font-semibold text-muted-foreground sm:inline-flex">Account unavailable</span>
+            <span data-account-control="unavailable" aria-label="Account status unavailable" className="inline-flex h-10 items-center rounded-lg border border-warning/35 bg-warning/10 px-2 text-xs font-semibold text-muted-foreground sm:px-3 sm:text-sm"><span className="sm:hidden">Unavailable</span><span className="hidden sm:inline">Account unavailable</span></span>
           ) : (
-            <Link href={accountState === "authenticated" ? "/account" : "/sign-in"} prefetch={false} className="hidden h-10 items-center justify-center rounded-full border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lift transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:inline-flex">
+            <Link data-account-control={accountState} href={accountState === "authenticated" ? "/account" : "/sign-in"} prefetch={false} className="inline-flex h-10 items-center justify-center rounded-full border border-primary bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-lift transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:px-4">
               {accountState === "authenticated" ? "Account" : "Sign in"}
             </Link>
           )}

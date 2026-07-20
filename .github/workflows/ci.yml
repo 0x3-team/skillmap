@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      hosted_web_runner:
+        description: Runner label for the hosted browser gate
+        required: true
+        default: ubuntu-latest
+        type: choice
+        options:
+          - ubuntu-latest
+          - skillmap-gitea-oneshot
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -25,8 +34,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node: [20, 22]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -35,7 +44,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - name: Download the retained package candidate
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: skillmap-package-candidate
           path: artifacts/package
@@ -56,8 +65,8 @@ jobs:
       matrix:
         lane: [contracts, integration, privacy, migrations, failure, connector]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -70,7 +79,7 @@ jobs:
           npm run test:${{ matrix.lane }} 2>&1 | tee artifacts/${{ matrix.lane }}.log
       - name: Upload ${{ matrix.lane }} evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-${{ matrix.lane }}
           path: artifacts/${{ matrix.lane }}.log
@@ -82,13 +91,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     defaults:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -104,8 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -126,7 +135,7 @@ jobs:
           npm --prefix apps/web run test:performance 2>&1 | tee "$SKILLMAP_WEB_PERF_ARTIFACTS/run.log"
       - name: Upload public web performance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: public-web-performance
           path: artifacts/public-web-performance
@@ -136,8 +145,8 @@ jobs:
     name: Package candidate / retained evidence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -167,7 +176,7 @@ jobs:
           export SKILLMAP_UPGRADE_ARTIFACTS="$PWD/artifacts/package"
           npm run test:upgrade-rollback
       - name: Upload candidate tarball, manifest, and digest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: skillmap-package-candidate
           path: artifacts/package
@@ -183,8 +192,8 @@ jobs:
       matrix:
         browser: [firefox, webkit]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -205,7 +214,7 @@ jobs:
           npm run test:browser:${{ matrix.browser }} 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
       - name: Upload ${{ matrix.browser }} browser evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-critical-${{ matrix.browser }}
           path: artifacts/browser-${{ matrix.browser }}
@@ -217,8 +226,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -229,7 +238,7 @@ jobs:
       - run: npm ci
         working-directory: apps/web
       - name: Download the retained package candidate
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: skillmap-package-candidate
           path: artifacts/package
@@ -251,7 +260,7 @@ jobs:
           npm run test:browser:candidate:chromium 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
       - name: Upload exact-candidate Chromium browser evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-critical-chromium
           path: artifacts/browser-chromium
@@ -271,8 +280,8 @@ jobs:
       matrix:
         mode: [a11y, perf]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -300,7 +309,7 @@ jobs:
           npm run test:${{ matrix.mode }} 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
       - name: Upload Chromium ${{ matrix.mode }} evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-chromium-${{ matrix.mode }}
           path: artifacts/browser-${{ matrix.mode }}
@@ -312,8 +321,8 @@ jobs:
     container: mcr.microsoft.com/playwright:v1.61.1-noble
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -334,7 +343,7 @@ jobs:
           npm run test:visual 2>&1 | tee "$SKILLMAP_BROWSER_ARTIFACTS/run.log"
       - name: Upload visual actuals, diffs, metrics, and log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-chromium-visual
           path: artifacts/browser-visual
@@ -342,11 +351,13 @@ jobs:
 
   hosted-web-browser:
     name: Hosted web / API, auth, submission, reports, evidence
-    runs-on: ubuntu-latest
+    # PRs and pushes stay on GitHub-hosted infrastructure. An authorized manual
+    # dispatch can route only this gate to an isolated one-shot runner.
+    runs-on: ${{ inputs.hosted_web_runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
@@ -355,6 +366,14 @@ jobs:
         uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.109.0
+      - name: Ensure PostgreSQL client is available
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends postgresql-client
+          fi
+          psql --version
       - run: npm ci
         working-directory: apps/web
       - name: Install pinned Chromium, Firefox, WebKit, and host dependencies
@@ -384,7 +403,7 @@ jobs:
           npm run test:hosted-gates 2>&1 | tee artifacts/hosted-web/run.log
       - name: Upload hosted-browser evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: hosted-web-browser
           path: artifacts/hosted-web
@@ -397,8 +416,8 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm

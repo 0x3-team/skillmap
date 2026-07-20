@@ -42,12 +42,50 @@ test('static preflight binds worker lease, completion, receipt validation, and e
   assert.match(source, /20260713003000_launch_safety_reports_lifecycle\.sql/);
   assert.match(source, /20260713020000_backend_completion_hardening\.sql/);
   assert.match(source, /20260713050000_submission_authority_completion\.sql/);
+  assert.match(source, /20260713060000_operator_submission_read_plane\.sql/);
+  assert.match(source, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(source, /20260714030000_github_provider_rate_limit_deferral\.sql/);
+  assert.match(source, /20260714050000_report_authorization_enforcement\.sql/);
+  assert.match(source, /20260714060000_operator_dual_control\.sql/);
+  assert.match(source, /20260715010000_hosted_evidence_version_authority\.sql/);
+  assert.match(source, /20260715020000_hosted_report_idempotency_recovery\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
   assert.match(source, /dead_letter_expired_skill_submission/);
   assert.match(source, /list_skill_submission_collisions/);
   assert.match(source, /review_skill_submission_collisions/);
   assert.match(source, /record_skill_submission_license_evidence/);
   assert.match(source, /record_skill_submission_publisher_authorization/);
+  assert.match(source, /get_skill_submission_queue_summary/);
+  assert.match(source, /list_skill_submission_operator_queue/);
+  assert.match(source, /get_skill_submission_operator_detail/);
+  assert.match(source, /disposition_skill_report/);
+  assert.match(source, /p_lifecycle_action/);
+  assert.match(source, /list_skill_report_queue/);
+  assert.match(source, /reportAuthorizationMigration/);
+  assert.match(source, /version_has_current_publisher_authorization/);
+  assert.match(source, /operatorDualControlMigration/);
+  assert.match(source, /operatorDualControlSource/);
+  assert.match(source, /approve_operator_action/);
+  assert.match(source, /x-skillmap-operator-credential/);
+  assert.match(source, /x-skillmap-operator-approval/);
+  assert.match(source, /supported_submission_evidence_authority/);
+  assert.match(source, /assert_current_submission_evidence_authority/);
+  assert.match(source, /reportIdempotencyMigration/);
+  assert.match(source, /grant select .*idempotency_key/);
+  assert.match(source, /peek_skill_submission_candidate/);
+  assert.match(source, /defer_skill_submission_provider_limit/);
+  assert.match(source, /CORE_REQUEST_RESERVE/);
+  assert.match(source, /github-rate-inspection/);
+  assert.match(source, /p_after_created_at/);
+  assert.match(source, /skillmap-hosted-operations-check/);
+  assert.match(source, /Cache-Control/);
+  assert.match(source, /p_after_updated_at/);
+  assert.match(source, /best-effort-live-by-updated-at-restart-required/);
+  assert.match(source, /reconciliationRequired: true/);
+  assert.match(source, /MAX_QUEUE_ROWS = 32/);
+  assert.match(source, /submissionQueueSource/);
+  assert.match(source, /submissionDetailSource/);
+  assert.match(source, /private_\?evidence_\?digest/);
   assert.match(source, /collision_subject_is_complete/);
   assert.match(source, /partial collision evidence cannot authorize publication/);
   assert.match(source, /published authorization renewal must match the exact source publisher version/);
@@ -88,4 +126,8 @@ test('repository secret canary scan catches credentials and limits the fixture e
     path: 'test/another-test.mjs',
     bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
   }]), [{ path: 'test/another-test.mjs', label: 'PEM private key' }]);
+  const operatorCredential = `smo_v1_${'a'.repeat(64)}`;
+  assert.deepEqual(scanRepositorySecretCanaries([{
+    path: 'ops/operator.env', bytes: Buffer.from(operatorCredential)
+  }]), [{ path: 'ops/operator.env', label: 'SkillMap operator credential' }]);
 });

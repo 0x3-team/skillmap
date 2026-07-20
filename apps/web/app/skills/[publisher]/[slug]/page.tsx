@@ -153,6 +153,15 @@ export default async function SkillDetailPage({
       <Link href="/skills" prefetch={false} className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back to library</Link>
       {verifiedSaveStatus ? <SaveStatusNotice status={verifiedSaveStatus} /> : null}
       <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <SkillActionPanel
+          skill={skill}
+          accountUnavailable={accountUnavailable}
+          signedIn={signedIn}
+          saved={saved}
+          detailPath={detailPath}
+          exactSourceUrl={exactSourceUrl}
+          className="h-fit rounded-xl border border-border bg-card p-5 lg:hidden"
+        />
         <article className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">{skill.publisher.handle}</span>
@@ -182,6 +191,51 @@ export default async function SkillDetailPage({
             </nav>
           </section>
 
+          <section className="mt-10 border-t border-border pt-8" aria-labelledby="freshness-signals-heading">
+            <h2 id="freshness-signals-heading" className="text-xl font-semibold">Freshness signals</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Recorded signals only. SkillMap does not calculate an automatic fresh or current verdict from elapsed time; stale and incomplete states appear only when the retained evidence says so.
+            </p>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              <FreshnessSignal
+                label="Catalog publication"
+                value={formatDate(skill.currentVersion.publishedAt)}
+                detail={`Recorded for version ${skill.currentVersion.version}.`}
+              />
+              <FreshnessSignal
+                label="Listing record"
+                value={formatDate(skill.updatedAt)}
+                detail="Most recent recorded catalog update for this listing."
+              />
+              <FreshnessSignal
+                label="Provenance evidence"
+                value={humanize(skill.evidence.provenance)}
+                detail="Recorded evidence state for this exact source version."
+              />
+              <FreshnessSignal
+                label="Audit evidence"
+                value={humanize(skill.evidence.audit)}
+                detail="Open the bounded audit page for any retained receipt timestamp."
+              />
+              <FreshnessSignal
+                label="Compatibility evidence"
+                value={humanize(skill.evidence.compatibility)}
+                detail={skill.compatibility.profileVersion
+                  ? `Host profile ${skill.compatibility.profileVersion}.`
+                  : "No host-profile version is attached to this compatibility state."}
+              />
+              <FreshnessSignal
+                label="Grade evidence"
+                value={humanize(skill.currentVersion.grade.state)}
+                detail={skill.currentVersion.grade.invalidatedAt
+                  ? `Invalidated ${formatDate(skill.currentVersion.grade.invalidatedAt)}.`
+                  : skill.currentVersion.grade.receipt
+                    ? `Receipt recorded ${formatDate(skill.currentVersion.grade.receipt.gradedAt)}.`
+                    : "No public grade receipt timestamp is attached to this version."}
+              />
+            </dl>
+          </section>
+
           <section className="mt-10 border-t border-border pt-8">
             <h2 className="text-xl font-semibold">Source and integrity</h2>
             <dl className="mt-4 grid gap-3">
@@ -190,8 +244,6 @@ export default async function SkillDetailPage({
               <SourceRow icon={<FileKey2 />} label="Entrypoint digest" value={skill.source.entrypointContentDigest} mono />
               <SourceRow icon={<ShieldQuestion />} label="Raw source snapshot" value={skill.source.rawSnapshotDigest ?? "Pending canonical receipt"} mono={Boolean(skill.source.rawSnapshotDigest)} />
               <SourceRow icon={<ShieldQuestion />} label="Normalized artifact" value={skill.artifact.normalizedDigest ?? "Pending package pipeline"} mono={Boolean(skill.artifact.normalizedDigest)} />
-              <SourceRow icon={<GitCommitHorizontal />} label="Published" value={formatDate(skill.currentVersion.publishedAt)} />
-              <SourceRow icon={<GitCommitHorizontal />} label="Listing updated" value={formatDate(skill.updatedAt)} />
             </dl>
           </section>
 
@@ -243,39 +295,71 @@ export default async function SkillDetailPage({
           </section>
         </article>
 
-        <aside className="h-fit rounded-xl border border-border bg-card p-5 lg:sticky lg:top-24">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Version {skill.currentVersion.version}</p>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            License: {skill.license.spdxExpression ?? humanize(skill.license.state)} · redistribution: {humanize(skill.license.redistribution)} · artifact: {humanize(skill.artifact.availability)}.
-          </p>
-          {accountUnavailable ? (
-            <p role="status" className="mt-5 rounded-lg border border-border bg-muted px-4 py-3 text-center text-sm font-medium text-muted-foreground">
-              Saved-skill status is temporarily unavailable.
-            </p>
-          ) : signedIn ? (
-            <form action="/account/saved/action" method="post" className="mt-5">
-              <input type="hidden" name="skillId" value={skill.skillId} />
-              <input type="hidden" name="operation" value={saved ? "remove" : "save"} />
-              <input type="hidden" name="returnPath" value={detailPath} />
-              <button type="submit" className="press inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
-                {saved ? <Check className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-                {saved ? "Remove from saved" : "Save skill"}
-              </button>
-            </form>
-          ) : (
-            <Link href={`/sign-in?next=${encodeURIComponent(`/skills/${publisher}/${slug}`)}`} prefetch={false} className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"><Bookmark className="h-4 w-4" /> Sign in to save</Link>
-          )}
-          {exactSourceUrl ? <a href={exactSourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border border-border px-3 py-2 text-center text-sm font-semibold hover:bg-accent">View exact source at commit <ExternalLink className="h-4 w-4 shrink-0" /></a> : null}
-          <a href={skill.source.repositoryUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border border-border px-3 py-2 text-center text-sm font-semibold hover:bg-accent">View repository root <ExternalLink className="h-4 w-4 shrink-0" /></a>
-          <Link href={`/api/v1/skills/${skill.skillId}`} prefetch={false} className="mt-3 block break-all text-center font-mono text-[11px] text-muted-foreground hover:text-foreground">{skill.skillId}</Link>
-        </aside>
+        <SkillActionPanel
+          skill={skill}
+          accountUnavailable={accountUnavailable}
+          signedIn={signedIn}
+          saved={saved}
+          detailPath={detailPath}
+          exactSourceUrl={exactSourceUrl}
+          className="hidden h-fit rounded-xl border border-border bg-card p-5 lg:sticky lg:top-24 lg:block"
+        />
       </div>
     </DetailShell>
   );
 }
 
+type PublicSkillDetail = NonNullable<Awaited<ReturnType<typeof getPublicSkillByRoute>>>;
+
+function SkillActionPanel({
+  skill,
+  accountUnavailable,
+  signedIn,
+  saved,
+  detailPath,
+  exactSourceUrl,
+  className
+}: {
+  skill: PublicSkillDetail;
+  accountUnavailable: boolean;
+  signedIn: boolean;
+  saved: boolean;
+  detailPath: string;
+  exactSourceUrl: string | null;
+  className: string;
+}) {
+  return (
+    <aside data-skill-actions aria-label="Skill version actions" className={className}>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Version {skill.currentVersion.version}</p>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        License: {skill.license.spdxExpression ?? humanize(skill.license.state)} · redistribution: {humanize(skill.license.redistribution)} · artifact: {humanize(skill.artifact.availability)}.
+      </p>
+      {accountUnavailable ? (
+        <p role="status" className="mt-5 rounded-lg border border-border bg-muted px-4 py-3 text-center text-sm font-medium text-muted-foreground">
+          Saved-skill status is temporarily unavailable.
+        </p>
+      ) : signedIn ? (
+        <form action="/account/saved/action" method="post" className="mt-5">
+          <input type="hidden" name="skillId" value={skill.skillId} />
+          <input type="hidden" name="operation" value={saved ? "remove" : "save"} />
+          <input type="hidden" name="returnPath" value={detailPath} />
+          <button type="submit" className="press inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
+            {saved ? <Check className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+            {saved ? "Remove from saved" : "Save skill"}
+          </button>
+        </form>
+      ) : (
+        <Link href={`/sign-in?next=${encodeURIComponent(detailPath)}`} prefetch={false} className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"><Bookmark className="h-4 w-4" /> Sign in to save</Link>
+      )}
+      {exactSourceUrl ? <a href={exactSourceUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border border-border px-3 py-2 text-center text-sm font-semibold hover:bg-accent">View exact source at commit <ExternalLink className="h-4 w-4 shrink-0" /></a> : null}
+      <a href={skill.source.repositoryUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border border-border px-3 py-2 text-center text-sm font-semibold hover:bg-accent">View repository root <ExternalLink className="h-4 w-4 shrink-0" /></a>
+      <Link href={`/api/v1/skills/${skill.skillId}`} prefetch={false} className="mt-3 block break-all text-center font-mono text-[11px] text-muted-foreground hover:text-foreground">{skill.skillId}</Link>
+    </aside>
+  );
+}
+
 function DetailShell({ children, accountState }: { children: React.ReactNode; accountState?: HostedAccountState }) {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader accountState={accountState} /><section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">{children}</section></main>;
+  return <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground"><CatalogHeader accountState={accountState} /><section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">{children}</section></main>;
 }
 
 function TrustStatePill({ label, state }: { label: string; state: string }) {
@@ -291,6 +375,18 @@ function TrustStatePill({ label, state }: { label: string; state: string }) {
 
 function EvidenceCell({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs font-semibold text-muted-foreground">{label}</p><p className="mt-2 text-sm font-semibold text-foreground">{humanize(value)}</p></div>;
+}
+
+function FreshnessSignal({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-card p-4">
+      <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+      <dd className="mt-2">
+        <span className="block text-sm font-semibold text-foreground">{value}</span>
+        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{detail}</span>
+      </dd>
+    </div>
+  );
 }
 
 function SourceRow({ icon, label, value, mono = false }: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {

@@ -5,7 +5,7 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
-select plan(96);
+select plan(97);
 
 select is(
   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -52,13 +52,18 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef and p.proname not in (
-      'claim_skill_submission', 'complete_skill_submission', 'requeue_skill_submission',
+      'peek_skill_submission_candidate', 'claim_skill_submission',
+      'defer_skill_submission_provider_limit', 'complete_skill_submission', 'requeue_skill_submission',
       'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
       'list_skill_submission_collisions', 'review_skill_submission_collisions',
       'record_skill_submission_publisher_authorization',
-      'record_skill_submission_license_evidence'
+      'approve_operator_action',
+      'record_skill_submission_license_evidence',
+      'get_skill_submission_queue_summary',
+      'list_skill_submission_operator_queue',
+      'get_skill_submission_operator_detail'
     )),
     0::bigint,
     'no security-definer function exists outside the explicit hosted operator allowlist'
@@ -74,7 +79,7 @@ select ok(has_table_privilege('anon', 'api.catalog_skills', 'select'), 'anonymou
 select ok(has_table_privilege('authenticated', 'api.catalog_skills', 'select'), 'authenticated users can select the public catalog');
 select ok(not has_table_privilege('anon', 'api.profiles', 'select'), 'anonymous users cannot read profiles');
 select ok(has_table_privilege('authenticated', 'api.profiles', 'select'), 'authenticated users can select profiles under RLS');
-select ok(has_table_privilege('authenticated', 'api.profiles', 'insert'), 'authenticated users can insert their own profile');
+select ok(has_column_privilege('authenticated', 'api.profiles', 'user_id', 'insert'), 'authenticated users can insert their own profile identity');
 select ok(not has_table_privilege('authenticated', 'api.profiles', 'update'), 'profiles cannot be updated in Phase 1');
 select ok(not has_table_privilege('authenticated', 'api.profiles', 'delete'), 'profiles cannot be deleted in Phase 1');
 select ok(has_table_privilege('authenticated', 'api.saved_skills', 'select'), 'authenticated users can select saved skills under RLS');
@@ -296,6 +301,14 @@ select throws_ok(
 select lives_ok(
   $$insert into api.profiles (user_id) values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1')$$,
   'user A can insert their own profile'
+);
+select throws_ok(
+  $$insert into api.profiles (user_id, created_at) values (
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '2020-01-01T00:00:00Z'
+  )$$,
+  42501,
+  null,
+  'authenticated profiles cannot forge their server-owned creation time'
 );
 select is((select count(*) from api.profiles), 1::bigint, 'user A can read their own profile');
 select throws_ok(

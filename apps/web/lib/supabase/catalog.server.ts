@@ -3,7 +3,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { createBoundedCatalogFetch } from "@/lib/security/bounded-fetch";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 
 export function createPublicCatalogClient() {
   const { url, publishableKey } = getPublicSupabaseConfig();

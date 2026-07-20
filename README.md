@@ -4,7 +4,25 @@ SkillMap is a local-first SkillOps CLI for people with too many agent skills. It
 
 The repository now also contains a locally validated hosted trust-alpha candidate: a Supabase-backed public catalog, version-bound evidence contracts, GitHub OAuth integration points, free saved-skill accounts, exact-commit submissions, a public-only inert audit worker, provisional grading, operator review/publication RPCs, account export/deletion, and metadata-only catalog publication. These paths are tested against local Supabase. Any remote alpha state must be proven by an exact-commit deployment receipt in the implementation ledger; this README does not claim public release or production readiness.
 
-Status: experimental alpha moving toward v1. The current release is useful for local inventory, doctoring, native-agent policy curation, route-quality dogfooding, source provenance experiments, and controlled Codex hook dry-runs. It does not mutate global skill roots and does not install hooks unless you explicitly run a hook install command.
+**Start here:** [PROJECT_STATUS.md](https://github.com/0x3-team/skillmap/blob/main/PROJECT_STATUS.md) is the concise map of the
+canonical source, active MCP candidate, checkpoint/archive tags, deployment
+truth, and preserved branch history.
+
+| Surface | Current truth |
+| --- | --- |
+| Canonical source | Moving branch `main`; accepted product-source checkpoint `checkpoint/2026-07-15/product-alpha-source` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |
+| Development package | `skillmap@0.1.0`; not published |
+| Hosted product | Locally validated source; not provisioned or deployed |
+| Official MCP | Candidate `fee340a2e4a86e13421696355fe9480e68285090` in draft [PR #21](https://github.com/0x3-team/skillmap/pull/21); not merged or released |
+| Launch | `NO-GO`; no public users, package release, deployment, live OAuth, or indexing is claimed |
+
+Status: experimental source alpha moving toward v1. The current development
+build is useful for local inventory, doctoring, native-agent policy curation,
+route-quality dogfooding, source provenance experiments, and controlled Codex
+hook dry-runs. It does not mutate global skill roots or install Git hooks. The
+optional passive Codex route-hint hook is installed only by its explicit install
+command. This repository also tracks reviewed project-level Claude and Codex
+validation hooks, which supported clients may enable after repository trust.
 
 ## Why this exists
 
@@ -208,7 +226,7 @@ npm run preflight:public-alpha -- \
   --output /tmp/skillmap-release-evidence/exact-candidate.json
 ```
 
-This command checks the tracked secret boundary plus the root, web, dependency, package, consumer-install, and release-path gates. The separate destructive-explicit recovery command and the browser/live gates remain in the [free public alpha operations runbook](docs/operations/free-public-alpha-runbook.md). A passing local receipt still records `NO_GO` for launch until push, deployment, live OAuth, encrypted off-host restore, initial-corpus, pilot, indexing, and policy gates are proven.
+This command checks the tracked secret boundary plus the root, web, dependency, package, consumer-install, and release-path gates. The separate destructive-explicit recovery command and the browser/live gates remain in the [free public alpha operations runbook](docs/operations/free-public-alpha-runbook.md). The baseline source-integration receipt is already pushed and merged; any later Unreleased candidate requires its own source-integration receipt. A passing local receipt still records `NO_GO` for launch until deployment, live OAuth, encrypted off-host restore, initial-corpus, pilot, indexing, and policy gates are proven.
 
 The Next.js surface supports both the real Supabase catalog/account spine and the clearly labeled fixture dashboard with optional verified redacted local snapshots. The packaged local application is instead served by `skillmap dashboard` from `assets/local-app/v1` and uses the same-origin loopback API for live routes, redacted feedback, approved-root onboarding, state migration/recovery, and allowlisted jobs. Billing, entitlements, team sync, private-source ingestion, package mirroring/loading, remote worker scheduling, and current-letter behavioral grading are not implemented or deployed. Browser-initiated mutation of local skill-root contents remains forbidden.
 

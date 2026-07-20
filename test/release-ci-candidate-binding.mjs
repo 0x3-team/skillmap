@@ -9,6 +9,7 @@ const workflowFile = path.join(repo, '.github', 'workflows', 'ci.yml');
 const source = readFileSync(workflowFile, 'utf8');
 const workflow = YAML.parse(source);
 const jobs = workflow.jobs;
+const pinnedDownloadArtifact = 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093';
 const verifierId = 'verify_candidate';
 const tarballBinding = `\${{ steps.${verifierId}.outputs.tarball }}`;
 const candidateCommands = [
@@ -24,7 +25,7 @@ test('every release-CI candidate consumer is explicitly bound to its verified re
 
   for (const [jobName, job] of Object.entries(jobs)) {
     const steps = Array.isArray(job.steps) ? job.steps : [];
-    const downloadIndex = steps.findIndex(step => step.uses === 'actions/download-artifact@v4'
+    const downloadIndex = steps.findIndex(step => step.uses === pinnedDownloadArtifact
       && step.with?.name === 'skillmap-package-candidate');
     if (downloadIndex >= 0) downloadedCandidateJobs.push(jobName);
 
@@ -75,6 +76,8 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   assert.match(source, /supabase start(?:\s|$)/, 'hosted browser CI does not start the complete disposable stack');
   assert.match(source, /supabase db reset --local/, 'hosted browser CI does not rebuild from migrations and seed');
   assert.match(source, /supabase test db --local/, 'hosted browser CI omits database authority tests');
+  assert.match(source, /command -v psql/, 'hosted browser CI does not install its PostgreSQL client dependency when absent');
+  assert.match(source, /psql --version/, 'hosted browser CI does not verify the PostgreSQL client before running fixtures');
   assert.match(source, /npm --prefix apps\/web run build/, 'hosted browser CI does not build the exact web source');
   assert.match(source, /npm run test:hosted-gates/, 'hosted browser CI does not execute the composed hosted gate');
   const browserInstall = steps.find(step => /playwright install/.test(step.run ?? ''))?.run ?? '';
@@ -91,6 +94,22 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     assert.match(orchestrator, new RegExp(`"${browser}"`), `composed hosted gate omits ${browser}`);
   }
+  const authSmoke = readFileSync(path.join(repo, 'apps', 'web', 'scripts', 'hosted-auth-browser-smoke.mjs'), 'utf8');
+  const hydrationStage = authSmoke.indexOf('smokeStage = "logout-landing-hydration"');
+  const signedOutStage = authSmoke.indexOf('smokeStage = "signed-out-account"', hydrationStage);
+  assert.ok(hydrationStage >= 0 && signedOutStage > hydrationStage,
+    'authenticated smoke does not settle the post-logout client route before its signed-out redirect probe');
+  const postLogoutHydration = authSmoke.slice(hydrationStage, signedOutStage);
+  assert.match(postLogoutHydration, /openLandingCommandPalette\(page\)/,
+    'post-logout barrier does not prove the landing client bundle is interactive');
+  assert.match(authSmoke, /getByRole\("button", \{ name: "Open command palette" \}\)/,
+    'landing hydration probe does not exercise a client-only control');
+  assert.match(authSmoke, /getByRole\("dialog", \{ name: "Command palette" \}\)/,
+    'post-logout barrier does not observe the client-only interaction result');
+  assert.match(authSmoke, /for \(let attempt = 0; attempt < 5; attempt \+= 1\)/,
+    'landing hydration probe does not retry a pre-hydration click within a fixed bound');
+  assert.match(postLogoutHydration, /waitFor\(\{ state: "hidden" \}\)/,
+    'post-logout barrier leaves its client interaction unsettled before the next navigation');
   assert.doesNotMatch(orchestrator, /env:\s*\{\s*\.\.\.process\.env/s,
     'hosted web server inherits the operator/test process environment instead of an explicit public allowlist');
   assert.match(orchestrator, /startWebServer\("public-alpha", "public"\)/,

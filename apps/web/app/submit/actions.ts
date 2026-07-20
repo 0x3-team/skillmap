@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import {
   parseSkillSubmissionForm,
   SubmissionValidationError,
@@ -20,6 +20,9 @@ import {
 
 export type SubmissionActionState =
   | { status: "invalid"; field: SubmissionField; message: string }
+  | { status: "auth-unavailable"; message: string }
+  | { status: "idempotency-conflict"; message: string }
+  | { status: "quota"; message: string }
   | { status: "service-unavailable"; message: string };
 
 export async function submitSkill(formData: FormData): Promise<SubmissionActionState> {
@@ -30,12 +33,17 @@ export async function submitSkill(formData: FormData): Promise<SubmissionActionS
     if (error instanceof SubmissionValidationError) {
       return { status: "invalid", field: error.field, message: error.message };
     }
-    redirect(submitStatusPath("service-unavailable"));
+    return serviceUnavailableState();
   }
 
   const context = await submissionActionContext();
   if (context.state === "signed-out") redirect("/sign-in?next=/submit");
-  if (context.state === "unavailable") redirect(submitStatusPath("auth-unavailable"));
+  if (context.state === "unavailable") {
+    return {
+      status: "auth-unavailable",
+      message: "Authentication could not be verified. Your entries and request ID remain in this form; retry after the service recovers."
+    };
+  }
 
   const { error } = await context.supabase
     .from("skill_submissions")
@@ -54,18 +62,26 @@ export async function submitSkill(formData: FormData): Promise<SubmissionActionS
   if (error) {
     if (error.code === "23505") {
       const { submissionId: existingId, error: lookupError } = await findSubmissionId(context.supabase, submission);
-      if (lookupError) redirect(submitStatusPath("service-unavailable"));
+      if (lookupError) return serviceUnavailableState();
       if (typeof existingId === "string" && SUBMISSION_PUBLIC_ID.test(existingId)) {
         redirect(submitStatusPath("duplicate", { submissionId: existingId }));
       }
-      redirect(submitStatusPath("idempotency-conflict"));
+      return {
+        status: "idempotency-conflict",
+        message: "No second row was created. Reload this form to generate a new request ID, then verify the preserved source coordinates before retrying."
+      };
     }
-    if (error.code === "P0001") redirect(submitStatusPath("quota"));
-    redirect(submitStatusPath("service-unavailable"));
+    if (error.code === "P0001") {
+      return {
+        status: "quota",
+        message: "This account has 3 active submissions or already created 10 submissions in the rolling 24-hour window. No new row was created; your entries remain available to retry later."
+      };
+    }
+    return serviceUnavailableState();
   }
 
   const { submissionId, error: lookupError } = await findSubmissionId(context.supabase, submission);
-  if (lookupError || !submissionId || !SUBMISSION_PUBLIC_ID.test(submissionId)) redirect(submitStatusPath("service-unavailable"));
+  if (lookupError || !submissionId || !SUBMISSION_PUBLIC_ID.test(submissionId)) return serviceUnavailableState();
   revalidatePath("/account/submissions");
   redirect(submissionListStatusPath("queued", submissionId));
 }
@@ -79,6 +95,13 @@ export async function submitSkill(formData: FormData): Promise<SubmissionActionS
 export async function submitSkillProgressive(formData: FormData): Promise<void> {
   const result = await submitSkill(formData);
   redirect(submitStatusPath(result.status, result.status === "invalid" ? { field: result.field } : undefined));
+}
+
+function serviceUnavailableState(): SubmissionActionState {
+  return {
+    status: "service-unavailable",
+    message: "The request could not be confirmed. Your entries and request ID remain in this form so you can retry safely."
+  };
 }
 
 async function findSubmissionId(

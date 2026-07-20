@@ -9,6 +9,8 @@
   "scripts": {
     "audit:dry-run": "node src/audit-once.mjs",
     "queue:process-once": "node src/process-once.mjs",
+    "queue:list": "node src/submission-queue.mjs",
+    "queue:inspect": "node src/submission-detail.mjs",
     "queue:dead-letter": "node src/dead-letter.mjs",
     "queue:publish": "node src/publish-once.mjs",
     "queue:requeue": "node src/requeue.mjs",
@@ -17,6 +19,7 @@
     "publisher:authorization": "node src/authorization.mjs",
     "catalog:lifecycle": "node src/lifecycle.mjs",
     "reports:queue": "node src/report-queue.mjs",
-    "reports:disposition": "node src/report-disposition.mjs"
+    "reports:disposition": "node src/report-disposition.mjs",
+    "operations:check": "node src/operations-check.mjs"
   }
 }

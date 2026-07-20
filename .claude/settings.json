@@ -9,17 +9,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash(git commit*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "cd ${CLAUDE_PROJECT_DIR:-.} \u0026\u0026 npm ci",
-            "timeout": 60
-          },
-          {
-            "type": "command",
-            "command": "cd ${CLAUDE_PROJECT_DIR:-.} \u0026\u0026 npm test",
-            "timeout": 300
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/hooks/pre-commit-gate.mjs\"",
+            "timeout": 390
           }
         ]
       }
@@ -29,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "chunk validate",
+            "command": "cd -- \"${CLAUDE_PROJECT_DIR:-.}\" && chunk validate",
             "timeout": 600
           }
         ]

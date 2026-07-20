@@ -3,8 +3,13 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { canonicalDigest } from './operator-receipts.mjs';
-import { createSupabaseRpcClientFromEnvironment } from './supabase-rpc.mjs';
+import {
+  acceptOperatorMode,
+  finalizeOperatorMode,
+  runDualControlledOperatorAction
+} from './operator-dual-control.mjs';
 
 const ALLOWED_SPDX = new Set([
   '0BSD', 'AGPL-3.0-only', 'AGPL-3.0-or-later', 'Apache-2.0', 'BSD-2-Clause',
@@ -18,65 +23,131 @@ const METADATA_KEYS = [
   'summary', 'description', 'capabilities', 'licenseState', 'spdxExpression',
   'permissionScripts', 'permissionNetwork', 'permissionTools'
 ];
+const PUBLISHER_ID = /^pub_[0-9a-f]{32}$/;
+const SKILL_ID = /^skl_[0-9a-f]{32}$/;
+const VERSION_ID = /^skv_[0-9a-f]{32}$/;
 
-try {
-  const options = parseArguments(process.argv.slice(2));
-  if (options.help) {
-    process.stdout.write(help());
-    process.exit(0);
-  }
-  if (!options.execute) throw new Error('Refusing publication without the explicit --execute flag.');
-  const metadata = validateMetadata(JSON.parse(await readFile(path.resolve(options.metadata), 'utf8')));
+export function buildPublicationAction(options, metadata) {
   const publicationDigest = canonicalDigest({
     kind: 'skillmap.hosted-publication-request', schemaVersion: 1,
-    submissionId: options.submissionId, metadata
+    submissionId: options.submissionId, metadata, operationId: options.operationId
   });
-  const rpc = createSupabaseRpcClientFromEnvironment();
-  const result = await rpc.call('publish_skill_submission', {
-    p_submission_id: options.submissionId,
-    p_publication_digest: publicationDigest,
-    p_publisher_handle: metadata.publisherHandle,
-    p_publisher_display_name: metadata.publisherDisplayName,
-    p_skill_slug: metadata.skillSlug,
-    p_skill_display_name: metadata.skillDisplayName,
-    p_summary: metadata.summary,
-    p_description: metadata.description,
-    p_capabilities: metadata.capabilities,
-    p_license_state: metadata.licenseState,
-    p_spdx_expression: metadata.spdxExpression,
-    p_permission_scripts: metadata.permissionScripts,
-    p_permission_network: metadata.permissionNetwork,
-    p_permission_tools: metadata.permissionTools
+  return Object.freeze({
+    mode: options.mode,
+    approvalId: options.approvalId,
+    actionKind: 'submission.publish',
+    subjectType: 'submission',
+    subjectId: options.submissionId,
+    actionPayload: Object.freeze({
+      schemaVersion: 1,
+      submissionId: options.submissionId,
+      publisherHandle: metadata.publisherHandle,
+      publisherDisplayName: metadata.publisherDisplayName,
+      skillSlug: metadata.skillSlug,
+      skillDisplayName: metadata.skillDisplayName,
+      summary: metadata.summary,
+      description: metadata.description,
+      capabilities: metadata.capabilities,
+      licenseState: metadata.licenseState,
+      spdxExpression: metadata.spdxExpression,
+      permissionScripts: metadata.permissionScripts,
+      permissionNetwork: metadata.permissionNetwork,
+      permissionTools: metadata.permissionTools
+    }),
+    actionDigest: publicationDigest,
+    operationId: options.operationId,
+    businessRpc: 'publish_skill_submission',
+    businessParameters: Object.freeze({
+      p_submission_id: options.submissionId,
+      p_publication_digest: publicationDigest,
+      p_publisher_handle: metadata.publisherHandle,
+      p_publisher_display_name: metadata.publisherDisplayName,
+      p_skill_slug: metadata.skillSlug,
+      p_skill_display_name: metadata.skillDisplayName,
+      p_summary: metadata.summary,
+      p_description: metadata.description,
+      p_capabilities: metadata.capabilities,
+      p_license_state: metadata.licenseState,
+      p_spdx_expression: metadata.spdxExpression,
+      p_permission_scripts: metadata.permissionScripts,
+      p_permission_network: metadata.permissionNetwork,
+      p_permission_tools: metadata.permissionTools
+    })
   });
-  process.stdout.write(`${JSON.stringify({ result: 'published', mutation: true, publicationDigest, publication: result })}\n`);
-} catch (error) {
-  process.stderr.write(`SkillMap hosted publication failed: ${safeError(error)}\n`);
-  process.exitCode = 1;
 }
 
-function parseArguments(args) {
-  let execute = false;
+export async function runPublication(options, dependencies = {}) {
+  const read = dependencies.readFile ?? readFile;
+  const metadata = validateMetadata(JSON.parse(await read(path.resolve(options.metadata), 'utf8')));
+  const action = buildPublicationAction(options, metadata);
+  const outcome = await runDualControlledOperatorAction(action, dependencies);
+  if (outcome.mode === 'approve') {
+    return {
+      result: 'operator-action-approved', mutation: true,
+      actionKind: action.actionKind, actionDigest: action.actionDigest,
+      approval: outcome.approval
+    };
+  }
+  const publication = validatePublicationResult(outcome.result, options);
+  return {
+    result: 'published', mutation: true,
+    publicationDigest: action.actionDigest, publication
+  };
+}
+
+export function validatePublicationResult(result, options) {
+  if (!Array.isArray(result) || result.length !== 1) {
+    throw new Error('Publication RPC returned an invalid publication projection.');
+  }
+  const row = result[0];
+  if (!row || typeof row !== 'object' || Array.isArray(row)
+    || Object.keys(row).sort().join(',') !== 'publisher_id,skill_id,submission_id,submission_state,version_id'
+    || !/^sub_[0-9a-f]{32}$/.test(options?.submissionId ?? '')
+    || row.submission_id !== options.submissionId
+    || !PUBLISHER_ID.test(row.publisher_id ?? '')
+    || !SKILL_ID.test(row.skill_id ?? '')
+    || !VERSION_ID.test(row.version_id ?? '')
+    || row.submission_state !== 'published') {
+    throw new Error('Publication RPC returned an invalid publication projection.');
+  }
+  return result;
+}
+
+export function parsePublishArguments(args) {
+  let mode = null;
   const values = Object.create(null);
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === '--help' || argument === '-h') return { help: true };
-    if (argument === '--execute') {
-      if (execute) throw new Error('--execute may be supplied only once.');
-      execute = true;
+    const nextMode = acceptOperatorMode(argument, mode);
+    if (nextMode !== null) {
+      mode = nextMode;
       continue;
     }
-    if (!['--submission-id', '--metadata'].includes(argument)) throw new Error(`Unknown option: ${argument}`);
+    if (!['--submission-id', '--metadata', '--operation-id', '--approval-id'].includes(argument)) {
+      throw new Error('Unknown option.');
+    }
     if (values[argument] !== undefined) throw new Error(`Option may be supplied only once: ${argument}`);
     const value = args[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`Option requires a value: ${argument}`);
     values[argument] = value;
     index += 1;
   }
+  const operator = finalizeOperatorMode(mode, values['--approval-id']);
   if (!/^sub_[0-9a-f]{32}$/.test(values['--submission-id'] ?? '')) throw new Error('--submission-id is required and invalid.');
   if (!values['--metadata'] || values['--metadata'].length > 1024 || /[\u0000-\u001f\u007f]/.test(values['--metadata'])) {
     throw new Error('--metadata is required and must be a bounded local JSON path.');
   }
-  return { help: false, execute, submissionId: values['--submission-id'], metadata: values['--metadata'] };
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(values['--operation-id'] ?? '')) {
+    throw new Error('--operation-id is required and must be one canonical UUID.');
+  }
+  return {
+    help: false,
+    ...operator,
+    submissionId: values['--submission-id'],
+    metadata: values['--metadata'],
+    operationId: values['--operation-id']
+  };
 }
 
 export function validateMetadata(value) {
@@ -127,6 +198,27 @@ function safeError(error) {
 function help() {
   return `SkillMap hosted publication\n\n` +
     `Publish one accepted receipt-backed submission as metadata only.\n` +
-    `Mutation requires --execute and server-only Supabase operator environment variables.\n\n` +
-    `Usage: node apps/worker/src/publish-once.mjs --execute --submission-id sub_... --metadata reviewed-publication.json\n`;
+    `Approval and execution require distinct SKILLMAP_OPERATOR_CREDENTIAL values. ` +
+    `Use exactly one mode; --approve records only the exact envelope, and --execute requires --approval-id.\n\n` +
+    `Approve: node apps/worker/src/publish-once.mjs --approve --submission-id sub_... ` +
+    `--metadata reviewed-publication.json --operation-id UUID\n` +
+    `Execute: repeat the exact action with --execute --approval-id opa_...\n`;
+}
+
+async function main(args) {
+  try {
+    const options = parsePublishArguments(args);
+    if (options.help) {
+      process.stdout.write(help());
+      return;
+    }
+    process.stdout.write(`${JSON.stringify(await runPublication(options))}\n`);
+  } catch (error) {
+    process.stderr.write(`SkillMap hosted publication failed: ${safeError(error)}\n`);
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main(process.argv.slice(2));
 }

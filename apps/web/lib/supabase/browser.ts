@@ -2,7 +2,7 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 import { getPublicSupabaseConfig } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 
 let browserClient: ReturnType<typeof createBrowserClient<Database>> | undefined;
 

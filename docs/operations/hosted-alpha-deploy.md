@@ -37,7 +37,8 @@ The web deployment receives only:
 - `SKILLMAP_RELEASE_STAGE=private-alpha`
 - `SKILLMAP_INDEXING_MODE=private-alpha`
 - `SKILLMAP_SUPPORT_URL` only after the owner approves a reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
-- optional bounded rate-limit tuning values documented by the application
+
+The web process uses the reviewed fixed private-alpha per-instance catalog-read guard (60 requests per 60 seconds and at most 5,000 live keys). It has no environment tuning surface in this release and does not replace the required provider-global public-alpha limiter.
 
 The GitHub OAuth client secret belongs only in Supabase Auth. Store database and backup credentials in the operator password manager and a root-only runtime secret file when automation is approved.
 
@@ -90,13 +91,13 @@ From a clean worktree at the reviewed `main` commit:
 ```bash
 supabase migration list --linked
 supabase db push --linked --dry-run
-supabase db push --linked --include-seed
+supabase db push --linked
 supabase gen types typescript --linked --schema api \
   | sed -e '${/^$/d;}' > /tmp/skillmap-alpha-database.types.ts
 cmp /tmp/skillmap-alpha-database.types.ts apps/web/lib/supabase/database.types.ts
 ```
 
-Then run the exact production deployment command recorded in the provider decision record from `apps/web`. `--include-seed` is a one-time alpha bootstrap. Later migrations must omit it unless a reviewed reseed is explicitly intended. Record the database project ref, migration versions, deployed Git commit, web deployment ID/URL, provider/plan, and operator in the implementation ledger without recording secrets.
+Then run the exact production deployment command recorded in the provider decision record from `apps/web`. The checked-in `supabase/seed.sql` is local development and test data only and must never be applied to a hosted project. Its example repository is not an anonymously readable production source, so it cannot satisfy the public-source contract. Production corpus entries must instead move through authenticated account submission, the current worker and evidence gates, license and collision review, publisher authorization, and distinct approver/executor dual-control publication. Public launch remains blocked until 20 owner-authorized listings resolve to their exact anonymous public sources and pass the corpus acceptance receipt below. Record the database project ref, migration versions, deployed Git commit, web deployment ID/URL, provider/plan, and operator in the implementation ledger without recording secrets.
 
 ## Backup and restore gate
 
@@ -105,7 +106,7 @@ Before inviting any external user:
 1. Produce a schema and data dump into a root-only temporary directory outside the repository.
 2. Encrypt the dump with an operator-owned key and copy it to an off-host destination.
 3. Restore into an isolated disposable Postgres/Supabase environment.
-4. Verify migration history, the three approved first-party rows, account isolation, and `pg_restore`/SQL integrity.
+4. Verify migration history, the expected approved production-corpus row counts and digests, account isolation, and `pg_restore`/SQL integrity.
 5. Delete unencrypted temporary material and record only checksums, timestamps, row counts, and the restore result.
 
 Free Supabase has no managed backup guarantee and may pause after inactivity. An unexercised export is not a backup receipt.
@@ -114,7 +115,8 @@ Free Supabase has no managed backup guarantee and may pause after inactivity. An
 
 Capture evidence against the exact deployment commit:
 
-- `/`, `/skills`, and each first-party detail return expected content with no fixture fallback
+- `/`, `/skills`, and each reviewed public-corpus detail return expected content with no fixture fallback
+- `/api/v1/health` returns the identifier-free `skillmap-health/v1` readiness projection, uses `503` for incomplete hosted configuration, and carries browser/CDN no-store headers
 - `/api/v1/skills` returns a contract-valid list, rejects malformed cursor/limit input, emits no-store headers, and returns `429` plus `Retry-After` when the alpha limit is exceeded
 - `robots.txt`, metadata, and `X-Robots-Tag` block indexing during private alpha
 - CSP uses a per-request nonce, keeps stylesheet elements nonce-restricted, permits inline style attributes only for the reviewed React/Motion UI boundary, and forbids framing, objects, and foreign base URLs
@@ -126,7 +128,7 @@ Capture evidence against the exact deployment commit:
 - an author can submit an authorized public GitHub `SKILL.md` at one immutable full commit; an invalid path preserves the safe form values and creates no row
 - the server-only worker can claim the exact queued row, fetch inert bounded source bytes, emit audit and provisional-grade receipts, and never expose its service credential to the web process
 - an operator can review and publish the receipt-bound metadata; the public detail, audit, and grade routes show the exact current version, findings, safe reason codes, and a visibly letterless provisional score
-- a second account can submit a suspicious-listing report, see only its own immutable report history, and receive a bounded operator disposition without directly changing catalog state
+- a second account can submit a suspicious-listing report and see only its own immutable report history; a no-action disposition leaves catalog state unchanged, while a confirmed disposition atomically quarantines or revokes the exact reported version and retains its original enforcement outcome for replay
 - deprecate, quarantine, revoke, and receipt-backed restore actions preserve public lifecycle history and cannot be performed by the browser or ordinary authenticated role
 - withdrawing a queued owner submission works, and deleting an account removes its private rows plus any derived public projection covered by the deletion contract
 - auth cookies are `Secure`, `HttpOnly`, and appropriately `SameSite`
@@ -143,7 +145,7 @@ Do not change either indexing variable until all live acceptance items pass, the
 ## Rollback and incident response
 
 - Web-only defect: run the exact provider rollback command recorded before deployment against the prior immutable deployment ID, verify the restored origin, then inspect the bad deployment logs.
-- Pre-user database defect: delete and recreate the isolated alpha project, reapply the reviewed migration and seed, and repeat the restore and live gates.
+- Pre-user database defect: delete and recreate the isolated alpha project, reapply only the reviewed migrations, and restore an approved production backup or repopulate the owner-authorized corpus through the normal authenticated submission, current worker/evidence, review, authorization, and dual-control publication path. Never apply the checked-in local seed. Repeat the restore and live gates.
 - Post-user database defect: stop invites and mutations, preserve evidence, export a backup, and forward-fix with a reviewed migration. Do not run an ad hoc destructive down migration.
 - OAuth compromise: disable the GitHub provider, rotate the GitHub client secret in Supabase, revoke affected sessions, and verify callbacks before re-enabling.
 - Suspected data or secret exposure: disable the deployment/provider, rotate affected credentials, preserve logs, assess the exposed boundary, and document the incident before restoring service.

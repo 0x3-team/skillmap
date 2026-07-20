@@ -81,7 +81,10 @@ export function sanitizeSafeMessage(message: string): string {
 
 export function containsSensitiveText(value: string): boolean {
   return /\b(?:Bearer|token|secret|password|private[ -]?key|api[ _-]?key)\b/i.test(value)
-    || /-----BEGIN [A-Z ]*PRIVATE KEY-----/i.test(value);
+    || /-----BEGIN [A-Z ]*PRIVATE KEY-----/i.test(value)
+    || /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value)
+    || /\b(?:set-cookie|cookie)\s*:/i.test(value)
+    || /\b(?:session|sessionid|session_id)\s*=/i.test(value);
 }
 
 export function containsFilesystemLocation(value: string): boolean {

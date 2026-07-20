@@ -10,7 +10,7 @@ import { parseSkillReportForm, ReportValidationError, type ReportField } from "@
 import { createReportFlash, REPORT_FLASH_COOKIE, serializeReportFlash } from "@/lib/reports/flash";
 import { REPORT_PUBLIC_ID, reportStatusPath, type ReportSubmitStatus } from "@/lib/reports/status";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export interface ReportActionState {
@@ -45,7 +45,14 @@ export async function reportSuspiciousListing(formData: FormData): Promise<Repor
 
   if (error) {
     if (error.code === "23505") {
-      const existingId = await findReportId(context.supabase, report);
+      // Both the owner request UUID and the partial queued-target index use
+      // 23505. Resolve the request UUID first: an exact payload is an idempotent
+      // retry, while reuse for a different payload fails closed. Only a request
+      // UUID with no owner row can be a queued-target conflict.
+      const replay = await findReportByRequestId(context.supabase, report.idempotency_key);
+      if (replay && !reportPayloadMatches(replay, report)) return { status: "service-unavailable" };
+      const existingId = replay?.reportId
+        ?? await findQueuedReportForTarget(context.supabase, report);
       if (!existingId) return { status: "service-unavailable" };
       return { status: "duplicate", reportId: existingId };
     }
@@ -56,10 +63,10 @@ export async function reportSuspiciousListing(formData: FormData): Promise<Repor
     return { status: "service-unavailable" };
   }
 
-  const reportId = await findReportId(context.supabase, report);
-  if (!reportId) return { status: "service-unavailable" };
+  const inserted = await findReportByRequestId(context.supabase, report.idempotency_key);
+  if (!inserted || !reportPayloadMatches(inserted, report)) return { status: "service-unavailable" };
   revalidatePath("/account/reports");
-  redirect(reportStatusPath(report.returnPath, "queued", { reportId }));
+  redirect(reportStatusPath(report.returnPath, "queued", { reportId: inserted.reportId }));
 }
 
 export async function reportSuspiciousListingProgressive(formData: FormData): Promise<void> {
@@ -78,7 +85,48 @@ export async function reportSuspiciousListingProgressive(formData: FormData): Pr
   redirect(`${flash.returnPath}?reportFlash=${encodeURIComponent(token)}#report-listing`);
 }
 
-async function findReportId(
+interface OwnedReportRequest {
+  reportId: string;
+  skillId: string;
+  versionId: string;
+  category: string;
+  message: string;
+}
+
+async function findReportByRequestId(
+  supabase: SupabaseClient<Database>,
+  requestId: string
+): Promise<OwnedReportRequest | null> {
+  const { data, error } = await supabase
+    .from("my_skill_reports")
+    .select("report_id,skill_id,version_id,category,message")
+    .eq("idempotency_key", requestId)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data
+    || typeof data.report_id !== "string" || !REPORT_PUBLIC_ID.test(data.report_id)
+    || typeof data.skill_id !== "string" || typeof data.version_id !== "string"
+    || typeof data.category !== "string" || typeof data.message !== "string") return null;
+  return {
+    reportId: data.report_id,
+    skillId: data.skill_id,
+    versionId: data.version_id,
+    category: data.category,
+    message: data.message
+  };
+}
+
+function reportPayloadMatches(
+  existing: OwnedReportRequest,
+  report: ReturnType<typeof parseSkillReportForm>
+): boolean {
+  return existing.skillId === report.skill_id
+    && existing.versionId === report.version_id
+    && existing.category === report.category
+    && existing.message === report.message;
+}
+
+async function findQueuedReportForTarget(
   supabase: SupabaseClient<Database>,
   report: ReturnType<typeof parseSkillReportForm>
 ): Promise<string | null> {
@@ -88,7 +136,7 @@ async function findReportId(
     .eq("skill_id", report.skill_id)
     .eq("version_id", report.version_id)
     .eq("category", report.category)
-    .eq("message", report.message)
+    .eq("state", "queued")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

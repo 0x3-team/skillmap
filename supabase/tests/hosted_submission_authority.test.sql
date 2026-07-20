@@ -218,7 +218,7 @@ select lives_ok(
   'a second immutable source can be queued independently'
 );
 select throws_ok(
-  $$select * from api.claim_skill_submission('skillmap-worker/0.1.0', null, 300)$$,
+  $$select * from api.claim_skill_submission('skillmap-worker/0.2.0', null, 300)$$,
   42501,
   null,
   'an authenticated browser user cannot claim queued work'
@@ -228,7 +228,7 @@ reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
-  (select count(*) from api.claim_skill_submission('skillmap-worker/0.1.0', null, 300)),
+  (select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0', null, 300)),
   1::bigint,
   'the service role can atomically claim one queued submission'
 );
@@ -251,7 +251,7 @@ select is((select count(*) from private.submission_events), 4::bigint, 'second q
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select throws_ok(
-  $$select * from api.claim_skill_submission('skillmap-worker/0.1.0', null, 1)$$,
+  $$select * from api.claim_skill_submission('skillmap-worker/0.2.0', null, 1)$$,
   22023,
   null,
   'the claim RPC rejects an unsafe lease duration'
@@ -268,7 +268,7 @@ select lives_ok(
       'sha256:1111111111111111111111111111111111111111111111111111111111111111',
       'sha256:2222222222222222222222222222222222222222222222222222222222222222',
       'sha256:3333333333333333333333333333333333333333333333333333333333333333',
-      'static-audit/v1', 'codex/v1', 'skillmap-worker/0.1.0',
+      'skillmap-static-audit/v2', 'codex-host/v1', 'skillmap-worker/0.2.0',
       '{"critical":0,"high":0,"medium":1,"low":0,"info":0}'::jsonb,
       '[{"code":"frontmatter-valid","outcome":"passed","severity":"info","evidenceDigest":null}]'::jsonb,
       array['broad-trigger-language'],
@@ -295,7 +295,7 @@ select throws_ok(
       audit.normalized_content_digest, audit.receipt_digest,
       'sha256:6666666666666666666666666666666666666666666666666666666666666666',
       'sha256:7777777777777777777777777777777777777777777777777777777777777777',
-      'skillmap-rubric/v1', 'codex/v1', 'skillmap-grader/0.1.0',
+      'skillmap-rubric/v1', 'codex-host/v1', 'skillmap-grader/0.1.0',
       '[{"code":"source-identity","passed":true}]'::jsonb,
       '[{"code":"instruction-quality","weight":1,"score":88}]'::jsonb,
       array['fabricated-current-grade']
@@ -316,7 +316,7 @@ select lives_ok(
       audit.normalized_content_digest, audit.receipt_digest,
       'sha256:9999999999999999999999999999999999999999999999999999999999999999',
       'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      'skillmap-rubric/v1', 'codex/v1', 'skillmap-grader/0.1.0',
+      'skillmap-rubric/v1', 'codex-host/v1', 'skillmap-grader/0.1.0',
       '[{"code":"source-identity","passed":true}]'::jsonb,
       '[{"code":"instruction-quality","weight":1,"score":78}]'::jsonb,
       array['behavioral-evidence-incomplete']
@@ -336,7 +336,7 @@ select throws_ok(
       audit.receipt_digest,
       'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
       'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
-      'skillmap-rubric/v1', 'codex/v1', 'skillmap-grader/0.1.0',
+      'skillmap-rubric/v1', 'codex-host/v1', 'skillmap-grader/0.1.0',
       '[{"code":"source-identity","passed":true}]'::jsonb,
       '[{"code":"instruction-quality","weight":1,"score":78}]'::jsonb,
       array['behavioral-evidence-incomplete']
@@ -380,7 +380,7 @@ select lives_ok(
       'sha256:1111111111111111111111111111111111111111111111111111111111111111',
       'sha256:2222222222222222222222222222222222222222222222222222222222222222',
       'sha256:3333333333333333333333333333333333333333333333333333333333333333',
-      'static-audit/v1', 'codex/v1', 'skillmap-worker/0.1.0',
+      'skillmap-static-audit/v2', 'codex-host/v1', 'skillmap-worker/0.2.0',
       '{"critical":0,"high":0,"medium":1,"low":0,"info":0}'::jsonb,
       '[{"code":"frontmatter-valid","outcome":"passed","severity":"info","evidenceDigest":null}]'::jsonb,
       array['broad-trigger-language'],
@@ -426,21 +426,26 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  14::bigint,
-  'the exposed API contains exactly fourteen reviewed security-definer RPCs'
+  20::bigint,
+  'the exposed API contains exactly twenty reviewed security-definer RPCs'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef and p.proname in (
-      'claim_skill_submission', 'complete_skill_submission', 'requeue_skill_submission',
+      'peek_skill_submission_candidate', 'claim_skill_submission',
+      'defer_skill_submission_provider_limit', 'complete_skill_submission', 'requeue_skill_submission',
       'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
       'list_skill_submission_collisions', 'review_skill_submission_collisions',
       'record_skill_submission_publisher_authorization',
-      'record_skill_submission_license_evidence'
+      'approve_operator_action',
+      'record_skill_submission_license_evidence',
+      'get_skill_submission_queue_summary',
+      'list_skill_submission_operator_queue',
+      'get_skill_submission_operator_detail'
     )),
-  14::bigint,
+  20::bigint,
   'the reviewed allowlist names every exposed security-definer RPC'
 );
 

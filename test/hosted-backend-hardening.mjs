@@ -73,14 +73,19 @@ test('publisher authorization CLI is exposed through both operator package surfa
     'npm run build && node apps/worker/src/authorization.mjs');
   assert.equal(workerPackage.scripts['publisher:authorization'], 'node src/authorization.mjs');
   const readme = readFileSync('apps/worker/README.md', 'utf8');
-  assert.match(readme, /20260713050000_submission_authority_completion\.sql/);
+  assert.match(readme, /20260713060000_operator_submission_read_plane\.sql/);
+  assert.match(readme, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(readme, /hosted:operations:check/);
   assert.match(readme, /npm run hosted:publisher:authorization/);
   assert.match(readme, /renews an expired[\s\S]+exact still-published source version/i);
   assert.match(readme, /cannot be renewed/i);
   assert.match(readme, /terminal for the exact repository, commit,[\s\S]+across accounts and publisher handles/i);
   assert.match(readme, /--license-evidence-path LICENSE/);
   const runbook = readFileSync('docs/operations/free-public-alpha-runbook.md', 'utf8');
-  assert.match(runbook, /20260713050000_submission_authority_completion\.sql/);
+  assert.match(runbook, /20260713060000_operator_submission_read_plane\.sql/);
+  assert.match(runbook, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(runbook, /confirmed disposition atomically quarantines or revokes/i);
+  assert.match(runbook, /skillmap-hosted-operations-check\/v1/);
   assert.match(runbook, /claim-scoped exact license evidence/);
   assert.match(runbook, /current unexpired publisher authorization/);
   assert.match(runbook, /target-bound collision/);
@@ -89,6 +94,16 @@ test('publisher authorization CLI is exposed through both operator package surfa
   assert.match(runbook, /explicit revocation is terminal/i);
   assert.match(runbook, /tombstone survives submission\/account deletion/i);
   assert.match(runbook, /stale authorized replay fails/i);
+});
+
+test('atomic report enforcement fails closed before upgrading legacy resolved reports', () => {
+  const source = readFileSync(
+    'supabase/migrations/20260714010000_atomic_report_enforcement.sql',
+    'utf8'
+  );
+  assert.match(source, /where report\.state = 'resolved'/);
+  assert.match(source, /requires zero legacy resolved reports/);
+  assert.match(source, /reconcile them in a reviewed forward migration first/);
 });
 
 test('malformed frontmatter produces a persistable blocked adapter shape with no compatibility digest', () => {
@@ -165,7 +180,7 @@ test('backend recovery and collision operator commands require explicit authorit
       env: { ...process.env, SKILLMAP_SUPABASE_SERVICE_ROLE_KEY: 'PRIVATE-CANARY-SERVICE-ROLE' }
     });
     assert.equal(refused.status, 1);
-    assert.match(refused.stderr, /without the explicit --execute flag|submission-id is required/i);
+    assert.match(refused.stderr, /Exactly one of --approve or --execute|without the explicit --execute flag|submission-id is required/i);
     assert.doesNotMatch(refused.stdout + refused.stderr, /PRIVATE-CANARY/);
   }
   const authorizationHelp = spawnSync(process.execPath, [
@@ -176,7 +191,7 @@ test('backend recovery and collision operator commands require explicit authorit
   assert.match(authorizationHelp.stdout, /Revocation is terminal[\s\S]+across accounts and publisher handles/i);
 });
 
-test('operator RPC client allowlists the recovery and collision boundary without reflecting secrets', async () => {
+test('operator RPC client allowlists mutation and read-plane boundaries without reflecting secrets', async () => {
   const observed = [];
   const client = createSupabaseRpcClient({
     url: 'http://127.0.0.1:54321',
@@ -218,6 +233,16 @@ test('operator RPC client allowlists the recovery and collision boundary without
       p_review_reference: `licref_${'2'.repeat(32)}`,
       p_review_evidence_digest: digest('license-review'),
       p_idempotency_digest: digest('license-record')
+    }],
+    ['get_skill_submission_queue_summary', {}],
+    ['list_skill_submission_operator_queue', {
+      p_state: null,
+      p_limit: 20,
+      p_after_updated_at: null,
+      p_after_submission_id: null
+    }],
+    ['get_skill_submission_operator_detail', {
+      p_submission_id: `sub_${'f'.repeat(32)}`
     }]
   ]) await client.call(name, parameters);
   assert.deepEqual(observed.map(item => item.url.split('/').at(-1)), [
@@ -225,7 +250,10 @@ test('operator RPC client allowlists the recovery and collision boundary without
     'list_skill_submission_collisions',
     'review_skill_submission_collisions',
     'record_skill_submission_publisher_authorization',
-    'record_skill_submission_license_evidence'
+    'record_skill_submission_license_evidence',
+    'get_skill_submission_queue_summary',
+    'list_skill_submission_operator_queue',
+    'get_skill_submission_operator_detail'
   ]);
   assert.equal(JSON.stringify(observed).includes(SECRET), false);
 });
@@ -233,6 +261,7 @@ test('operator RPC client allowlists the recovery and collision boundary without
 test('publisher authorization and collision update CLIs reject incomplete authority tuples', () => {
   const missingExpiry = spawnSync(process.execPath, [
     'apps/worker/src/authorization.mjs', '--execute',
+    '--approval-id', `opa_${'a'.repeat(32)}`,
     '--submission-id', `sub_${'a'.repeat(32)}`, '--publisher-handle', 'example-owner',
     '--decision', 'authorized', '--basis', 'publisher-consent',
     '--evidence-reference', `authref_${'1'.repeat(32)}`,
@@ -244,6 +273,7 @@ test('publisher authorization and collision update CLIs reject incomplete author
 
   const missingTarget = spawnSync(process.execPath, [
     'apps/worker/src/collision-review.mjs', '--execute',
+    '--approval-id', `opa_${'b'.repeat(32)}`,
     '--submission-id', `sub_${'b'.repeat(32)}`, '--disposition', 'approved-update',
     '--reason-code', 'reviewed-update',
     '--operation-id', '22222222-2222-4222-8222-222222222222'
@@ -253,6 +283,7 @@ test('publisher authorization and collision update CLIs reject incomplete author
 
   const distinctWithTarget = spawnSync(process.execPath, [
     'apps/worker/src/collision-review.mjs', '--execute',
+    '--approval-id', `opa_${'c'.repeat(32)}`,
     '--submission-id', `sub_${'c'.repeat(32)}`, '--disposition', 'approved-distinct',
     '--reason-code', 'reviewed-distinct', '--target-skill-id', `skl_${'1'.repeat(32)}`,
     '--operation-id', '33333333-3333-4333-8333-333333333333'

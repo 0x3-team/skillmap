@@ -265,6 +265,8 @@ export type Database = {
           last_transition_digest: string | null
           last_worker_run_id: string | null
           license_claim: string | null
+          provider_defer_count: number
+          provider_retry_after_at: string | null
           public_id: string
           public_status_message: string | null
           publication_digest: string | null
@@ -307,6 +309,8 @@ export type Database = {
           last_transition_digest?: string | null
           last_worker_run_id?: string | null
           license_claim?: string | null
+          provider_defer_count?: number
+          provider_retry_after_at?: string | null
           public_id?: string
           public_status_message?: string | null
           publication_digest?: string | null
@@ -349,6 +353,8 @@ export type Database = {
           last_transition_digest?: string | null
           last_worker_run_id?: string | null
           license_claim?: string | null
+          provider_defer_count?: number
+          provider_retry_after_at?: string | null
           public_id?: string
           public_status_message?: string | null
           publication_digest?: string | null
@@ -613,6 +619,7 @@ export type Database = {
           category: string | null
           created_at: string | null
           disposition_code: string | null
+          idempotency_key: string | null
           message: string | null
           public_resolution_message: string | null
           report_id: string | null
@@ -627,6 +634,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           disposition_code?: string | null
+          idempotency_key?: string | null
           message?: string | null
           public_resolution_message?: string | null
           report_id?: string | null
@@ -641,6 +649,7 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           disposition_code?: string | null
+          idempotency_key?: string | null
           message?: string | null
           public_resolution_message?: string | null
           report_id?: string | null
@@ -958,6 +967,22 @@ export type Database = {
       }
     }
     Functions: {
+      approve_operator_action: {
+        Args: {
+          p_action_digest: string
+          p_action_kind: string
+          p_action_payload: Json
+          p_operation_id: string
+          p_subject_id: string
+          p_subject_type: string
+        }
+        Returns: {
+          action_digest: string
+          approval_id: string
+          approver_id: string
+          expires_at: string
+        }[]
+      }
       claim_skill_submission: {
         Args: {
           p_lease_seconds?: number
@@ -1023,23 +1048,114 @@ export type Database = {
           submission_state: string
         }[]
       }
+      defer_skill_submission_provider_limit: {
+        Args: {
+          p_claim_id: string
+          p_idempotency_digest: string
+          p_retry_after_seconds: number
+          p_submission_id: string
+          p_worker_version: string
+        }
+        Returns: {
+          attempt_count: number
+          provider_defer_count: number
+          provider_retry_after_at: string
+          submission_id: string
+          submission_state: string
+        }[]
+      }
       delete_my_account: { Args: never; Returns: boolean }
       disposition_skill_report: {
         Args: {
           p_disposition_code: string
           p_idempotency_digest: string
+          p_lifecycle_action: string
           p_public_message: string
           p_reason_code: string
           p_report_id: string
         }
         Returns: {
           disposition_code: string
+          lifecycle_action: string
           report_id: string
           report_state: string
+          skill_id: string
+          version_id: string
+          version_quarantined: boolean
+          version_revoked: boolean
+        }[]
+      }
+      get_skill_submission_operator_detail: {
+        Args: { p_submission_id: string }
+        Returns: {
+          attempt_count: number
+          audit_receipt: Json
+          audit_state: string
+          authority_confirmed: boolean
+          claim_expired: boolean
+          claim_expires_at: string
+          claimed_at: string
+          collision_reviews: Json
+          collision_reviews_truncated: boolean
+          completed_at: string
+          created_at: string
+          current_worker_version: string
+          dead_letter_ready: boolean
+          grade_receipt: Json
+          grade_state: string
+          last_transition_digest: string
+          license_evidence_receipt: Json
+          observed_at: string
+          public_status_message: string
+          publication_digest: string
+          publication_review_ready: boolean
+          publisher_authorizations: Json
+          publisher_authorizations_truncated: boolean
+          remediation_code: string
+          repository_url: string
+          result_skill_id: string
+          result_version_id: string
+          retry_eligible: boolean
+          review_case: Json
+          review_state: string
+          source_commit: string
+          source_path: string
+          submission_id: string
+          submission_policy_version: string
+          submission_state: string
+          submitter_license_claim: string
+          transition_events: Json
+          transition_events_truncated: boolean
+          untrusted_processing_accepted: boolean
+          updated_at: string
+          version_label: string
+          worker_runs: Json
+        }[]
+      }
+      get_skill_submission_queue_summary: {
+        Args: never
+        Returns: {
+          accepted_count: number
+          changes_requested_count: number
+          dead_letter_ready_count: number
+          expired_processing_count: number
+          failed_count: number
+          observed_at: string
+          oldest_accepted_at: string
+          oldest_processing_claim_expires_at: string
+          oldest_queued_at: string
+          oldest_remediation_at: string
+          processing_count: number
+          queued_count: number
+          retryable_count: number
         }[]
       }
       list_skill_report_queue: {
-        Args: { p_limit?: number }
+        Args: {
+          p_after_created_at?: string
+          p_after_report_id?: string
+          p_limit?: number
+        }
         Returns: {
           category: string
           created_at: string
@@ -1055,6 +1171,54 @@ export type Database = {
           collision_found: boolean
           review_subject: Json
           review_subject_digest: string
+        }[]
+      }
+      list_skill_submission_operator_queue: {
+        Args: {
+          p_after_submission_id?: string
+          p_after_updated_at?: string
+          p_limit?: number
+          p_state?: string
+        }
+        Returns: {
+          attempt_count: number
+          audit_state: string
+          claim_expired: boolean
+          claim_expires_at: string
+          claimed_at: string
+          completed_at: string
+          created_at: string
+          current_worker_version: string
+          dead_letter_ready: boolean
+          grade_state: string
+          observed_at: string
+          public_status_message: string
+          publication_review_ready: boolean
+          remediation_code: string
+          repository_url: string
+          result_skill_id: string
+          result_version_id: string
+          retry_eligible: boolean
+          review_state: string
+          source_commit: string
+          source_path: string
+          submission_id: string
+          submission_state: string
+          submitter_license_claim: string
+          updated_at: string
+          version_label: string
+        }[]
+      }
+      peek_skill_submission_candidate: {
+        Args: { p_submission_id?: string }
+        Returns: {
+          attempt_number: number
+          license_claim: string
+          repository_url: string
+          source_commit: string
+          source_path: string
+          submission_id: string
+          version_label: string
         }[]
       }
       publish_skill_submission: {

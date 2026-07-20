@@ -5,6 +5,11 @@ set local search_path = extensions, public, private, api;
 
 \ir fixtures/hosted_catalog_test_seed.sql.inc
 
+grant usage on schema private to service_role;
+grant execute on function private.record_skill_submission_publisher_authorization_unchecked(text,text,text,text,text,text,timestamptz,text) to service_role;
+grant execute on function private.publish_skill_submission_unchecked(text,text,text,text,text,text,text,text,text[],text,text,boolean,text[],text[]) to service_role;
+alter table private.audit_events alter column operator_attribution_required set default false;
+
 create function pg_temp.audit_payload(audit_state text, seed text)
 returns jsonb
 language plpgsql
@@ -15,9 +20,9 @@ begin
     'receiptDigest', 'sha256:' || repeat(seed, 64),
     'sourceContentDigest', 'sha256:' || repeat('a', 64),
     'normalizedContentDigest', 'sha256:' || repeat('b', 64),
-    'policyVersion', 'skillmap-static-audit/v1',
+    'policyVersion', 'skillmap-static-audit/v2',
     'hostProfileVersion', 'codex-host/v1',
-    'workerVersion', 'skillmap-worker/1.0.0',
+    'workerVersion', 'skillmap-worker/0.2.0',
     'findingCounts', case when audit_state = 'passed'
       then '{"critical":0,"high":0,"medium":0,"low":0,"info":0}'::jsonb
       else '{"critical":0,"high":1,"medium":0,"low":0,"info":0}'::jsonb end,
@@ -56,7 +61,7 @@ begin
     'evaluationSuiteDigest', null,
     'rubricVersion', 'skillmap-rubric/v1',
     'hostProfileVersion', 'codex-host/v1',
-    'evaluatorVersion', 'skillmap-grader/1.0.0',
+    'evaluatorVersion', 'skillmap-grader/0.1.0',
     'hardGates', case when grade_state = 'provisional' then jsonb_build_array(
       jsonb_build_object('code', 'source-identity', 'passed', true, 'evidenceDigest', 'sha256:' || repeat('f', 64)),
       jsonb_build_object('code', 'audit-acceptable', 'passed', true, 'evidenceDigest', 'sha256:' || repeat('f', 64)),
@@ -109,20 +114,25 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  14::bigint,
-  'the API security-definer boundary contains exactly fourteen reviewed functions'
+  20::bigint,
+  'the API security-definer boundary contains exactly twenty reviewed functions'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef and p.proname in (
-      'claim_skill_submission', 'complete_skill_submission', 'requeue_skill_submission',
+      'peek_skill_submission_candidate', 'claim_skill_submission',
+      'defer_skill_submission_provider_limit', 'complete_skill_submission', 'requeue_skill_submission',
       'dead_letter_expired_skill_submission',
       'publish_skill_submission', 'delete_my_account', 'disposition_skill_report',
       'control_catalog_lifecycle', 'renew_skill_submission_claim', 'list_skill_report_queue',
       'list_skill_submission_collisions', 'review_skill_submission_collisions',
       'record_skill_submission_publisher_authorization',
-      'record_skill_submission_license_evidence')),
-  14::bigint,
+      'approve_operator_action',
+      'record_skill_submission_license_evidence',
+      'get_skill_submission_queue_summary',
+      'list_skill_submission_operator_queue',
+      'get_skill_submission_operator_detail')),
+  20::bigint,
   'all API security-definer functions are on the reviewed allowlist'
 );
 
@@ -176,13 +186,13 @@ reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as launch_claim_id
-from api.claim_skill_submission('skillmap-worker/1.0.0', :'launch_submission_id', 300) \gset
+from api.claim_skill_submission('skillmap-worker/0.2.0', :'launch_submission_id', 300) \gset
 select ok(:'launch_claim_id'::uuid is not null, 'service authority claims the queued source exactly once');
 select license_evidence_receipt_id as launch_license_receipt_id
 from api.record_skill_submission_license_evidence(
   :'launch_submission_id',
   :'launch_claim_id'::uuid,
-  'skillmap-worker/1.0.0', 'sha256:' || repeat('2', 64), 'MIT',
+  'skillmap-worker/0.2.0', 'sha256:' || repeat('2', 64), 'MIT',
   jsonb_build_array(jsonb_build_object(
     'repositoryUrl', 'https://github.com/launch-owner/launch-skill',
     'sourceCommit', repeat('3', 40), 'path', 'LICENSE',
@@ -196,7 +206,7 @@ select set_config('request.jwt.claim.role', 'service_role', true);
 select throws_ok(
   $$select * from api.complete_skill_submission(
       (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
-      gen_random_uuid(), 'skillmap-worker/1.0.0', 'accepted',
+      gen_random_uuid(), 'skillmap-worker/0.2.0', 'accepted',
       'sha256:1111111111111111111111111111111111111111111111111111111111111111',
       'sha256:2222222222222222222222222222222222222222222222222222222222222222',
       pg_temp.audit_payload('passed', '2'),
@@ -208,7 +218,7 @@ select throws_ok(
   $$select * from api.complete_skill_submission(
       (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
       (select active_claim_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
-      'skillmap-worker/1.0.0', 'accepted',
+      'skillmap-worker/0.2.0', 'accepted',
       'sha256:1111111111111111111111111111111111111111111111111111111111111111',
       'sha256:2222222222222222222222222222222222222222222222222222222222222222',
       jsonb_set(pg_temp.audit_payload('passed', '2'), '{findingCounts,medium}', '1'::jsonb),
@@ -220,7 +230,7 @@ select throws_ok(
   $$select * from api.complete_skill_submission(
       (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
       (select active_claim_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
-      'skillmap-worker/1.0.0', 'accepted',
+      'skillmap-worker/0.2.0', 'accepted',
       'sha256:1111111111111111111111111111111111111111111111111111111111111111',
       'sha256:2222222222222222222222222222222222222222222222222222222222222222',
       pg_temp.audit_payload('passed', '2'),
@@ -232,7 +242,7 @@ select is(
   (select submission_state from api.complete_skill_submission(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     (select active_claim_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
-    'skillmap-worker/1.0.0', 'accepted',
+    'skillmap-worker/0.2.0', 'accepted',
     'sha256:1111111111111111111111111111111111111111111111111111111111111111',
     'sha256:2222222222222222222222222222222222222222222222222222222222222222',
     pg_temp.audit_payload('passed', '2'),
@@ -252,7 +262,7 @@ select is(
   (select submission_state from api.complete_skill_submission(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     (select last_worker_run_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
-    'skillmap-worker/1.0.0', 'accepted',
+    'skillmap-worker/0.2.0', 'accepted',
     'sha256:1111111111111111111111111111111111111111111111111111111111111111',
     'sha256:2222222222222222222222222222222222222222222222222222222222222222',
     pg_temp.audit_payload('passed', '2'),
@@ -292,7 +302,7 @@ where repository_url = 'https://github.com/launch-owner/retry-skill' \gset
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/1.0.0',
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0',
   :'retry_submission_id', 300)), 1::bigint, 'retry fixture is claimed');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
@@ -300,7 +310,7 @@ select is(
   (select submission_state from api.complete_skill_submission(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/retry-skill'),
     (select active_claim_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/retry-skill'),
-    'skillmap-worker/1.0.0', 'failed', 'sha256:' || repeat('5', 64), 'sha256:' || repeat('6', 64),
+    'skillmap-worker/0.2.0', 'failed', 'sha256:' || repeat('5', 64), 'sha256:' || repeat('6', 64),
     null, null, array['worker-timeout'], 'The worker timed out safely.', 'sha256:' || repeat('7', 64))),
   'failed', 'a failed worker run completes without fabricated receipts'
 );
@@ -313,7 +323,7 @@ select is((select row(state, attempt_count, audit_state, grade_state, review_sta
 
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/1.0.0',
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0',
   :'retry_submission_id', 300)), 1::bigint, 'requeued work can be claimed again');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
@@ -321,7 +331,7 @@ select is(
   (select submission_state from api.complete_skill_submission(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/retry-skill'),
     (select active_claim_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/retry-skill'),
-    'skillmap-worker/1.0.0', 'changes-requested', 'sha256:' || repeat('9', 64), 'sha256:' || repeat('a', 64),
+    'skillmap-worker/0.2.0', 'changes-requested', 'sha256:' || repeat('9', 64), 'sha256:' || repeat('a', 64),
     pg_temp.audit_payload('blocked', '5'),
     pg_temp.grade_payload('blocked', '6', 'sha256:' || repeat('5', 64)),
     array['license-unresolved'], 'Confirm an approved license before resubmission.', 'sha256:' || repeat('b', 64))),
@@ -337,7 +347,7 @@ select is((select count(*) from private.submission_events where submission_id = 
   select id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/retry-skill')), 7::bigint, 'retry transitions are append-only and idempotent');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/1.0.0',
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0',
   :'retry_submission_id', 300)), 1::bigint, 'the second requeue can be claimed for an operator reconsideration');
 reset role;
 select set_config('request.jwt.claim.role', 'service_role', true);
@@ -345,7 +355,7 @@ select is(
   (select submission_state from api.complete_skill_submission(
     :'retry_submission_id',
     (select active_claim_id from api.skill_submissions where public_id = :'retry_submission_id'),
-    'skillmap-worker/1.0.0', 'changes-requested', 'sha256:' || repeat('d', 64), 'sha256:' || repeat('e', 64),
+    'skillmap-worker/0.2.0', 'changes-requested', 'sha256:' || repeat('d', 64), 'sha256:' || repeat('e', 64),
     pg_temp.audit_payload('blocked', '5'),
     pg_temp.grade_payload('blocked', '6', 'sha256:' || repeat('5', 64)),
     array['license-unresolved'], 'Confirm an approved license before resubmission.', 'sha256:' || repeat('f', 64))),
@@ -370,14 +380,14 @@ select throws_ok(
 );
 
 select authorization_receipt_id as launch_authorization_receipt_id
-from api.record_skill_submission_publisher_authorization(
+from private.record_skill_submission_publisher_authorization_unchecked(
   :'launch_submission_id', 'launch-owner', 'authorized', 'publisher-consent',
   'authref_' || repeat('1', 32), 'sha256:' || repeat('d', 64),
   now() + interval '30 days', 'sha256:' || repeat('e', 64)
 ) \gset
 
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -385,7 +395,7 @@ select throws_ok(
   22023, null, 'publication rejects compound SPDX expressions outside the exact alpha allowlist'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -393,7 +403,7 @@ select throws_ok(
   23514, null, 'publication SPDX must equal the license bound into the immutable audit receipt'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -401,7 +411,7 @@ select throws_ok(
   23514, null, 'publication cannot invent script permissions absent from the audit inventory'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -409,7 +419,7 @@ select throws_ok(
   23514, null, 'publication network disclosure must match the audit indicator'
 );
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -417,7 +427,7 @@ select throws_ok(
   23514, null, 'publication tool disclosure must match the audit indicator'
 );
 select is(
-  (select submission_state from api.publish_skill_submission(
+  (select submission_state from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -440,7 +450,7 @@ select is(
 );
 select is((select count(*) from private.skill_versions where grade_state = 'current'), 0::bigint, 'publication never mints a current letter grade');
 select is((select count(*) from api.catalog_skill_versions where repository_url = 'https://github.com/launch-owner/retry-skill'), 0::bigint, 'failed and changes-requested work never leaks into the catalog');
-select is((select submission_state from api.publish_skill_submission(
+select is((select submission_state from private.publish_skill_submission_unchecked(
   (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
   'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Launch Skill',
   'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -448,7 +458,7 @@ select is((select submission_state from api.publish_skill_submission(
 select is((select count(*) from private.skill_versions where source_submission_id = (
   select id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill')), 1::bigint, 'publication retry creates no duplicate version');
 select throws_ok(
-  $$select * from api.publish_skill_submission(
+  $$select * from private.publish_skill_submission_unchecked(
     (select public_id from api.skill_submissions where repository_url = 'https://github.com/launch-owner/launch-skill'),
     'sha256:' || repeat('e', 64), 'launch-owner', 'Launch Owner', 'launch-skill', 'Changed Name',
     'A safely reviewed public-alpha skill.', 'A metadata-only catalog entry backed by immutable evidence.',
@@ -487,10 +497,10 @@ reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select claim_id as expired_claim_id from api.claim_skill_submission(
-  'skillmap-worker/1.0.0', :'lease_submission_id', 300
+  'skillmap-worker/0.2.0', :'lease_submission_id', 300
 ) \gset
 select ok(:'expired_claim_id'::uuid is not null, 'the lease fixture receives its first claim');
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/2.0.0',
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0',
   :'lease_submission_id', 300)), 0::bigint, 'a live lease cannot be stolen');
 reset role;
 update api.skill_submissions set claimed_at = now() - interval '10 minutes',
@@ -498,13 +508,13 @@ update api.skill_submissions set claimed_at = now() - interval '10 minutes',
 where repository_url = 'https://github.com/lease-owner/reclaimable-skill';
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/2.0.0',
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0',
   :'lease_submission_id', 300)), 1::bigint, 'an expired processing lease is atomically reclaimed');
-select is((select count(*) from api.claim_skill_submission('skillmap-worker/3.0.0',
+select is((select count(*) from api.claim_skill_submission('skillmap-worker/0.2.0',
   :'lease_submission_id', 300)), 0::bigint, 'a reclaimed live lease cannot be reclaimed twice');
 reset role;
 select is((select row(attempt_count, current_worker_version, state)::text from api.skill_submissions
-  where repository_url = 'https://github.com/lease-owner/reclaimable-skill'), '(2,skillmap-worker/2.0.0,processing)', 'reclaim rotates worker authority and increments the bounded attempt');
+  where repository_url = 'https://github.com/lease-owner/reclaimable-skill'), '(2,skillmap-worker/0.2.0,processing)', 'reclaim rotates exact claim authority and increments the bounded attempt');
 select is((select count(*) from private.submission_events where submission_id = (
   select id from api.skill_submissions where repository_url = 'https://github.com/lease-owner/reclaimable-skill')
   and from_state = 'processing' and to_state = 'processing'), 1::bigint, 'expired-lease reclaim emits an explicit processing receipt');

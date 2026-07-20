@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { execFileSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.SKILLMAP_WEB_BASE_URL ?? "http://127.0.0.1:3108";
@@ -15,8 +16,16 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 const marker = Date.now();
+const operatorAuthority = createEphemeralOperatorAuthority();
+const dualControlEvidence = {
+  approvals: 0,
+  executions: 0,
+  samePersonWrongRoleDenied: false,
+  serviceRoleOnlyDenied: []
+};
 const detailPath = "/skills/0x3-team/skill-audit";
 const reportMessage = "Potential issue: <img src=x onerror=alert(1)> appears in listing metadata.";
+const queuedConflictMessage = "A second explanation must recover the existing queued target instead of claiming an unavailable service.";
 const userIds = [];
 let browser;
 let smokeStage = "browser-start";
@@ -26,17 +35,23 @@ let cleanupReceipt = null;
 let primaryError = null;
 
 try {
+  smokeStage = "operator-principal-seed";
+  seedOperatorPrincipals(operatorAuthority);
+
   browser = await chromium.launch({ headless: true });
-  smokeStage = "signed-out-evidence";
+  smokeStage = "anonymous-acquisition";
   const publicContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   const publicPage = await publicContext.newPage();
+  publicPage.setDefaultTimeout(20_000);
   const publicDiagnostics = collectDiagnostics(publicPage);
-  await publicPage.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
-  await publicPage.getByRole("heading", { name: "Report a suspicious listing" }).waitFor();
-  await publicPage.getByText("Sign in to send a report").waitFor();
-  await publicPage.getByRole("link", { name: "View audit evidence" }).waitFor();
-  await publicPage.getByRole("link", { name: "View grade evidence" }).waitFor();
-  assertNoOverflow(await dimensions(publicPage), "signed-out skill detail");
+  const anonymousAcquisition = {};
+  for (const viewport of [{ width: 320, height: 760 }, { width: 390, height: 844 }]) {
+    anonymousAcquisition[viewport.width] = await runAnonymousAcquisitionJourney(publicPage, viewport);
+  }
+  const { auditWidth, gradeWidth } = anonymousAcquisition[390];
+
+  smokeStage = "signed-out-forged-notices";
+  await publicPage.setViewportSize({ width: 390, height: 844 });
   await publicPage.goto(new URL(`${detailPath}?reportStatus=queued&report=rpt_${"f".repeat(32)}#report-listing`, baseUrl).toString(), { waitUntil: "load" });
   if (await publicPage.getByText("Private report queued").isVisible().catch(() => false)) throw new Error("Signed-out query parameters forged a queued report notice.");
   for (const [status, title] of [
@@ -62,30 +77,19 @@ try {
   if ((await publicPage.locator("body").innerText()).includes("browser session was cleared defensively")) {
     throw new Error("Query parameters forged an unconfirmed browser-session mutation claim.");
   }
-
-  await publicPage.goto(new URL(`${detailPath}/audit`, baseUrl).toString(), { waitUntil: "load" });
-  await publicPage.getByRole("heading", { name: "Skill Audit audit evidence" }).waitFor();
-  await publicPage.getByRole("heading", { name: "Bounded public evidence projection" }).waitFor();
-  await publicPage.getByRole("heading", { name: "No current public audit evidence" }).waitFor();
-  const auditWidth = await dimensions(publicPage);
-  assertNoOverflow(auditWidth, "audit evidence");
-
-  await publicPage.goto(new URL(`${detailPath}/grade`, baseUrl).toString(), { waitUntil: "load" });
-  await publicPage.getByRole("heading", { name: "Skill Audit grade evidence" }).waitFor();
-  await publicPage.getByRole("heading", { name: "Bounded public evidence projection" }).waitFor();
-  await publicPage.getByRole("heading", { name: "No current public grade evidence" }).waitFor();
-  const gradeWidth = await dimensions(publicPage);
-  assertNoOverflow(gradeWidth, "grade evidence");
   if (publicDiagnostics.length) throw new Error(`Public browser diagnostics:\n${publicDiagnostics.join("\n")}`);
   await publicContext.close();
 
   smokeStage = "synthetic-account-setup";
   const primary = await createSyntheticUser("primary");
   const secondary = await createSyntheticUser("secondary");
+  const quota = await createSyntheticUser("quota");
   const primaryContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   const secondaryContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+  const quotaContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
   await primaryContext.addCookies(toBrowserCookies(primary.cookies));
   await secondaryContext.addCookies(toBrowserCookies(secondary.cookies));
+  await quotaContext.addCookies(toBrowserCookies(quota.cookies));
 
   const page = await primaryContext.newPage();
   page.setDefaultTimeout(20_000);
@@ -160,6 +164,103 @@ try {
     await transportPage.close();
   }
 
+  smokeStage = "submission-server-quota-failure";
+  const quotaFixturePaths = [];
+  for (let index = 0; index < 3; index += 1) {
+    const idempotencyKey = crypto.randomUUID();
+    const sourcePath = `skills/quota-${index}/SKILL.md`;
+    quotaFixturePaths.push(sourcePath);
+    const { error: quotaFixtureError } = await quota.client.from("skill_submissions").insert({
+      repository_url: syntheticRepositoryUrl,
+      source_commit: `${index + 1}`.repeat(40),
+      source_path: sourcePath,
+      version_label: `quota-${marker}-${index}`,
+      license_claim: "MIT",
+      idempotency_key: idempotencyKey,
+      submission_policy_version: "public-alpha-draft/v1",
+      authority_confirmed: true,
+      untrusted_processing_accepted: true
+    });
+    if (quotaFixtureError) throw quotaFixtureError;
+  }
+  const quotaPage = await quotaContext.newPage();
+  try {
+    const quotaCommit = "d".repeat(40);
+    const quotaPath = "skills/quota-target/SKILL.md";
+    const quotaVersion = `quota-target-${marker}`;
+    await quotaPage.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
+    await quotaPage.getByLabel("Public GitHub repository URL").fill(syntheticRepositoryUrl);
+    await quotaPage.getByLabel("Exact commit").fill(quotaCommit);
+    await quotaPage.getByLabel("Relative skill path").fill(quotaPath);
+    await quotaPage.getByLabel("Version label").fill(quotaVersion);
+    await quotaPage.getByLabel("License claim").selectOption("MIT");
+    await quotaPage.locator("#authorizationAcknowledgement").check();
+    await quotaPage.locator("#untrustedContentAcknowledgement").check();
+    const quotaRequestId = await quotaPage.getByLabel("Request ID").inputValue();
+    await submitForm(quotaPage.getByRole("button", { name: "Queue submission" }));
+    const quotaAlert = quotaPage.getByRole("alert").filter({ hasText: "Submission quota reached" });
+    await quotaAlert.getByText("Submission quota reached", { exact: true }).waitFor();
+    await quotaPage.waitForFunction(() => document.activeElement?.getAttribute("role") === "alert");
+    const quotaPreserved = {
+      repository: await quotaPage.getByLabel("Public GitHub repository URL").inputValue(),
+      commit: await quotaPage.getByLabel("Exact commit").inputValue(),
+      path: await quotaPage.getByLabel("Relative skill path").inputValue(),
+      version: await quotaPage.getByLabel("Version label").inputValue(),
+      license: await quotaPage.getByLabel("License claim").inputValue(),
+      requestId: await quotaPage.getByLabel("Request ID").inputValue(),
+      authority: await quotaPage.locator("#authorizationAcknowledgement").isChecked(),
+      untrusted: await quotaPage.locator("#untrustedContentAcknowledgement").isChecked(),
+      alertFocused: await quotaAlert.evaluate((element) => element === document.activeElement)
+    };
+    const { count: quotaTargetCount, error: quotaTargetError } = await quota.client
+      .from("my_skill_submissions")
+      .select("submission_id", { count: "exact", head: true })
+      .eq("repository_url", syntheticRepositoryUrl)
+      .eq("source_commit", quotaCommit)
+      .eq("source_path", quotaPath);
+    if (quotaTargetError) throw quotaTargetError;
+    if (quotaPreserved.repository !== syntheticRepositoryUrl
+      || quotaPreserved.commit !== quotaCommit
+      || quotaPreserved.path !== quotaPath
+      || quotaPreserved.version !== quotaVersion
+      || quotaPreserved.license !== "MIT"
+      || quotaPreserved.requestId !== quotaRequestId
+      || !quotaPreserved.authority
+      || !quotaPreserved.untrusted
+      || !quotaPreserved.alertFocused
+      || await quotaPage.getByRole("button", { name: "Queue submission" }).isDisabled()
+      || quotaTargetCount !== 0) {
+      throw new Error(`Server quota failure did not preserve a retryable zero-insert form (${JSON.stringify({ quotaPreserved, quotaTargetCount })}).`);
+    }
+  } finally {
+    await quotaPage.close();
+  }
+  const { data: quotaFixtureRows, error: quotaFixtureLookupError } = await quota.client
+    .from("my_skill_submissions")
+    .select("submission_id,source_path,state")
+    .eq("repository_url", syntheticRepositoryUrl)
+    .in("source_path", quotaFixturePaths);
+  if (quotaFixtureLookupError || !Array.isArray(quotaFixtureRows) || quotaFixtureRows.length !== 3
+    || quotaFixtureRows.some((row) => row.state !== "queued" || !quotaFixturePaths.includes(row.source_path))) {
+    throw quotaFixtureLookupError ?? new Error("Quota fixtures were not exactly owner-visible and queued before cleanup.");
+  }
+  const quotaFixtureIds = quotaFixtureRows.map((row) => row.submission_id);
+  const { error: quotaCleanupError } = await quota.client
+    .from("skill_submissions")
+    .update({ state: "withdrawn" })
+    .eq("state", "queued")
+    .in("public_id", quotaFixtureIds);
+  if (quotaCleanupError) throw quotaCleanupError;
+  const { data: withdrawnQuotaRows, error: quotaCleanupVerificationError } = await quota.client
+    .from("my_skill_submissions")
+    .select("submission_id,state")
+    .in("submission_id", quotaFixtureIds);
+  if (quotaCleanupVerificationError || !Array.isArray(withdrawnQuotaRows) || withdrawnQuotaRows.length !== 3
+    || withdrawnQuotaRows.some((row) => row.state !== "withdrawn")) {
+    throw quotaCleanupVerificationError ?? new Error("Quota fixtures were not safely withdrawn after the recovery test.");
+  }
+  await quotaContext.close();
+
   smokeStage = "submission-invalid-field";
   await page.goto(new URL("/submit", baseUrl).toString(), { waitUntil: "load" });
   await page.getByRole("heading", { name: "Submit one exact skill version." }).waitFor();
@@ -215,7 +316,7 @@ try {
   await page.getByText("skills/frontend-design/SKILL.md", { exact: true }).waitFor();
 
   smokeStage = "receipt-backed-publication";
-  const workerVersion = "skillmap-browser-smoke/1.0.0";
+  const workerVersion = "skillmap-worker/0.2.0";
   const { data: claims, error: claimError } = await admin.rpc("claim_skill_submission", {
     p_worker_version: workerVersion,
     p_submission_id: submissionId,
@@ -260,38 +361,124 @@ try {
   });
   if (completionError || completed?.[0]?.submission_state !== "accepted") throw completionError ?? new Error("Receipt-backed browser fixture was not accepted.");
 
-  const { data: authorization, error: authorizationError } = await admin.rpc("record_skill_submission_publisher_authorization", {
+  const authorizationBasis = "publisher-consent";
+  const authorizationEvidenceReference = `authref_${marker.toString(16).padStart(32, "0")}`;
+  const authorizationEvidenceDigest = digest("6");
+  const authorizationExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString();
+  const authorizationOperationId = crypto.randomUUID();
+  const authorizationDigest = canonicalActionDigest({
+    kind: "skillmap.hosted-publisher-authorization-request",
+    schemaVersion: 1,
+    submissionId,
+    publisherHandle,
+    decision: "authorized",
+    basis: authorizationBasis,
+    evidenceReference: authorizationEvidenceReference,
+    evidenceDigest: authorizationEvidenceDigest,
+    expiresAt: authorizationExpiresAt,
+    operationId: authorizationOperationId
+  });
+  const authorizationParameters = {
     p_submission_id: submissionId,
     p_publisher_handle: publisherHandle,
     p_decision: "authorized",
-    p_authorization_basis: "publisher-consent",
-    p_evidence_reference: `authref_${marker.toString(16).padStart(32, "0")}`,
-    p_evidence_digest: digest("6"),
-    p_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(),
-    p_idempotency_digest: digest("0")
+    p_authorization_basis: authorizationBasis,
+    p_evidence_reference: authorizationEvidenceReference,
+    p_evidence_digest: authorizationEvidenceDigest,
+    p_expires_at: authorizationExpiresAt,
+    p_idempotency_digest: authorizationDigest
+  };
+  const authorization = await runDualControlledBusinessRpc({
+    actionKind: "submission.publisher-authorization",
+    subjectType: "submission",
+    subjectId: submissionId,
+    actionPayload: {
+      schemaVersion: 1,
+      submissionId,
+      publisherHandle,
+      decision: "authorized",
+      authorizationBasis,
+      evidenceReference: authorizationEvidenceReference,
+      evidenceDigest: authorizationEvidenceDigest,
+      expiresAt: authorizationExpiresAt
+    },
+    actionDigest: authorizationDigest,
+    operationId: authorizationOperationId,
+    rpcName: "record_skill_submission_publisher_authorization",
+    rpcParameters: authorizationParameters,
+    proveSamePersonWrongRole: true,
+    label: "publisher authorization"
   });
-  if (authorizationError || authorization?.[0]?.authorization_decision !== "authorized") {
-    throw authorizationError ?? new Error("Receipt-backed browser fixture did not record exact-source publisher authorization.");
+  if (authorization?.[0]?.authorization_decision !== "authorized") {
+    throw new Error("Receipt-backed browser fixture did not record exact-source publisher authorization.");
   }
 
   const skillSlug = "evidence-rendering";
-  const { data: published, error: publicationError } = await admin.rpc("publish_skill_submission", {
-    p_submission_id: submissionId,
-    p_publication_digest: digest("4"),
-    p_publisher_handle: publisherHandle,
-    p_publisher_display_name: "Browser smoke publisher",
-    p_skill_slug: skillSlug,
-    p_skill_display_name: "Browser Evidence Rendering",
-    p_summary: "A disposable metadata-only skill used to verify public evidence rendering.",
-    p_description: "A disposable local browser-smoke listing backed by schema-valid audit and provisional grade receipts. It is deleted from public projections before cleanup.",
-    p_capabilities: ["evidence.rendering"],
-    p_license_state: "confirmed",
-    p_spdx_expression: "MIT",
-    p_permission_scripts: false,
-    p_permission_network: [],
-    p_permission_tools: []
+  const publicationMetadata = {
+    publisherHandle,
+    publisherDisplayName: "Browser smoke publisher",
+    skillSlug,
+    skillDisplayName: "Browser Evidence Rendering",
+    summary: "A disposable metadata-only skill used to verify public evidence rendering.",
+    description: "A disposable local browser-smoke listing backed by schema-valid audit and provisional grade receipts. It is deleted from public projections before cleanup.",
+    capabilities: ["evidence.rendering"],
+    licenseState: "confirmed",
+    spdxExpression: "MIT",
+    permissionScripts: false,
+    permissionNetwork: [],
+    permissionTools: []
+  };
+  const publicationOperationId = crypto.randomUUID();
+  const publicationDigest = canonicalActionDigest({
+    kind: "skillmap.hosted-publication-request",
+    schemaVersion: 1,
+    submissionId,
+    metadata: publicationMetadata,
+    operationId: publicationOperationId
   });
-  if (publicationError || published?.[0]?.submission_state !== "published") throw publicationError ?? new Error("Receipt-backed browser fixture was not published.");
+  const publicationParameters = {
+    p_submission_id: submissionId,
+    p_publication_digest: publicationDigest,
+    p_publisher_handle: publicationMetadata.publisherHandle,
+    p_publisher_display_name: publicationMetadata.publisherDisplayName,
+    p_skill_slug: publicationMetadata.skillSlug,
+    p_skill_display_name: publicationMetadata.skillDisplayName,
+    p_summary: publicationMetadata.summary,
+    p_description: publicationMetadata.description,
+    p_capabilities: publicationMetadata.capabilities,
+    p_license_state: publicationMetadata.licenseState,
+    p_spdx_expression: publicationMetadata.spdxExpression,
+    p_permission_scripts: publicationMetadata.permissionScripts,
+    p_permission_network: publicationMetadata.permissionNetwork,
+    p_permission_tools: publicationMetadata.permissionTools
+  };
+  const published = await runDualControlledBusinessRpc({
+    actionKind: "submission.publish",
+    subjectType: "submission",
+    subjectId: submissionId,
+    actionPayload: {
+      schemaVersion: 1,
+      submissionId,
+      publisherHandle: publicationMetadata.publisherHandle,
+      publisherDisplayName: publicationMetadata.publisherDisplayName,
+      skillSlug: publicationMetadata.skillSlug,
+      skillDisplayName: publicationMetadata.skillDisplayName,
+      summary: publicationMetadata.summary,
+      description: publicationMetadata.description,
+      capabilities: publicationMetadata.capabilities,
+      licenseState: publicationMetadata.licenseState,
+      spdxExpression: publicationMetadata.spdxExpression,
+      permissionScripts: publicationMetadata.permissionScripts,
+      permissionNetwork: publicationMetadata.permissionNetwork,
+      permissionTools: publicationMetadata.permissionTools
+    },
+    actionDigest: publicationDigest,
+    operationId: publicationOperationId,
+    rpcName: "publish_skill_submission",
+    rpcParameters: publicationParameters,
+    label: "publication"
+  });
+  if (published?.[0]?.submission_state !== "published") throw new Error("Receipt-backed browser fixture was not published.");
   const publishedPublisherId = published[0].publisher_id;
   const publishedSkillId = published[0].skill_id;
   const publishedVersionId = published[0].version_id;
@@ -310,6 +497,7 @@ try {
   await page.goto(new URL("/account/submissions", baseUrl).toString(), { waitUntil: "load" });
   const publishedResult = page.getByRole("navigation", { name: "Published submission result" });
   await publishedResult.getByRole("link", { name: "View published listing" }).waitFor();
+  await page.getByText(/^Updated /).first().waitFor();
   if (await publishedResult.getByRole("link", { name: "View published listing" }).getAttribute("href") !== receiptDetailPath
     || await publishedResult.getByRole("link", { name: "View audit evidence" }).getAttribute("href") !== `${receiptDetailPath}/audit`
     || await publishedResult.getByRole("link", { name: "View grade evidence" }).getAttribute("href") !== `${receiptDetailPath}/grade`) {
@@ -409,10 +597,13 @@ try {
   await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
   await page.getByRole("button", { name: "Queue private report" }).waitFor();
   await page.waitForTimeout(1_000);
+  await assertMobileSkillActionOrder(page, "Save skill", "authenticated skill detail");
   assertNoOverflow(await dimensions(page), "authenticated report form");
 
   await page.getByLabel("Concern category").selectOption("security");
   await page.getByLabel("What is wrong with this listing?").fill(reportMessage);
+  const reportRequestId = await page.getByLabel("Request ID").inputValue();
+  if (!/^[0-9a-f-]{36}$/.test(reportRequestId)) throw new Error("Report form did not mint a canonical request ID.");
   if (await page.getByLabel("What is wrong with this listing?").inputValue() !== reportMessage) throw new Error("Valid report message did not settle in the current form.");
   await page.waitForTimeout(500);
   await submitForm(page.getByRole("button", { name: "Queue private report" }));
@@ -441,6 +632,28 @@ try {
     || preservedCooldown.message !== reportMessage
     || preservedCooldown.requestId !== cooldownRequestId) {
     throw new Error(`Recoverable report cooldown did not preserve category, message, and request ID (${JSON.stringify(preservedCooldown)}).`);
+  }
+
+  smokeStage = "report-queued-constraint-recovery";
+  // A queued report can outlive the 24-hour cooldown. Reproduce that valid
+  // state without weakening the production immutability trigger, then prove
+  // the partial unique-index conflict resolves to the account-owned row.
+  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+    `begin; set local session_replication_role = replica; update api.skill_reports set created_at = now() - interval '25 hours' where public_id = '${reportId}'; commit;`
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(queuedConflictMessage);
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await page.getByText("That report request already exists", { exact: true }).waitFor();
+  await page.getByText(`Existing report ${reportId} remains the account-owned source of truth. No second report was created.`, { exact: true }).waitFor();
+  const { count: queuedTargetCount, error: queuedTargetCountError } = await primary.client
+    .from("my_skill_reports")
+    .select("report_id", { count: "exact", head: true })
+    .eq("category", "security")
+    .eq("state", "queued");
+  if (queuedTargetCountError || queuedTargetCount !== 1) {
+    throw queuedTargetCountError ?? new Error(`Queued-target conflict created an unexpected row count (${queuedTargetCount}).`);
   }
 
   smokeStage = "report-no-javascript-boundary";
@@ -484,20 +697,105 @@ try {
   if ((await secondaryPage.locator("body").innerText()).includes(reportId)) throw new Error("Report leaked into another account projection.");
 
   smokeStage = "report-disposition";
-  const dispositionDigest = `sha256:${marker.toString(16).padStart(64, "0")}`;
-  const { data: disposition, error: dispositionError } = await admin.rpc("disposition_skill_report", {
-    p_report_id: reportId,
-    p_disposition_code: "no-action",
-    p_reason_code: "not-reproducible",
-    p_public_message: "Operator review found no actionable catalog change from the bounded evidence.",
-    p_idempotency_digest: dispositionDigest
+  const dispositionCode = "no-action";
+  const dispositionReasonCode = "not-reproducible";
+  const dispositionPublicMessage = "Operator review found no actionable catalog change from the bounded evidence.";
+  const dispositionLifecycleAction = null;
+  const dispositionOperationId = crypto.randomUUID();
+  const dispositionDigest = canonicalActionDigest({
+    kind: "skillmap.report-disposition-operation",
+    schemaVersion: 1,
+    operationId: dispositionOperationId,
+    reportId,
+    disposition: dispositionCode,
+    reasonCode: dispositionReasonCode,
+    publicMessage: dispositionPublicMessage,
+    lifecycleAction: dispositionLifecycleAction
   });
-  if (dispositionError || disposition?.[0]?.report_state !== "resolved") throw dispositionError ?? new Error("Report disposition did not resolve.");
+  const dispositionParameters = {
+    p_report_id: reportId,
+    p_disposition_code: dispositionCode,
+    p_reason_code: dispositionReasonCode,
+    p_public_message: dispositionPublicMessage,
+    p_lifecycle_action: dispositionLifecycleAction,
+    p_idempotency_digest: dispositionDigest
+  };
+  const disposition = await runDualControlledBusinessRpc({
+    actionKind: "report.disposition",
+    subjectType: "report",
+    subjectId: reportId,
+    actionPayload: {
+      schemaVersion: 1,
+      reportId,
+      dispositionCode,
+      reasonCode: dispositionReasonCode,
+      publicMessage: dispositionPublicMessage,
+      lifecycleAction: dispositionLifecycleAction
+    },
+    actionDigest: dispositionDigest,
+    operationId: dispositionOperationId,
+    rpcName: "disposition_skill_report",
+    rpcParameters: dispositionParameters,
+    label: "report disposition"
+  });
+  if (disposition?.[0]?.report_state !== "resolved") throw new Error("Report disposition did not resolve.");
 
   await page.goto(new URL("/account/reports", baseUrl).toString(), { waitUntil: "load" });
   await page.getByText("Resolved", { exact: true }).waitFor();
-  await page.getByText("Operator review found no actionable catalog change from the bounded evidence.").waitFor();
+  await page.getByText(dispositionPublicMessage).waitFor();
   assertNoOverflow(await dimensions(page), "resolved report history");
+
+  smokeStage = "report-request-id-payload-conflict";
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(queuedConflictMessage);
+  await page.getByLabel("Request ID").evaluate((input, value) => {
+    input.removeAttribute("readonly");
+    input.value = value;
+  }, reportRequestId);
+  if (await page.getByLabel("Request ID").inputValue() !== reportRequestId) {
+    throw new Error("Request-ID conflict fixture did not preserve the prior request UUID.");
+  }
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await page.getByText("Reporting service unavailable", { exact: true }).waitFor();
+  const { count: requestConflictCount, error: requestConflictCountError } = await primary.client
+    .from("my_skill_reports")
+    .select("report_id", { count: "exact", head: true });
+  if (requestConflictCountError || requestConflictCount !== 1) {
+    throw requestConflictCountError ?? new Error(`Conflicting request UUID changed the report row count (${requestConflictCount}).`);
+  }
+
+  smokeStage = "report-resolved-history-queued-authority-recovery";
+  // Reproduce the ambiguous 23505 boundary: historical report A is resolved,
+  // report B is the current queued target, and a fresh submission matching A's
+  // old text is blocked by B's partial unique index. Recovery must identify B.
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(queuedConflictMessage);
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await waitForUrl(page, (url) => url.searchParams.get("reportStatus") === "queued", "second queued report redirect");
+  const blockingQueuedReportId = new URL(page.url()).searchParams.get("report");
+  if (!blockingQueuedReportId || !/^rpt_[0-9a-f]{32}$/.test(blockingQueuedReportId)
+    || blockingQueuedReportId === reportId) {
+    throw new Error("Second queued report did not return a distinct canonical receipt ID.");
+  }
+  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+    `begin; set local session_replication_role = replica; update api.skill_reports set created_at = now() - interval '25 hours' where public_id = '${blockingQueuedReportId}'; commit;`
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Concern category").selectOption("security");
+  await page.getByLabel("What is wrong with this listing?").fill(reportMessage);
+  await submitForm(page.getByRole("button", { name: "Queue private report" }));
+  await page.getByText("That report request already exists", { exact: true }).waitFor();
+  await page.getByText(`Existing report ${blockingQueuedReportId} remains the account-owned source of truth. No second report was created.`, { exact: true }).waitFor();
+  const { count: recoveredQueuedCount, error: recoveredQueuedCountError } = await primary.client
+    .from("my_skill_reports")
+    .select("report_id", { count: "exact", head: true })
+    .eq("category", "security")
+    .eq("state", "queued");
+  if (recoveredQueuedCountError || recoveredQueuedCount !== 1) {
+    throw recoveredQueuedCountError ?? new Error(`Resolved-history recovery changed the queued row count (${recoveredQueuedCount}).`);
+  }
 
   smokeStage = "account-export";
   const exportResponse = await primaryContext.request.get(new URL("/account/export", baseUrl).toString());
@@ -526,16 +824,31 @@ try {
   }
 
   if (diagnostics.length) throw new Error(`Authenticated browser diagnostics:\n${diagnostics.join("\n")}`);
+  assertCompleteDualControlEvidence(dualControlEvidence);
   passReceipt = {
     result: "pass",
-    submissionValidation: { fieldLocal: true, valuesPreserved: true, transportFailurePreserved: true, invalidRows: 0, correctedRows: 1, responsive: "390px" },
+    anonymousAcquisition: {
+      query: "Skill Audit",
+      resultPath: detailPath,
+      viewports: anonymousAcquisition,
+      freshnessBoundary: "recorded-signals-no-derived-verdict",
+      signedOutReportReturnPath: `${detailPath}#report-listing`
+    },
+    submissionValidation: { fieldLocal: true, valuesPreserved: true, transportFailurePreserved: true, serverQuotaFailurePreserved: true, quotaFailureInsertedRows: 0, invalidRows: 0, correctedRows: 1, responsive: "390px" },
     submissionWithdrawal: { submissionId: withdrawalId, ownerState: "withdrawn", secondAccountIsolated: true },
     forgedPositiveNotices: "rejected",
     publicEvidence: {
       noRow: { audit: "bounded-no-row-state", grade: "bounded-no-row-state", auditWidth, gradeWidth },
       receiptRows: { audit: "rendered", grade: "rendered-provisional-letterless", receiptAuditWidth, receiptGradeWidth, privateDigest: "absent" }
     },
-    report: { strictInputCoveredByFocusedTest: true, queued: reportId, cooldown: true, escapedText: true },
+    dualControl: {
+      approvals: dualControlEvidence.approvals,
+      executions: dualControlEvidence.executions,
+      samePersonWrongRoleDenied: dualControlEvidence.samePersonWrongRoleDenied,
+      serviceRoleOnlyDenied: dualControlEvidence.serviceRoleOnlyDenied,
+      credentialCanaries: "absent"
+    },
+    report: { strictInputCoveredByFocusedTest: true, queued: reportId, cooldown: true, requestIdPayloadConflictFailedClosed: true, queuedConstraintConflictRecovered: true, resolvedHistoryQueuedAuthorityRecovered: true, escapedText: true },
     ownerIsolation: "passed",
     dispositionHistory: "resolved",
     export: "owner-report-included-private-no-store",
@@ -547,11 +860,7 @@ try {
   const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? ` (${error.code})`
     : "";
-  const message = error instanceof Error
-    ? error.message
-    : error && typeof error === "object" && "message" in error && typeof error.message === "string"
-      ? error.message
-      : String(error);
+  const message = safeOperatorErrorMessage(error);
   primaryError = new Error(`Hosted launch smoke failed at ${smokeStage}${code}: ${message || "provider returned an empty error"}`);
 } finally {
   const cleanupErrors = [];
@@ -574,10 +883,33 @@ try {
       cleanupErrors.push(error);
     }
   }
+  let operatorRowsRemaining = {
+    principals: 2,
+    approvals: dualControlEvidence.approvals,
+    executions: dualControlEvidence.executions,
+    auditEvents: dualControlEvidence.executions,
+    disabledTriggers: 0,
+    restoredTriggers: 0
+  };
+  try {
+    operatorRowsRemaining = cleanupOperatorFixtures(operatorAuthority);
+  } catch (error) {
+    cleanupErrors.push(new Error(`Synthetic operator cleanup failed: ${safeOperatorErrorMessage(error)}`));
+  }
+  const catalogClean = Object.values(catalogRowsRemaining).every((value) => value === 0);
+  const operatorRowsClean = ["principals", "approvals", "executions", "auditEvents"]
+    .every((key) => operatorRowsRemaining[key] === 0);
+  const operatorTriggersRestored = operatorRowsRemaining.disabledTriggers === 0
+    && operatorRowsRemaining.restoredTriggers === 4;
   cleanupReceipt = {
-    verified: cleanupErrors.length === 0 && authUsersRemaining === 0,
+    verified: cleanupErrors.length === 0
+      && authUsersRemaining === 0
+      && catalogClean
+      && operatorRowsClean
+      && operatorTriggersRestored,
     authUsersRemaining,
-    catalogRowsRemaining
+    catalogRowsRemaining,
+    operatorRowsRemaining
   };
   if (cleanupErrors.length) {
     primaryError = primaryError
@@ -588,7 +920,334 @@ try {
 
 if (primaryError) throw primaryError;
 if (!passReceipt || !cleanupReceipt?.verified) throw new Error("Hosted launch smoke ended without a verified cleanup receipt.");
-process.stdout.write(`${JSON.stringify({ ...passReceipt, cleanup: cleanupReceipt })}\n`);
+const finalReceipt = JSON.stringify({ ...passReceipt, cleanup: cleanupReceipt });
+assertOperatorCredentialCanariesAbsent(finalReceipt, "final hosted smoke receipt");
+process.stdout.write(`${finalReceipt}\n`);
+
+function createEphemeralOperatorAuthority() {
+  const createPrincipal = (role) => {
+    const credential = `smo_v1_${randomBytes(32).toString("hex")}`;
+    return {
+      role,
+      handle: `browser-smoke-${role}-${marker}-${randomBytes(6).toString("hex")}`,
+      credential,
+      credentialDigest: `sha256:${createHash("sha256").update(credential, "utf8").digest("hex")}`
+    };
+  };
+  const authority = {
+    approver: createPrincipal("approver"),
+    executor: createPrincipal("executor")
+  };
+  if (authority.approver.credential === authority.executor.credential) {
+    throw new Error("Ephemeral operator credentials were not distinct.");
+  }
+  assertCanonicalOperatorAuthority(authority);
+  return authority;
+}
+
+function assertCanonicalOperatorAuthority(authority) {
+  for (const role of ["approver", "executor"]) {
+    const principal = authority?.[role];
+    if (principal?.role !== role
+      || !/^browser-smoke-(approver|executor)-[0-9]{10,16}-[0-9a-f]{12}$/.test(principal.handle ?? "")
+      || !/^smo_v1_[0-9a-f]{64}$/.test(principal.credential ?? "")
+      || !/^sha256:[0-9a-f]{64}$/.test(principal.credentialDigest ?? "")
+      || principal.credentialDigest !== `sha256:${createHash("sha256").update(principal.credential, "utf8").digest("hex")}`) {
+      throw new Error("Ephemeral operator authority is invalid.");
+    }
+  }
+}
+
+function seedOperatorPrincipals(authority) {
+  assertCanonicalOperatorAuthority(authority);
+  const sql = `
+    begin;
+    insert into private.operator_principals (handle, authority_role, credential_digest)
+    values
+      ('${authority.approver.handle}', 'approver', '${authority.approver.credentialDigest}'),
+      ('${authority.executor.handle}', 'executor', '${authority.executor.credentialDigest}');
+    commit;
+    select json_build_object(
+      'approvers', (select count(*)::integer from private.operator_principals
+        where handle = '${authority.approver.handle}' and authority_role = 'approver'),
+      'executors', (select count(*)::integer from private.operator_principals
+        where handle = '${authority.executor.handle}' and authority_role = 'executor')
+    )::text;
+  `;
+  const output = runLocalSuperuserSql(sql, "operator principal seed");
+  assertOperatorCredentialCanariesAbsent(output, "operator principal seed output");
+  const counts = parseLastJsonLine(output, "operator principal seed");
+  if (Object.keys(counts).sort().join(",") !== "approvers,executors"
+    || counts.approvers !== 1
+    || counts.executors !== 1) {
+    throw new Error("Operator principal seed did not create exactly one approver and one executor.");
+  }
+}
+
+function createOperatorClient(credential, approvalId = null) {
+  if (!/^smo_v1_[0-9a-f]{64}$/.test(credential ?? "")
+    || (approvalId !== null && !/^opa_[0-9a-f]{32}$/.test(approvalId))) {
+    throw new Error("Operator transport credentials are invalid.");
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    db: { schema: "api" },
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      headers: {
+        "x-skillmap-operator-credential": credential,
+        ...(approvalId ? { "x-skillmap-operator-approval": approvalId } : {})
+      }
+    }
+  });
+}
+
+async function runDualControlledBusinessRpc({
+  actionKind,
+  subjectType,
+  subjectId,
+  actionPayload,
+  actionDigest,
+  operationId,
+  rpcName,
+  rpcParameters,
+  proveSamePersonWrongRole = false,
+  label
+}) {
+  const serviceOnlyOutcome = await admin.rpc(rpcName, rpcParameters);
+  assertOperatorCredentialCanariesAbsent(serviceOnlyOutcome, `${label} service-role denial`);
+  assertPermissionDenied(serviceOnlyOutcome, `${label} service-role-only call`);
+  dualControlEvidence.serviceRoleOnlyDenied.push(actionKind);
+
+  const approver = createOperatorClient(operatorAuthority.approver.credential);
+  const approvalOutcome = await approver.rpc("approve_operator_action", {
+    p_action_kind: actionKind,
+    p_subject_type: subjectType,
+    p_subject_id: subjectId,
+    p_action_payload: actionPayload,
+    p_action_digest: actionDigest,
+    p_operation_id: operationId
+  });
+  assertOperatorCredentialCanariesAbsent(approvalOutcome, `${label} approval response`);
+  if (approvalOutcome.error) throw operatorRpcError(`${label} approval`, approvalOutcome.error);
+  const approval = approvalOutcome.data?.[0];
+  if (!Array.isArray(approvalOutcome.data)
+    || approvalOutcome.data.length !== 1
+    || Object.keys(approval ?? {}).sort().join(",") !== "action_digest,approval_id,approver_id,expires_at"
+    || !/^opa_[0-9a-f]{32}$/.test(approval?.approval_id ?? "")
+    || approval?.action_digest !== actionDigest
+    || !/^opr_[0-9a-f]{32}$/.test(approval?.approver_id ?? "")
+    || typeof approval?.expires_at !== "string"
+    || !Number.isFinite(Date.parse(approval.expires_at))) {
+    throw new Error(`${label} approval returned an invalid bounded projection.`);
+  }
+  dualControlEvidence.approvals += 1;
+
+  if (proveSamePersonWrongRole) {
+    const wrongRole = createOperatorClient(operatorAuthority.approver.credential, approval.approval_id);
+    const wrongRoleOutcome = await wrongRole.rpc(rpcName, rpcParameters);
+    assertOperatorCredentialCanariesAbsent(wrongRoleOutcome, `${label} same-person wrong-role denial`);
+    assertPermissionDenied(wrongRoleOutcome, `${label} approver-as-executor call`);
+    dualControlEvidence.samePersonWrongRoleDenied = true;
+  }
+
+  const executor = createOperatorClient(operatorAuthority.executor.credential, approval.approval_id);
+  const executionOutcome = await executor.rpc(rpcName, rpcParameters);
+  assertOperatorCredentialCanariesAbsent(executionOutcome, `${label} execution response`);
+  if (executionOutcome.error) throw operatorRpcError(`${label} execution`, executionOutcome.error);
+  if (!Array.isArray(executionOutcome.data) || executionOutcome.data.length !== 1) {
+    throw new Error(`${label} execution returned an invalid bounded projection.`);
+  }
+  dualControlEvidence.executions += 1;
+  return executionOutcome.data;
+}
+
+function assertPermissionDenied(outcome, label) {
+  if (outcome?.data !== null || outcome?.error?.code !== "42501") {
+    const code = typeof outcome?.error?.code === "string" ? outcome.error.code : "missing";
+    throw new Error(`${label} did not fail closed with SQLSTATE 42501 (received ${code}).`);
+  }
+}
+
+function operatorRpcError(label, error) {
+  const code = typeof error?.code === "string" ? ` (${error.code})` : "";
+  return new Error(`${label} failed${code}: ${safeOperatorErrorMessage(error)}`);
+}
+
+function assertCompleteDualControlEvidence(evidence) {
+  const expectedKinds = [
+    "report.disposition",
+    "submission.publish",
+    "submission.publisher-authorization"
+  ];
+  const actualKinds = [...evidence.serviceRoleOnlyDenied].sort();
+  if (evidence.approvals !== 3
+    || evidence.executions !== 3
+    || evidence.samePersonWrongRoleDenied !== true
+    || JSON.stringify(actualKinds) !== JSON.stringify(expectedKinds)) {
+    throw new Error("Hosted smoke did not prove the complete dual-control boundary.");
+  }
+}
+
+function canonicalActionDigest(value) {
+  return `sha256:${createHash("sha256").update(JSON.stringify(canonicalJsonValue(value, new Set())), "utf8").digest("hex")}`;
+}
+
+function canonicalJsonValue(value, seen) {
+  if (value === null) return null;
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("Canonical JSON does not support non-finite numbers.");
+    return Object.is(value, -0) ? 0 : value;
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) throw new Error("Canonical JSON does not support cyclic values.");
+    seen.add(value);
+    const result = value.map((item) => canonicalJsonValue(item, seen));
+    seen.delete(value);
+    return result;
+  }
+  if (typeof value !== "object" || value === undefined) {
+    throw new Error(`Canonical JSON does not support ${typeof value} values.`);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error("Canonical JSON supports plain objects only.");
+  }
+  if (seen.has(value)) throw new Error("Canonical JSON does not support cyclic values.");
+  seen.add(value);
+  const result = Object.create(null);
+  for (const key of Object.keys(value).sort()) result[key] = canonicalJsonValue(value[key], seen);
+  seen.delete(value);
+  return result;
+}
+
+function cleanupOperatorFixtures(authority) {
+  assertCanonicalOperatorAuthority(authority);
+  const sql = `
+    begin;
+    create temporary table skillmap_smoke_operator_principals on commit drop as
+      select id from private.operator_principals
+      where handle in ('${authority.approver.handle}', '${authority.executor.handle}');
+    create temporary table skillmap_smoke_operator_approvals on commit drop as
+      select id from private.operator_action_approvals
+      where approver_operator_id in (select id from skillmap_smoke_operator_principals);
+
+    alter table private.audit_events disable trigger audit_events_append_only;
+    alter table private.operator_action_executions disable trigger operator_action_executions_append_only;
+    alter table private.operator_action_approvals disable trigger operator_action_approvals_append_only;
+    alter table private.operator_principals disable trigger operator_principals_no_delete;
+
+    delete from private.audit_events
+      where operator_approval_id in (select id from skillmap_smoke_operator_approvals)
+        or approver_operator_id in (select id from skillmap_smoke_operator_principals)
+        or executor_operator_id in (select id from skillmap_smoke_operator_principals);
+    delete from private.operator_action_executions
+      where approval_id in (select id from skillmap_smoke_operator_approvals)
+        or executor_operator_id in (select id from skillmap_smoke_operator_principals);
+    delete from private.operator_action_approvals
+      where id in (select id from skillmap_smoke_operator_approvals);
+    delete from private.operator_principals
+      where id in (select id from skillmap_smoke_operator_principals);
+
+    alter table private.operator_principals enable trigger operator_principals_no_delete;
+    alter table private.operator_action_approvals enable trigger operator_action_approvals_append_only;
+    alter table private.operator_action_executions enable trigger operator_action_executions_append_only;
+    alter table private.audit_events enable trigger audit_events_append_only;
+
+    with expected_triggers(relation_name, trigger_name) as (values
+      ('private.audit_events'::regclass, 'audit_events_append_only'),
+      ('private.operator_action_executions'::regclass, 'operator_action_executions_append_only'),
+      ('private.operator_action_approvals'::regclass, 'operator_action_approvals_append_only'),
+      ('private.operator_principals'::regclass, 'operator_principals_no_delete')
+    )
+    select json_build_object(
+      'principals', (select count(*)::integer from private.operator_principals
+        where handle in ('${authority.approver.handle}', '${authority.executor.handle}')),
+      'approvals', (select count(*)::integer from private.operator_action_approvals
+        where id in (select id from skillmap_smoke_operator_approvals)),
+      'executions', (select count(*)::integer from private.operator_action_executions
+        where approval_id in (select id from skillmap_smoke_operator_approvals)
+          or executor_operator_id in (select id from skillmap_smoke_operator_principals)),
+      'auditEvents', (select count(*)::integer from private.audit_events
+        where operator_approval_id in (select id from skillmap_smoke_operator_approvals)
+          or approver_operator_id in (select id from skillmap_smoke_operator_principals)
+          or executor_operator_id in (select id from skillmap_smoke_operator_principals)),
+      'disabledTriggers', (select count(*)::integer from expected_triggers expected
+        left join pg_trigger trigger on trigger.tgrelid = expected.relation_name
+          and trigger.tgname = expected.trigger_name
+        where trigger.oid is null or trigger.tgenabled <> 'O'),
+      'restoredTriggers', (select count(*)::integer from expected_triggers expected
+        join pg_trigger trigger on trigger.tgrelid = expected.relation_name
+          and trigger.tgname = expected.trigger_name
+        where trigger.tgenabled = 'O')
+    )::text;
+    commit;
+  `;
+  const output = runLocalSuperuserSql(sql, "operator fixture cleanup");
+  assertOperatorCredentialCanariesAbsent(output, "operator cleanup output");
+  const counts = parseLastJsonLine(output, "operator fixture cleanup");
+  const expectedKeys = "approvals,auditEvents,disabledTriggers,executions,principals,restoredTriggers";
+  if (Object.keys(counts).sort().join(",") !== expectedKeys
+    || ["principals", "approvals", "executions", "auditEvents", "disabledTriggers"]
+      .some((key) => counts[key] !== 0)
+    || counts.restoredTriggers !== 4) {
+    throw new Error(`Synthetic operator cleanup verification failed (${JSON.stringify(counts)}).`);
+  }
+  return counts;
+}
+
+function runLocalSuperuserSql(sql, label) {
+  try {
+    return execFileSync(
+      "psql",
+      [databaseUrl, "-X", "-qAt", "-v", "ON_ERROR_STOP=1"],
+      { input: sql, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], maxBuffer: 1024 * 1024 }
+    ).trim();
+  } catch {
+    throw new Error(`Local superuser ${label} failed without reflecting its input.`);
+  }
+}
+
+function parseLastJsonLine(output, label) {
+  try {
+    return JSON.parse(output.split(/\r?\n/).filter(Boolean).at(-1) ?? "{}");
+  } catch {
+    throw new Error(`Local superuser ${label} returned an invalid bounded receipt.`);
+  }
+}
+
+function assertOperatorCredentialCanariesAbsent(value, label) {
+  if (containsOperatorCredentialCanary(value)) {
+    throw new Error(`An operator credential canary reached ${label}.`);
+  }
+}
+
+function containsOperatorCredentialCanary(value, seen = new Set(), depth = 0) {
+  const credentials = [operatorAuthority.approver.credential, operatorAuthority.executor.credential];
+  if (typeof value === "string") return credentials.some((credential) => value.includes(credential));
+  if (value === null || value === undefined || typeof value !== "object" || depth > 8 || seen.has(value)) return false;
+  seen.add(value);
+  const nested = [];
+  for (const key of Object.getOwnPropertyNames(value)) {
+    try {
+      nested.push(value[key]);
+    } catch {
+      // Ignore inaccessible diagnostic properties; no such value can be reflected by this harness.
+    }
+  }
+  return nested.some((item) => containsOperatorCredentialCanary(item, seen, depth + 1));
+}
+
+function safeOperatorErrorMessage(error) {
+  if (containsOperatorCredentialCanary(error)) {
+    return "operator credential canary reached an error boundary and was suppressed";
+  }
+  return error instanceof Error
+    ? error.message
+    : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+      ? error.message
+      : String(error);
+}
 
 async function createSyntheticUser(role) {
   const email = `report-prod-${role}-${marker}@skillmap.invalid`;
@@ -617,7 +1276,7 @@ function auditReceiptPayload(workerVersion) {
     receiptDigest: digest("a"),
     sourceContentDigest: digest("b"),
     normalizedContentDigest: digest("c"),
-    policyVersion: "skillmap-static-audit/v1",
+    policyVersion: "skillmap-static-audit/v2",
     hostProfileVersion: "codex-host/v1",
     workerVersion,
     findingCounts: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
@@ -644,7 +1303,7 @@ function gradeReceiptPayload(auditReceiptDigest) {
     evaluationSuiteDigest: null,
     rubricVersion: "skillmap-rubric/v1",
     hostProfileVersion: "codex-host/v1",
-    evaluatorVersion: "skillmap-grader/1.0.0",
+    evaluatorVersion: "skillmap-grader/0.1.0",
     hardGates: [
       { code: "source-identity", passed: true, evidenceDigest: digest("8") },
       { code: "audit-acceptable", passed: true, evidenceDigest: digest("8") },
@@ -744,6 +1403,103 @@ function toBrowserCookies(cookies) {
   }));
 }
 
+async function runAnonymousAcquisitionJourney(page, viewport) {
+  const viewportLabel = `${viewport.width}px`;
+  const expectedReportReturnPath = `${detailPath}#report-listing`;
+
+  smokeStage = `anonymous-getting-started-${viewport.width}`;
+  await page.setViewportSize(viewport);
+  await page.goto(new URL("/getting-started", baseUrl).toString(), { waitUntil: "load" });
+  await page.getByRole("heading", { name: "Hosted visitor workflow" }).waitFor();
+  await page.getByRole("heading", { name: "Hosted submitter workflow" }).waitFor();
+  await page.getByText("Search the library", { exact: true }).waitFor();
+  await page.getByText("Follow the owner receipt", { exact: true }).waitFor();
+  const gettingStartedWidth = await dimensions(page);
+  assertNoOverflow(gettingStartedWidth, `getting-started workflow at ${viewportLabel}`);
+
+  smokeStage = `anonymous-search-${viewport.width}`;
+  await page.goto(new URL("/skills", baseUrl).toString(), { waitUntil: "load" });
+  await page.getByLabel("Search skills").fill("Skill Audit");
+  await page.getByRole("button", { name: "Search library" }).click();
+  await waitForUrl(page, (url) => url.pathname === "/skills" && url.searchParams.get("q") === "Skill Audit", `anonymous search at ${viewportLabel}`);
+  await page.getByRole("heading", { level: 2, name: "Skill Audit" }).waitFor();
+  const resultCards = page.getByRole("article");
+  const resultCount = await resultCards.count();
+  if (resultCount !== 1) throw new Error(`Anonymous search at ${viewportLabel} returned ${resultCount} cards instead of one exact result.`);
+  const resultCard = resultCards.first();
+  if ((await page.locator("body").innerText()).includes("Skill Quality Review")) {
+    throw new Error(`Anonymous search at ${viewportLabel} retained a nonmatching catalog result.`);
+  }
+  const catalogWidth = await dimensions(page);
+  assertNoOverflow(catalogWidth, `filtered catalog at ${viewportLabel}`);
+  await resultCard.getByRole("link", { name: "Inspect" }).click();
+  await waitForUrl(page, (url) => url.pathname === detailPath, `anonymous result navigation at ${viewportLabel}`);
+
+  smokeStage = `anonymous-detail-${viewport.width}`;
+  await page.getByRole("heading", { level: 1, name: "Skill Audit" }).waitFor();
+  await page.getByRole("heading", { name: "Freshness signals" }).waitFor();
+  await page.getByText(/does not calculate an automatic fresh or current verdict from elapsed time/).waitFor();
+  for (const label of ["Catalog publication", "Listing record", "Provenance evidence", "Audit evidence", "Compatibility evidence", "Grade evidence"]) {
+    await page.getByText(label, { exact: true }).waitFor();
+  }
+  await page.getByText("Immutable commit", { exact: true }).waitFor();
+  await page.getByText("Relative skill path", { exact: true }).waitFor();
+  const visibleActions = page.locator("[data-skill-actions]:visible");
+  if (await visibleActions.count() !== 1) throw new Error(`Skill detail at ${viewportLabel} did not expose one visible version-action panel.`);
+  await visibleActions.getByText("Version 1.0.0", { exact: true }).waitFor();
+  await visibleActions.getByText(/License: MIT/).waitFor();
+  await assertMobileSkillActionOrder(page, "Sign in to save", `anonymous skill detail at ${viewportLabel}`);
+  const detailWidth = await dimensions(page);
+  assertNoOverflow(detailWidth, `anonymous skill detail at ${viewportLabel}`);
+
+  smokeStage = `anonymous-audit-${viewport.width}`;
+  await page.getByRole("link", { name: "View audit evidence" }).click();
+  await waitForUrl(page, (url) => url.pathname === `${detailPath}/audit`, `anonymous audit navigation at ${viewportLabel}`);
+  await page.getByRole("heading", { name: "Skill Audit audit evidence" }).waitFor();
+  await page.getByRole("heading", { name: "Bounded public evidence projection" }).waitFor();
+  await page.getByRole("heading", { name: "No current public audit evidence" }).waitFor();
+  const auditWidth = await dimensions(page);
+  assertNoOverflow(auditWidth, `audit evidence at ${viewportLabel}`);
+
+  await page.getByRole("link", { name: "Back to skill detail" }).click();
+  await waitForUrl(page, (url) => url.pathname === detailPath, `audit return at ${viewportLabel}`);
+  smokeStage = `anonymous-grade-${viewport.width}`;
+  await page.getByRole("link", { name: "View grade evidence" }).click();
+  await waitForUrl(page, (url) => url.pathname === `${detailPath}/grade`, `anonymous grade navigation at ${viewportLabel}`);
+  await page.getByRole("heading", { name: "Skill Audit grade evidence" }).waitFor();
+  await page.getByRole("heading", { name: "Bounded public evidence projection" }).waitFor();
+  await page.getByRole("heading", { name: "No current public grade evidence" }).waitFor();
+  const gradeWidth = await dimensions(page);
+  assertNoOverflow(gradeWidth, `grade evidence at ${viewportLabel}`);
+
+  await page.getByRole("link", { name: "Back to skill detail" }).click();
+  await waitForUrl(page, (url) => url.pathname === detailPath, `grade return at ${viewportLabel}`);
+  smokeStage = `anonymous-report-sign-in-${viewport.width}`;
+  await page.getByRole("heading", { name: "Report a suspicious listing" }).waitFor();
+  await page.getByText("Sign in to send a report", { exact: true }).waitFor();
+  const reportSignIn = page.getByRole("link", { name: "Sign in to report" });
+  const reportSignInHref = await reportSignIn.getAttribute("href");
+  const expectedSignInHref = `/sign-in?next=${encodeURIComponent(expectedReportReturnPath)}`;
+  if (reportSignInHref !== expectedSignInHref) {
+    throw new Error(`Signed-out report at ${viewportLabel} lost its exact return path (${reportSignInHref}).`);
+  }
+  await reportSignIn.click();
+  await waitForUrl(page, (url) => url.pathname === "/sign-in" && url.searchParams.get("next") === expectedReportReturnPath, `report sign-in return path at ${viewportLabel}`);
+  await page.getByRole("heading", { level: 1, name: "Save skills and track exact-source submissions." }).waitFor();
+  const signInWidth = await dimensions(page);
+  assertNoOverflow(signInWidth, `report sign-in at ${viewportLabel}`);
+
+  return {
+    resultCount,
+    gettingStartedWidth,
+    catalogWidth,
+    detailWidth,
+    auditWidth,
+    gradeWidth,
+    signInWidth
+  };
+}
+
 function collectDiagnostics(page) {
   const values = [];
   page.on("console", (message) => {
@@ -759,6 +1515,36 @@ async function dimensions(page) {
 
 function assertNoOverflow(width, label) {
   if (width.scroll > width.inner) throw new Error(`${label} overflows (${width.scroll} > ${width.inner}).`);
+}
+
+async function assertMobileSkillActionOrder(page, expectedAction, label) {
+  const result = await page.evaluate((expected) => {
+    const visible = (element) => {
+      const style = getComputedStyle(element);
+      return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
+    };
+    const panel = [...document.querySelectorAll("[data-skill-actions]")].find(visible);
+    const report = document.getElementById("report-listing");
+    const action = panel
+      ? [...panel.querySelectorAll("a[href],button")].find((element) => visible(element)
+        && (element.textContent ?? "").trim() === expected)
+      : null;
+    if (!(panel instanceof HTMLElement) || !(report instanceof HTMLElement)
+      || !(action instanceof HTMLElement)) return null;
+    return {
+      actionTop: action.getBoundingClientRect().top,
+      viewportHeight: window.innerHeight,
+      panelBeforeReport: Boolean(panel.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING),
+      actionBeforeReport: Boolean(action.compareDocumentPosition(report) & Node.DOCUMENT_POSITION_FOLLOWING)
+    };
+  }, expectedAction);
+  if (!result) throw new Error(`${label} did not expose the expected ${expectedAction} action.`);
+  if (result.actionTop < 0 || result.actionTop >= result.viewportHeight) {
+    throw new Error(`${label} buried ${expectedAction} below the initial viewport (${result.actionTop} >= ${result.viewportHeight}).`);
+  }
+  if (!result.panelBeforeReport || !result.actionBeforeReport) {
+    throw new Error(`${label} reached the report section before ${expectedAction} in DOM or keyboard order.`);
+  }
 }
 
 function assertPrivateNoStore(headers, label) {

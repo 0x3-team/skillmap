@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4 text-foreground">
+    <main id="main-content" tabIndex={-1} className="grid min-h-screen place-items-center bg-background px-4 text-foreground">
       <div className="max-w-md rounded-xl border border-border bg-card p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">404</p>
         <h1 className="mt-3 text-2xl font-semibold">That SkillMap route does not exist.</h1>

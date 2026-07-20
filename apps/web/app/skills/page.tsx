@@ -1,11 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Search } from "lucide-react";
 import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { CatalogUnavailable, EmptyCatalog } from "@/components/skillmap/catalog-states";
 import { SkillCard } from "@/components/skillmap/skill-card";
 import { CatalogDataError, CatalogInputError, CatalogQueryError } from "@/lib/registry/errors";
 import { listPublicSkills } from "@/lib/registry/repository.server";
+import { buildPublicPageMetadata } from "@/lib/metadata";
 import { SupabaseConfigurationError } from "@/lib/supabase/config";
+
+export const metadata: Metadata = buildPublicPageMetadata({
+  title: "Skill library | SkillMap",
+  description: "Browse exact-source agent skills with separate provenance, license, audit, compatibility, lifecycle, and grade evidence.",
+  path: "/skills"
+});
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +66,7 @@ export default async function SkillsPage({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Online skill library</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">Inspect the evidence before the instruction body.</h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-            This first online slice contains the complete declared first-party seed set. Every record keeps source, license, audit, compatibility, and grade state distinct.
+            Catalog size and evidence state reflect the current environment. Every visible record keeps source, license, audit, compatibility, lifecycle, and grade state distinct.
           </p>
         </div>
         <p className="shrink-0 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground">
@@ -106,7 +114,7 @@ function scalarCatalogParameter(
 
 function SkillsShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader />
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">{children}</section>
     </main>

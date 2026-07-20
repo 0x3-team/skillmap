@@ -55,7 +55,7 @@ export default async function PublicAuditEvidencePage({ params }: { params: Prom
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground">
       <CatalogHeader />
       <EvidencePageShell publisher={publisher} slug={slug} eyebrow="Current version evidence" title={`${skill.displayName} audit evidence`} intro="Static inspection evidence bound to the exact source commit currently published in the catalog. It describes observed signals and policy output, not an execution guarantee or permanent safety claim.">
         <ProjectionBoundary viewName="api.catalog_audit_evidence" methodologyPath="/trust/auditing" methodologyLabel="Read the audit methodology" />
@@ -88,7 +88,7 @@ export default async function PublicAuditEvidencePage({ params }: { params: Prom
 }
 
 function EvidenceError({ kind }: { kind: string }) {
-  return <main className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><h1 className="text-xl font-semibold">Public {kind} evidence unavailable</h1><p className="mt-2 text-sm text-muted-foreground">The public catalog or bounded evidence projection could not be validated. No stale or private fallback was shown.</p></div></section></main>;
+  return <main id="main-content" tabIndex={-1} className="min-h-screen bg-background text-foreground"><CatalogHeader /><section className="mx-auto max-w-5xl px-4 py-14 sm:px-6"><div className="rounded-2xl border border-warning/35 bg-warning/10 p-8 text-center"><h1 className="text-xl font-semibold">Public {kind} evidence unavailable</h1><p className="mt-2 text-sm text-muted-foreground">The public catalog or bounded evidence projection could not be validated. No stale or private fallback was shown.</p></div></section></main>;
 }
 
 function humanize(value: string) { return value.replaceAll("-", " "); }

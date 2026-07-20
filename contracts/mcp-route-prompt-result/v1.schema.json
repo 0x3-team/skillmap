@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/mcp-route-prompt-result/v1.schema.json",
+  "title": "SkillMap MCP route_prompt success result v1",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "skillmap.api-response"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "servingRevision": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkillMapRevisionRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currentRevision": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkillMapRevisionRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "compatibility": {
+      "type": "string",
+      "enum": [
+        "compatible",
+        "degraded",
+        "upgrade-required",
+        "client-too-new",
+        "incompatible"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "skillmap.route-result"
+        },
+        "schemaVersion": {
+          "type": "number",
+          "const": 2
+        },
+        "routeId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "promptStored": {
+          "type": "boolean",
+          "const": false
+        },
+        "decision": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "skillmap.route-decision"
+            },
+            "schemaVersion": {
+              "type": "number",
+              "const": 2
+            },
+            "revision": {
+              "$ref": "#/$defs/SkillMapRevisionRef"
+            },
+            "servingMode": {
+              "type": "string",
+              "enum": [
+                "current",
+                "last-known-good"
+              ]
+            },
+            "recommendations": {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "type": "string",
+                    "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "score": {
+                    "type": "number"
+                  },
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "active-default",
+                      "specialist",
+                      "explicit-only",
+                      "archived",
+                      "blocked"
+                    ]
+                  },
+                  "reasonCodes": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    }
+                  }
+                },
+                "required": [
+                  "skillId",
+                  "displayName",
+                  "score",
+                  "tier",
+                  "reasonCodes"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "exclusions": {
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "type": "string",
+                    "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "reasonCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "displayName",
+                  "reasonCode"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "hookText": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "warningState": {
+              "type": "string",
+              "enum": [
+                "none",
+                "degraded",
+                "blocked"
+              ]
+            },
+            "warningCodes": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "schemaVersion",
+            "revision",
+            "servingMode",
+            "recommendations",
+            "exclusions",
+            "hookText",
+            "warningState",
+            "warningCodes"
+          ],
+          "additionalProperties": false
+        },
+        "decisionDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "latencyMs": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "kind",
+        "schemaVersion",
+        "routeId",
+        "createdAt",
+        "promptStored",
+        "decision",
+        "decisionDigest",
+        "latencyMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "kind",
+    "schemaVersion",
+    "ok",
+    "requestId",
+    "servingRevision",
+    "currentRevision",
+    "compatibility",
+    "data"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "SkillMapRevisionRef": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "revisionId": {
+          "type": "string"
+        },
+        "workspaceRevision": {
+          "type": "string"
+        },
+        "effectiveDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveRevisionDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "workspaceId",
+        "revisionId",
+        "workspaceRevision",
+        "effectiveDigest",
+        "effectiveRevisionDigest"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

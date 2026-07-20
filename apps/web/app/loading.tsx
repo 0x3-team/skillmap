@@ -1,6 +1,8 @@
 export default function Loading() {
   return (
     <div
+      id="main-content"
+      tabIndex={-1}
       className="grid min-h-screen place-items-center bg-background px-4 text-foreground"
       role="status"
       aria-live="polite"

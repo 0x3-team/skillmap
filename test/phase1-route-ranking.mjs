@@ -64,6 +64,35 @@ test('pure route ranking preserves the routePrompt recommendations, exclusions, 
   assert.equal(ranked.hookText, `SkillMap: prefer alpha. Avoid superseded: ${skills[1].skillId}.`);
 });
 
+test('legacy hook text retains late supersession exclusions beyond the public twelve-item prefix', () => {
+  const policyExclusions = Array.from({ length: 12 }, (_, index) => rankingSkill(index, {
+    tier: 'blocked',
+    routeEligible: false
+  }));
+  const superseded = rankingSkill(20, { name: 'legacy-target' });
+  const replacement = rankingSkill(21, { name: 'modern-target', supersedes: ['legacy-target'] });
+  const ranked = rankRoutePrompt([...policyExclusions, superseded, replacement], 'Handle shared route work', 3);
+
+  assert.equal(ranked.exclusions.length, 12, 'public exclusion projection remains capped');
+  assert.equal(ranked.exclusions.some((item) => item.reason.includes('superseded')), false);
+  assert.deepEqual(ranked.recommendations.map((item) => item.name), ['modern-target']);
+  assert.equal(ranked.hookText, `SkillMap: prefer modern-target. Avoid superseded: ${superseded.skillId}.`);
+});
+
+test('route display names and hook text never expose sensitive or embedded absolute-path labels', () => {
+  const privateName = 'prefix:C:/Users/alice/private-skill';
+  const privateFamily = 'family:C:/Users/alice/private-family';
+  const privateSkill = rankingSkill(0, { name: privateName, family: privateFamily });
+  const ranked = rankRoutePrompt([privateSkill], 'Handle shared route work', 1);
+  const domain = routeSemanticDecision({ skills: [privateSkill] }, 'Handle shared route work', 1);
+
+  assert.equal(ranked.hookText.includes(privateName), false);
+  assert.equal(ranked.hookText.includes(privateFamily), false);
+  assert.equal(ranked.hookText, `SkillMap: prefer ${privateSkill.skillId}.`);
+  assert.equal(domain.recommendations[0].displayName, privateSkill.skillId);
+  assert.equal(domain.hookText.includes('C:/Users'), false);
+});
+
 test('pure route ranking preserves exact default max=3 and limit normalization semantics', () => {
   const skills = Array.from({ length: 4 }, (_, index) => rankingSkill(index));
   const prompt = 'Handle shared route work';

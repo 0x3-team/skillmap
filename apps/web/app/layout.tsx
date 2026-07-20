@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
+import { HostedSkipLink } from "@/components/skillmap/hosted-skip-link";
 import { getOptionalSiteUrl } from "@/lib/metadata";
 import { isPublicIndexingEnabled } from "@/lib/security/policy";
 import "./globals.css";
@@ -68,6 +69,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <HostedSkipLink />
         <noscript>
           <div className="mx-auto my-8 max-w-2xl rounded-xl border border-warning/35 bg-warning/10 p-6 text-foreground" role="status">
             <h1 className="text-xl font-semibold">JavaScript is required for hosted SkillMap workflows.</h1>

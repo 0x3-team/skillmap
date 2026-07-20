@@ -157,7 +157,7 @@ test('hung and oversized transports fail within explicit request bounds', async 
   );
 });
 
-test('408/429/5xx retries are bounded, Retry-After is capped, and 401 is never retried', async () => {
+test('408/5xx retries are bounded, Retry-After is capped, and 401 is never retried', async () => {
   const fixture = createFixtureTransport({ files: { 'SKILL.md': '# Demo\n' } });
   let commitAttempts = 0;
   const sleeps = [];
@@ -165,7 +165,7 @@ test('408/429/5xx retries are bounded, Retry-After is capped, and 401 is never r
     transport: async request => {
       if (request.url.includes('/commits/')) {
         commitAttempts += 1;
-        if (commitAttempts === 1) return response(429, 'rate limited', { 'retry-after': '100' });
+        if (commitAttempts === 1) return response(503, 'temporarily unavailable', { 'retry-after': '100' });
       }
       return fixture.transport(request);
     },
@@ -211,6 +211,75 @@ test('408/429/5xx retries are bounded, Retry-After is capped, and 401 is never r
       return true;
     }
   );
+});
+
+test('GitHub primary-rate-limit 403 is retryable RATE_LIMITED and preserves the bounded reset delay', async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchGithubSkillTree('owner/repo', 'main', 'skills/demo', {
+      transport: async () => {
+        calls += 1;
+        return response(403, 'rate limited', {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': '1784001600'
+        });
+      },
+      now: () => Date.parse('2026-07-14T03:00:00.000Z'),
+      maxRetries: 2,
+      maxRetryAfterMs: 25,
+      sleep: async () => assert.fail('must not retry before a reset beyond the bounded sleep')
+    }),
+    error => {
+      assert.ok(error instanceof GithubSourceFetchError);
+      assert.equal(error.code, 'RATE_LIMITED');
+      assert.equal(error.retryable, true);
+      assert.equal(error.statusCode, 403);
+      assert.equal(error.retryAfterMs, 3_600_000);
+      return true;
+    }
+  );
+  assert.equal(calls, 1);
+});
+
+test('GitHub secondary-limit body is RATE_LIMITED while an ordinary 403 remains an HTTP error', async () => {
+  for (const [body, expectedCode, expectedRetryable] of [
+    [JSON.stringify({ message: 'You have exceeded a secondary rate limit. Please wait before retrying.' }), 'RATE_LIMITED', true],
+    [JSON.stringify({ message: 'Resource not accessible by integration' }), 'HTTP_ERROR', false]
+  ]) {
+    let calls = 0;
+    await assert.rejects(
+      fetchGithubSkillTree('owner/repo', 'main', 'skills/demo', {
+        transport: async () => {
+          calls += 1;
+          return response(403, body, { 'x-ratelimit-remaining': '42' });
+        },
+        maxRetries: 2,
+        sleep: async () => assert.fail('403 classification must not retry in-process')
+      }),
+      error => {
+        assert.ok(error instanceof GithubSourceFetchError);
+        assert.equal(error.code, expectedCode);
+        assert.equal(error.retryable, expectedRetryable);
+        assert.equal(error.statusCode, 403);
+        assert.equal(error.retryAfterMs, undefined);
+        return true;
+      }
+    );
+    assert.equal(calls, 1);
+  }
+});
+
+test('GitHub source error rejects malformed status and retry metadata', () => {
+  assert.throws(
+    () => new GithubSourceFetchError('RATE_LIMITED', 'invalid', { statusCode: 99 }),
+    /valid HTTP status/
+  );
+  for (const retryAfterMs of [-1, Number.NaN, (2 * 60 * 60 * 1_000) + 1]) {
+    assert.throws(
+      () => new GithubSourceFetchError('RATE_LIMITED', 'invalid', { retryAfterMs }),
+      /bounded nonnegative integer/
+    );
+  }
 });
 
 test('ETag cache reuses only digest-verified content and never stores credentials', async () => {

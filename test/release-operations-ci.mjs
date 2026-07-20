@@ -7,6 +7,12 @@ import test from 'node:test';
 import YAML from 'yaml';
 
 const repo = path.resolve(import.meta.dirname, '..');
+const pinnedOfficialActions = Object.freeze({
+  'actions/checkout': 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5',
+  'actions/setup-node': 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
+  'actions/upload-artifact': 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02',
+  'actions/download-artifact': 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093'
+});
 
 function workflow(relativePath) {
   return YAML.parse(readFileSync(path.join(repo, relativePath), 'utf8'));
@@ -21,6 +27,30 @@ test('both CI authorities run the clean exact-candidate secret preflight', () =>
     assert.match(preflight, /--require-clean/, `${relativePath} can issue exact-candidate evidence from a dirty worktree`);
     assert.match(preflight, /--output/, `${relativePath} does not retain a preflight receipt`);
   }
+});
+
+test('GitHub CI pins every official action and tests the web app on supported Node lines', () => {
+  const relativePath = '.github/workflows/ci.yml';
+  const source = readFileSync(path.join(repo, relativePath), 'utf8');
+  const jobs = workflow(relativePath).jobs;
+  const officialUses = Object.values(jobs)
+    .flatMap(job => job.steps ?? [])
+    .map(step => step.uses)
+    .filter(uses => typeof uses === 'string' && uses.startsWith('actions/'));
+
+  assert.doesNotMatch(source, /uses:\s*actions\/(?:checkout|setup-node|upload-artifact|download-artifact)@v\d+/,
+    'official actions must not use mutable major-version tags');
+  assert.deepEqual([...new Set(officialUses.map(uses => uses.split('@')[0]))].sort(),
+    Object.keys(pinnedOfficialActions).sort());
+  for (const uses of officialUses) {
+    const [action, ref] = uses.split('@');
+    assert.match(ref ?? '', /^[0-9a-f]{40}$/, `${uses} is not pinned to an immutable commit`);
+    assert.equal(uses, pinnedOfficialActions[action], `${action} does not use the reviewed immutable pin`);
+  }
+
+  const webNodeMatrix = jobs.web?.strategy?.matrix?.node;
+  assert.deepEqual(webNodeMatrix, [22, 24], 'web CI must cover the supported Node 22 and 24 lines');
+  assert.equal(webNodeMatrix.includes(20), false, 'web CI must not exercise unsupported Node 20');
 });
 
 test('Gitea database authority runs pgTAP and type parity against the restored candidate', () => {
@@ -72,7 +102,8 @@ test('GitHub retained package candidate carries the exact-commit preflight recei
   const steps = job.steps ?? [];
   const preflight = steps.findIndex(step => typeof step.run === 'string' && step.run.includes('free-public-alpha-preflight.json'));
   const pack = steps.findIndex(step => typeof step.run === 'string' && step.run.includes('npm pack --json'));
-  const upload = steps.findIndex(step => step.uses === 'actions/upload-artifact@v4' && step.with?.name === 'skillmap-package-candidate');
+  const upload = steps.findIndex(step => step.uses === pinnedOfficialActions['actions/upload-artifact']
+    && step.with?.name === 'skillmap-package-candidate');
   assert.ok(preflight >= 0 && pack > preflight && upload > pack, 'preflight receipt must be created before and retained with the exact package candidate');
   assert.equal(steps[upload].with.path, 'artifacts/package');
 });

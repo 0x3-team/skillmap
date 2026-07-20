@@ -11,7 +11,7 @@ import {
   type GithubSourceSnapshot
 } from '../network/github-source-fetcher.js';
 
-export const HOSTED_AUDIT_VERSION = 'skillmap-static-audit/v1' as const;
+export const HOSTED_AUDIT_VERSION = 'skillmap-static-audit/v2' as const;
 export const HOSTED_GRADE_RUBRIC_VERSION = 'skillmap-rubric/v1' as const;
 
 const MAX_ENTRYPOINT_BYTES = 256 * 1024;
@@ -278,7 +278,7 @@ export function auditHostedSkillSnapshot(
   for (const file of snapshot.files) {
     const fileText = tryDecodeText(file.bytes);
     if (fileText === null) {
-      add('binary-file', 'medium', 'The submitted tree contains a binary or non-UTF-8 file.', qualifySnapshotPath(snapshot.subtree, file.path));
+      add('binary-file', 'critical', 'The submitted tree contains a binary or non-UTF-8 file that cannot be statically inspected.', qualifySnapshotPath(snapshot.subtree, file.path));
       continue;
     }
     const qualifiedPath = qualifySnapshotPath(snapshot.subtree, file.path);

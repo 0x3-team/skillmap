@@ -5492,6 +5492,1480 @@ export const CONTRACT_SCHEMAS = [
   },
   {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/mcp-route-prompt-result/v1.schema.json",
+    "title": "SkillMap MCP route_prompt success result v1",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "skillmap.api-response"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "const": 1
+      },
+      "ok": {
+        "type": "boolean",
+        "const": true
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "servingRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "currentRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatibility": {
+        "type": "string",
+        "enum": [
+          "compatible",
+          "degraded",
+          "upgrade-required",
+          "client-too-new",
+          "incompatible"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.route-result"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 2
+          },
+          "routeId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "promptStored": {
+            "type": "boolean",
+            "const": false
+          },
+          "decision": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "skillmap.route-decision"
+              },
+              "schemaVersion": {
+                "type": "number",
+                "const": 2
+              },
+              "revision": {
+                "$ref": "#/$defs/SkillMapRevisionRef"
+              },
+              "servingMode": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "last-known-good"
+                ]
+              },
+              "recommendations": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "skillId": {
+                      "type": "string",
+                      "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": [
+                        "active-default",
+                        "specialist",
+                        "explicit-only",
+                        "archived",
+                        "blocked"
+                      ]
+                    },
+                    "reasonCodes": {
+                      "maxItems": 32,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      }
+                    }
+                  },
+                  "required": [
+                    "skillId",
+                    "displayName",
+                    "score",
+                    "tier",
+                    "reasonCodes"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "exclusions": {
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "skillId": {
+                      "type": "string",
+                      "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "reasonCode": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    }
+                  },
+                  "required": [
+                    "displayName",
+                    "reasonCode"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "hookText": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "warningState": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "degraded",
+                  "blocked"
+                ]
+              },
+              "warningCodes": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "schemaVersion",
+              "revision",
+              "servingMode",
+              "recommendations",
+              "exclusions",
+              "hookText",
+              "warningState",
+              "warningCodes"
+            ],
+            "additionalProperties": false
+          },
+          "decisionDigest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "latencyMs": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "routeId",
+          "createdAt",
+          "promptStored",
+          "decision",
+          "decisionDigest",
+          "latencyMs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "ok",
+      "requestId",
+      "servingRevision",
+      "currentRevision",
+      "compatibility",
+      "data"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+      "SkillMapRevisionRef": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "workspaceRevision": {
+            "type": "string"
+          },
+          "effectiveDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveRevisionDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "revisionId",
+          "workspaceRevision",
+          "effectiveDigest",
+          "effectiveRevisionDigest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/mcp-search-skills-result/v1.schema.json",
+    "title": "SkillMap MCP search_skills success result v1",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "skillmap.api-response"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "const": 1
+      },
+      "ok": {
+        "type": "boolean",
+        "const": true
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "servingRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "currentRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatibility": {
+        "type": "string",
+        "enum": [
+          "compatible",
+          "degraded",
+          "upgrade-required",
+          "client-too-new",
+          "incompatible"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "skillId": {
+                  "type": "string",
+                  "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                },
+                "displayName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "contentRevision": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "tier": {
+                  "type": "string",
+                  "enum": [
+                    "active-default",
+                    "specialist",
+                    "explicit-only",
+                    "archived",
+                    "blocked"
+                  ]
+                },
+                "routeEligible": {
+                  "type": "boolean"
+                },
+                "qualifiedExplicitAllowed": {
+                  "type": "boolean"
+                },
+                "variantState": {
+                  "type": "string",
+                  "enum": [
+                    "unique",
+                    "canonical",
+                    "shadowed-duplicate",
+                    "unresolved-duplicate"
+                  ]
+                },
+                "hasScripts": {
+                  "type": "boolean"
+                },
+                "referenceCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "assetCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "trust": {
+                  "type": "string",
+                  "enum": [
+                    "parsed",
+                    "invalid-frontmatter"
+                  ]
+                }
+              },
+              "required": [
+                "skillId",
+                "displayName",
+                "contentRevision",
+                "tier",
+                "routeEligible",
+                "qualifiedExplicitAllowed",
+                "variantState",
+                "hasScripts",
+                "referenceCount",
+                "assetCount",
+                "trust"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sortKey": {
+            "type": "string",
+            "const": "stable-v1"
+          }
+        },
+        "required": [
+          "items",
+          "limit",
+          "hasMore",
+          "nextCursor",
+          "sortKey"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "ok",
+      "requestId",
+      "servingRevision",
+      "currentRevision",
+      "compatibility",
+      "data"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+      "SkillMapRevisionRef": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "workspaceRevision": {
+            "type": "string"
+          },
+          "effectiveDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveRevisionDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "revisionId",
+          "workspaceRevision",
+          "effectiveDigest",
+          "effectiveRevisionDigest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/mcp-show-skill-result/v1.schema.json",
+    "title": "SkillMap MCP show_skill success result v1",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "skillmap.api-response"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "const": 1
+      },
+      "ok": {
+        "type": "boolean",
+        "const": true
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "servingRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "currentRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatibility": {
+        "type": "string",
+        "enum": [
+          "compatible",
+          "degraded",
+          "upgrade-required",
+          "client-too-new",
+          "incompatible"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "skill": {
+            "type": "object",
+            "properties": {
+              "skillId": {
+                "type": "string",
+                "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "contentRevision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "active-default",
+                  "specialist",
+                  "explicit-only",
+                  "archived",
+                  "blocked"
+                ]
+              },
+              "routeEligible": {
+                "type": "boolean"
+              },
+              "qualifiedExplicitAllowed": {
+                "type": "boolean"
+              },
+              "variantState": {
+                "type": "string",
+                "enum": [
+                  "unique",
+                  "canonical",
+                  "shadowed-duplicate",
+                  "unresolved-duplicate"
+                ]
+              },
+              "hasScripts": {
+                "type": "boolean"
+              },
+              "referenceCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "assetCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "trust": {
+                "type": "string",
+                "enum": [
+                  "parsed",
+                  "invalid-frontmatter"
+                ]
+              }
+            },
+            "required": [
+              "skillId",
+              "displayName",
+              "contentRevision",
+              "tier",
+              "routeEligible",
+              "qualifiedExplicitAllowed",
+              "variantState",
+              "hasScripts",
+              "referenceCount",
+              "assetCount",
+              "trust"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "skill"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "ok",
+      "requestId",
+      "servingRevision",
+      "currentRevision",
+      "compatibility",
+      "data"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+      "SkillMapRevisionRef": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "workspaceRevision": {
+            "type": "string"
+          },
+          "effectiveDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveRevisionDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "revisionId",
+          "workspaceRevision",
+          "effectiveDigest",
+          "effectiveRevisionDigest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/mcp-show-skillgraph-result/v1.schema.json",
+    "title": "SkillMap MCP show_skillgraph success result v1",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "skillmap.api-response"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "const": 1
+      },
+      "ok": {
+        "type": "boolean",
+        "const": true
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "servingRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "currentRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatibility": {
+        "type": "string",
+        "enum": [
+          "compatible",
+          "degraded",
+          "upgrade-required",
+          "client-too-new",
+          "incompatible"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "graph": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "node"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "skill",
+                            "policy-skill",
+                            "root",
+                            "risk",
+                            "resource",
+                            "family",
+                            "intent",
+                            "other"
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id",
+                        "type",
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "edge"
+                        },
+                        "from": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "to": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "installed_at",
+                            "risk_flag",
+                            "has_reference",
+                            "belongs_to",
+                            "supersedes",
+                            "overlaps",
+                            "preferred_for",
+                            "avoid_for",
+                            "related"
+                          ]
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "scan",
+                            "policy",
+                            "doctor",
+                            "source",
+                            "curation",
+                            "eval"
+                          ]
+                        },
+                        "confidence": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "from",
+                        "to",
+                        "type",
+                        "source",
+                        "confidence"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "hasMore": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sortKey": {
+                "type": "string",
+                "const": "stable-v1"
+              }
+            },
+            "required": [
+              "items",
+              "limit",
+              "hasMore",
+              "nextCursor",
+              "sortKey"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "graph"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "ok",
+      "requestId",
+      "servingRevision",
+      "currentRevision",
+      "compatibility",
+      "data"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+      "SkillMapRevisionRef": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "workspaceRevision": {
+            "type": "string"
+          },
+          "effectiveDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveRevisionDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "revisionId",
+          "workspaceRevision",
+          "effectiveDigest",
+          "effectiveRevisionDigest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/mcp-doctor-summary-result/v1.schema.json",
+    "title": "SkillMap MCP doctor_summary success result v1",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "skillmap.api-response"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "const": 1
+      },
+      "ok": {
+        "type": "boolean",
+        "const": true
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "servingRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "currentRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatibility": {
+        "type": "string",
+        "enum": [
+          "compatible",
+          "degraded",
+          "upgrade-required",
+          "client-too-new",
+          "incompatible"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "object",
+            "properties": {
+              "skillCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "duplicateNameCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "scriptBearingCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "findingCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "skillCount",
+              "duplicateNameCount",
+              "scriptBearingCount",
+              "findingCount"
+            ],
+            "additionalProperties": false
+          },
+          "findings": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^finding_[a-f0-9]{32}$"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "P0",
+                        "P1",
+                        "P2",
+                        "P3"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "enum": [
+                        "Duplicate skill names require policy review.",
+                        "Skill frontmatter is invalid.",
+                        "A skill description is missing.",
+                        "A skill contains executable scripts.",
+                        "A skill body is unusually large.",
+                        "A skill description is unusually long.",
+                        "A skill uses broad routing language.",
+                        "Skill descriptions are duplicated.",
+                        "A SkillMap diagnostic finding requires review."
+                      ]
+                    },
+                    "skillIds": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                      }
+                    },
+                    "recommendationCode": {
+                      "type": "string",
+                      "enum": [
+                        "doctor-duplicate-name",
+                        "doctor-invalid-frontmatter",
+                        "doctor-missing-description",
+                        "doctor-script-bearing",
+                        "doctor-large-body",
+                        "doctor-long-description",
+                        "doctor-broad-trigger",
+                        "doctor-duplicate-description",
+                        "doctor-unknown"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "severity",
+                    "title",
+                    "skillIds",
+                    "recommendationCode"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "hasMore": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sortKey": {
+                "type": "string",
+                "const": "stable-v1"
+              }
+            },
+            "required": [
+              "items",
+              "limit",
+              "hasMore",
+              "nextCursor",
+              "sortKey"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "summary",
+          "findings"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "ok",
+      "requestId",
+      "servingRevision",
+      "currentRevision",
+      "compatibility",
+      "data"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+      "SkillMapRevisionRef": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "workspaceRevision": {
+            "type": "string"
+          },
+          "effectiveDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveRevisionDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "revisionId",
+          "workspaceRevision",
+          "effectiveDigest",
+          "effectiveRevisionDigest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/mcp-source-status-result/v1.schema.json",
+    "title": "SkillMap MCP source_status success result v1",
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "const": "skillmap.api-response"
+      },
+      "schemaVersion": {
+        "type": "number",
+        "const": 1
+      },
+      "ok": {
+        "type": "boolean",
+        "const": true
+      },
+      "requestId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "servingRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "currentRevision": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SkillMapRevisionRef"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatibility": {
+        "type": "string",
+        "enum": [
+          "compatible",
+          "degraded",
+          "upgrade-required",
+          "client-too-new",
+          "incompatible"
+        ]
+      },
+      "data": {
+        "type": "object",
+        "properties": {
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "not-configured",
+              "not-applicable",
+              "partial",
+              "covered"
+            ]
+          },
+          "inventorySkills": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "trackedSkills": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "records": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "skillId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "contentRevision": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "external-clean",
+                        "external-modified",
+                        "external-stale",
+                        "external-risky-update",
+                        "local-authored",
+                        "local-modified",
+                        "unknown"
+                      ]
+                    },
+                    "risk": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "low",
+                            "high"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "upstreamCommit": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{40,64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "skillId",
+                    "displayName",
+                    "contentRevision",
+                    "state",
+                    "risk",
+                    "upstreamCommit"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "hasMore": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sortKey": {
+                "type": "string",
+                "const": "stable-v1"
+              }
+            },
+            "required": [
+              "items",
+              "limit",
+              "hasMore",
+              "nextCursor",
+              "sortKey"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "coverage",
+          "inventorySkills",
+          "trackedSkills",
+          "records"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "kind",
+      "schemaVersion",
+      "ok",
+      "requestId",
+      "servingRevision",
+      "currentRevision",
+      "compatibility",
+      "data"
+    ],
+    "additionalProperties": false,
+    "$defs": {
+      "SkillMapRevisionRef": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          },
+          "workspaceRevision": {
+            "type": "string"
+          },
+          "effectiveDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effectiveRevisionDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "revisionId",
+          "workspaceRevision",
+          "effectiveDigest",
+          "effectiveRevisionDigest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://skillmap.dev/contracts/hosted-grade-summary/v1.schema.json",
     "title": "SkillMap Hosted Grade Summary v1",
     "description": "A truthful public grade state. Current and stale bands require a bound receipt; ungraded seed data cannot carry a band.",

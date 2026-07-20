@@ -20,6 +20,7 @@ const TRUSTED_EVIDENCE_ISSUERS = {
 };
 
 test('bounded static audit is deterministic and inventories inert permissions without execution', () => {
+  assert.equal(HOSTED_AUDIT_VERSION, 'skillmap-static-audit/v2');
   const snapshot = sourceSnapshot({
     'SKILL.md': `---\nname: focused-review\ndescription: Use for reviewing a bounded implementation against explicit acceptance evidence.\n---\n# Focused review\n\n1. Inspect the requested files.\n2. Compare behavior with acceptance criteria.\n3. Report findings with evidence.\n`,
     'LICENSE': 'MIT License\n',
@@ -78,6 +79,39 @@ test('audit scans every submitted text file for critical evidence', () => {
   assert.equal(receipt.state, 'blocked');
   assert.equal(receipt.findings.some((finding) => finding.code === 'destructive-command' && finding.path === 'scripts/hidden.sh'), true);
   assert.equal(receipt.findings.some((finding) => finding.code === 'credential-material' && finding.path === 'scripts/hidden.sh'), true);
+});
+
+test('audit blocks a binary or non-UTF-8 supporting file before grading', () => {
+  const snapshot = sourceSnapshot({
+    'SKILL.md': validSkill(),
+    'LICENSE': 'MIT License\n',
+    'references/opaque.bin': Buffer.from([0xff, 0xfe, 0xfd, 0x00])
+  });
+  const auditReceipt = auditHostedSkillSnapshot(snapshot, {
+    sourcePath: 'SKILL.md',
+    license: { state: 'confirmed', spdxExpression: 'MIT' }
+  });
+  const binaryFinding = auditReceipt.findings.find((finding) => finding.code === 'binary-file');
+
+  assert.deepEqual(binaryFinding, {
+    code: 'binary-file',
+    severity: 'critical',
+    message: 'The submitted tree contains a binary or non-UTF-8 file that cannot be statically inspected.',
+    path: 'references/opaque.bin'
+  });
+  assert.equal(auditReceipt.state, 'blocked');
+  assert.equal(auditReceipt.findingCounts.critical, 1);
+
+  const gradeReceipt = gradeHostedSkill({
+    normalizedPackageDigest: auditReceipt.subject.normalizedEvaluationDigest,
+    auditReceipt,
+    compatibilityReceiptDigest: createHostedDeclaredCompatibilityReceiptDigest(auditReceipt, 'codex-host/v1'),
+    hostProfileVersion: 'codex-host/v1'
+  });
+  assert.equal(gradeReceipt.state, 'blocked');
+  assert.equal(gradeReceipt.score, null);
+  assert.equal(gradeReceipt.band, null);
+  assert.equal(gradeReceipt.hardGateReasonCodes.includes('audit-blocked'), true);
 });
 
 test('nested audits bind the full submitted path and recomputed manifest', () => {

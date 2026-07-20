@@ -13,10 +13,15 @@ import {
 } from '../../../dist/network/github-source-fetcher.js';
 import { buildOperatorReceiptPayloads, canonicalDigest } from './operator-receipts.mjs';
 import { renewClaimLease } from './claim-lease.mjs';
+import {
+  deferGithubRateLimitedClaim,
+  isGithubProviderRateLimitError,
+  prepareGithubBudgetedClaim
+} from './github-provider-gate.mjs';
 import { assertPublicGithubRepository } from './public-github-repository.mjs';
 import { createSupabaseRpcClientFromEnvironment } from './supabase-rpc.mjs';
 
-const WORKER_VERSION = 'skillmap-worker/0.1.0';
+const WORKER_VERSION = 'skillmap-worker/0.2.0';
 
 let claimed = null;
 let rpc = null;
@@ -29,17 +34,17 @@ try {
   if (!options.execute) throw new Error('Refusing database mutation without the explicit --execute flag.');
   assertNodeVersion();
   rpc = createSupabaseRpcClientFromEnvironment();
-  const claims = await rpc.call('claim_skill_submission', {
-    p_worker_version: WORKER_VERSION,
-    p_submission_id: options.submissionId ?? null,
-    p_lease_seconds: 300
+  const admission = await prepareGithubBudgetedClaim({
+    rpc,
+    workerVersion: WORKER_VERSION,
+    submissionId: options.submissionId ?? null,
+    licenseEvidencePaths: options.licenseEvidencePaths
   });
-  if (!Array.isArray(claims) || claims.length > 1) throw new Error('Claim RPC returned an invalid bounded result.');
-  if (claims.length === 0) {
-    process.stdout.write(`${JSON.stringify({ result: 'idle', mutation: false })}\n`);
+  if (admission.result !== 'claimed') {
+    process.stdout.write(`${JSON.stringify(admission)}\n`);
     process.exit(0);
   }
-  claimed = validateClaim(claims[0]);
+  claimed = validateClaim(admission.claim);
 
   const repository = repositoryFromUrl(claimed.repository_url);
   for (const evidencePath of options.licenseEvidencePaths) {
@@ -187,8 +192,20 @@ try {
   })}\n`);
 } catch (error) {
   const message = safeError(error);
-  if (claimed && rpc) {
+  if (claimed && rpc && isGithubProviderRateLimitError(error)) {
     try {
+      const deferred = await deferGithubRateLimitedClaim(rpc, claimed, error, {
+        workerVersion: WORKER_VERSION
+      });
+      process.stdout.write(`${JSON.stringify(deferred)}\n`);
+    } catch (deferralError) {
+      process.stderr.write(
+        `SkillMap hosted queue worker could not persist a provider deferral; the exact lease remains recoverable: ${safeError(deferralError)}\n`
+      );
+      process.exitCode = 1;
+    }
+  } else {
+    if (claimed && rpc) try {
       const inputDigest = canonicalDigest({ kind: 'skillmap.hosted-worker-input', schemaVersion: 1, submissionId: claimed.submission_id, claimId: claimed.claim_id });
       const resultDigest = canonicalDigest({ kind: 'skillmap.hosted-worker-failure', schemaVersion: 1, code: 'WORKER_FAILED' });
       await rpc.call('complete_skill_submission', {
@@ -207,9 +224,9 @@ try {
     } catch {
       // Keep the original bounded error. The lease remains recoverable after expiry.
     }
+    process.stderr.write(`SkillMap hosted queue worker failed: ${message}\n`);
+    process.exitCode = 1;
   }
-  process.stderr.write(`SkillMap hosted queue worker failed: ${message}\n`);
-  process.exitCode = 1;
 }
 
 function parseArguments(args) {
@@ -342,6 +359,7 @@ function safeError(error) {
 function help() {
   return `SkillMap hosted queue worker\n\n` +
     `Claim and process one exact public GitHub submission through service-role-only RPCs.\n\n` +
+    `A read-only exact-candidate GitHub budget gate runs before any claim mutation.\n` +
     `Required environment: SKILLMAP_SUPABASE_URL and SKILLMAP_SUPABASE_SERVICE_ROLE_KEY\n` +
     `Mutation requires: --execute\n\n` +
     `Usage:\n` +

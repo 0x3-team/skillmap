@@ -4,6 +4,15 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fetchGithubSkillTree } from '../dist/network/github-source-fetcher.js';
 import { assertPublicGithubRepository } from '../apps/worker/src/public-github-repository.mjs';
+import {
+  parseReportDispositionArguments,
+  runReportDisposition,
+  validateReportDispositionResult
+} from '../apps/worker/src/report-disposition.mjs';
+import {
+  parseReportQueueArguments,
+  runReportQueue
+} from '../apps/worker/src/report-queue.mjs';
 
 const script = 'apps/worker/src/audit-once.mjs';
 const queueScript = 'apps/worker/src/process-once.mjs';
@@ -70,6 +79,7 @@ test('hosted audit worker rejects private and other non-public repository metada
 test('hosted audit worker rejects repository redirects and non-200 responses', async () => {
   for (const response of [
     { status: 301, headers: { location: 'https://api.github.com/repos/new/skills' }, body: Buffer.alloc(0) },
+    { status: 403, headers: { 'x-ratelimit-remaining': '42' }, body: Buffer.from('{"message":"Resource not accessible"}') },
     { status: 404, headers: {}, body: Buffer.from('{}') }
   ]) {
     await assert.rejects(
@@ -77,6 +87,46 @@ test('hosted audit worker rejects repository redirects and non-200 responses', a
       /redirect|requires an unauthenticated 200 response/i
     );
   }
+});
+
+test('hosted repository preflight classifies GitHub primary-rate-limit 403 without weakening public checks', async () => {
+  await assert.rejects(
+    assertPublicGithubRepository('example/skills', {
+      now: () => Date.parse('2026-07-14T03:00:00.000Z'),
+      transport: async () => ({
+        status: 403,
+        headers: {
+          'x-ratelimit-remaining': '0',
+          'x-ratelimit-reset': '1784001600'
+        },
+        body: Buffer.from('{"message":"API rate limit exceeded"}')
+      })
+    }),
+    error => {
+      assert.equal(error.code, 'RATE_LIMITED');
+      assert.equal(error.retryable, true);
+      assert.equal(error.statusCode, 403);
+      assert.equal(error.retryAfterMs, 3_600_000);
+      return true;
+    }
+  );
+
+  await assert.rejects(
+    assertPublicGithubRepository('example/skills', {
+      transport: async () => ({
+        status: 403,
+        headers: { 'x-ratelimit-remaining': '42' },
+        body: Buffer.from('{"message":"You have exceeded a secondary rate limit."}')
+      })
+    }),
+    error => {
+      assert.equal(error.code, 'RATE_LIMITED');
+      assert.equal(error.retryable, true);
+      assert.equal(error.statusCode, 403);
+      assert.equal(error.retryAfterMs, undefined);
+      return true;
+    }
+  );
 });
 
 test('hosted audit worker cannot opt content fetching into GitHub authorization', async () => {
@@ -129,6 +179,7 @@ test('hosted audit worker rejects duplicate and unknown options', () => {
 });
 
 test('hosted queue worker is mutation-explicit and documents server-only authority', () => {
+  assert.match(readFileSync(queueScript, 'utf8'), /const WORKER_VERSION = 'skillmap-worker\/0\.2\.0';/);
   const help = spawnSync(process.execPath, [queueScript, '--help'], { encoding: 'utf8' });
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /service-role-only RPCs/i);
@@ -188,21 +239,104 @@ test('catalog lifecycle and report disposition commands are mutation-explicit', 
     const helpResult = spawnSync(process.execPath, [scriptPath, '--help'], { encoding: 'utf8' });
     assert.equal(helpResult.status, 0, helpResult.stderr);
     assert.match(helpResult.stdout, authority);
-    assert.match(helpResult.stdout, /Mutation requires: --execute/i);
+    assert.match(helpResult.stdout, /exactly one mode/i);
+    assert.match(helpResult.stdout, /--approve[\s\S]+--execute requires --approval-id/i);
     const refused = spawnSync(process.execPath, [scriptPath], {
       encoding: 'utf8',
       env: { ...process.env, SKILLMAP_SUPABASE_SERVICE_ROLE_KEY: 'PRIVATE-CANARY-SERVICE-ROLE' }
     });
     assert.equal(refused.status, 1);
-    assert.match(refused.stderr, /without the explicit --execute flag|Refusing report disposition/i);
+    assert.match(refused.stderr, /Exactly one of --approve or --execute/i);
     assert.doesNotMatch(refused.stderr + refused.stdout, /PRIVATE-CANARY/);
   }
+  const lifecycleSource = readFileSync(lifecycleScript, 'utf8');
+  assert.match(lifecycleSource, /options[.]action === 'quarantine-version' && row[.]version_quarantined !== true/);
+  assert.match(lifecycleSource, /options[.]action === 'restore-version'[\s\S]+row[.]version_revoked !== false/);
+});
+
+test('confirmed report disposition requires one exact atomic lifecycle action', () => {
+  const base = [
+    '--execute',
+    '--approval-id', `opa_${'a'.repeat(32)}`,
+    '--report-id', `rpt_${'1'.repeat(32)}`,
+    '--disposition', 'confirmed',
+    '--reason-code', 'credible-security-report',
+    '--public-message', 'The exact reported version was quarantined.',
+    '--operation-id', '11111111-1111-4111-8111-111111111111'
+  ];
+  assert.throws(
+    () => parseReportDispositionArguments(base),
+    /lifecycle-action must be quarantine-version or revoke-version/
+  );
+  assert.equal(
+    parseReportDispositionArguments([...base, '--lifecycle-action', 'quarantine-version']).lifecycleAction,
+    'quarantine-version'
+  );
+  assert.throws(
+    () => parseReportDispositionArguments([
+      '--execute',
+      '--approval-id', `opa_${'a'.repeat(32)}`,
+      '--report-id', `rpt_${'1'.repeat(32)}`,
+      '--disposition', 'no-action',
+      '--reason-code', 'not-confirmed',
+      '--public-message', 'The report did not require catalog enforcement.',
+      '--lifecycle-action', 'quarantine-version',
+      '--operation-id', '11111111-1111-4111-8111-111111111111'
+    ]),
+    /only for a confirmed report/
+  );
+});
+
+test('report disposition command binds the retained enforcement result to the RPC request', async () => {
+  const options = parseReportDispositionArguments([
+    '--execute',
+    '--approval-id', `opa_${'a'.repeat(32)}`,
+    '--report-id', `rpt_${'1'.repeat(32)}`,
+    '--disposition', 'confirmed',
+    '--reason-code', 'credible-security-report',
+    '--public-message', 'The exact reported version was revoked.',
+    '--lifecycle-action', 'revoke-version',
+    '--operation-id', '11111111-1111-4111-8111-111111111111'
+  ]);
+  const calls = [];
+  const row = {
+    report_id: options.reportId,
+    report_state: 'resolved',
+    disposition_code: 'confirmed',
+    skill_id: `skl_${'2'.repeat(32)}`,
+    version_id: `skv_${'3'.repeat(32)}`,
+    lifecycle_action: 'revoke-version',
+    version_quarantined: false,
+    version_revoked: true
+  };
+  const receipt = await runReportDisposition(options, {
+    rpc: {
+      async call(name, parameters) {
+        calls.push([name, parameters]);
+        return [row];
+      }
+    }
+  });
+  assert.equal(receipt.mutation, true);
+  assert.match(receipt.idempotencyDigest, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(receipt.report[0].version_revoked, true);
+  assert.equal(calls[0][0], 'disposition_skill_report');
+  assert.equal(calls[0][1].p_lifecycle_action, 'revoke-version');
+  assert.equal(calls[0][1].p_idempotency_digest, receipt.idempotencyDigest);
+  assert.throws(
+    () => validateReportDispositionResult([{ ...row, version_revoked: false }], options),
+    /invalid report projection/
+  );
+  assert.throws(
+    () => validateReportDispositionResult([{ ...row, version_quarantined: 'not-a-boolean' }], options),
+    /invalid report projection/
+  );
 });
 
 test('report queue access is bounded, read-only, and credential-explicit', () => {
   const helpResult = spawnSync(process.execPath, [reportQueueScript, '--help'], { encoding: 'utf8' });
   assert.equal(helpResult.status, 0, helpResult.stderr);
-  assert.match(helpResult.stdout, /at most 50 oldest queued reports/i);
+  assert.match(helpResult.stdout, /at most 50 queued reports after an exact paired cursor/i);
   assert.match(helpResult.stdout, /remains read-only/i);
   const refused = spawnSync(process.execPath, [reportQueueScript], {
     encoding: 'utf8',
@@ -214,4 +348,48 @@ test('report queue access is bounded, read-only, and credential-explicit', () =>
   const invalidLimit = spawnSync(process.execPath, [reportQueueScript, '--execute', '--limit', '51'], { encoding: 'utf8' });
   assert.equal(invalidLimit.status, 1);
   assert.match(invalidLimit.stderr, /from 1 through 50/i);
+});
+
+test('report queue paired cursor makes rows after the first page reachable', async () => {
+  const createdAt = '2026-07-14T01:00:00.000Z';
+  const reportId = `rpt_${'4'.repeat(32)}`;
+  assert.throws(
+    () => parseReportQueueArguments(['--after-created-at', createdAt]),
+    /Both report cursor options/
+  );
+  const options = parseReportQueueArguments([
+    '--execute', '--limit', '1',
+    '--after-created-at', createdAt,
+    '--after-report-id', reportId
+  ]);
+  const calls = [];
+  const next = {
+    report_id: `rpt_${'5'.repeat(32)}`,
+    skill_id: `skl_${'6'.repeat(32)}`,
+    version_id: `skv_${'7'.repeat(32)}`,
+    category: 'security',
+    message: 'A later report remains reachable through the exact paired cursor.',
+    created_at: '2026-07-14T01:01:00.000Z'
+  };
+  const result = await runReportQueue(options, {
+    rpc: {
+      async call(name, parameters) {
+        calls.push([name, parameters]);
+        return [next];
+      }
+    }
+  });
+  assert.equal(result.count, 1);
+  assert.deepEqual(result.nextCursor, {
+    createdAt: next.created_at,
+    reportId: next.report_id
+  });
+  assert.deepEqual(calls, [[
+    'list_skill_report_queue',
+    {
+      p_limit: 1,
+      p_after_created_at: createdAt,
+      p_after_report_id: reportId
+    }
+  ]]);
 });

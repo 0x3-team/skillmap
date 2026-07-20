@@ -1,5 +1,11 @@
 # SkillMap MCP Transport And Discovery Foundation Implementation Plan
 
+> Status update (2026-07-16): implemented on exact candidate
+> `fee340a2e4a86e13421696355fe9480e68285090` and published in draft GitHub
+> PR `#21`. The candidate passed its local exact-candidate gates but remains
+> unmerged and unreleased; GitHub-hosted jobs were allowance-blocked before
+> execution. The original planning metadata below is retained as dated evidence.
+
 ## Planner Metadata
 
 - Repository/path: `/home/codex/projects/skillmap`
@@ -236,7 +242,7 @@ Avoid:
 
 - Stable production choice for this slice: exact `@modelcontextprotocol/sdk@1.29.0` and `zod@4.4.3`, installed with saved exact versions and lockfile integrity.
 - Do not use split `@modelcontextprotocol/server`, `client`, or `node` v2 packages while their live dist-tag is beta.
-- `McpServer.registerTool` supplies lifecycle negotiation, notifications, schemas, annotations, instructions, structured content, and tool errors.
+- `McpServer.registerTool` registers each tool definition, input/output schemas, annotations, and handler. The server/transport owns lifecycle negotiation and notifications; server construction owns instructions; each handler owns structured content and safe tool-error results.
 - `StdioServerTransport` is the correct local transport, but the published 1.29.0 constructor lacks a configurable buffer limit. Feed it a tested bounded `Readable` adapter or implement a minimal SDK `Transport` wrapper; do not restore a parallel JSON-RPC dispatcher.
 - Use the SDK's `InMemoryTransport` only for fast contract tests. The real acceptance lane must spawn the CLI with `StdioClientTransport`.
 - Server version is `SKILLMAP_PRODUCT_VERSION` as a string. The existing local manifest's numeric `version: 2` remains a separate SkillMap compatibility contract.
@@ -376,7 +382,7 @@ Pass condition: ordered skill IDs, pagination boundaries, route decisions, and r
 4. Register the exact six tools with titles, descriptions, Zod input/output schemas, and annotations.
 5. Return the existing SkillMap API success envelope as both `structuredContent` and canonical compact JSON text. Enforce semantic equality between them.
 6. Map expected domain failures to safe `isError: true` envelopes. Keep malformed protocol envelopes and unknown protocol methods as protocol errors.
-7. Construct the server with string `SKILLMAP_PRODUCT_VERSION` and concise instructions describing workflow, metadata-only scope, approved revisions, last-known-good receipts, and the prompt-free route-event side effect.
+7. Construct the server with the repository-owned build-time `SKILLMAP_PRODUCT_VERSION` string from `src/server/compatibility.ts`, synchronized with package metadata rather than read from the environment. Reject an empty or over-64-byte injected test override, and prove a clean packed consumer install receives the valid default. Add concise instructions describing workflow, metadata-only scope, approved revisions, last-known-good receipts, and the prompt-free route-event side effect.
 8. Feed `StdioServerTransport` from a bounded line-aware `Readable` wrapper. A line above 64 KiB fails closed and closes the connection; no unbounded buffering or parallel JSON-RPC dispatcher remains.
 9. Enforce a tool-result budget small enough that structured content plus text fallback and JSON-RPC framing remain under 512 KiB. Return `RESPONSE_TOO_LARGE` safely before writing an oversized frame.
 10. Keep stdout protocol-only. Safe diagnostics may use stderr and must pass canary scanning.
@@ -497,7 +503,7 @@ Direct Supabase bearer tokens must not be accepted by `/mcp` unless current prim
 - `mcp call` JSON output remains backward compatible.
 - `tools/list` serialized payload is at most 16 KiB.
 - Default route/search results are at most 32 KiB; every total MCP response remains below 512 KiB.
-- Input above 64 KiB, prompt above 32 KiB, query above 256 bytes, limit outside current bounds, bad IDs, unknown keys, and stale/tampered cursors fail deterministically.
+- Input above 64 KiB, prompt above 32 KiB, query above 256 bytes, limit outside current bounds, bad IDs, unknown keys, and stale/tampered cursors fail deterministically. Every tool input is closed-world; the implementation uses a fixed-message `closedMcpObject` validator instead of Zod's default unknown-key text so caller-controlled key names cannot be echoed. Spawned-client fixtures include an extra-key rejection and assert both deterministic failure and canary non-disclosure.
 
 ### Tool Results And Errors
 
