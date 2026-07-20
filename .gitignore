@@ -18,3 +18,7 @@ supabase/.temp/
 !apps/web/.env.example
 coverage/
 .tmp/
+
+# chunk active sidecar tracking
+.chunk/sidecar.json
+.chunk/sidecar.*.json
