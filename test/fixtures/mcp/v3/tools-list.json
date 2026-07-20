@@ -1,0 +1,1313 @@
+{
+  "tools": [
+    {
+      "name": "route_prompt",
+      "title": "Route Prompt",
+      "description": "Return deterministic, prompt-free SkillMap recommendations from one approved revision.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32768
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "skillId": {
+            "type": "string",
+            "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.api-response"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "servingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "degraded",
+              "upgrade-required",
+              "client-too-new",
+              "incompatible"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "skillmap.route-result"
+              },
+              "schemaVersion": {
+                "type": "number",
+                "const": 2
+              },
+              "routeId": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "promptStored": {
+                "type": "boolean",
+                "const": false
+              },
+              "decision": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": {}
+              },
+              "decisionDigest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "latencyMs": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "kind",
+              "schemaVersion",
+              "routeId",
+              "createdAt",
+              "promptStored",
+              "decision",
+              "decisionDigest",
+              "latencyMs"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "servingRevision",
+          "currentRevision",
+          "compatibility",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "SkillMapRevisionRef": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              },
+              "workspaceRevision": {
+                "type": "string"
+              },
+              "effectiveDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveRevisionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "workspaceId",
+              "revisionId",
+              "workspaceRevision",
+              "effectiveDigest",
+              "effectiveRevisionDigest"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "annotations": {
+        "title": "Route Prompt",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "search_skills",
+      "title": "Search Skills",
+      "description": "Search redacted skill metadata in one approved revision.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.api-response"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "servingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "degraded",
+              "upgrade-required",
+              "client-too-new",
+              "incompatible"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "skillId": {
+                      "type": "string",
+                      "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "contentRevision": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": [
+                        "active-default",
+                        "specialist",
+                        "explicit-only",
+                        "archived",
+                        "blocked"
+                      ]
+                    },
+                    "routeEligible": {
+                      "type": "boolean"
+                    },
+                    "qualifiedExplicitAllowed": {
+                      "type": "boolean"
+                    },
+                    "variantState": {
+                      "type": "string",
+                      "enum": [
+                        "unique",
+                        "canonical",
+                        "shadowed-duplicate",
+                        "unresolved-duplicate"
+                      ]
+                    },
+                    "hasScripts": {
+                      "type": "boolean"
+                    },
+                    "referenceCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "assetCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "trust": {
+                      "type": "string",
+                      "enum": [
+                        "parsed",
+                        "invalid-frontmatter"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "skillId",
+                    "displayName",
+                    "contentRevision",
+                    "tier",
+                    "routeEligible",
+                    "qualifiedExplicitAllowed",
+                    "variantState",
+                    "hasScripts",
+                    "referenceCount",
+                    "assetCount",
+                    "trust"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "hasMore": {
+                "type": "boolean"
+              },
+              "nextCursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sortKey": {
+                "type": "string",
+                "const": "stable-v1"
+              }
+            },
+            "required": [
+              "items",
+              "limit",
+              "hasMore",
+              "nextCursor",
+              "sortKey"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "servingRevision",
+          "currentRevision",
+          "compatibility",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "SkillMapRevisionRef": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              },
+              "workspaceRevision": {
+                "type": "string"
+              },
+              "effectiveDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveRevisionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "workspaceId",
+              "revisionId",
+              "workspaceRevision",
+              "effectiveDigest",
+              "effectiveRevisionDigest"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "annotations": {
+        "title": "Search Skills",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "show_skill",
+      "title": "Show Skill",
+      "description": "Show one redacted skill record by qualified skillId.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skillId": {
+            "type": "string",
+            "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.api-response"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "servingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "degraded",
+              "upgrade-required",
+              "client-too-new",
+              "incompatible"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "skill": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "type": "string",
+                    "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "contentRevision": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "active-default",
+                      "specialist",
+                      "explicit-only",
+                      "archived",
+                      "blocked"
+                    ]
+                  },
+                  "routeEligible": {
+                    "type": "boolean"
+                  },
+                  "qualifiedExplicitAllowed": {
+                    "type": "boolean"
+                  },
+                  "variantState": {
+                    "type": "string",
+                    "enum": [
+                      "unique",
+                      "canonical",
+                      "shadowed-duplicate",
+                      "unresolved-duplicate"
+                    ]
+                  },
+                  "hasScripts": {
+                    "type": "boolean"
+                  },
+                  "referenceCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "assetCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "trust": {
+                    "type": "string",
+                    "enum": [
+                      "parsed",
+                      "invalid-frontmatter"
+                    ]
+                  }
+                },
+                "required": [
+                  "skillId",
+                  "displayName",
+                  "contentRevision",
+                  "tier",
+                  "routeEligible",
+                  "qualifiedExplicitAllowed",
+                  "variantState",
+                  "hasScripts",
+                  "referenceCount",
+                  "assetCount",
+                  "trust"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "skill"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "servingRevision",
+          "currentRevision",
+          "compatibility",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "SkillMapRevisionRef": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              },
+              "workspaceRevision": {
+                "type": "string"
+              },
+              "effectiveDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveRevisionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "workspaceId",
+              "revisionId",
+              "workspaceRevision",
+              "effectiveDigest",
+              "effectiveRevisionDigest"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "annotations": {
+        "title": "Show Skill",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "show_skillgraph",
+      "title": "Show SkillGraph",
+      "description": "Page through the redacted effective SkillGraph.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.api-response"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "servingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "degraded",
+              "upgrade-required",
+              "client-too-new",
+              "incompatible"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "graph": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {},
+                      "additionalProperties": {}
+                    }
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "hasMore": {
+                    "type": "boolean"
+                  },
+                  "nextCursor": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sortKey": {
+                    "type": "string",
+                    "const": "stable-v1"
+                  }
+                },
+                "required": [
+                  "items",
+                  "limit",
+                  "hasMore",
+                  "nextCursor",
+                  "sortKey"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "graph"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "servingRevision",
+          "currentRevision",
+          "compatibility",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "SkillMapRevisionRef": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              },
+              "workspaceRevision": {
+                "type": "string"
+              },
+              "effectiveDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveRevisionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "workspaceId",
+              "revisionId",
+              "workspaceRevision",
+              "effectiveDigest",
+              "effectiveRevisionDigest"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "annotations": {
+        "title": "Show SkillGraph",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "doctor_summary",
+      "title": "Doctor Summary",
+      "description": "Page through compact, redacted doctor findings.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.api-response"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "servingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "degraded",
+              "upgrade-required",
+              "client-too-new",
+              "incompatible"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "summary": {
+                "type": "object",
+                "properties": {
+                  "skillCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "duplicateNameCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "scriptBearingCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "findingCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "skillCount",
+                  "duplicateNameCount",
+                  "scriptBearingCount",
+                  "findingCount"
+                ],
+                "additionalProperties": false
+              },
+              "findings": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {},
+                      "additionalProperties": {}
+                    }
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "hasMore": {
+                    "type": "boolean"
+                  },
+                  "nextCursor": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sortKey": {
+                    "type": "string",
+                    "const": "stable-v1"
+                  }
+                },
+                "required": [
+                  "items",
+                  "limit",
+                  "hasMore",
+                  "nextCursor",
+                  "sortKey"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "summary",
+              "findings"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "servingRevision",
+          "currentRevision",
+          "compatibility",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "SkillMapRevisionRef": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              },
+              "workspaceRevision": {
+                "type": "string"
+              },
+              "effectiveDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveRevisionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "workspaceId",
+              "revisionId",
+              "workspaceRevision",
+              "effectiveDigest",
+              "effectiveRevisionDigest"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "annotations": {
+        "title": "Doctor Summary",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "source_status",
+      "title": "Source Status",
+      "description": "Page through redacted source coverage and freshness state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "skillmap.api-response"
+          },
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "servingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currentRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/SkillMapRevisionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compatibility": {
+            "type": "string",
+            "enum": [
+              "compatible",
+              "degraded",
+              "upgrade-required",
+              "client-too-new",
+              "incompatible"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "coverage": {
+                "type": "string",
+                "enum": [
+                  "not-configured",
+                  "not-applicable",
+                  "partial",
+                  "covered"
+                ]
+              },
+              "inventorySkills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "trackedSkills": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "records": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {},
+                      "additionalProperties": {}
+                    }
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "hasMore": {
+                    "type": "boolean"
+                  },
+                  "nextCursor": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sortKey": {
+                    "type": "string",
+                    "const": "stable-v1"
+                  }
+                },
+                "required": [
+                  "items",
+                  "limit",
+                  "hasMore",
+                  "nextCursor",
+                  "sortKey"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "coverage",
+              "inventorySkills",
+              "trackedSkills",
+              "records"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "ok",
+          "requestId",
+          "servingRevision",
+          "currentRevision",
+          "compatibility",
+          "data"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "SkillMapRevisionRef": {
+            "type": "object",
+            "properties": {
+              "workspaceId": {
+                "type": "string"
+              },
+              "revisionId": {
+                "type": "string"
+              },
+              "workspaceRevision": {
+                "type": "string"
+              },
+              "effectiveDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveRevisionDigest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "workspaceId",
+              "revisionId",
+              "workspaceRevision",
+              "effectiveDigest",
+              "effectiveRevisionDigest"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "annotations": {
+        "title": "Source Status",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}

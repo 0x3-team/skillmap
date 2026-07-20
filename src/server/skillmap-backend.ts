@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildApprovedStatus } from '../services/status-use-case.js';
 import { executeRouteUseCase } from '../services/route-use-case.js';
+import { createSkillDiscoveryUseCase, projectLocalSkillSummary } from '../services/skill-discovery-use-case.js';
+import { SkillDiscoveryIndexCache, type SkillDiscoveryStrategy } from '../core/skill-discovery-index.js';
 import { approvedArtifactPath, openApprovedRoutingState, openApprovedWorkspaceRead, type ApprovedWorkspaceRead } from '../services/workspace-read-model.js';
 import { createAndRecordFeedback, createRouteEvent, readRouteEvent, readRouteEvents, readRouteFeedbackBacklog, recordRouteEvent } from '../core/route-events.js';
 import { claimJobExecution, createJob, findIdempotentJob, listAllJobs, readJob, readJobCancellation, requestJobCancellation, transitionJob, JobCancellationConflictError, type JobCancellationRecord, type JobExecutionClaim } from '../core/jobs.js';
@@ -137,6 +139,10 @@ interface SkillMapLocalBackendOptions {
   sourceCommandRunner?: typeof sourcesCommand;
   /** Deterministic eval command seam; production callers use evalCommand. */
   evalCommandRunner?: typeof evalCommand;
+  /** Reference remains the compatibility default; callers may explicitly promote the exact index. */
+  skillDiscoveryStrategy?: SkillDiscoveryStrategy;
+  /** Optional deterministic test/runtime cache seam; always bounded by its constructor. */
+  skillDiscoveryIndexCache?: SkillDiscoveryIndexCache;
 }
 
 export class SkillMapLocalBackend implements LocalConnectorBackend {
@@ -149,6 +155,8 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
   private readonly sourceFetcherOptions?: SourcesCommandRuntime['fetcherOptions'];
   private readonly sourceCommandRunner: typeof sourcesCommand;
   private readonly evalCommandRunner: typeof evalCommand;
+  private readonly skillDiscoveryStrategy: SkillDiscoveryStrategy;
+  private readonly skillDiscoveryIndexCache: SkillDiscoveryIndexCache;
   private readonly activeJobs = new Map<string, Promise<void>>();
   private readonly activeJobControllers = new Map<string, AbortController>();
   private readonly cancellationFinalizerTails = new Map<string, Promise<void>>();
@@ -169,6 +177,8 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
     this.sourceFetcherOptions = options.sourceFetcherOptions;
     this.sourceCommandRunner = options.sourceCommandRunner ?? sourcesCommand;
     this.evalCommandRunner = options.evalCommandRunner ?? evalCommand;
+    this.skillDiscoveryStrategy = options.skillDiscoveryStrategy ?? 'reference';
+    this.skillDiscoveryIndexCache = options.skillDiscoveryIndexCache ?? new SkillDiscoveryIndexCache(2);
   }
 
   async start(): Promise<void> {
@@ -188,6 +198,7 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
       new Promise<void>((resolve) => setTimeout(resolve, 5_000))
     ]);
     await this.filesystemFreshness.close();
+    this.skillDiscoveryIndexCache.clear();
     this.started = false;
   }
 
@@ -445,31 +456,23 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
 
   async listSkills(input: { query?: string; cursor?: string; limit: number }): Promise<unknown> {
     const read = await openApprovedWorkspaceRead(this.cwd, 'routing');
-    const effective = read.effective;
-    if (!effective) throw stateUnavailable('APPROVED_EFFECTIVE_MISSING');
-    const query = input.query?.trim().toLowerCase() ?? '';
-    const values = effective.skills
-      .filter((skill) => !query || [skill.name, skill.skillId, skill.description].join(' ').toLowerCase().includes(query))
-      .sort((left, right) => left.name.localeCompare(right.name) || left.skillId.localeCompare(right.skillId))
-      .map((skill) => ({
-        skillId: skill.skillId,
-        displayName: redactedMetadataLabel(skill.name, skill.skillId),
-        contentRevision: skill.contentRevision,
-        tier: skill.tier,
-        routeEligible: skill.routeEligible,
-        qualifiedExplicitAllowed: skill.qualifiedExplicitAllowed,
-        variantState: skill.variantState,
-        hasScripts: skill.hasScripts,
-        sourceScope: skill.scope,
-        description: redactedMetadataDescription(skill.description, 500)
-      }));
-    return page(values, input, read.servingRevision, 'skills');
+    const discovery = createSkillDiscoveryUseCase(read, {
+      strategy: this.skillDiscoveryStrategy,
+      indexCache: this.skillDiscoveryIndexCache
+    });
+    const selected = discovery.search(input);
+    return {
+      items: selected.items.map(projectLocalSkillSummary),
+      nextCursor: selected.nextCursor,
+      hasMore: selected.hasMore,
+      limit: selected.limit
+    };
   }
 
   async showSkill(skillId: string): Promise<unknown> {
     const read = await openApprovedWorkspaceRead(this.cwd, 'routing');
-    const skill = read.effective?.skills.find((item) => item.skillId === skillId);
-    if (!skill) throw new Error('Skill was not found in the approved revision.');
+    const discovery = createSkillDiscoveryUseCase(read);
+    const skill = discovery.getSkill(skillId);
     const [sourceContext, routeHistory] = await Promise.all([
       readSkillSourceContext(read, skill),
       readSkillRouteHistory(this.cwd, skill.skillId)
@@ -498,7 +501,18 @@ export class SkillMapLocalBackend implements LocalConnectorBackend {
 
   async previewRoute(input: { prompt: string; max?: number; skillId?: string }) {
     const state = await openApprovedRoutingState(this.cwd);
-    const execution = executeRouteUseCase(state, { prompt: input.prompt, ...(input.max !== undefined ? { max: input.max } : {}), ...(input.skillId ? { qualifiedSkillId: input.skillId } : {}) });
+    const execution = executeRouteUseCase(
+      state,
+      {
+        prompt: input.prompt,
+        ...(input.max !== undefined ? { max: input.max } : {}),
+        ...(input.skillId ? { qualifiedSkillId: input.skillId } : {})
+      },
+      {
+        strategy: this.skillDiscoveryStrategy,
+        indexCache: this.skillDiscoveryIndexCache
+      }
+    );
     await recordRouteEvent(this.cwd, createRouteEvent(execution.result, execution.currentRevision, 'api'));
     return execution;
   }

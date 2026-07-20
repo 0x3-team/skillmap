@@ -18,6 +18,24 @@ export interface RouteRankingSkill {
   hasScripts: boolean;
 }
 
+export interface PreparedRouteRankingPhrase {
+  value: string;
+  normalized: string;
+  parts: readonly string[];
+  weakSingleTerm: boolean;
+}
+
+export interface PreparedRouteRankingSkill {
+  skill: RouteRankingSkill;
+  normalizedName: string;
+  nameTokens: readonly string[];
+  descriptionTokens: readonly string[];
+  aliases: readonly PreparedRouteRankingPhrase[];
+  preferredFor: readonly PreparedRouteRankingPhrase[];
+  avoidFor: readonly PreparedRouteRankingPhrase[];
+  familyToken: string | null;
+}
+
 export interface RouteRankingCandidate {
   skillId: string;
   name: string;
@@ -61,6 +79,30 @@ export function rankRoutePrompt(
   max = DEFAULT_ROUTE_RANKING_MAX,
   qualifiedSkillId?: string
 ): RouteRankingResult {
+  return rankPreparedRoutePrompt(skills.map(prepareRouteRankingSkill), prompt, max, qualifiedSkillId);
+}
+
+/** Precompute immutable per-revision scoring metadata for exact indexed reads. */
+export function prepareRouteRankingSkill(skill: RouteRankingSkill): PreparedRouteRankingSkill {
+  return {
+    skill,
+    normalizedName: normalizePhraseForBoundedSearch(skill.name),
+    nameTokens: [...new Set(tokenizeToArray(skill.name))],
+    descriptionTokens: [...new Set(tokenizeToArray(skill.description))],
+    aliases: skill.aliases.map(preparePhrase),
+    preferredFor: skill.preferredFor.map(preparePhrase),
+    avoidFor: skill.avoidFor.map(preparePhrase),
+    familyToken: skill.family ? skill.family.toLowerCase() : null
+  };
+}
+
+/** The full scanner and indexed candidate reader share this one scorer. */
+export function rankPreparedRoutePrompt(
+  preparedSkills: readonly PreparedRouteRankingSkill[],
+  prompt: string,
+  max = DEFAULT_ROUTE_RANKING_MAX,
+  qualifiedSkillId?: string
+): RouteRankingResult {
   const normalizedMax = normalizeRouteRankingLimit(max);
   const tokens = tokenize(prompt);
   // NFKC/case-fold the prompt once. Phrase matching may inspect thousands of
@@ -68,64 +110,96 @@ export function rankRoutePrompt(
   // turns an otherwise bounded replay into an avoidable CPU amplifier.
   const normalizedPrompt = normalizePromptForPhraseSearch(prompt);
   if (qualifiedSkillId) {
-    const skill = skills.find((entry) => entry.skillId === qualifiedSkillId);
-    if (!skill) throw new Error(`Qualified skillId is not present in the effective registry: ${qualifiedSkillId}`);
+    const prepared = preparedSkills.find((entry) => entry.skill.skillId === qualifiedSkillId);
+    if (!prepared) throw new Error(`Qualified skillId is not present in the effective registry: ${qualifiedSkillId}`);
+    const skill = prepared.skill;
     const exclusions: RouteRankingExclusion[] = [];
     if (skill.tier === 'blocked' || skill.tier === 'archived') {
       exclusions.push({ skillId: skill.skillId, name: skill.name, reason: `tier=${skill.tier}` });
     } else if (!skill.qualifiedExplicitAllowed) {
       exclusions.push({ skillId: skill.skillId, name: skill.name, reason: 'qualified invocation is blocked by policy or frontmatter' });
     }
-    const recommendations = exclusions.length === 0 ? [scoreSkill(skill, tokens, normalizedPrompt, true)].slice(0, normalizedMax) : [];
+    const recommendations = exclusions.length === 0 ? [scorePreparedSkill(prepared, tokens, normalizedPrompt, true)].slice(0, normalizedMax) : [];
     return { recommendations, exclusions, hookText: renderLegacyRouteHookText(recommendations, exclusions) };
   }
-  const named = new Set(skills.filter((skill) => boundedPhraseIncludes(normalizedPrompt, skill.name)).map((skill) => skill.name));
   const candidates: RouteRankingCandidate[] = [];
   const exclusions: RouteRankingExclusion[] = [];
+  const hookSupersessionExclusions: RouteRankingExclusion[] = [];
+  const supersededNames = new Set(preparedSkills.flatMap((prepared) => prepared.skill.supersedes));
+  const candidatesByName = new Map<string, RouteRankingCandidate[]>();
+  const supersedesByCandidateId = new Map<string, readonly string[]>();
+  const addExclusion = (exclusion: RouteRankingExclusion): void => {
+    // Public results expose only the first twelve exclusions, but legacy hook
+    // text independently includes the first two supersession exclusions even
+    // when they occur later. Retain both observable bounded projections.
+    if (exclusion.reason.includes('superseded') && hookSupersessionExclusions.length < 2) {
+      hookSupersessionExclusions.push(exclusion);
+    }
+    if (exclusions.length < 12) exclusions.push(exclusion);
+  };
 
-  for (const skill of skills) {
+  for (const prepared of preparedSkills) {
+    const skill = prepared.skill;
     if (skill.tier === 'blocked' || skill.tier === 'archived') {
-      exclusions.push({ skillId: skill.skillId, name: skill.name, reason: `tier=${skill.tier}` });
+      addExclusion({ skillId: skill.skillId, name: skill.name, reason: `tier=${skill.tier}` });
       continue;
     }
     if (!skill.routeEligible) {
-      exclusions.push({ skillId: skill.skillId, name: skill.name, reason: `variant=${skill.variantState}; implicit routing disabled` });
+      addExclusion({ skillId: skill.skillId, name: skill.name, reason: `variant=${skill.variantState}; implicit routing disabled` });
       continue;
     }
-    if (skill.tier === 'explicit-only' && !named.has(skill.name)) {
-      exclusions.push({ skillId: skill.skillId, name: skill.name, reason: 'explicit-only and not named in prompt' });
+    if (skill.tier === 'explicit-only' && !boundedNormalizedPhraseIncludes(normalizedPrompt, prepared.normalizedName)) {
+      addExclusion({ skillId: skill.skillId, name: skill.name, reason: 'explicit-only and not named in prompt' });
       continue;
     }
-    const scored = scoreSkill(skill, tokens, normalizedPrompt, false);
-    if (scored.score >= 5) candidates.push(scored);
+    const scored = scorePreparedSkill(prepared, tokens, normalizedPrompt, false);
+    if (scored.score >= 5) {
+      candidates.push(scored);
+      if (supersededNames.has(scored.name)) {
+        const sameName = candidatesByName.get(scored.name);
+        if (sameName) sameName.push(scored);
+        else candidatesByName.set(scored.name, [scored]);
+      }
+      if (skill.supersedes.length > 0) supersedesByCandidateId.set(scored.skillId, skill.supersedes);
+    }
   }
 
-  const skillById = new Map(skills.map((skill) => [skill.skillId, skill]));
-  const byId = new Map(candidates.map((candidate) => [candidate.skillId, candidate]));
-  const candidatesByName = new Map<string, RouteRankingCandidate[]>();
-  for (const candidate of candidates) {
-    candidatesByName.set(candidate.name, [...(candidatesByName.get(candidate.name) ?? []), candidate]);
-  }
+  const removedIds = new Set<string>();
   for (const candidate of [...candidates]) {
-    const skill = skillById.get(candidate.skillId);
-    if (!skill) continue;
-    for (const superseded of skill.supersedes) {
+    for (const superseded of supersedesByCandidateId.get(candidate.skillId) ?? []) {
       const targets = candidatesByName.get(superseded) ?? [];
       for (const target of targets) {
-        if (byId.delete(target.skillId)) exclusions.push({ skillId: target.skillId, name: target.name, reason: `superseded by ${skill.name}` });
+        if (!removedIds.has(target.skillId)) {
+          removedIds.add(target.skillId);
+          addExclusion({ skillId: target.skillId, name: target.name, reason: `superseded by ${candidate.name}` });
+        }
       }
       candidatesByName.delete(superseded);
     }
   }
 
-  const recommendations = [...byId.values()]
-    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name) || left.skillId.localeCompare(right.skillId))
-    .slice(0, normalizedMax);
+  const recommendations = selectTopRouteCandidates(candidates.filter((candidate) => !removedIds.has(candidate.skillId)), normalizedMax);
   return {
     recommendations,
     exclusions: exclusions.slice(0, 12),
-    hookText: renderLegacyRouteHookText(recommendations, exclusions)
+    hookText: renderLegacyRouteHookText(recommendations, hookSupersessionExclusions)
   };
+}
+
+function selectTopRouteCandidates(values: Iterable<RouteRankingCandidate>, maximum: number): RouteRankingCandidate[] {
+  const selected: RouteRankingCandidate[] = [];
+  for (const candidate of values) {
+    let insertAt = 0;
+    while (insertAt < selected.length && routeCandidateCompare(selected[insertAt], candidate) <= 0) insertAt += 1;
+    if (insertAt >= maximum) continue;
+    selected.splice(insertAt, 0, candidate);
+    if (selected.length > maximum) selected.pop();
+  }
+  return selected;
+}
+
+function routeCandidateCompare(left: RouteRankingCandidate, right: RouteRankingCandidate): number {
+  return right.score - left.score || left.name.localeCompare(right.name) || left.skillId.localeCompare(right.skillId);
 }
 
 export function normalizeRouteRankingLimit(value: number): number {
@@ -151,7 +225,8 @@ export function renderLegacyRouteHookText(
   return `SkillMap: prefer ${rec}.${suffix}`.slice(0, 500);
 }
 
-function scoreSkill(skill: RouteRankingSkill, tokens: Set<string>, normalizedPrompt: string, qualifiedMention = false): RouteRankingCandidate {
+function scorePreparedSkill(prepared: PreparedRouteRankingSkill, tokens: Set<string>, normalizedPrompt: string, qualifiedMention = false): RouteRankingCandidate {
+  const skill = prepared.skill;
   const reasons: string[] = [];
   let score = 0;
   const add = (amount: number, reason: string): void => {
@@ -159,46 +234,57 @@ function scoreSkill(skill: RouteRankingSkill, tokens: Set<string>, normalizedPro
     reasons.push(reason);
   };
   if (qualifiedMention) add(100, 'qualified skillId explicitly mentioned');
-  if (boundedPhraseIncludes(normalizedPrompt, skill.name)) add(10, 'skill name explicitly mentioned');
-  for (const token of uniqueTokens(skill.name)) if (tokens.has(token)) add(2, `name token:${token}`);
-  for (const token of uniqueTokens(skill.description)) if (tokens.has(token)) add(1, `description token:${token}`);
-  for (const alias of skill.aliases) if (phraseMatches(alias, normalizedPrompt, tokens)) add(5, `alias:${alias}`);
-  for (const intent of skill.preferredFor) if (phraseMatches(intent, normalizedPrompt, tokens)) add(6, `preferred_for:${intent}`);
-  for (const avoid of skill.avoidFor) if (phraseMatches(avoid, normalizedPrompt, tokens, { allowWeakSingleTerm: true })) add(-8, `avoid_for:${avoid}`);
-  if (skill.family && tokens.has(skill.family.toLowerCase())) add(4, `family:${skill.family}`);
+  if (boundedNormalizedPhraseIncludes(normalizedPrompt, prepared.normalizedName)) add(10, 'skill name explicitly mentioned');
+  for (const token of prepared.nameTokens) if (tokens.has(token)) add(2, `name token:${token}`);
+  for (const token of prepared.descriptionTokens) if (tokens.has(token)) add(1, `description token:${token}`);
+  for (const alias of prepared.aliases) if (preparedPhraseMatches(alias, normalizedPrompt, tokens)) add(5, `alias:${alias.value}`);
+  for (const intent of prepared.preferredFor) if (preparedPhraseMatches(intent, normalizedPrompt, tokens)) add(6, `preferred_for:${intent.value}`);
+  for (const avoid of prepared.avoidFor) if (preparedPhraseMatches(avoid, normalizedPrompt, tokens, { allowWeakSingleTerm: true })) add(-8, `avoid_for:${avoid.value}`);
+  if (skill.family && prepared.familyToken && tokens.has(prepared.familyToken)) add(4, `family:${skill.family}`);
   if (score > 0 && skill.tier === 'active-default') add(5, 'active-default tier boost');
   if (score > 0 && skill.tier === 'specialist') add(1, 'specialist tier');
   if (score > 0 && skill.hasScripts) add(-1, 'script-bearing caution');
   return { skillId: skill.skillId, name: skill.name, score, tier: skill.tier, family: skill.family, path: skill.path, reasons };
 }
 
-function phraseMatches(
-  phrase: string,
+function preparedPhraseMatches(
+  phrase: PreparedRouteRankingPhrase,
   normalizedPrompt: string,
   tokens: Set<string>,
   options: { allowWeakSingleTerm?: boolean } = {}
 ): boolean {
-  const lower = phrase.toLowerCase();
-  const parts = phrase.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter((token) => token.length >= 2 && !STOP.has(token));
-  if (parts.length === 1 && WEAK_ROUTE_TERMS.has(parts[0]) && !options.allowWeakSingleTerm) return false;
-  if (boundedPhraseIncludes(normalizedPrompt, lower)) return true;
-  return parts.length > 0 && parts.every((part) => tokens.has(part));
+  if (phrase.weakSingleTerm && !options.allowWeakSingleTerm) return false;
+  if (boundedNormalizedPhraseIncludes(normalizedPrompt, phrase.normalized)) return true;
+  return phrase.parts.length > 0 && phrase.parts.every((part) => tokens.has(part));
 }
 
-function boundedPhraseIncludes(normalizedText: string, phrase: string): boolean {
-  const lowerPhrase = phrase.normalize('NFKC').toLocaleLowerCase('en-US');
-  if (lowerPhrase.length === 0) return false;
+function preparePhrase(value: string): PreparedRouteRankingPhrase {
+  const parts = value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter((token) => token.length >= 2 && !STOP.has(token));
+  return {
+    value,
+    normalized: normalizePhraseForBoundedSearch(value.toLowerCase()),
+    parts,
+    weakSingleTerm: parts.length === 1 && WEAK_ROUTE_TERMS.has(parts[0])
+  };
+}
+
+function boundedNormalizedPhraseIncludes(normalizedText: string, normalizedPhrase: string): boolean {
+  if (normalizedPhrase.length === 0) return false;
   let offset = 0;
-  while (offset <= normalizedText.length - lowerPhrase.length) {
-    const index = normalizedText.indexOf(lowerPhrase, offset);
+  while (offset <= normalizedText.length - normalizedPhrase.length) {
+    const index = normalizedText.indexOf(normalizedPhrase, offset);
     if (index < 0) return false;
     const before = index === 0 ? '' : Array.from(normalizedText.slice(Math.max(0, index - 2), index)).at(-1) ?? '';
-    const afterIndex = index + lowerPhrase.length;
+    const afterIndex = index + normalizedPhrase.length;
     const after = afterIndex >= normalizedText.length ? '' : Array.from(normalizedText.slice(afterIndex, afterIndex + 2))[0] ?? '';
     if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
     offset = index + 1;
   }
   return false;
+}
+
+function normalizePhraseForBoundedSearch(value: string): string {
+  return value.normalize('NFKC').toLocaleLowerCase('en-US');
 }
 
 function normalizePromptForPhraseSearch(prompt: string): string {
@@ -212,7 +298,13 @@ function safeHookLabel(displayName: string, skillId: string): string {
 }
 
 function isCodeLikeHookLabel(value: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._:@/+\-]{0,79}$/.test(value);
+  return /^[A-Za-z0-9][A-Za-z0-9._:@/+\-]{0,79}$/.test(value)
+    && !/\b(?:bearer|token|secret|password|private[._ -]?key|api[._ -]?key|cookie|session)\b/i.test(value)
+    && !/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value)
+    && !/file:\/\//i.test(value)
+    && !/(^|[\s("'=:])\/(?!\/)[^\s"'<>),;]*/.test(value)
+    && !/(^|[\s("'=:])[A-Z]:[\\/][^\s"'<>),;]*/i.test(value)
+    && !/(^|[\s("'=:])\\\\[^\s"'<>),;]*/.test(value);
 }
 
 function tokenize(value: string): Set<string> {
@@ -221,10 +313,6 @@ function tokenize(value: string): Set<string> {
 
 function tokenizeToArray(value: string): string[] {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter((token) => token.length > 2 && !STOP.has(token));
-}
-
-function uniqueTokens(value: string): Set<string> {
-  return new Set(tokenizeToArray(value));
 }
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'use', 'using', 'when', 'you', 'your', 'our', 'are', 'was', 'were', 'task', 'skill', 'app', 'make', 'less', 'more', 'verify']);

@@ -209,18 +209,19 @@ MCP is read-only in personal V1. Run these after `.skillmap/effective.json`,
 node dist/cli.js mcp manifest --json
 node dist/cli.js mcp call route_prompt --prompt "make this dashboard less generic" --json
 node dist/cli.js mcp call search_skills --query frontend --json
-node dist/cli.js mcp call show_skill --name frontend-design --json
+SKILL_ID='<qualified-skill-id-from-search_skills>'
+node dist/cli.js mcp call show_skill --skill-id "$SKILL_ID" --json
 node dist/cli.js mcp call doctor_summary --json
 node dist/cli.js mcp call source_status --json
 ```
 
-JSON-RPC smoke:
+Replace the `SKILL_ID` placeholder with the exact qualified ID returned by search. For protocol evidence, run the official SDK client against the real built child process:
 
 ```bash
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_skills","arguments":{"query":"frontend"}}}' | node dist/cli.js mcp serve
+npm run test:mcp:stdio
 ```
 
-Record the transcript and confirm tools are read-only.
+Record the test result and confirm the six fixed tools, string server version, revision receipts, structured/text equality, prompt-free route event, bounded frames, and clean close/reconnect behavior.
 
 ## 8. Browser Evidence
 

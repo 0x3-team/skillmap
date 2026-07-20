@@ -66,7 +66,9 @@ SkillMap v1 keeps cross-agent access local-first:
 
 - `skillmap export` creates a portable registry snapshot.
 - `skillmap import` reports conflicts and archives imported snapshots without overwriting active artifacts.
-- `skillmap mcp serve` exposes read-only registry tools over stdio-style JSON-RPC.
+- `skillmap mcp serve` exposes the six fixed local metadata/routing tools through the official MCP SDK and a 64 KiB-bounded stdio adapter. A protocol-neutral runtime owns approved-revision reads and explicit MCP redaction; SDK lifecycle/notifications/list/call dispatch remain outside the domain layer. Successful results carry the same canonical envelope in structured and text forms, and total frames stay below 512 KiB.
+
+Discovery selection, ordering, and revision/query-bound cursors are shared with the loopback API while each surface keeps an explicit projection. A deterministic revision-bound postings index has `reference`, `shadow`, and `indexed` strategies with a two-revision cache; the full scanner remains the semantic oracle and rollback path. This local foundation does not add Streamable HTTP, remote auth, skill-body loading, or a hosted MCP endpoint.
 
 General mutation remains CLI-explicit. The MCP surface intentionally has no write/update/install tools in v1.
 

@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/mcp-source-status-result/v1.schema.json",
+  "title": "SkillMap MCP source_status success result v1",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "skillmap.api-response"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean",
+      "const": true
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "servingRevision": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkillMapRevisionRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currentRevision": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkillMapRevisionRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "compatibility": {
+      "type": "string",
+      "enum": [
+        "compatible",
+        "degraded",
+        "upgrade-required",
+        "client-too-new",
+        "incompatible"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "type": "string",
+          "enum": [
+            "not-configured",
+            "not-applicable",
+            "partial",
+            "covered"
+          ]
+        },
+        "inventorySkills": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "trackedSkills": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "records": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "skillId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^sk_[A-Za-z0-9_-]{43}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "contentRevision": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "external-clean",
+                      "external-modified",
+                      "external-stale",
+                      "external-risky-update",
+                      "local-authored",
+                      "local-modified",
+                      "unknown"
+                    ]
+                  },
+                  "risk": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "low",
+                          "high"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "upstreamCommit": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{40,64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "skillId",
+                  "displayName",
+                  "contentRevision",
+                  "state",
+                  "risk",
+                  "upstreamCommit"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "hasMore": {
+              "type": "boolean"
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sortKey": {
+              "type": "string",
+              "const": "stable-v1"
+            }
+          },
+          "required": [
+            "items",
+            "limit",
+            "hasMore",
+            "nextCursor",
+            "sortKey"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "coverage",
+        "inventorySkills",
+        "trackedSkills",
+        "records"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "kind",
+    "schemaVersion",
+    "ok",
+    "requestId",
+    "servingRevision",
+    "currentRevision",
+    "compatibility",
+    "data"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "SkillMapRevisionRef": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string"
+        },
+        "revisionId": {
+          "type": "string"
+        },
+        "workspaceRevision": {
+          "type": "string"
+        },
+        "effectiveDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effectiveRevisionDigest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "workspaceId",
+        "revisionId",
+        "workspaceRevision",
+        "effectiveDigest",
+        "effectiveRevisionDigest"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

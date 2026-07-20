@@ -1,0 +1,11 @@
+{
+  "retainedValues": false,
+  "runtimeOnlyClasses": [
+    "prompt-injection",
+    "absolute-path",
+    "authorization-secret",
+    "cookie",
+    "email",
+    "private-description"
+  ]
+}

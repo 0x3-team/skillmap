@@ -258,18 +258,32 @@ The local-sensitive archival bundle requires `--include-sensitive-local`, an exp
 
 `import` verifies strict v2 schema, privacy, compatibility, and `payloadDigest` before any write. Dry-run is the default. Confirmed imports archive exact incoming bytes and a conflict report under `.skillmap/imports/`; they never activate or overwrite registry artifacts. Legacy v1 is labeled `legacy-unverified`. Local-sensitive import additionally requires `--acknowledge-sensitive-local`.
 
-## Read-only MCP access
+## Local MCP access
 
 ```bash
 skillmap mcp manifest
 skillmap mcp call route_prompt --prompt "make this UI less generic"
 skillmap mcp call search_skills --query frontend
+SKILL_ID='<qualified-skill-id-from-search_skills>'
+skillmap mcp call show_skill --skill-id "$SKILL_ID"
 skillmap mcp serve
 ```
 
-The v1 MCP surface is read-only. It exposes compact registry queries for agents without giving them mutation tools.
+Replace the `SKILL_ID` placeholder with an exact qualified ID returned by `search_skills`.
 
-Read-only tools:
+The local v1 MCP surface uses the official MCP SDK over bounded stdio. It exposes compact, revision-bound metadata queries without skill bodies, paths, install, execution, audit, grade, or policy tools. `mcp manifest` remains the numeric SkillMap compatibility manifest v2; the negotiated MCP server version is the string package version.
+
+Successful SDK tool calls return the same `skillmap.api-response` envelope in `structuredContent` and compact JSON text. Each envelope carries serving/current revision receipts. `route_prompt` does not retain or return its prompt, but it does record the existing local prompt-free route event; the tool annotation and server instructions disclose that side effect. Request lines are capped at 64 KiB and total responses at 512 KiB.
+
+The local MCP process uses the exact revision-bound `indexed` discovery strategy by default. For rollback or debugging, start that process with `SKILLMAP_DISCOVERY_STRATEGY=reference`; `shadow` runs and compares both paths while returning the reference result. Invalid strategy values fail closed. The switch changes neither the six-tool contract nor approved-revision selection.
+
+From a source checkout, exercise the real built child process with the official client rather than a hand-written JSON-RPC transcript:
+
+```bash
+npm run test:mcp:stdio
+```
+
+Fixed tools:
 
 - `route_prompt`
 - `search_skills`

@@ -195,7 +195,7 @@ Commands:
   hook install codex --passive [--dry-run] [--force] [--global] [--config PATH] [--json]
   hook uninstall codex [--dry-run] [--global] [--config PATH] [--json]
   mcp manifest [--json]
-  mcp call TOOL [--prompt TEXT] [--query TEXT] [--name SKILL] [--skill-id ID] [--json]
+  mcp call TOOL [--prompt TEXT] [--query TEXT] [--skill-id ID] [--max N] [--limit N] [--cursor TOKEN] [--json]
   mcp serve
 
 Safety defaults: no cloud calls, no skill script execution, source updates are preview-only, dashboard snapshots require redaction, and hook install requires ready status unless forced.`);
