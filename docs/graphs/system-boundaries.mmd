@@ -1,0 +1,41 @@
+flowchart LR
+  user([User / native agent])
+
+  subgraph local[Local product — offline and deterministic]
+    cli[CLI commands]
+    state[WorkspaceStateStore\nimmutable revisions]
+    route[Approved route use case]
+    ui[Packaged loopback dashboard]
+    hook[Passive Codex hook]
+    mcp[Read-only MCP]
+  end
+
+  subgraph hosted[Hosted trust plane — online and operator-controlled]
+    web[Next.js catalog + accounts]
+    db[(Supabase\nRLS + authority RPCs)]
+    worker[Constrained worker]
+  end
+
+  ext[GitHub public immutable source]
+  ops[CI / backup / release operations]
+
+  user --> cli
+  user --> web
+  cli --> state
+  state --> route
+  ui --> state
+  hook --> route
+  mcp --> route
+  route --> user
+  web --> db
+  worker --> db
+  worker --> ext
+  ops -. verifies .-> local
+  ops -. verifies .-> hosted
+
+  classDef local fill:#e8f1ff,stroke:#3973c6,color:#102a43
+  classDef hosted fill:#fff1df,stroke:#c87518,color:#4a2706
+  classDef external fill:#f0f0f0,stroke:#666,color:#222
+  class cli,state,route,ui,hook,mcp local
+  class web,db,worker hosted
+  class user,ext,ops external

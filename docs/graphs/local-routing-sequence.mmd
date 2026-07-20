@@ -1,0 +1,20 @@
+sequenceDiagram
+  actor U as User / agent
+  participant A as CLI, hook, MCP, or dashboard
+  participant W as WorkspaceStateStore
+  participant R as Approved routing read model
+  participant S as routeSemanticDecision
+  participant C as Contract validator
+
+  U->>A: prompt
+  A->>W: openApprovedWorkspaceRead(routing)
+  W-->>A: current approved revision or LKG
+  A->>R: build ApprovedRoutingState
+  R->>S: prompt + effective registry + max
+  S-->>R: recommendations + exclusions + compact hook text
+  R->>C: validate route-result/v2
+  C-->>R: valid digest-bound result
+  R-->>A: route result; promptStored=false
+  A-->>U: recommendations / hook hint / trace
+
+  Note over W,C: Runtime routing is offline, deterministic, revision-bound, and fail-closed.

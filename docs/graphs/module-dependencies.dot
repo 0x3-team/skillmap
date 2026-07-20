@@ -1,0 +1,48 @@
+digraph SkillMapModules {
+  rankdir=LR;
+  compound=true;
+  splines=ortho;
+  nodesep=0.35;
+  ranksep=0.8;
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=10, color="#64748b", fillcolor="#f8fafc"];
+  edge [color="#94a3b8", arrowsize=0.7];
+
+  subgraph cluster_local {
+    label="Local runtime";
+    color="#3973c6";
+    cli [label="src/cli.ts", fillcolor="#dbeafe"];
+    commands [label="src/commands/*", fillcolor="#e8f1ff"];
+    services [label="src/services/*", fillcolor="#e8f1ff"];
+    core [label="src/core/*", fillcolor="#e8f1ff"];
+    server [label="src/server/*", fillcolor="#e8f1ff"];
+    assets [label="assets/local-app/v1", fillcolor="#dbeafe"];
+  }
+
+  contracts [label="contracts + generated validators", fillcolor="#fef3c7", color="#b38b00"];
+  web [label="apps/web", fillcolor="#ffedd5", color="#c87518"];
+  worker [label="apps/worker", fillcolor="#dcfce7", color="#31945b"];
+  supabase [label="supabase migrations + tests", fillcolor="#ffedd5", color="#c87518"];
+  tests [label="test/* + web tests", fillcolor="#f1f5f9"];
+  ops [label="CI / ops / release scripts", fillcolor="#f1f5f9"];
+
+  cli -> commands;
+  commands -> services;
+  commands -> core;
+  services -> core;
+  services -> contracts;
+  server -> services;
+  server -> core;
+  assets -> server [label="same-origin API"];
+  web -> contracts;
+  web -> supabase [label="SSR / RLS"];
+  worker -> supabase [label="service RPC"];
+  worker -> contracts;
+  worker -> core [label="source fetch / audit"];
+  tests -> cli [style=dashed];
+  tests -> services [style=dashed];
+  tests -> web [style=dashed];
+  tests -> worker [style=dashed];
+  tests -> supabase [style=dashed];
+  ops -> tests [style=dashed];
+  ops -> supabase [style=dashed];
+}

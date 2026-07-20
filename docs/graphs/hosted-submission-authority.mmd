@@ -1,0 +1,33 @@
+flowchart TD
+  submit[Publisher submits\nexact OWNER/REPO + commit + path]
+  validate[Web input validation\ncanonical source + rate limits]
+  intent[(Submission intent\naccount-owned, queued)]
+  claim[Worker claims lease]
+  fetch[Unauthenticated GitHub fetch\nbounded tree/blob/raw reads]
+  audit[Static inert audit\nno script execution]
+  license{License evidence\nindependently confirmed?}
+  collision{Collision review\nexplicit disposition?}
+  consent{Publisher authority\nrecorded + unexpired?}
+  request[Request changes / keep hidden]
+  publish[(Public metadata projection)]
+  retire[Quarantine / revoke / expiry hide]
+  db[(Supabase RLS + service-only RPCs)]
+
+  submit --> validate --> intent --> db
+  db --> claim --> fetch --> audit --> license
+  license -- no --> request --> db
+  license -- yes --> collision
+  collision -- no --> request
+  collision -- yes --> consent
+  consent -- no --> request
+  consent -- yes --> publish --> db
+  db --> retire
+
+  classDef browser fill:#e8f1ff,stroke:#3973c6
+  classDef worker fill:#e8fff1,stroke:#31945b
+  classDef authority fill:#fff1df,stroke:#c87518
+  classDef decision fill:#fff8cf,stroke:#b38b00
+  class submit,validate browser
+  class claim,fetch,audit worker
+  class intent,db,publish,retire,request authority
+  class license,collision,consent decision
