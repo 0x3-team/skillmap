@@ -318,6 +318,31 @@ test('search service shares exact ids, order, cursors, and explicit projections'
   assert.equal(local.description, 'Description withheld because it contains sensitive local metadata.');
   assert.equal(Object.hasOwn(local, 'path'), false);
 
+  const orderingSkills = [
+    skill(90, { name: 'zulu@example.invalid' }),
+    skill(91, { name: 'Alpha Public' }),
+    skill(92, { name: 'Cookie: private-session' })
+  ];
+  const expectedPublicOrder = [...orderingSkills]
+    .sort((left, right) => {
+      const leftSummary = projectMcpSkillSummary(left);
+      const rightSummary = projectMcpSkillSummary(right);
+      return leftSummary.displayName.localeCompare(rightSummary.displayName)
+        || leftSummary.skillId.localeCompare(rightSummary.skillId);
+    })
+    .map(item => item.skillId);
+  for (const strategy of ['reference', 'indexed']) {
+    const discovery = createSkillDiscoveryUseCase(read(orderingSkills), {
+      strategy,
+      searchExposure: 'mcp'
+    });
+    assert.deepEqual(
+      discovery.search({ query: '', limit: 10 }).items.map(item => item.skillId),
+      expectedPublicOrder,
+      `${strategy} MCP ordering must use only projected public labels`
+    );
+  }
+
   for (const dangerousName of [
     'owner@example.invalid',
     'Cookie: session=private',

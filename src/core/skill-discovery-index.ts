@@ -27,6 +27,7 @@ export interface SkillDiscoveryIndex {
   skillCount: number;
   entries: readonly SkillDiscoveryIndexEntry[];
   searchOrdinals: readonly number[];
+  mcpSearchOrdinals: readonly number[];
   routePostings: Readonly<Record<string, readonly number[]>>;
   routeAlwaysCheckOrdinals: readonly number[];
   routePolicySensitiveOrdinals: readonly number[];
@@ -129,6 +130,9 @@ export function compileSkillDiscoveryIndex(
   const searchOrdinals = skills
     .map((_, ordinal) => ordinal)
     .sort((leftOrdinal, rightOrdinal) => skillDiscoverySort(skills[leftOrdinal], skills[rightOrdinal]));
+  const mcpSearchOrdinals = skills
+    .map((_, ordinal) => ordinal)
+    .sort((leftOrdinal, rightOrdinal) => skillDiscoveryMcpSort(skills[leftOrdinal], skills[rightOrdinal]));
   const routePostings = Object.create(null) as Record<string, readonly number[]>;
   for (const token of [...postings.keys()].sort(codePointCompare)) {
     routePostings[token] = postings.get(token) ?? [];
@@ -140,6 +144,7 @@ export function compileSkillDiscoveryIndex(
     skillCount: skills.length,
     entries,
     searchOrdinals,
+    mcpSearchOrdinals,
     routePostings,
     routeAlwaysCheckOrdinals: [...alwaysCheck].sort(numberCompare),
     routePolicySensitiveOrdinals: policySensitive,
@@ -170,7 +175,8 @@ export function searchSkillOrdinalsWithDiscoveryIndex(
   assertIndexBinding(index, skills, effectiveRevisionDigest);
   const normalizedQuery = query.toLowerCase();
   const ordinals: number[] = [];
-  for (const ordinal of index.searchOrdinals) {
+  const searchOrdinals = exposure === 'mcp' ? index.mcpSearchOrdinals : index.searchOrdinals;
+  for (const ordinal of searchOrdinals) {
     const entry = index.entries[ordinal];
     const skill = skills[ordinal];
     assertOrdinalBinding(entry, skill, ordinal);
@@ -309,6 +315,12 @@ export function skillDiscoverySort(left: RouteRankingSkill, right: RouteRankingS
 
 export function skillDiscoverySearchHaystack(skill: RouteRankingSkill): string {
   return searchHaystack(skill);
+}
+
+export function skillDiscoveryMcpSort(left: RouteRankingSkill, right: RouteRankingSkill): number {
+  const leftLabel = redactedMetadataLabel(left.name, left.skillId);
+  const rightLabel = redactedMetadataLabel(right.name, right.skillId);
+  return leftLabel.localeCompare(rightLabel) || left.skillId.localeCompare(right.skillId);
 }
 
 export type SkillDiscoverySearchExposure = 'local' | 'mcp';

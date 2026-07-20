@@ -5,6 +5,7 @@ import {
   SkillDiscoveryIndexCache,
   searchSkillOrdinalsWithDiscoveryIndex,
   skillDiscoveryMcpSearchHaystack,
+  skillDiscoveryMcpSort,
   skillDiscoverySearchHaystack,
   skillDiscoverySort,
   type SkillDiscoverySearchExposure,
@@ -242,10 +243,11 @@ function referenceSearchOrdinals(
   exposure: SkillDiscoverySearchExposure
 ): number[] {
   const haystack = exposure === 'mcp' ? skillDiscoveryMcpSearchHaystack : skillDiscoverySearchHaystack;
+  const sort = exposure === 'mcp' ? skillDiscoveryMcpSort : skillDiscoverySort;
   return skills
     .map((_, ordinal) => ordinal)
     .filter((ordinal) => !query || haystack(skills[ordinal]).includes(query))
-    .sort((leftOrdinal, rightOrdinal) => skillDiscoverySort(skills[leftOrdinal], skills[rightOrdinal]));
+    .sort((leftOrdinal, rightOrdinal) => sort(skills[leftOrdinal], skills[rightOrdinal]));
 }
 
 function pageSkills(
