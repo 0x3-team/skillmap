@@ -4,8 +4,10 @@ import { redactedMetadataDescription, redactedMetadataLabel } from '../core/reda
 import {
   SkillDiscoveryIndexCache,
   searchSkillOrdinalsWithDiscoveryIndex,
+  skillDiscoveryMcpSearchHaystack,
   skillDiscoverySearchHaystack,
   skillDiscoverySort,
+  type SkillDiscoverySearchExposure,
   type SkillDiscoveryStrategy,
   type SkillDiscoveryStrategyComparison
 } from '../core/skill-discovery-index.js';
@@ -38,6 +40,7 @@ export interface SkillDiscoveryUseCaseOptions {
   strategy?: SkillDiscoveryStrategy;
   indexCache?: SkillDiscoveryIndexCache;
   onStrategyComparison?: (comparison: SkillDiscoveryStrategyComparison) => void;
+  searchExposure?: SkillDiscoverySearchExposure;
 }
 
 export interface SkillDiscoveryUseCase {
@@ -94,6 +97,7 @@ export function createSkillDiscoveryUseCase(
   if (!effective) throw approvedEffectiveMissing();
   const strategy = options.strategy ?? 'reference';
   const indexCache = options.indexCache ?? new SkillDiscoveryIndexCache(2);
+  const searchExposure = options.searchExposure ?? 'local';
   const skillById = new Map(effective.skills.map((skill) => [skill.skillId, skill]));
 
   const select = (input: SkillDiscoverySearchInput): SkillDiscoverySelection => {
@@ -101,7 +105,7 @@ export function createSkillDiscoveryUseCase(
     const query = normalizeSkillDiscoveryQuery(input.query);
     const referenceOrdinals = strategy === 'indexed'
       ? undefined
-      : referenceSearchOrdinals(effective.skills, query);
+      : referenceSearchOrdinals(effective.skills, query, searchExposure);
     const revisionDigest = read.servingRevision.effectiveRevisionDigest;
     let selectedOrdinals: number[];
     let comparison: SkillDiscoveryStrategyComparison;
@@ -122,7 +126,7 @@ export function createSkillDiscoveryUseCase(
     } else {
       if (!revisionDigest) throw new Error(`${strategy} discovery strategy requires an approved effective revision digest.`);
       const index = indexCache.getOrCompile(effective.skills, revisionDigest);
-      const indexedOrdinals = searchSkillOrdinalsWithDiscoveryIndex(index, effective.skills, revisionDigest, query);
+      const indexedOrdinals = searchSkillOrdinalsWithDiscoveryIndex(index, effective.skills, revisionDigest, query, searchExposure);
       const indexedDigest = ordinalResultDigest(indexedOrdinals, effective.skills);
       if (strategy === 'indexed') {
         selectedOrdinals = indexedOrdinals;
@@ -232,10 +236,15 @@ export function normalizeSkillDiscoveryLimit(value: unknown): number {
   return value as number;
 }
 
-function referenceSearchOrdinals(skills: readonly EffectiveSkill[], query: string): number[] {
+function referenceSearchOrdinals(
+  skills: readonly EffectiveSkill[],
+  query: string,
+  exposure: SkillDiscoverySearchExposure
+): number[] {
+  const haystack = exposure === 'mcp' ? skillDiscoveryMcpSearchHaystack : skillDiscoverySearchHaystack;
   return skills
     .map((_, ordinal) => ordinal)
-    .filter((ordinal) => !query || skillDiscoverySearchHaystack(skills[ordinal]).includes(query))
+    .filter((ordinal) => !query || haystack(skills[ordinal]).includes(query))
     .sort((leftOrdinal, rightOrdinal) => skillDiscoverySort(skills[leftOrdinal], skills[rightOrdinal]));
 }
 

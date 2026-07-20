@@ -1,5 +1,6 @@
 import { canonicalJson } from './canonical-payload.js';
 import { hashText } from './fs.js';
+import { redactedMetadataLabel } from './redacted-metadata.js';
 import {
   prepareRouteRankingSkill,
   rankPreparedRoutePrompt,
@@ -17,6 +18,7 @@ export interface SkillDiscoveryIndexEntry {
   skillId: string;
   routingMetadataDigest: string;
   searchHaystack: string;
+  mcpSearchHaystack: string;
 }
 
 export interface SkillDiscoveryIndex {
@@ -119,7 +121,8 @@ export function compileSkillDiscoveryIndex(
         hasScripts: skill.hasScripts,
         supersedes: skill.supersedes.map(normalizeIndexedText)
       })),
-      searchHaystack: searchHaystack(skill)
+      searchHaystack: searchHaystack(skill),
+      mcpSearchHaystack: mcpSearchHaystack(skill)
     };
   });
 
@@ -161,7 +164,8 @@ export function searchSkillOrdinalsWithDiscoveryIndex(
   index: SkillDiscoveryIndex,
   skills: readonly RouteRankingSkill[],
   effectiveRevisionDigest: string,
-  query: string
+  query: string,
+  exposure: SkillDiscoverySearchExposure = 'local'
 ): number[] {
   assertIndexBinding(index, skills, effectiveRevisionDigest);
   const normalizedQuery = query.toLowerCase();
@@ -170,7 +174,8 @@ export function searchSkillOrdinalsWithDiscoveryIndex(
     const entry = index.entries[ordinal];
     const skill = skills[ordinal];
     assertOrdinalBinding(entry, skill, ordinal);
-    if (!normalizedQuery || entry.searchHaystack.includes(normalizedQuery)) ordinals.push(ordinal);
+    const haystack = exposure === 'mcp' ? entry.mcpSearchHaystack : entry.searchHaystack;
+    if (!normalizedQuery || haystack.includes(normalizedQuery)) ordinals.push(ordinal);
   }
   return ordinals;
 }
@@ -306,6 +311,12 @@ export function skillDiscoverySearchHaystack(skill: RouteRankingSkill): string {
   return searchHaystack(skill);
 }
 
+export type SkillDiscoverySearchExposure = 'local' | 'mcp';
+
+export function skillDiscoveryMcpSearchHaystack(skill: RouteRankingSkill): string {
+  return mcpSearchHaystack(skill);
+}
+
 function selectRouteCandidateOrdinals(
   index: SkillDiscoveryIndex,
   skills: readonly RouteRankingSkill[],
@@ -337,6 +348,10 @@ function selectRouteCandidateOrdinals(
 
 function searchHaystack(skill: RouteRankingSkill): string {
   return [skill.skillId, skill.name, skill.description, ...skill.aliases, ...skill.preferredFor].join(' ').toLowerCase();
+}
+
+function mcpSearchHaystack(skill: RouteRankingSkill): string {
+  return [skill.skillId, redactedMetadataLabel(skill.name, skill.skillId)].join(' ').toLowerCase();
 }
 
 /**

@@ -209,12 +209,13 @@ MCP is read-only in personal V1. Run these after `.skillmap/effective.json`,
 node dist/cli.js mcp manifest --json
 node dist/cli.js mcp call route_prompt --prompt "make this dashboard less generic" --json
 node dist/cli.js mcp call search_skills --query frontend --json
+SKILL_ID='<qualified-skill-id-from-search_skills>'
 node dist/cli.js mcp call show_skill --skill-id "$SKILL_ID" --json
 node dist/cli.js mcp call doctor_summary --json
 node dist/cli.js mcp call source_status --json
 ```
 
-Use the exact qualified ID returned by search. For protocol evidence, run the official SDK client against the real built child process:
+Replace the `SKILL_ID` placeholder with the exact qualified ID returned by search. For protocol evidence, run the official SDK client against the real built child process:
 
 ```bash
 npm run test:mcp:stdio

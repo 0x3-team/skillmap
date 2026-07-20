@@ -37,9 +37,16 @@ export interface LocalSkillMapMcpRuntimeOptions {
   onStrategyComparison?: (comparison: SkillDiscoveryStrategyComparison) => void;
 }
 
+interface CachedRevisionPage {
+  metadata: unknown;
+  values: readonly unknown[];
+  binding: string;
+}
+
 /** Local approved-workspace adapter; protocol and transport remain in src/mcp/server. */
 export class LocalSkillMapMcpRuntime implements SkillMapMcpRuntime {
   readonly #indexCache: SkillDiscoveryIndexCache;
+  readonly #pageCache = new Map<string, CachedRevisionPage>();
   readonly #discoveryStrategy: SkillDiscoveryStrategy;
   readonly #onStrategyComparison?: (comparison: SkillDiscoveryStrategyComparison) => void;
 
@@ -96,7 +103,8 @@ export class LocalSkillMapMcpRuntime implements SkillMapMcpRuntime {
         const discovery = createSkillDiscoveryUseCase(read, {
           strategy: this.#discoveryStrategy,
           indexCache: this.#indexCache,
-          onStrategyComparison: this.#onStrategyComparison
+          onStrategyComparison: this.#onStrategyComparison,
+          searchExposure: 'mcp'
         });
         const page = discovery.search({
           ...(search.query !== undefined ? { query: search.query } : {}),
@@ -119,78 +127,91 @@ export class LocalSkillMapMcpRuntime implements SkillMapMcpRuntime {
       if (!read.effective) throw approvedEffectiveMissing();
       const pagination = input as PaginatedMcpInput;
       if (name === 'show_skillgraph') {
-        const publicGraphId = (value: string) => mcpGraphIdentifier(value);
-        const items = [
-          ...read.effective.graph.nodes.map((node) => ({
-            kind: 'node' as const,
-            id: publicGraphId(node.id),
-            type: mcpGraphNodeType(node.type),
-            label: redactedMetadataLabel(node.label, publicGraphId(node.id))
-          })),
-          ...read.effective.graph.edges.map((edge) => ({
-            kind: 'edge' as const,
-            from: publicGraphId(edge.from),
-            to: publicGraphId(edge.to),
-            type: mcpGraphEdgeType(edge.type),
-            source: mcpGraphSource(edge.source),
-            confidence: Number.isFinite(edge.confidence) ? Math.max(0, Math.min(1, edge.confidence)) : 0
-          }))
-        ];
-        return apiSuccess({ graph: pageValues(name, items, pagination, read.servingRevision) }, context);
+        const graph = await pageRevisionValues(this.#pageCache, name, pagination, read.servingRevision, () => {
+          const publicGraphId = (value: string) => mcpGraphIdentifier(value);
+          return {
+            metadata: null,
+            values: [
+              ...read.effective!.graph.nodes.map((node) => ({
+                kind: 'node' as const,
+                id: publicGraphId(node.id),
+                type: mcpGraphNodeType(node.type),
+                label: redactedMetadataLabel(node.label, publicGraphId(node.id))
+              })),
+              ...read.effective!.graph.edges.map((edge) => ({
+                kind: 'edge' as const,
+                from: publicGraphId(edge.from),
+                to: publicGraphId(edge.to),
+                type: mcpGraphEdgeType(edge.type),
+                source: mcpGraphSource(edge.source),
+                confidence: Number.isFinite(edge.confidence) ? Math.max(0, Math.min(1, edge.confidence)) : 0
+              }))
+            ]
+          };
+        });
+        return apiSuccess({ graph: graph.page }, context);
       }
 
       if (name === 'doctor_summary') {
-        const report = await readJson<DoctorReport>(approvedArtifactPath(read, 'doctor.json'));
-        const skillIdByPath = new Map(read.effective.skills.map((skill) => [skill.path, skill.skillId]));
-        const findings = report.findings.map((finding) => {
-          const presentation = mcpDoctorPresentation(finding.id);
-          const skillIds = [...new Set(finding.skills
-            .map((item) => qualifiedSkillId(item) ? item : skillIdByPath.get(item))
-            .filter(qualifiedSkillId))].slice(0, 20);
+        const doctor = await pageRevisionValues(this.#pageCache, name, pagination, read.servingRevision, async () => {
+          const report = await readJson<DoctorReport>(approvedArtifactPath(read, 'doctor.json'));
+          const skillIdByPath = new Map(read.effective!.skills.map((skill) => [skill.path, skill.skillId]));
+          const findings = report.findings.map((finding) => {
+            const presentation = mcpDoctorPresentation(finding.id);
+            const skillIds = [...new Set(finding.skills
+              .map((item) => qualifiedSkillId(item) ? item : skillIdByPath.get(item))
+              .filter(qualifiedSkillId))].slice(0, 20);
+            return {
+              id: mcpOpaqueIdentifier('finding', finding.id),
+              severity: mcpDoctorSeverity(finding.severity),
+              title: presentation.title,
+              skillIds,
+              recommendationCode: presentation.code
+            };
+          });
           return {
-            id: mcpOpaqueIdentifier('finding', finding.id),
-            severity: mcpDoctorSeverity(finding.severity),
-            title: presentation.title,
-            skillIds,
-            recommendationCode: presentation.code
+            metadata: {
+              skillCount: nonNegativeInteger(report.summary.skillCount),
+              duplicateNameCount: nonNegativeInteger(report.summary.duplicateNameCount),
+              scriptBearingCount: nonNegativeInteger(report.summary.scriptBearingCount),
+              findingCount: nonNegativeInteger(report.summary.findingCount)
+            },
+            values: findings
           };
         });
-        return apiSuccess({
-          summary: {
-            skillCount: nonNegativeInteger(report.summary.skillCount),
-            duplicateNameCount: nonNegativeInteger(report.summary.duplicateNameCount),
-            scriptBearingCount: nonNegativeInteger(report.summary.scriptBearingCount),
-            findingCount: nonNegativeInteger(report.summary.findingCount)
-          },
-          findings: pageValues(name, findings, pagination, read.servingRevision)
-        }, context);
+        return apiSuccess({ summary: doctor.metadata, findings: doctor.page }, context);
       }
 
-      const report = await readJson<{
-        coverage?: string;
-        inventorySkills?: number;
-        trackedSkills?: number;
-        records?: Array<Record<string, unknown>>;
-      }>(approvedArtifactPath(read, 'source-status.json'));
-      const records = (report.records ?? []).map((record) => {
-        const skillId = qualifiedSkillId(record.skillId) ? record.skillId : null;
+      const source = await pageRevisionValues(this.#pageCache, name, pagination, read.servingRevision, async () => {
+        const report = await readJson<{
+          coverage?: string;
+          inventorySkills?: number;
+          trackedSkills?: number;
+          records?: Array<Record<string, unknown>>;
+        }>(approvedArtifactPath(read, 'source-status.json'));
+        const records = (report.records ?? []).map((record) => {
+          const skillId = qualifiedSkillId(record.skillId) ? record.skillId : null;
+          return {
+            skillId,
+            displayName: redactedMetadataLabel(record.skill, skillId ?? 'unknown'),
+            contentRevision: digestOrNull(record.contentRevision),
+            state: mcpSourceState(record.state),
+            risk: mcpSourceRisk(record.risk),
+            upstreamCommit: typeof record.upstreamCommit === 'string' && /^[a-f0-9]{40,64}$/.test(record.upstreamCommit)
+              ? record.upstreamCommit
+              : null
+          };
+        });
         return {
-          skillId,
-          displayName: redactedMetadataLabel(record.skill, skillId ?? 'unknown'),
-          contentRevision: digestOrNull(record.contentRevision),
-          state: mcpSourceState(record.state),
-          risk: mcpSourceRisk(record.risk),
-          upstreamCommit: typeof record.upstreamCommit === 'string' && /^[a-f0-9]{40,64}$/.test(record.upstreamCommit)
-            ? record.upstreamCommit
-            : null
+          metadata: {
+            coverage: mcpSourceCoverage(report.coverage),
+            inventorySkills: nonNegativeInteger(report.inventorySkills),
+            trackedSkills: nonNegativeInteger(report.trackedSkills)
+          },
+          values: records
         };
       });
-      return apiSuccess({
-        coverage: mcpSourceCoverage(report.coverage),
-        inventorySkills: nonNegativeInteger(report.inventorySkills),
-        trackedSkills: nonNegativeInteger(report.trackedSkills),
-        records: pageValues(name, records, pagination, read.servingRevision)
-      }, context);
+      return apiSuccess({ ...source.metadata, records: source.page }, context);
     } catch (error) {
       throw mapLocalSkillMapMcpToolError(error, context);
     }
@@ -204,23 +225,50 @@ export function createLocalSkillMapMcpRuntime(
   return new LocalSkillMapMcpRuntime(cwd, options);
 }
 
-function pageValues<T>(
+async function pageRevisionValues<M, T>(
+  cache: Map<string, CachedRevisionPage>,
   tool: string,
-  values: T[],
   input: PaginatedMcpInput,
-  revision: RevisionRef
-): { items: T[]; limit: number; hasMore: boolean; nextCursor: string | null; sortKey: 'stable-v1' } {
+  revision: RevisionRef,
+  build: () => Promise<{ metadata: M; values: readonly T[] }> | { metadata: M; values: readonly T[] }
+): Promise<{
+  metadata: M;
+  page: { items: T[]; limit: number; hasMore: boolean; nextCursor: string | null; sortKey: 'stable-v1' };
+}> {
+  const cacheKey = hashText(canonicalJson({ tool, revision }));
+  let cached = cache.get(cacheKey);
+  if (!cached) {
+    const material = await build();
+    cached = {
+      metadata: material.metadata,
+      values: material.values,
+      binding: hashText(canonicalJson({ tool, revisionId: revision.revisionId, values: material.values }))
+    };
+    cache.set(cacheKey, cached);
+    while (cache.size > 6) {
+      const oldest = cache.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+  } else {
+    cache.delete(cacheKey);
+    cache.set(cacheKey, cached);
+  }
+
+  const values = cached.values as readonly T[];
   const limit = input.limit ?? 20;
-  const binding = hashText(canonicalJson({ tool, revisionId: revision.revisionId, values }));
-  const start = input.cursor ? decodeCursor(input.cursor, tool, binding) : 0;
+  const start = input.cursor ? decodeCursor(input.cursor, tool, cached.binding) : 0;
   const items = values.slice(start, start + limit);
   const next = start + items.length;
   return {
-    items,
-    limit,
-    hasMore: next < values.length,
-    nextCursor: next < values.length ? encodeCursor(tool, binding, next) : null,
-    sortKey: 'stable-v1'
+    metadata: cached.metadata as M,
+    page: {
+      items,
+      limit,
+      hasMore: next < values.length,
+      nextCursor: next < values.length ? encodeCursor(tool, cached.binding, next) : null,
+      sortKey: 'stable-v1'
+    }
   };
 }
 

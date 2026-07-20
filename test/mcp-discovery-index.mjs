@@ -244,6 +244,15 @@ test('search service shares exact ids, order, cursors, and explicit projections'
   const cache = new SkillDiscoveryIndexCache(2);
   const reference = createSkillDiscoveryUseCase(read(skills), { strategy: 'reference' });
   const indexed = createSkillDiscoveryUseCase(read(skills), { strategy: 'indexed', indexCache: cache });
+  const mcpReference = createSkillDiscoveryUseCase(read(skills), {
+    strategy: 'reference',
+    searchExposure: 'mcp'
+  });
+  const mcpIndexed = createSkillDiscoveryUseCase(read(skills), {
+    strategy: 'indexed',
+    indexCache: cache,
+    searchExposure: 'mcp'
+  });
   const shadowReceipts = [];
   const shadow = createSkillDiscoveryUseCase(read(skills), {
     strategy: 'shadow',
@@ -259,6 +268,16 @@ test('search service shares exact ids, order, cursors, and explicit projections'
   assert.equal(firstReference.items[0].name, 'Alpha');
   assert.equal(typeof firstReference.nextCursor, 'string');
   assert.equal(shadowReceipts.at(-1)?.matched, true);
+
+  assert.equal(reference.search({ query: 'PRIVATE_DESCRIPTION_CANARY', limit: 10 }).items[0].name, 'Zulu');
+  assert.deepEqual(mcpReference.search({ query: 'PRIVATE_DESCRIPTION_CANARY', limit: 10 }).items, []);
+  assert.deepEqual(mcpIndexed.search({ query: 'PRIVATE_DESCRIPTION_CANARY', limit: 10 }), mcpReference.search({
+    query: 'PRIVATE_DESCRIPTION_CANARY',
+    limit: 10
+  }));
+  assert.deepEqual(mcpReference.search({ query: skills[0].skillId, limit: 10 }).items.map(item => item.skillId), [
+    skills[0].skillId
+  ]);
 
   const paddedReference = reference.search({ query: '  ShArEd-AlIaS  ', limit: 2 });
   const paddedIndexed = indexed.search({ query: '  ShArEd-AlIaS  ', limit: 2 });
@@ -307,6 +326,14 @@ test('search service shares exact ids, order, cursors, and explicit projections'
     const dangerous = skill(99, { name: dangerousName });
     assert.equal(projectMcpSkillSummary(dangerous).displayName, dangerous.skillId);
     assert.equal(projectMcpSkillDetail(dangerous).displayName, dangerous.skillId);
+    for (const strategy of ['reference', 'indexed']) {
+      const discovery = createSkillDiscoveryUseCase(read([dangerous]), {
+        strategy,
+        searchExposure: 'mcp'
+      });
+      assert.deepEqual(discovery.search({ query: dangerousName, limit: 10 }).items, []);
+      assert.deepEqual(discovery.search({ query: dangerous.skillId, limit: 10 }).items, [dangerous]);
+    }
   }
 });
 

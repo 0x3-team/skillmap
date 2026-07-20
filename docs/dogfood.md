@@ -5,6 +5,7 @@ Use this workflow before calling a SkillMap build stable alpha or v1-ready.
 ## Clean install
 
 ```bash
+repo_root=$(pwd)
 npm pack
 tmpdir=$(mktemp -d /tmp/skillmap-consumer-XXXXXX)
 cd "$tmpdir"
@@ -127,10 +128,11 @@ MCP evidence must show read-only tools:
 skillmap mcp manifest --json
 skillmap mcp call route_prompt --prompt "make this dashboard less generic" --json
 skillmap mcp call search_skills --query frontend --json
+SKILL_ID='<qualified-skill-id-from-search_skills>'
 skillmap mcp call show_skill --skill-id "$SKILL_ID" --json
 skillmap mcp call doctor_summary --json
 skillmap mcp call source_status --json
-npm run test:mcp:stdio
+npm --prefix "$repo_root" run test:mcp:stdio
 ```
 
-Use a qualified ID returned by `search_skills`; display names are not accepted as identity. The stdio test uses the official SDK client and covers initialize, initialized notification handling, list, all six calls, close, reconnect, concurrency isolation, and the 64 KiB frame limit.
+Replace the `SKILL_ID` placeholder with a qualified ID returned by `search_skills`; display names are not accepted as identity. The stdio test uses the official SDK client and covers initialize, initialized notification handling, list, all six calls, close, reconnect, concurrency isolation, and the 64 KiB frame limit.

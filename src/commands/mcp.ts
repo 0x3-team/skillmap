@@ -39,8 +39,8 @@ export async function mcpCommand(
   if (action === 'serve') {
     const server = createSkillMapMcpServer(runtime);
     const transport = createBoundedStdioServerTransport({
-      onLimitError: () => {
-        process.stderr.write('SkillMap MCP closed a connection after a request exceeded the 65536-byte limit.\n');
+      onLimitError: (error) => {
+        process.stderr.write(`SkillMap MCP closed a connection after a request exceeded the ${error.maxBytes}-byte limit.\n`);
       }
     });
     await server.connect(transport);

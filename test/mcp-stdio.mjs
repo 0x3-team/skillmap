@@ -143,6 +143,9 @@ test('official StdioClientTransport drives the built CLI lifecycle and all six t
       assert.equal(result.isError, false);
       const text = result.content.find((item) => item.type === 'text')?.text ?? '';
       for (const canary of forbiddenOutputs) assert.equal(text.includes(canary), false);
+      if (name === 'search_skills') {
+        assert.deepEqual(result.structuredContent.data.items, [], 'private metadata must not act as an MCP search oracle');
+      }
     }
   }
 

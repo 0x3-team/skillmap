@@ -264,9 +264,12 @@ The local-sensitive archival bundle requires `--include-sensitive-local`, an exp
 skillmap mcp manifest
 skillmap mcp call route_prompt --prompt "make this UI less generic"
 skillmap mcp call search_skills --query frontend
+SKILL_ID='<qualified-skill-id-from-search_skills>'
 skillmap mcp call show_skill --skill-id "$SKILL_ID"
 skillmap mcp serve
 ```
+
+Replace the `SKILL_ID` placeholder with an exact qualified ID returned by `search_skills`.
 
 The local v1 MCP surface uses the official MCP SDK over bounded stdio. It exposes compact, revision-bound metadata queries without skill bodies, paths, install, execution, audit, grade, or policy tools. `mcp manifest` remains the numeric SkillMap compatibility manifest v2; the negotiated MCP server version is the string package version.
 
