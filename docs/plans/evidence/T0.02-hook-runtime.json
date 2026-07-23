@@ -1,0 +1,62 @@
+{
+  "plan_key": "T0.02",
+  "task_id": "task_a6ed66a72904",
+  "dispatch_id": "ctx_1512886640a8",
+  "timestamp_utc": "2026-07-23T18:53:28Z",
+  "evidence_level": "local",
+  "hook_file_path": ".codex/hooks.json",
+  "hook_stage": "Stop",
+  "stop_hook_command_sequence": "cd -- \"${CLAUDE_PROJECT_DIR:-.}\" && chunk validate",
+  "runtime_layers": {
+    "launcher": {
+      "executable_display": "<path>/chunk",
+      "executable_resolved": "/opt/homebrew/bin/chunk",
+      "executable_version": "chunk version 0.7.117",
+      "executable_exists": true,
+      "evidence_check": {
+        "command": "/opt/homebrew/bin/chunk --version"
+      },
+      "launcher_note": "The Stop hook invokes this launcher; it is not itself proof that chunk is a Node executable."
+    },
+    "downstream": {
+      "node": {
+        "display": "<home>/.local/bin/node",
+        "version": "v22.23.1",
+        "version_check": "node --version",
+        "evidence": "live same-shell resolution in worker shell"
+      },
+      "npm": {
+        "display": "<home>/.local/bin/npm",
+        "version": "10.9.8",
+        "version_check": "npm --version",
+        "evidence": "live same-shell resolution in worker shell"
+      }
+    },
+    "downstream_validation_commands_configured": [
+      {
+        "index": 1,
+        "name": "install",
+        "run": "npm ci",
+        "role": null,
+        "limit": null
+      },
+      {
+        "index": 2,
+        "name": "test",
+        "run": "npm test",
+        "role": "gate",
+        "limit": 3
+      }
+    ]
+  },
+  "verification": {
+    "json_parsed": true,
+    "no_private_home_paths": true,
+    "stop_command_matches_hooks_json": true,
+    "downstream_commands_match_chunk_config": true,
+    "chunk_version_matches_live_check": true,
+    "node_version_matches_live_check": true,
+    "npm_version_matches_live_check": true,
+    "launcher_downstream_separation_explicit": true
+  }
+}

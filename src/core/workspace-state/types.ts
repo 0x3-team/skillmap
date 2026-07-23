@@ -152,6 +152,8 @@ export interface WorkspaceStateRead {
 export interface PublishOptions {
   expectedRevisionId?: string;
   approveForRouting?: boolean;
+  /** Carry approval only from the exact current approved revision when routing safety is unchanged. */
+  carryForwardRoutingApproval?: boolean;
   actor?: string;
   reason?: string;
 }
@@ -163,7 +165,7 @@ export interface MigrationOptions {
   reason?: string;
 }
 
-export interface RollbackOptions extends PublishOptions {
+export interface RollbackOptions extends Omit<PublishOptions, 'carryForwardRoutingApproval'> {
   targetRevisionId: string;
   expectedRevisionId: string;
 }

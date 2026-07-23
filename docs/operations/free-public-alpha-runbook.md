@@ -1,6 +1,6 @@
 # Free public alpha deployment, worker, and recovery runbook
 
-Status: local launch-candidate runbook. It does not authorize provider creation, spending, DNS, OAuth, indexing, public announcements, or invitations. Those actions require the owner decisions in the canonical launch plan.
+Status: local launch-candidate runbook. It does not authorize provider creation, spending, DNS, OAuth, indexing, public announcements, or invitations. Those actions require the owner decisions in the canonical launch plan. A private owner-only mechanics pilot may use two separately provisioned operator credentials to prove database and CLI separation, but this is only technical rehearsal and cannot authorize, moderate, publish, or promote any real participant or third-party listing.
 
 ## Production decision record
 
@@ -92,7 +92,7 @@ Migration `20260714030000` adds provider retry timing, a separate deferral count
 
 Migration `20260714050000` composes `private.version_has_current_publisher_authorization` into authenticated report insertion. A version hidden only because its latest authorization expired cannot accept a new report even if its catalog lifecycle fields otherwise remain published.
 
-Migration `20260714060000` requires two independently provisioned operator principals for every consequential authorization, collision-review, publication, catalog-lifecycle, and report-disposition action. The approver records one exact payload/digest/operation envelope; a distinct executor must present its unexpired `opa_...` approval. Raw `smo_v1_...` credentials are sent only in the server-to-server request header and are never arguments, output, or retained rows.
+Migration `20260714060000` requires two independently provisioned operator principals for every consequential authorization, collision-review, publication, catalog-lifecycle, and report-disposition action. For owner-only mechanics rehearsal, one human may use two separate test credentials to verify technical control flow, but this run cannot approve, authorize, moderate, publish, or promote any real participant or third-party listing. For real participant publication, a distinct approver and executor must be separate accountable humans. The approver records one exact payload/digest/operation envelope; a distinct executor must present its unexpired `opa_...` approval. Raw `smo_v1_...` credentials are sent only in the server-to-server request header and are never arguments, output, or retained rows.
 
 Migration `20260715010000` pins the supported worker, audit policy/host/worker, rubric/host/evaluator, and retained worker-run tuple. Unsupported claims and completions fail before mutation, and accepted or published stale evidence must be explicitly re-audited rather than grandfathered. Migration `20260715020000` adds the opaque request UUID to the existing owner-RLS report projection so the web action can distinguish an exact retry from a separate queued-target conflict; it does not expose another account's request IDs or add the UUID to the versioned account export.
 
@@ -106,7 +106,7 @@ supabase db push --linked --dry-run
 # Against the exact candidate locally:
 supabase db reset --local
 supabase db lint --local --schema api,private,public --level warning --fail-on warning
-supabase test db $(rg --files supabase/tests -g '*.test.sql' | sort)
+find supabase/tests -type f -name '*.test.sql' -print0 | tr '\0' '\n' | LC_ALL=C sort | tr '\n' '\0' | xargs -0 supabase test db
 tmp_types=$(mktemp)
 supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
@@ -130,6 +130,8 @@ The web deployment receives only:
 
 The web guard is fixed at its reviewed private-alpha values; there are no web rate-limit tuning variables in this release. Worker admission uses the reviewed unauthenticated GitHub core-budget gate and exact-claim provider deferral; neither setting is browser-configurable. A provider-global limiter remains mandatory before public alpha because worker backpressure does not replace public-ingress abuse control.
 
+`npm --prefix apps/web run build` first validates the release configuration. A hosted build fails before compilation without a valid site origin and public Supabase configuration; a `public-alpha` build additionally fails without the approved support URL and the exact public-indexing pair. This is source-level artifact protection, not deployment or live-environment proof.
+
 The operator worker receives, from a root-only runtime secret source:
 
 - `SKILLMAP_SUPABASE_URL`
@@ -138,7 +140,7 @@ The operator worker receives, from a root-only runtime secret source:
 
 The service-role value must never enter the web deployment, client bundle, shell history, screenshots, logs, CI artifacts, or GitHub source requests. GitHub ingestion remains unauthenticated and public-only.
 
-Release copy and indexing are independently fail-closed. A private pilot uses `SKILLMAP_RELEASE_STAGE=private-alpha` with `SKILLMAP_INDEXING_MODE=private-alpha`. After every live gate, initial-corpus gate, policy approval, and external-pilot gate passes, change both values together to `public-alpha` and `public`. Setting indexing to `public` alone leaves robots private; setting the release stage alone changes truthful product copy but does not enable indexing.
+Release copy and indexing are independently fail-closed. A private owner pilot uses `SKILLMAP_RELEASE_STAGE=private-alpha` with `SKILLMAP_INDEXING_MODE=private-alpha` and proves technical readiness only; it is not external-pilot evidence. After every live gate, initial-corpus gate, policy approval, and external-pilot gate passes, change both values together to `public-alpha` and `public`. Setting indexing to `public` alone leaves robots private; setting the release stage alone changes truthful product copy but does not enable indexing.
 
 ## Migration and deployment
 
@@ -208,7 +210,7 @@ The operator queue read plane is service-role-only, bounded, redacted, and non-m
    npm run hosted:collisions:list -- --execute --submission-id sub_...
    ```
 
-8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop. For this and every later consequential command, the approver loads only their root-held `SKILLMAP_OPERATOR_CREDENTIAL` and runs `--approve`; a distinct executor then loads their own credential and repeats the exact arguments and operation UUID with `--execute --approval-id opa_...` before the 30-minute expiry. Never put either credential on the command line or in a receipt:
+8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop. For this and every later consequential command, the approver loads only their root-held `SKILLMAP_OPERATOR_CREDENTIAL` and runs `--approve`; a distinct executor then loads their own credential and repeats the exact arguments and operation UUID with `--execute --approval-id opa_...` before the 30-minute expiry. The approver and executor must be two accountable humans with separate credentials for real participant publication, while a one-human owner rehearsal may only use test credentials for technical split validation. Never put either credential on the command line or in a receipt:
 
    ```bash
    npm run hosted:collisions:review -- \

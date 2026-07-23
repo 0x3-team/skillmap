@@ -122,10 +122,20 @@ export function runReleaseCandidate(options, dependencies = {}) {
   assert.equal(Boolean(options.approval) && !options.publish, false, 'publish approval is valid only in publish mode');
   assert.equal(options.publish && !options.evidenceDir, false, 'publish mode requires a reserved evidence receipt');
   const execute = dependencies.execFileSync ?? execFileSync;
+  const gitExecute = dependencies.gitExecFileSync ?? execFileSync;
   const environment = dependencies.env ?? process.env;
   const writeEvidence = dependencies.writeEvidenceReceipt ?? writeEvidenceReceipt;
-  const repositoryCommit = dependencies.repositoryCommit ?? currentRepositoryCommit();
-  const source = validateSourceIdentity(options.sourceCommit, options.ciRunId, repositoryCommit, environment, options.publish);
+  const repositoryRoot = resolveRepositoryRoot(dependencies.repositoryRoot);
+  const repositoryCommit = dependencies.repositoryCommit ?? currentRepositoryCommit(repositoryRoot, gitExecute);
+  const source = validateSourceIdentity(
+    options.sourceCommit,
+    options.ciRunId,
+    repositoryCommit,
+    repositoryRoot,
+    gitExecute,
+    environment,
+    options.publish
+  );
   const sourceCandidate = validateTarballPath(options.candidate, 'candidate');
   const sourcePrior = validateTarballPath(options.prior, 'prior');
   assert.notEqual(sourceCandidate, sourcePrior, 'prior and candidate tarball paths must be distinct');
@@ -300,11 +310,29 @@ export function runReleaseCandidate(options, dependencies = {}) {
   }
 }
 
-function validateSourceIdentity(sourceCommit, ciRunId, repositoryCommit, environment, requireGithub) {
+function validateSourceIdentity(sourceCommit, ciRunId, repositoryCommit, repositoryRoot, gitExecute, environment, requireGithub) {
   assert.equal(typeof sourceCommit, 'string', '--source-commit must be a string');
   assert.match(sourceCommit, SOURCE_COMMIT, '--source-commit must be the full lowercase 40-character Git commit');
   assert.equal(typeof repositoryCommit, 'string', 'repository commit resolver returned no commit');
-  assert.equal(repositoryCommit.trim().toLowerCase(), sourceCommit, 'validated source commit must equal the checked-out repository HEAD');
+  const checkedOutCommit = repositoryCommit.trim().toLowerCase();
+  assert.match(checkedOutCommit, SOURCE_COMMIT, 'repository commit resolver returned an invalid Git commit');
+  if (!gitCommitExists(sourceCommit, repositoryRoot, gitExecute)) {
+    throwMissingSourceCommit(sourceCommit, repositoryRoot, gitExecute);
+  }
+  assert.equal(gitCommitExists(checkedOutCommit, repositoryRoot, gitExecute), true,
+    'checked-out repository commit must resolve to a commit object');
+  const ancestryStatus = gitCommandStatus(
+    gitExecute,
+    ['merge-base', '--is-ancestor', sourceCommit, checkedOutCommit],
+    repositoryRoot
+  );
+  if (ancestryStatus !== 0) {
+    if (isShallowRepository(repositoryRoot, gitExecute)) {
+      throw new Error('cannot verify source commit ancestry because required history is unavailable in a shallow repository');
+    }
+    if (ancestryStatus === 1) throw new Error('source commit is not an ancestor of the checked-out repository commit');
+    throw new Error('source commit ancestry verification failed');
+  }
   assert.equal(typeof ciRunId, 'string', '--ci-run-id must be a string');
   assert.match(ciRunId, CI_RUN_ID, '--ci-run-id must use github:<run-id>:<attempt>');
   if (requireGithub) assert.equal(environment.GITHUB_ACTIONS, 'true', 'publish mode must run in the approved GitHub Actions environment');
@@ -316,13 +344,52 @@ function validateSourceIdentity(sourceCommit, ciRunId, repositoryCommit, environ
   return { commit: sourceCommit, ciRunId };
 }
 
-function currentRepositoryCommit() {
-  return execFileSync('git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
-    cwd: repo,
+function resolveRepositoryRoot(input) {
+  if (input === undefined) return repo;
+  assert.equal(typeof input, 'string', 'repository root must be a string');
+  assert.equal(/[\u0000-\u001f\u007f]/.test(input), false, 'repository root must not contain control characters');
+  return path.resolve(input);
+}
+
+function currentRepositoryCommit(repositoryRoot, gitExecute) {
+  return gitExecute('git', ['rev-parse', '--verify', 'HEAD^{commit}'], gitCommandOptions(repositoryRoot))
+    .trim()
+    .toLowerCase();
+}
+
+function gitCommitExists(commit, repositoryRoot, gitExecute) {
+  return gitCommandStatus(gitExecute, ['cat-file', '-e', `${commit}^{commit}`], repositoryRoot) === 0;
+}
+
+function isShallowRepository(repositoryRoot, gitExecute) {
+  const output = gitExecute('git', ['rev-parse', '--is-shallow-repository'], gitCommandOptions(repositoryRoot));
+  return String(output).trim() === 'true';
+}
+
+function throwMissingSourceCommit(sourceCommit, repositoryRoot, gitExecute) {
+  if (isShallowRepository(repositoryRoot, gitExecute)) {
+    throw new Error('cannot verify source commit ancestry because required history is unavailable in a shallow repository');
+  }
+  throw new Error(`--source-commit must reference an existing commit object: ${sourceCommit}`);
+}
+
+function gitCommandStatus(gitExecute, args, repositoryRoot) {
+  try {
+    gitExecute('git', args, gitCommandOptions(repositoryRoot));
+    return 0;
+  } catch (error) {
+    if (Number.isInteger(error?.status)) return error.status;
+    throw error;
+  }
+}
+
+function gitCommandOptions(repositoryRoot) {
+  return {
+    cwd: repositoryRoot,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'inherit'],
+    stdio: ['ignore', 'pipe', 'pipe'],
     shell: false
-  }).trim().toLowerCase();
+  };
 }
 
 function validateTarballPath(input, label) {

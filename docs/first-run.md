@@ -112,8 +112,12 @@ skillmap sources check
 skillmap apply-policy --strict
 skillmap graph build
 skillmap graph explain frontend-design
-skillmap route --trace "make this dashboard calmer and verify mobile"
+skillmap route "make this dashboard calmer and verify mobile" --trace
 ```
+
+`graph build` writes a derived view of the approved registry. It preserves an
+existing routing approval only when the routing-critical state is unchanged; it
+never creates routing approval on its own.
 
 Create real evals before trusting readiness:
 

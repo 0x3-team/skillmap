@@ -1,0 +1,21 @@
+flowchart LR
+  source["Current source baseline\nLocal checks and static preflight"]
+  package["Local package release\nVersion, tag, consumer-install smoke"]
+  provision["Private hosted alpha\nProvision database, web host, OAuth, secrets"]
+  live["Live workflow proof\nCatalog, account, submit, review, publish"]
+  operations["Operational proof\nWorker schedule, monitoring, backup/restore, rollback"]
+  pilot["Small external pilot\nAuthorized corpus, support, accessibility, efficacy"]
+  decision{"Launch decision"}
+  public["Public alpha\nMonitoring and rollback remain active"]
+
+  source --> package
+  source --> provision --> live --> operations --> pilot --> decision
+  decision -- "all gates pass" --> public
+  decision -- "gap found" --> provision
+
+  classDef proven fill:#e8f7ee,stroke:#2f855a,color:#173b2a
+  classDef next fill:#fff4df,stroke:#b7791f,color:#4d2b00
+  classDef target fill:#e8f1ff,stroke:#3973c6,color:#102a43
+  class source proven
+  class package,provision,live,operations,pilot,decision next
+  class public target

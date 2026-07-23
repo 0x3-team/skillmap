@@ -1,6 +1,6 @@
 # Hosted Alpha Deployment and Recovery Runbook
 
-Status: pre-deployment. This is the canonical provider, deployment, recovery, and live-acceptance handoff for the free hosted trust alpha. It permits reviewed third-party metadata-only submissions, inert static audit, provisional numeric grading, operator review, and receipt-backed publication after the gates below pass. It never authorizes submitted-code execution, package mirroring/loading, billing, checkout, paid placement, or Stripe. Private pilot comes first; public alpha and indexing require the later promotion gate.
+Status: pre-deployment. This is the canonical provider, deployment, recovery, and live-acceptance handoff for the free hosted trust alpha. It permits reviewed third-party metadata-only submissions, inert static audit, provisional numeric grading, operator review, and receipt-backed publication after the gates below pass. It never authorizes submitted-code execution, package mirroring/loading, billing, checkout, paid placement, or Stripe. Private pilot comes first; public alpha and indexing require the later promotion gate. A private owner-only mechanics pilot may use two separate test operator credentials to prove CLI and database separation, but it is technical evidence only and cannot authorize publication, moderation, or third-party participant launch.
 
 Use this runbook together with `docs/operations/free-public-alpha-runbook.md`, which is authoritative for worker migration compatibility, submission review, publication, reports, lifecycle actions, monitoring, and daily operations.
 
@@ -19,7 +19,7 @@ Preview deployments must remain unconfigured until a separate preview Supabase p
 
 ### Policy-version promotion gate
 
-`public-alpha-draft/v1` is an implementation-only consent identifier, not launch-approved legal authority. Before inviting any external submitter, the product owner must approve the support identity, governing jurisdiction, age/geography boundary, retention/deletion/legal-hold periods, terms, acceptable-use rules, privacy text, takedown/appeal process, and effective date. Publish reachable versioned terms and acceptable-use pages, update the submission consent surface to link that exact version, introduce a reviewed migration and application change that replace the draft identifier consistently, and rerun the database, contract, browser, export, and deletion gates. Record the approved policy ID, URLs, content digests, effective date, and owner in the production decision receipt. Until that receipt exists, deployment may be exercised only as private operator evidence and public invitations remain `NO-GO`.
+`public-alpha-draft/v1` is an implementation-only consent identifier, not launch-approved legal authority. Before inviting any external submitter, the product owner must approve the support identity, governing jurisdiction, age/geography boundary, retention/deletion/legal-hold periods, terms, acceptable-use rules, privacy text, takedown/appeal process, and effective date. Publish reachable versioned terms and acceptable-use pages, update the submission consent surface to link that exact version, introduce a reviewed migration and application change that replace the draft identifier consistently, and rerun the database, contract, browser, export, and deletion gates. Record the approved policy ID, URLs, content digests, effective date, and owner in the production decision receipt. Until that receipt exists, deployment may be exercised only as private operator evidence and public invitations remain `NO-GO`. Private-owner pilot evidence does not satisfy external-pilot evidence.
 
 ## Secret boundary
 
@@ -39,6 +39,8 @@ The web deployment receives only:
 - `SKILLMAP_SUPPORT_URL` only after the owner approves a reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
 
 The web process uses the reviewed fixed private-alpha per-instance catalog-read guard (60 requests per 60 seconds and at most 5,000 live keys). It has no environment tuning surface in this release and does not replace the required provider-global public-alpha limiter.
+
+The `apps/web` build performs a release-configuration preflight before Next.js compiles. It rejects an incomplete hosted stage before an artifact is created: every hosted stage needs a valid site origin and public Supabase configuration; `public-alpha` additionally needs the approved support URL and exact public-indexing opt-in. It does not prove a deployment, provider configuration, or live acceptance.
 
 The GitHub OAuth client secret belongs only in Supabase Auth. Store database and backup credentials in the operator password manager and a root-only runtime secret file when automation is approved.
 
@@ -79,7 +81,7 @@ The GitHub-to-Supabase callback above is distinct from the application callback 
 ### Web project
 
 1. Select and record the zero-cost-compatible provider, project owner, plan/limits, deployment command, rollback command, and log/health surface. Selection is an owner decision; this runbook does not default to a paid provider.
-2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, a reviewed Next.js runtime, and Node 24.x.
+2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, keep the project floor of Node 22 or newer, and use Node 24.x as the reviewed hosted deployment runtime.
 3. Leave preview variables unset until a separate preview database exists. Add the production variables from the secret boundary using stdin or the provider dashboard so values do not enter shell history.
 4. Keep `SKILLMAP_RELEASE_STAGE=private-alpha` and `SKILLMAP_INDEXING_MODE=private-alpha` until the public gate explicitly changes both. Indexing requires the exact pair `public-alpha` and `public`.
 5. Before public alpha, configure `SKILLMAP_SUPPORT_URL` to the approved reachable intake page, open it from the deployed `/support` page while signed out, and verify that its public and confidential reporting instructions match the approved policy. A private repository issue URL is not a public support route.
@@ -140,7 +142,7 @@ Run the composed local browser contract with `npm run test:hosted-gates`; its la
 
 ## Promotion from private pilot to public alpha
 
-Do not change either indexing variable until all live acceptance items pass, the encrypted off-host restore and web rollback are proven, the reviewed initial corpus is public, the policy/retention version and owners are approved, `SKILLMAP_SUPPORT_URL` is reachable, and the hosted pilot satisfies its mandatory workflow matrix. Record that decision against the exact deployment commit and IDs. Then set the exact pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`, redeploy, and verify page-level robots metadata, the absence of `X-Robots-Tag: noindex`, and `robots.txt` allowing `/`. Any mismatch returns the decision to `NO_GO` and the private pair.
+Do not change either indexing variable until all live acceptance items pass, the encrypted off-host restore and web rollback are proven, the reviewed initial corpus is public, the policy/retention version and owners are approved, `SKILLMAP_SUPPORT_URL` is reachable, and the hosted pilot, not a private owner-only rehearsal, satisfies its mandatory workflow matrix. Record that decision against the exact deployment commit and IDs. Then set the exact pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`, redeploy, and verify page-level robots metadata, the absence of `X-Robots-Tag: noindex`, and `robots.txt` allowing `/`. Any mismatch returns the decision to `NO_GO` and the private pair.
 
 ## Rollback and incident response
 

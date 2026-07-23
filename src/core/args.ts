@@ -4,6 +4,38 @@ export interface ParsedArgs {
   flags: Record<string, string | boolean | string[]>;
 }
 
+// Keep this list aligned with flags read through hasFlag(). Boolean flags must
+// never consume the following positional argument: `--trace "prompt"` is a
+// normal and documented CLI shape.
+const BOOLEAN_FLAGS = new Set([
+  'acknowledge-sensitive-local',
+  'allow-fixtures',
+  'approve-routing',
+  'background',
+  'confirm',
+  'dashboard-snapshot',
+  'defer-resolution',
+  'dry-run',
+  'effective',
+  'fix-plan',
+  'force',
+  'global',
+  'help',
+  'hook',
+  'include-sensitive-local',
+  'json',
+  'local',
+  'passive',
+  'prepare',
+  'raw',
+  'redact-paths',
+  'save-report',
+  'strict',
+  'summary',
+  'trace',
+  'version'
+]);
+
 export function parseArgs(argv: string[]): ParsedArgs {
   const [command = 'help', ...rest] = argv;
   const flags: Record<string, string | boolean | string[]> = {};
@@ -19,7 +51,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     const key = eq >= 0 ? raw.slice(0, eq) : raw;
     const inlineValue = eq >= 0 ? raw.slice(eq + 1) : undefined;
     let value: string | boolean = inlineValue ?? true;
-    if (inlineValue === undefined && rest[i + 1] && !rest[i + 1].startsWith('--')) {
+    if (inlineValue === undefined && !BOOLEAN_FLAGS.has(key) && rest[i + 1] && !rest[i + 1].startsWith('--')) {
       value = rest[i + 1];
       i += 1;
     }

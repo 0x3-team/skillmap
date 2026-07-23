@@ -47,10 +47,18 @@ async function main() {
           throw new Error('Canonical legacy projections diverged from the approved revision. Review them, then run `skillmap state import-legacy --confirm` or `skillmap state repair-projections --confirm` explicitly.');
         }
       }
+      const carryForwardRoutingApproval = migrated
+        && isDerivedApprovedGraphBuild(parsed.command, parsed.positionals, parsed.flags)
+        && await hasExactCurrentRoutingApproval(store);
       const value = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
       const approveForRouting = routingApprovalCandidate(parsed.command, value);
       const publication = migrated
-        ? await context.publishLegacySnapshot({ approveForRouting, actor: 'local-cli', reason: `Successful ${mutation} command.` })
+        ? await context.publishLegacySnapshot({
+          approveForRouting,
+          ...(carryForwardRoutingApproval ? { carryForwardRoutingApproval: true } : {}),
+          actor: 'local-cli',
+          reason: `Successful ${mutation} command.`
+        })
         : await context.migrateLegacy({ confirm: true, approveForRouting, actor: 'local-cli', reason: `Initial state publication after ${mutation}.` });
       return { value, publication };
     });
@@ -114,6 +122,19 @@ function routingApprovalCandidate(command: string, value: unknown): boolean {
   return Boolean(validation
     && (validation.duplicateInventoryNameGroups?.length ?? 0) === 0
     && (validation.invalidCanonicalDecisions?.length ?? 0) === 0);
+}
+
+function isDerivedApprovedGraphBuild(command: string, positionals: string[], flags: Record<string, string | boolean | string[]>): boolean {
+  return command === 'graph' && (positionals[0] ?? 'build') === 'build' && !hasFlag(flags, 'raw');
+}
+
+async function hasExactCurrentRoutingApproval(store: WorkspaceStateStore): Promise<boolean> {
+  try {
+    const routing = await store.readCurrent({ purpose: 'routing' });
+    return routing.source === 'current' && routing.selectedPointer.revisionId === routing.currentPointer.revisionId;
+  } catch {
+    return false;
+  }
 }
 
 function attachPublicationReceipt(value: unknown, publication: PublicationResult): unknown {

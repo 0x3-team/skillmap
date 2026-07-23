@@ -67,6 +67,7 @@ import {
   getPublicSupabaseConfig,
   getSiteUrl
 } from "../lib/supabase/config.ts";
+import { assertHostedReleaseConfiguration } from "../scripts/check-hosted-release-config.mts";
 import {
   SavedSkillsCursorError,
   canonicalizeUtcTimestamp,
@@ -441,6 +442,106 @@ test("saved-skill and account-deletion flashes are exact same-browser receipts",
   assert.equal(parseAccountDeletionFlash(JSON.stringify({ ...deletionFlash, forged: true }), token), null);
 });
 
+test("report and account deletion flash cookies depend on the shared siteOriginUsesHttps contract", async () => {
+  const [reportActionsSource, accountActionSource] = await Promise.all([
+    readFile(new URL("../app/skills/[publisher]/[slug]/report-actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/data-actions.ts", import.meta.url), "utf8")
+  ]);
+
+  const reportWriter = parseCookieBoundary(reportActionsSource, "REPORT_FLASH_COOKIE");
+  const deleteWriter = parseCookieBoundary(accountActionSource, "ACCOUNT_DELETION_FLASH_COOKIE");
+  const reportSecureIdentifier = extractSecureDecisionIdentifier(reportActionsSource, reportWriter.secure);
+  const accountSecureIdentifier = extractSecureDecisionIdentifier(accountActionSource, deleteWriter.secure);
+
+  assert.equal(reportWriter.httpOnly, true);
+  assert.equal(reportWriter.sameSite, "strict");
+  assert.equal(reportWriter.maxAge, 120);
+  assert.equal(reportWriter.path, "flash.returnPath");
+  assert.equal(reportWriter.secure, reportSecureIdentifier);
+
+  assert.equal(deleteWriter.httpOnly, true);
+  assert.equal(deleteWriter.sameSite, "strict");
+  assert.equal(deleteWriter.maxAge, 120);
+  assert.equal(deleteWriter.path, '"/sign-in"');
+  assert.equal(deleteWriter.secure, accountSecureIdentifier);
+
+  assert.match(reportActionsSource, /from ["']@\/lib\/supabase\/config["']/);
+  assert.match(accountActionSource, /from ["']@\/lib\/supabase\/config["']/);
+  assert.match(reportActionsSource, /siteOriginUsesHttps/);
+  assert.match(accountActionSource, /siteOriginUsesHttps/);
+  assert.match(reportActionsSource, new RegExp(`const\\s+${escapeRegExp(reportSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\s*\\(`));
+  assert.match(accountActionSource, new RegExp(`const\\s+${escapeRegExp(accountSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\s*\\(`));
+  assert.match(reportActionsSource, new RegExp(`secure:\\s*${escapeRegExp(reportSecureIdentifier)}\\b`));
+  assert.match(accountActionSource, new RegExp(`secure:\\s*${escapeRegExp(accountSecureIdentifier)}\\b`));
+  assert.equal(reportActionsSource.includes("function publicOriginUsesHttps"), false);
+  assert.equal(accountActionSource.includes("function publicOriginUsesHttps"), false);
+  assert.match(
+    reportActionsSource,
+    new RegExp(`const\\s+${escapeRegExp(reportSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\(\\)`)
+  );
+  assert.match(
+    accountActionSource,
+    new RegExp(`const\\s+${escapeRegExp(accountSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\(\\)`)
+  );
+
+  const configModule = await import("../lib/supabase/config.ts");
+  const siteOriginUsesHttps = configModule.siteOriginUsesHttps;
+  if (typeof siteOriginUsesHttps !== "function") {
+    assert.fail("lib/supabase/config.ts must export siteOriginUsesHttps for hosted boundary enforcement");
+  }
+
+  const contractCases = [
+    {
+      description: "valid hosted HTTPS",
+      env: { NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "https://skillmap.invalid" },
+      expectation: true
+    },
+    {
+      description: "valid loopback local use",
+      env: { NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000" },
+      expectation: false
+    },
+    {
+      description: "missing production origin",
+      env: { NODE_ENV: "production" },
+      expectation: SupabaseConfigurationError
+    },
+    {
+      description: "malformed production origin",
+      env: { NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "https://skillmap.invalid/app" },
+      expectation: SupabaseConfigurationError
+    }
+  ];
+  for (const { description, env, expectation } of contractCases) {
+    if (expectation === SupabaseConfigurationError) {
+      assert.throws(() => siteOriginUsesHttps(env), expectation, description);
+    } else {
+      assert.equal(siteOriginUsesHttps(env), expectation, description);
+    }
+  }
+
+  const reportDecision = extractSecureDecisionDeclaration(reportActionsSource, reportSecureIdentifier);
+  const accountDecision = extractSecureDecisionDeclaration(accountActionSource, accountSecureIdentifier);
+  const reportProgressiveStart = reportActionsSource.indexOf("export async function reportSuspiciousListingProgressive");
+  const reportProgressiveMutation = reportActionsSource.indexOf(
+    "const result = await reportSuspiciousListing(formData)",
+    reportProgressiveStart
+  );
+  const hasExactConfirmationIndex = accountActionSource.indexOf("hasExactAccountDeletionConfirmation(formData)");
+  const deletionContextIndex = accountActionSource.indexOf("deletionActionContext()");
+  const deleteRpcIndex = accountActionSource.indexOf("delete_my_account");
+  const signOutIndex = accountActionSource.indexOf("context.supabase.auth.signOut");
+
+  assert.equal(reportProgressiveStart >= 0, true, "reportSuspiciousListingProgressive must exist");
+  assert.equal(reportProgressiveMutation >= 0, true, "reportSuspiciousListingProgressive must await reportSuspiciousListing");
+  assert.equal(reportDecision > reportProgressiveStart, true, "report secure decision must be inside reportSuspiciousListingProgressive");
+  assert.equal(reportDecision < reportProgressiveMutation, true, "report secure decision must be evaluated before report mutation");
+  assert.equal(hasExactConfirmationIndex < accountDecision, true, "account secure decision must be evaluated after exact confirmation");
+  assert.equal(accountDecision < deletionContextIndex, true, "account secure decision must be evaluated before creating the authenticated context");
+  assert.equal(accountDecision < deleteRpcIndex, true, "account secure decision must be evaluated before delete mutation");
+  assert.equal(accountDecision < signOutIndex, true, "account secure decision must be evaluated before sign-out");
+});
+
 test("account submission mutation and export stay owner-filtered and bounded", async () => {
   const savedMutation = await readFile(new URL("../app/account/saved/action/route.ts", import.meta.url), "utf8");
   assert.match(savedMutation, /publicOrigin = getSiteUrl\(\)/);
@@ -765,6 +866,114 @@ test("production Supabase and site configuration accepts HTTPS origins only", ()
     assert.equal(getPublicSupabaseConfig().url, "http://127.0.0.1:54321");
     assert.equal(getSiteUrl(), "http://127.0.0.1:3000");
   });
+});
+
+test("hosted build configuration fails closed and local candidates retain an explicit metadata base", async () => {
+  assert.deepEqual(assertHostedReleaseConfiguration({ NODE_ENV: "production" }), {
+    releaseStage: "local-candidate",
+    hosted: false
+  });
+
+  const privateAlpha = {
+    NODE_ENV: "production",
+    SKILLMAP_RELEASE_STAGE: "private-alpha",
+    NEXT_PUBLIC_SITE_URL: "https://skillmap.example",
+    NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key"
+  };
+  assert.deepEqual(assertHostedReleaseConfiguration(privateAlpha), {
+    releaseStage: "private-alpha",
+    hosted: true
+  });
+
+  assert.throws(
+    () => assertHostedReleaseConfiguration({ ...privateAlpha, NEXT_PUBLIC_SITE_URL: undefined }),
+    SupabaseConfigurationError
+  );
+  assert.throws(
+    () => assertHostedReleaseConfiguration({
+      ...privateAlpha,
+      SKILLMAP_RELEASE_STAGE: "public-alpha",
+      SKILLMAP_SUPPORT_URL: "http://support.example/skillmap"
+    }),
+    /SKILLMAP_SUPPORT_URL/
+  );
+  assert.throws(
+    () => assertHostedReleaseConfiguration({ ...privateAlpha, SKILLMAP_RELEASE_STAGE: "private-alpha " }),
+    /SKILLMAP_RELEASE_STAGE/
+  );
+  assert.throws(
+    () => assertHostedReleaseConfiguration({
+      ...privateAlpha,
+      SKILLMAP_RELEASE_STAGE: "public-alpha",
+      SKILLMAP_SUPPORT_URL: "https://support.example/skillmap"
+    }),
+    /SKILLMAP_INDEXING_MODE=public/
+  );
+  assert.deepEqual(
+    assertHostedReleaseConfiguration({
+      ...privateAlpha,
+      SKILLMAP_RELEASE_STAGE: "public-alpha",
+      SKILLMAP_SUPPORT_URL: "https://support.example/skillmap",
+      SKILLMAP_INDEXING_MODE: "public"
+    }),
+    { releaseStage: "public-alpha", hosted: true }
+  );
+
+  const [metadata, layout] = await Promise.all([
+    readFile(new URL("../lib/metadata.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8")
+  ]);
+  assert.match(metadata, /!isHostedReleaseStage\(getReleaseStage\(environment\)\)/);
+  assert.match(metadata, /LOCAL_CANDIDATE_METADATA_BASE/);
+  assert.match(metadata, /return getOptionalSiteUrl\(environment\) \?\? new URL\(LOCAL_CANDIDATE_METADATA_BASE\)/);
+  assert.match(layout, /metadataBase: getMetadataBase\(\)/);
+});
+
+test("hosted boundary scripts resolve to existing package-script callers and local helper imports", async () => {
+  const packageSource = await readFile(new URL("../package.json", import.meta.url), "utf8");
+  const packageJson = JSON.parse(packageSource);
+  const scripts = packageJson.scripts ?? {};
+
+  assert.equal(typeof scripts.build, "string");
+  assert.equal(typeof scripts["test:hosted-gates"], "string");
+  assert.equal(typeof scripts["test:hosted-api"], "string");
+  assert.equal(typeof scripts["test:hosted-auth"], "string");
+  assert.equal(typeof scripts["test:hosted-launch"], "string");
+  assert.equal(typeof scripts["test:hosted-frontend"], "string");
+
+  assert.match(scripts.build, /\bnode\s+--experimental-strip-types\s+scripts\/check-hosted-release-config\.mts\b/);
+  assert.match(scripts["test:hosted-gates"], /\bnode\s+scripts\/run-hosted-gates\.mjs\b/);
+  assert.match(scripts["test:hosted-api"], /\bnode\s+scripts\/hosted-api-smoke\.mjs\b/);
+  assert.match(scripts["test:hosted-auth"], /\bnode\s+scripts\/hosted-auth-browser-smoke\.mjs\b/);
+  assert.match(scripts["test:hosted-launch"], /\bnode\s+scripts\/launch-report-evidence-smoke\.mjs\b/);
+  assert.match(scripts["test:hosted-frontend"], /\bnode\s+scripts\/hosted-frontend-qa\.mjs\b/);
+
+  const [checkHostedReleaseConfig, localSupabase, runHostedGates, hostedApiSmoke, hostedAuthSmoke, hostedFrontendQa, launchReportSmoke] = await Promise.all([
+    readFile(new URL("../scripts/check-hosted-release-config.mts", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/local-supabase-psql.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/run-hosted-gates.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/hosted-api-smoke.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/hosted-auth-browser-smoke.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/hosted-frontend-qa.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8")
+  ]);
+
+  assert.match(checkHostedReleaseConfig, /\bassertHostedReleaseConfiguration\b/);
+  assert.match(localSupabase, /\bexecLocalPsql\b/);
+
+  for (const hostSmoke of [
+    "hosted-api-smoke.mjs",
+    "hosted-auth-browser-smoke.mjs",
+    "hosted-frontend-qa.mjs",
+    "launch-report-evidence-smoke.mjs"
+  ]) {
+    assert.match(runHostedGates, new RegExp(hostSmoke.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  for (const hostSmokeSource of [hostedApiSmoke, hostedAuthSmoke, hostedFrontendQa, launchReportSmoke]) {
+    assert.match(hostSmokeSource, /from ["']\.\/local-supabase-psql\.mjs["']/);
+  }
 });
 
 test("saved-skill cursors are exact, versioned, canonical, and account-free", () => {
@@ -1095,6 +1304,55 @@ async function collectTsxFiles(directoryUrl) {
     else if (entry.isFile() && entry.name.endsWith(".tsx")) files.push(childUrl);
   }
   return files;
+}
+
+function parseCookieBoundary(source, cookieName) {
+  const sourceCookieSet = source.match(
+    new RegExp(
+      `cookieStore\\.set\\(\\s*${escapeRegExp(cookieName)}\\s*,[\\s\\S]*?,\\s*\\{([\\s\\S]*?)\\}\\s*\\);`
+    )
+  );
+  if (!sourceCookieSet) throw new Error(`Unable to locate cookie boundary for ${cookieName}`);
+  const block = sourceCookieSet[1];
+  const maxAge = Number(block.match(/maxAge:\s*([0-9]+)/)?.[1]);
+  if (Number.isNaN(maxAge)) throw new Error(`Unable to parse maxAge for ${cookieName}`);
+  const sameSite = block.match(/sameSite:\s*["']([^"']+)["']/)?.[1];
+  if (!sameSite) throw new Error(`Unable to parse sameSite for ${cookieName}`);
+  const path = block.match(/path:\s*([^,\n}]+)/)?.[1]?.trim();
+  if (!path) throw new Error(`Unable to parse path for ${cookieName}`);
+  const secure = block.match(/secure:\s*([^,\n}]+)/)?.[1]?.trim();
+  if (!secure) throw new Error(`Unable to parse secure expression for ${cookieName}`);
+  return {
+    httpOnly: /httpOnly:\s*true/.test(block),
+    sameSite,
+    maxAge,
+    path,
+    secure
+  };
+}
+
+function extractSecureDecisionIdentifier(source, secureExpression) {
+  if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(secureExpression)) {
+    assert.fail(`Expected secure decision identifier for cookie options, found ${secureExpression}`);
+  }
+  const declaration = new RegExp(`const\\s+${escapeRegExp(secureExpression)}\\s*=\\s*siteOriginUsesHttps\\s*\\(`);
+  assert.match(source, declaration);
+  return secureExpression;
+}
+
+function extractSecureDecisionDeclaration(source, identifier) {
+  const declaration = new RegExp(
+    String.raw`const\s+${escapeRegExp(identifier)}\s*=\s*siteOriginUsesHttps\s*\(\s*\)\s*;`
+  );
+  const declarationMatch = source.match(declaration);
+  if (!declarationMatch) {
+    assert.fail(`Unable to locate precomputed shared site origin decision declaration for ${identifier}`);
+  }
+  return source.indexOf(declarationMatch[0]);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function validSubmissionForm() {

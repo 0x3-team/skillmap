@@ -8,6 +8,10 @@ The repository now also contains a locally validated hosted trust-alpha candidat
 canonical source, active MCP candidate, checkpoint/archive tags, deployment
 truth, and preserved branch history.
 
+**New to the codebase?** Read the [project map](docs/project-map.md) first. It
+keeps the local product, hosted catalog, and production path separate so the
+repository is easier to navigate.
+
 | Surface | Current truth |
 | --- | --- |
 | Canonical source | Moving branch `main`; accepted product-source checkpoint `checkpoint/2026-07-15/product-alpha-source` at `0eb57ac7c3aeda0c907435210a748a5ffb3a259e` |

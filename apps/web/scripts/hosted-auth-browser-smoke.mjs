@@ -1,8 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { chromium, firefox, webkit } from "playwright";
+import { execLocalPsql } from "./local-supabase-psql.mjs";
 
 const baseUrl = process.env.SKILLMAP_WEB_BASE_URL ?? "http://127.0.0.1:3000";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -252,7 +252,7 @@ try {
   }
 
   smokeStage = "pagination-revocation";
-  execFileSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-c",
+  execLocalPsql([databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-c",
     "update private.skills set revoked_at = '2026-07-11T20:01:00Z' where public_id = 'skl_00000000000000000000000000010034'"
   ], { stdio: "pipe" });
   const revokedApiResponse = await page.request.get(new URL("/api/v1/skills/skl_00000000000000000000000000010034", baseUrl).toString());
@@ -343,7 +343,7 @@ function assertPrivateNoStore(headers, label) {
 }
 
 function runSqlFile(path) {
-  execFileSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "pipe" });
+  execLocalPsql([databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "pipe" });
 }
 
 async function gotoSettled(page, url) {

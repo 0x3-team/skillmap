@@ -1,0 +1,36 @@
+flowchart LR
+  operator["Developer or operator"]
+  user["Developer or agent"]
+  publisher["Visitor or publisher"]
+  github["Public GitHub source"]
+  contracts["Shared contracts, schemas, and test fixtures"]
+
+  subgraph local["Local product — built to run privately"]
+    curate["Scan, doctor, curate, and approve"]
+    state["Immutable workspace state\nInventory, policy, SkillGraph, eval evidence"]
+    local_surfaces["CLI, dashboard, passive hook, and read-only MCP"]
+    curate --> state --> local_surfaces
+  end
+
+  subgraph hosted["Hosted catalog — built locally, not yet operating live"]
+    web["Next.js catalog, accounts, submissions, and reports"]
+    database[("Supabase data, RLS, and authority RPCs")]
+    worker["Constrained worker and operator actions"]
+    web --> database
+    worker --> database
+  end
+
+  operator --> curate
+  user <--> local_surfaces
+  publisher --> web
+  github --> worker
+  operator --> worker
+  contracts -. "source-level contract" .-> state
+  contracts -. "source-level contract" .-> web
+
+  classDef local fill:#e8f7ee,stroke:#2f855a,color:#173b2a
+  classDef hosted fill:#fff4df,stroke:#b7791f,color:#4d2b00
+  classDef neutral fill:#eef2f7,stroke:#64748b,color:#1f2937
+  class curate,state,local_surfaces local
+  class web,database,worker hosted
+  class operator,user,publisher,github,contracts neutral

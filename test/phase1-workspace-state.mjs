@@ -187,6 +187,33 @@ test('routing serves only an explicitly approved revision and blocks unapproved 
   );
 });
 
+test('derived snapshots carry an exact routing approval without blessing changed routing safety', async (t) => {
+  const derivedProject = project(t);
+  const derivedStore = WorkspaceStateStore.open(derivedProject.cwd);
+  const approved = await derivedStore.migrateLegacy({ confirm: true, approveForRouting: true });
+  writeJson(path.join(derivedProject.dir, 'doctor.json'), { version: 1, generation: 2 });
+  const carried = await derivedStore.publishLegacySnapshot({
+    expectedRevisionId: approved.pointer.revisionId,
+    carryForwardRoutingApproval: true
+  });
+  assert.equal(carried.lastKnownGoodUpdated, true);
+  const routed = await derivedStore.readCurrent({ purpose: 'routing' });
+  assert.equal(routed.source, 'current');
+  assert.equal(routed.selectedPointer.revisionId, carried.pointer.revisionId);
+
+  const safetyProject = project(t);
+  const safetyStore = WorkspaceStateStore.open(safetyProject.cwd);
+  const safetyApproved = await safetyStore.migrateLegacy({ confirm: true, approveForRouting: true });
+  writeFileSync(path.join(safetyProject.dir, 'policy.yml'), 'version: 1\nskills:\n  alpha:\n    tier: blocked\n');
+  await assert.rejects(
+    safetyStore.publishLegacySnapshot({
+      expectedRevisionId: safetyApproved.pointer.revisionId,
+      carryForwardRoutingApproval: true
+    }),
+    (error) => error instanceof WorkspaceStateError && error.code === 'STATE_ROUTING_APPROVAL_CHANGED'
+  );
+});
+
 test('historical routing approvals are durable and unapproved ancestors never gain approval by ancestry', async (t) => {
   const { cwd, dir } = project(t);
   const store = WorkspaceStateStore.open(cwd);
