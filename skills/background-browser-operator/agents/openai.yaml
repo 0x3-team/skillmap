@@ -1,0 +1,8 @@
+interface:
+  display_name: "Background Browser Operator"
+  short_description: "Run safe browser work in the background"
+  default_prompt: "Use $background-browser-operator to work with the appropriate browser surface in a background-safe lane, preserve the user's foreground task, avoid account/study/progress state changes unless explicitly authorized, and close with a background browser status receipt."
+
+policy:
+  allow_implicit_invocation: true
+

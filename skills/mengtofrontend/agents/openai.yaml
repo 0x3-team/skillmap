@@ -1,0 +1,4 @@
+interface:
+  display_name: "MengToFrontend"
+  short_description: "Checklist anti-slop for landing pages"
+  default_prompt: "Use $mengtofrontend to audit and refine this landing page before launch."

@@ -1,0 +1,8 @@
+interface:
+  display_name: "Verified Research"
+  short_description: "Verify claims with source tiers"
+  default_prompt: "Use $verified-research to produce source-tiered, claim-ledger research with freshness checks, contradiction handling, verification receipts, and explicit next action."
+
+policy:
+  allow_implicit_invocation: true
+

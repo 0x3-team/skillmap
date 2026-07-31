@@ -1,0 +1,99 @@
+{
+  "skill_name": "research-plan-implementation-loop",
+  "evals": [
+    {
+      "id": "research-feature-implement",
+      "prompt": "Research the best way to add feature X and implement it.",
+      "expected_output": "Should classify mode as research-plan-implement, use verified-research first, freeze claim ledger, invoke planning-orchestrator before implementation, invoke implementation-orchestrator with a saved plan, then run research consistency and engineering-acceptance-review before closeout.",
+      "assertions": [
+        "Classifies research-plan-implement mode",
+        "Uses verified-research first",
+        "Freezes claim ledger before planning",
+        "Uses planning-orchestrator before implementation",
+        "Uses implementation-orchestrator from saved plan",
+        "Requires engineering-acceptance-review after implementation"
+      ],
+      "files": []
+    },
+    {
+      "id": "activate-loop-onboarding",
+      "prompt": "Activate research loop for our onboarding redesign.",
+      "expected_output": "Should classify as research-plan by default, not implement without explicit authorization, use verified-research, then planning-orchestrator, and stop after saved plan.",
+      "assertions": [
+        "Defaults to research-plan",
+        "Does not treat activate as edit permission",
+        "Uses verified-research",
+        "Uses planning-orchestrator",
+        "Stops after saved plan"
+      ],
+      "files": []
+    },
+    {
+      "id": "api-migration-plan-implement",
+      "prompt": "Research this API migration, plan it, and then implement.",
+      "expected_output": "Should verify migration claims with dates/versions/runtime where feasible, plan acceptance criteria and rollback/validation, implement via implementation-orchestrator, then require research consistency and engineering-acceptance-review.",
+      "assertions": [
+        "Checks migration freshness and versions",
+        "Preserves migration risks",
+        "Plans acceptance criteria before code",
+        "Routes implementation to implementation-orchestrator",
+        "Requires post-implementation consistency check",
+        "Requires engineering-acceptance-review before closeout"
+      ],
+      "files": []
+    },
+    {
+      "id": "competitor-plan-handoff",
+      "prompt": "Research competitors, create a plan, and hand it to implementation orchestrator.",
+      "expected_output": "Should use verified-research with source confidence and adopt/adapt/avoid takeaways, create saved planning artifact, and provide implementation handoff without starting edits unless authorized.",
+      "assertions": [
+        "Uses source confidence",
+        "Uses adopt/adapt/avoid takeaways",
+        "Creates saved plan artifact",
+        "Provides implementation handoff",
+        "Does not start edits from vague competitor notes"
+      ],
+      "files": []
+    },
+    {
+      "id": "conflict-safe-path",
+      "prompt": "This official doc and forum thread conflict; research, plan, implement the safe path.",
+      "expected_output": "Should preserve conflict, classify claims, plan a safe/reversible path, avoid implementing disputed claims as facts, and require engineering-acceptance-review if implementation is authorized.",
+      "assertions": [
+        "Preserves conflict",
+        "Classifies disputed claims",
+        "Plans safe or reversible path",
+        "Does not treat disputed claim as fact",
+        "Loops back if core claim fails",
+        "Requires engineering-acceptance-review if implementation occurs"
+      ],
+      "files": []
+    },
+    {
+      "id": "research-consistent-but-not-accepted",
+      "prompt": "The implementation matches the verified research claim and tests pass. Mark the research loop complete.",
+      "expected_output": "Should reject research-consistency-only closeout when code changed, require engineering-acceptance-review, and loop back if project-goal fit, task fit, source-surface, hallucination/contract, architecture, or evidence checks fail.",
+      "assertions": [
+        "Rejects research-consistency-only closeout",
+        "Requires engineering-acceptance-review when code changed",
+        "Checks project-goal and task fit",
+        "Checks source-surface and hallucination risks",
+        "Loops back on failed engineering acceptance"
+      ],
+      "files": []
+    },
+    {
+      "id": "background-research-plan",
+      "prompt": "Research in background while I study, then plan implementation.",
+      "expected_output": "Should use background-browser-operator through verified-research, capture target/safety/timeout/evidence, create a planning artifact, and stop before code edits unless authorized.",
+      "assertions": [
+        "Uses background-browser-operator",
+        "Records target safety timeout evidence",
+        "Uses verified-research",
+        "Creates planning artifact",
+        "Stops before code edits unless authorized"
+      ],
+      "files": []
+    }
+  ]
+}

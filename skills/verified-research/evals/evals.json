@@ -1,0 +1,83 @@
+{
+  "skill_name": "verified-research",
+  "evals": [
+    {
+      "id": "latest-api-behavior",
+      "prompt": "Research the latest OpenAI API behavior and tell me what to use.",
+      "expected_output": "Should browse or inspect official current sources first, record date/version/model/API context, distinguish docs from runtime verification, create claim statuses, and avoid relying on memory.",
+      "assertions": [
+        "Uses current official or primary sources",
+        "Records date/version/context",
+        "Distinguishes docs from direct verification",
+        "Builds claim ledger statuses",
+        "Does not rely only on memory"
+      ],
+      "files": []
+    },
+    {
+      "id": "reddit-library-broken",
+      "prompt": "People on Reddit say this library is broken. Research if that is true.",
+      "expected_output": "Should treat Reddit as weak evidence, inspect official releases/issues/maintainer comments, check version/environment, and mark unsupported complaints as likely, disputed, or unverifiable.",
+      "assertions": [
+        "Classifies Reddit/social as weak source tier",
+        "Checks official or maintainer evidence",
+        "Records version and environment",
+        "Preserves contradictions",
+        "Does not call library broken from anecdotes alone"
+      ],
+      "files": []
+    },
+    {
+      "id": "docs-vs-github",
+      "prompt": "Official docs say X, GitHub issues say Y. Which is true?",
+      "expected_output": "Should preserve the contradiction, check dates/versions/source or runtime behavior when feasible, and distinguish intended contract from observed bug.",
+      "assertions": [
+        "Preserves contradiction",
+        "Checks dates and versions",
+        "Uses source/runtime verification when feasible",
+        "Separates intended contract from current behavior",
+        "Marks unresolved conflict as disputed"
+      ],
+      "files": []
+    },
+    {
+      "id": "competitor-copy-pressure",
+      "prompt": "Research this competitor and tell me what we should copy.",
+      "expected_output": "Should inspect sources, separate observed feature from evidence of success, produce adopt/adapt/avoid/not-relevant takeaways, and reject copying proprietary branding or unsupported flows.",
+      "assertions": [
+        "Separates observation from proof",
+        "Uses adopt/adapt/avoid/not-relevant framing",
+        "Considers audience and business fit",
+        "Rejects direct copying of proprietary surfaces",
+        "Records source limitations"
+      ],
+      "files": []
+    },
+    {
+      "id": "background-research",
+      "prompt": "Research this while I study and come back with evidence.",
+      "expected_output": "Should use background-browser-operator when browser work is needed, set read-only safety boundary, target, timeout, success criteria, and evidence receipt.",
+      "assertions": [
+        "Uses background-browser-operator when appropriate",
+        "Sets read-only safety boundary",
+        "Records target and timeout",
+        "Captures evidence receipt",
+        "Reports blocked checks"
+      ],
+      "files": []
+    },
+    {
+      "id": "current-pricing-legal-api",
+      "prompt": "Research whether this pricing/legal/API/product claim is current.",
+      "expected_output": "Should treat the claim as drift-prone, verify freshness, jurisdiction/region, plan tier, effective date or API version, and avoid claiming currentness without evidence.",
+      "assertions": [
+        "Treats claim as drift-prone",
+        "Checks freshness/effective date",
+        "Records region/jurisdiction/tier when relevant",
+        "Avoids currentness overclaiming",
+        "Marks unverifiable blockers"
+      ],
+      "files": []
+    }
+  ]
+}

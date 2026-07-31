@@ -1,0 +1,8 @@
+interface:
+  display_name: "Reviewing Capability Usage"
+  short_description: "Review recent skill and tool usage"
+  default_prompt: "Use $reviewing-capability-usage to review recent skills, tools, subagents, browser lanes, memory, goals, connectors, and local commands for missed capabilities, overuse, overclaiming, redundancy, and justified next actions."
+
+policy:
+  allow_implicit_invocation: true
+

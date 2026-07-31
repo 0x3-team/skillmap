@@ -1,0 +1,4 @@
+interface:
+  display_name: "Root Cause Investigator"
+  short_description: "Read-only investigation for bugs before changing code."
+  default_prompt: "Investigate this bug without changing code. Use logs/telemetry when available, map and eliminate plausible causes, prove the root cause from evidence, and give a minimal fix plan with verification."

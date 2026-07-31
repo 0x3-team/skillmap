@@ -1,0 +1,4 @@
+interface:
+  display_name: "Liquid Glass"
+  short_description: "Hybrid liquid glass UI implementation"
+  default_prompt: "Use $liquid-glass to implement a performant, cross-browser liquid glass UI component."

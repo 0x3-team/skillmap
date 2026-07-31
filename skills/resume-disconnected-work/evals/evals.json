@@ -1,0 +1,44 @@
+{
+  "skill_name": "resume-disconnected-work",
+  "evals": [
+    {
+      "id": "recover-verified-vs-blocked",
+      "prompt": "Resume the previous audit after a disconnect and tell me what is verified versus blocked.",
+      "expected_output": "Should re-anchor repo/branch/host, inspect current local evidence before trusting memory, separate validated locally, verified live, pushed/deployed, and blocked/not verified states, and continue from the first unblocked next step.",
+      "assertions": [
+        "Re-anchors current target",
+        "Inspects local evidence before trusting memory",
+        "Separates local live deployed and blocked states",
+        "Preserves dirty worktree boundaries",
+        "Gives first safe next step"
+      ],
+      "files": []
+    },
+    {
+      "id": "icloud-git-hang-recovery",
+      "prompt": "Old Codex thread will not load and the previous cwd is under Documents with weird Git hangs.",
+      "expected_output": "Should treat stale cwd and iCloud/File Provider placeholder symptoms as workspace-health blockers, run bounded Git and key-file probes, avoid concluding project work is missing, and recommend hydration or a non-iCloud working copy before editing.",
+      "assertions": [
+        "Recognizes stale cwd and File Provider risk",
+        "Runs bounded Git or key-file health probes",
+        "Does not conclude project work is missing from memory alone",
+        "Reports workspace-health blocker",
+        "Recommends hydration or non-iCloud working copy before edits"
+      ],
+      "files": []
+    },
+    {
+      "id": "manual-handoff-after-recovery",
+      "prompt": "Pick up from the deployment thread, but the remaining work is account auth and browser QA.",
+      "expected_output": "Should preserve completed local/deploy evidence, mark auth/browser QA as blocked or manual, open or identify the target when feasible, and provide concrete ordered steps.",
+      "assertions": [
+        "Preserves completed evidence",
+        "Marks account auth or browser QA blocker",
+        "Does not keep coding around an external blocker",
+        "Provides concrete ordered manual steps",
+        "Names evidence to report back"
+      ],
+      "files": []
+    }
+  ]
+}
