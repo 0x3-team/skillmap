@@ -1,3 +1,3 @@
-* text=auto eol=lf
-*.png binary
-*.tgz binary
+# Mirrored skill packages are content-addressed. Preserve their source bytes so
+# manifest hashes and deterministic Lovable ZIPs do not vary by checkout OS.
+skills/** -text
