@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Handoff Summary"
+  short_description: "Summarize latest changes, release readiness, and next steps."
+  default_prompt: "Summarize what changed, what is deployed, what passed verification, and what is left to do."

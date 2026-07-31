@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gitea-to-GitHub CI"
+  short_description: "Validate on Gitea Actions, then push GitHub"
+  default_prompt: "Use $gitea-github-cicd to validate this repository on codex-linode Gitea and push only a green commit to GitHub."

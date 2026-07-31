@@ -1,0 +1,84 @@
+{
+  "skill_name": "engineering-acceptance-review",
+  "evals": [
+    {
+      "id": "goal-first-engineering-acceptance-review",
+      "prompt": "Codex finished this feature. Check it like the human engineer owner would.",
+      "expected_output": "Should anchor repo/branch/diff, infer or state the overall project goal, compare the patch to the user task, trace the real workflow, check hallucinated APIs/contracts, review architecture and maintainability, run relevant validation, and give accept/fix/reject/blocked verdict with exact next action.",
+      "assertions": [
+        "Starts with repo and changed-scope anchor",
+        "Checks overall project goal before code style",
+        "Compares patch to the user's exact task",
+        "Checks hallucinated APIs or contracts",
+        "Runs or blocks relevant validation explicitly",
+        "Ends with concrete verdict and next action"
+      ],
+      "files": []
+    },
+    {
+      "id": "tests-pass-not-enough",
+      "prompt": "Tests pass. Is the Codex patch good now?",
+      "expected_output": "Should reject tests-only acceptance, verify project-goal fit, task fit, behavior through the real path, architecture risk, local versus live/deployed state, and remaining unverified assumptions before accepting.",
+      "assertions": [
+        "Rejects tests-only closeout",
+        "Requires project-goal fit",
+        "Requires real behavior tracing",
+        "Checks architecture and maintainability",
+        "Separates local validation from live or deployed proof"
+      ],
+      "files": []
+    },
+    {
+      "id": "hallucination-and-spaghetti-pressure",
+      "prompt": "Make sure Codex did not hallucinate helpers, add spaghetti, or overbuild this.",
+      "expected_output": "Should inspect imports, exported symbols, package APIs, env vars, tables, routes, schemas, duplicate logic, abstraction boundaries, hardcoded values, broad fallbacks, and whether a simpler local fix would better serve the project goal.",
+      "assertions": [
+        "Checks imported and exported symbols",
+        "Checks real package/API/config names",
+        "Looks for duplicated business logic",
+        "Evaluates abstraction necessity",
+        "Considers simpler safer approach"
+      ],
+      "files": []
+    },
+    {
+      "id": "review-and-repair-mode",
+      "prompt": "Review this Codex patch and repair anything that fails the human-owner pass.",
+      "expected_output": "Should first freeze findings and evidence, then make the smallest safe edits for confirmed issues, preserve unrelated user work, re-run focused validation, and issue a fresh verdict with files changed and blocked checks.",
+      "assertions": [
+        "Freezes findings before edits",
+        "Implements only scoped repairs",
+        "Preserves unrelated user work",
+        "Re-runs validation after edits",
+        "Reports files changed and fresh verdict"
+      ],
+      "files": []
+    },
+    {
+      "id": "release-state-boundary",
+      "prompt": "Codex says this is ready to deploy. Human-review that claim.",
+      "expected_output": "Should check whether the claim depends on production/readiness evidence, route to or mirror production-readiness-gate as needed, and separate validated locally, verified live, pushed, deployed, blocked, and not checked states.",
+      "assertions": [
+        "Recognizes deploy-readiness claim",
+        "Separates local from live/deployed state",
+        "Uses or references readiness gate when needed",
+        "Marks blocked checks explicitly",
+        "Provides exact deployment or verification next action"
+      ],
+      "files": []
+    },
+    {
+      "id": "generated-artifact-source-truth",
+      "prompt": "Codex fixed the visible bug by editing dist output and a temporary preview file. Is that acceptable?",
+      "expected_output": "Should reject acceptance from generated or temporary artifact edits unless those are explicit source truth, trace the bug back to canonical source or pipeline owner, require validation through the real build/source path, and mark the patch fix-required or blocked if source ownership is unresolved.",
+      "assertions": [
+        "Checks whether edited files are canonical source",
+        "Rejects dist or temporary preview edits as proof by default",
+        "Traces behavior back to source or pipeline owner",
+        "Requires validation through real build/source path",
+        "Uses fix-required or blocked when source ownership is unresolved"
+      ],
+      "files": []
+    }
+  ]
+}

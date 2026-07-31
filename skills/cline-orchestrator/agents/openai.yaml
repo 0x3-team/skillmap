@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cline Orchestrator"
+  short_description: "Supervise Cline/GLM as a managed UI/UX specialist"
+  default_prompt: "Use Cline as a Codex-owned child specialist for a UI/UX or benchmark-approved task slice. Steward Cline, refresh routing evidence, run with visible provenance, incorporate only reviewed output, and verify the final project behavior."

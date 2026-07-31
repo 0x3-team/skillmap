@@ -1,0 +1,4 @@
+interface:
+  display_name: "X Opportunity Reality Check"
+  short_description: "Reality-check X money claims and repos."
+  default_prompt: "Check whether this X post, GitHub repo, trading bot, or business opportunity is real and realistic. Separate verified facts from hype, risks, and next steps."

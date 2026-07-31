@@ -1,0 +1,7 @@
+interface:
+  display_name: "Research Plan Implementation Loop"
+  short_description: "Research, plan, then implement"
+  default_prompt: "Use $research-plan-implementation-loop to run a goal-backed verified research to planning to implementation loop with mode gates, durable artifacts, orchestration receipts, post-implementation consistency checks, and engineering acceptance review."
+
+policy:
+  allow_implicit_invocation: true

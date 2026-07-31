@@ -1,0 +1,127 @@
+{
+  "skill_name": "checkpoint-quality-loop",
+  "evals": [
+    {
+      "id": "ui-ux-checkpoint",
+      "prompt": "Checkpoint UI/UX before we keep building.",
+      "expected_output": "Should create or reuse a goal, classify lens as UI/UX, use audit-orchestrator plus frontend-design/browser evidence, avoid implementation before findings and plan, and require verification plus engineering-acceptance-review before closeout when implementation happens.",
+      "assertions": [
+        "Creates or reuses goal",
+        "Classifies UI/UX lens",
+        "Routes to frontend-design and audit-orchestrator",
+        "Requires browser evidence when feasible",
+        "Does not implement before audit and plan",
+        "Requires verification receipt",
+        "Requires engineering-acceptance-review before accepting implemented work"
+      ],
+      "files": []
+    },
+    {
+      "id": "whole-project-checkpoint",
+      "prompt": "Checkpoint the whole thing like this is going to OpenAI production.",
+      "expected_output": "Should create/reuse a goal, classify whole-project lens, decompose into independent lenses, emit orchestration decision, consider workers, enforce production-quality code gate, and avoid shallow checklist closure.",
+      "assertions": [
+        "Creates or reuses goal",
+        "Classifies whole-project lens",
+        "Decomposes into independent lenses",
+        "Emits orchestration decision receipt",
+        "Considers workers or justifies not using them",
+        "Requires production-quality code gate"
+      ],
+      "files": []
+    },
+    {
+      "id": "security-checkpoint-fix",
+      "prompt": "Checkpoint security and fix anything serious.",
+      "expected_output": "Should audit security first, freeze confirmed findings, plan remediation before implementation, prove scope and verification path, run engineering-acceptance-review after remediation, and avoid live/auth overclaiming.",
+      "assertions": [
+        "Classifies security lens",
+        "Audits before implementation",
+        "Freezes confirmed findings",
+        "Plans remediation before changes",
+        "Separates local and live/auth verification",
+        "Blocks closeout on unresolved serious findings",
+        "Requires engineering-acceptance-review after remediation"
+      ],
+      "files": []
+    },
+    {
+      "id": "backend-checkpoint",
+      "prompt": "Checkpoint backend correctness and maintainability.",
+      "expected_output": "Should classify backend lens, inspect API/data/error-handling evidence, require code quality gate, run tests/validation, and avoid unrelated UI work.",
+      "assertions": [
+        "Classifies backend lens",
+        "Requires API/data/error handling evidence",
+        "Requires code quality gate",
+        "Requires tests or explicit blocked validation",
+        "Avoids unrelated UI detour"
+      ],
+      "files": []
+    },
+    {
+      "id": "production-readiness-checkpoint",
+      "prompt": "Checkpoint before deploy.",
+      "expected_output": "Should classify production-readiness lens, use production-readiness-gate, separate local/live/deployed/blocked states, and provide exact next actions.",
+      "assertions": [
+        "Classifies production-readiness lens",
+        "Routes to production-readiness-gate",
+        "Separates local/live/deployed/blocked",
+        "Does not claim deploy readiness from local checks alone",
+        "Provides exact next actions"
+      ],
+      "files": []
+    },
+    {
+      "id": "browser-live-study-safe",
+      "prompt": "Checkpoint the browser workflow in the background while I study.",
+      "expected_output": "Should classify browser-live lens, use background-browser-operator, avoid interrupting focus, require browser status receipt, and preserve auth/session boundaries.",
+      "assertions": [
+        "Classifies browser-live lens",
+        "Uses background-browser-operator",
+        "Avoids focus interruption",
+        "Requires background browser status receipt",
+        "Preserves auth/session boundaries"
+      ],
+      "files": []
+    },
+    {
+      "id": "skip-plan-pressure",
+      "prompt": "Audit found obvious issues, just implement them.",
+      "expected_output": "Should reject skipping planning for non-tiny findings, require implementation contract and acceptance criteria, and preserve audit findings before changes.",
+      "assertions": [
+        "Rejects skipping planning for non-tiny findings",
+        "Requires implementation contract",
+        "Requires acceptance criteria",
+        "Preserves audit baseline"
+      ],
+      "files": []
+    },
+    {
+      "id": "closeout-pressure",
+      "prompt": "Tests pass, mark the checkpoint done.",
+      "expected_output": "Should reject tests-only closeout, require re-audit or verification receipt, require code quality gate, run engineering-acceptance-review for implemented changes, and review remaining findings.",
+      "assertions": [
+        "Rejects tests-only closeout",
+        "Requires verification receipt",
+        "Requires code quality gate",
+        "Reviews remaining findings",
+        "Separates local validation from live/deploy readiness",
+        "Requires engineering-acceptance-review for implemented changes"
+      ],
+      "files": []
+    },
+    {
+      "id": "acceptance-review-closeout-pressure",
+      "prompt": "We implemented the checkpoint fixes and verification passed. Close it.",
+      "expected_output": "Should not close only from passing verification. It should run or require engineering-acceptance-review, include the acceptance verdict, and loop back if project-goal fit, task fit, source-surface, hallucination/contract, or maintainability checks fail.",
+      "assertions": [
+        "Rejects verification-only closeout",
+        "Requires engineering-acceptance-review",
+        "Includes engineering acceptance verdict",
+        "Checks goal fit task fit and source surface",
+        "Loops back on failed acceptance review"
+      ],
+      "files": []
+    }
+  ]
+}

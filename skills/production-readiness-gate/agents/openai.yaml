@@ -1,0 +1,4 @@
+interface:
+  display_name: "Production Readiness Gate"
+  short_description: "Gate launch readiness from evidence"
+  default_prompt: "Use $production-readiness-gate to audit launch readiness, separate local validation, live verification, deployment state, and blockers, and use a background browser receipt when passive browser/admin/live monitoring is part of the evidence."

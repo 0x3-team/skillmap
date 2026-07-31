@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Orchestrator"
+  short_description: "Execute large plans with contract and evidence gates"
+  default_prompt: "Use $implementation-orchestrator to consume an implementation plan, audit report, or RCA fix plan, create a scoped /goal execution loop, emit an orchestration decision receipt, enforce the source-of-truth contract, dispatch focused workers only when justified, distinguish workers/subagents from visible threads, integrate changes, validate, and continue until acceptance criteria pass with target-perspective evidence or the work is explicitly blocked."

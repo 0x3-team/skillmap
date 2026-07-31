@@ -1,0 +1,4 @@
+interface:
+  display_name: "Resume Disconnected Work"
+  short_description: "Recover stale work from evidence"
+  default_prompt: "Use $resume-disconnected-work to recover the prior work from local evidence and continue from the verified current state."

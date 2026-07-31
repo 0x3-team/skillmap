@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mac Storage Cleanup"
+  short_description: "Find wasted Mac storage and ask before deleting."
+  default_prompt: "Scan my Mac for wasted disk space, rank safe cleanup candidates, and ask before deleting anything."
