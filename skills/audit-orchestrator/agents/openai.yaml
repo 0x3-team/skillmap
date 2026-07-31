@@ -1,4 +1,0 @@
-interface:
-  display_name: "Audit Orchestrator"
-  short_description: "Scale scoped audits with workers"
-  default_prompt: "Use $audit-orchestrator to create a scoped /goal audit loop, emit an orchestration decision receipt, decide whether workers/subagents or visible threads are justified, route each worker to the right skill, and continue evidence-gathering cycles until the report satisfies the done criteria or is explicitly blocked."

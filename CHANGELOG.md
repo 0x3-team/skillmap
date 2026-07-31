@@ -2,21 +2,6 @@
 
 ## Unreleased — experimental free public alpha
 
-### Portable skill library candidate
-
-- Added 153 source-pinned Agent Skills under `skills/<name>/SKILL.md`, with a
-  generated integrity and compatibility index in `catalog/skill-library.json`.
-- Added deterministic validation, local installation adapters for
-  Agents-compatible roots, Codex, Claude Code, GitHub Copilot/VS Code, Cursor,
-  and custom destinations, plus per-skill Lovable GitHub URLs.
-- Added deterministic Lovable ZIP export for use while the repository remains
-  private. Direct Lovable GitHub imports still require an explicit future
-  repository-visibility decision.
-- Kept `cloudflare` and `pentest-tools` unmirrored because they exceed Lovable
-  package limits; `pentest-tools` also retains an unresolved Defender
-  inspection block. Every mirrored package remains behaviorally unreviewed and
-  automatic use is not recommended by default.
-
 ### Active unmerged MCP continuation
 
 - Candidate `fee340a2e4a86e13421696355fe9480e68285090`, tagged

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Frontend Design"
-  short_description: "Build polished accessible frontend UI"
-  default_prompt: "Create or improve a frontend UI with strong UX, responsive layout, accessible interactions, and Magic UI support when appropriate."

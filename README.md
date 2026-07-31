@@ -129,26 +129,6 @@ skillmap sources update writing-great-skills --dry-run
 
 `sources check` reports coverage as `not-configured`, `not-applicable`, `partial`, or `covered` against inventory variants. An empty source registry for a non-empty inventory is `not-configured`, never clean or covered.
 
-## Portable skill library
-
-The repository includes a separate, source-pinned Agent Skills library under
-`skills/`. Its generated `catalog/skill-library.json` records immutable source
-commits, package digests, compatibility, and direct per-skill import paths.
-
-```bash
-npm run skills:check
-npm run skills:install -- --list
-npm run skills:install -- --target codex --skill supabase --dry-run
-npm run skills:install -- --target lovable --skill supabase
-```
-
-The library supports Agents-compatible roots, Codex, Claude Code, GitHub
-Copilot/VS Code, Cursor, custom destinations, and Lovable's per-directory
-GitHub import shape. Lovable only accepts public GitHub repositories for URL
-imports; this repository remains private until the owner explicitly changes
-that visibility. See [Portable skill library](docs/portable-skill-library.md)
-for supported roots, safe update behavior, exclusions, and import instructions.
-
 ## Optional Codex hook
 
 The hook is passive: it only injects a compact route hint from the local effective registry. It does not call an LLM, does not use the network, and does not execute skill scripts.

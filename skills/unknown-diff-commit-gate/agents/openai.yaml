@@ -1,4 +1,0 @@
-interface:
-  display_name: "Unknown Diff Commit Gate"
-  short_description: "Review dirty work before commit"
-  default_prompt: "Use $unknown-diff-commit-gate to inspect this dirty worktree, validate intended changes, and commit only the reviewed set if appropriate."

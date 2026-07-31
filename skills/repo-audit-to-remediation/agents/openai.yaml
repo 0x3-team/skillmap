@@ -1,4 +1,0 @@
-interface:
-  display_name: "Repo Audit to Remediation"
-  short_description: "Audit a repo, fix top issues, verify, and leave a clear backlog."
-  default_prompt: "Audit this repository, fix the highest priority issues, run appropriate verification, and summarize remaining work."

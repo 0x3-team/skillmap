@@ -1,4 +1,0 @@
-interface:
-  display_name: "PR CI Status Monitor"
-  short_description: "Check PRs, CI, reviews, comments, and payout or claim state."
-  default_prompt: "Check these PRs or claims and report status, failures, comments, payout state, and required actions."
