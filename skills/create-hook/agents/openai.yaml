@@ -1,8 +1,0 @@
-interface:
-  display_name: "Create Hook"
-  short_description: "Create, audit, and verify Codex lifecycle hooks safely."
-  brand_color: "#2F6F6D"
-  default_prompt: "Create or update a Codex hook."
-
-policy:
-  allow_implicit_invocation: true

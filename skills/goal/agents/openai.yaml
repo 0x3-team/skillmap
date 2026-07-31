@@ -1,7 +1,0 @@
-interface:
-  display_name: "Goal"
-  short_description: "Refine durable Codex goals"
-  default_prompt: "Use $goal to turn this rough objective into a verifiable Codex goal with evidence, orchestration mode, worker/thread decision, background-browser constraints when relevant, and final verification, then start it."
-
-policy:
-  allow_implicit_invocation: true

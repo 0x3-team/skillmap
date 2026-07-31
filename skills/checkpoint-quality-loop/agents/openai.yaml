@@ -1,7 +1,0 @@
-interface:
-  display_name: "Checkpoint Quality Loop"
-  short_description: "Run production-grade checkpoints"
-  default_prompt: "Use $checkpoint-quality-loop to run a goal-backed checkpoint with a scoped lens, audit findings, remediation plan, implementation slices, verification pass, engineering acceptance review, production-quality code gate, and precise closeout verdict."
-
-policy:
-  allow_implicit_invocation: true

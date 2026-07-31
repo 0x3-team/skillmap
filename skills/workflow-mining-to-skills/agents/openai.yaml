@@ -1,4 +1,0 @@
-interface:
-  display_name: "Workflow Mining To Skills"
-  short_description: "Turn repeated work into skills"
-  default_prompt: "Use $workflow-mining-to-skills to mine accessible history, cluster repeated workflows, and create or update only evidence-backed skills."

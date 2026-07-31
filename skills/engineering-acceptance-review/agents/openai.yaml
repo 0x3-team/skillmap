@@ -1,7 +1,0 @@
-interface:
-  display_name: "Engineering Acceptance Review"
-  short_description: "Accept, fix, reject, or block completed agent work"
-  default_prompt: "Use $engineering-acceptance-review to check completed Codex or agent work for project-goal fit, task fit, source-surface ownership, hallucinated APIs/contracts, maintainability, behavior evidence, validation, and accept/fix/reject/block verdict."
-
-policy:
-  allow_implicit_invocation: true

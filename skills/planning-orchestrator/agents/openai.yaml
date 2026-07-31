@@ -1,4 +1,0 @@
-interface:
-  display_name: "Planning Orchestrator"
-  short_description: "Plan large work with focused workers and a source-of-truth contract"
-  default_prompt: "Use $planning-orchestrator to create a scoped /goal planning loop, emit an orchestration decision receipt, research any named websites/products for inspiration, decide whether workers/subagents or visible threads are justified, route each worker to the right skill, apply the native planning superiority scorecard, and continue planning cycles until an implementation-ready Markdown plan file is saved with a source-of-truth contract and handoff section for a future implementation orchestrator."
