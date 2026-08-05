@@ -291,8 +291,11 @@ test('operator documentation, commands, and application types bind the final rea
   assert.match(workerScripts['queue:list'], /submission-queue[.]mjs/);
   assert.match(workerScripts['queue:inspect'], /submission-detail[.]mjs/);
   assert.match(workerScripts['operations:check'], /operations-check[.]mjs/);
+  assert.match(workerScripts['typecheck'], /tsc -p tsconfig[.]json/);
   const runtimeTypes = sources['apps/web/lib/supabase/database.runtime.types.ts'];
   assert.match(runtimeTypes, /Database as GeneratedDatabase.*database[.]types/);
+  assert.match(runtimeTypes, /Omit<GeneratedDatabase, "api" \| "private">/);
+  assert.match(runtimeTypes, /RuntimeDatabaseSchemaAssertion/);
   assert.match(runtimeTypes, /type NullableFields/);
   for (const rpc of [
     'get_skill_submission_operator_detail',

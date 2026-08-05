@@ -94,7 +94,7 @@ From a clean worktree at the reviewed `main` commit:
 supabase migration list --linked
 supabase db push --linked --dry-run
 supabase db push --linked
-supabase gen types typescript --linked --schema api \
+supabase gen types typescript --linked --schema api,private \
   | sed -e '${/^$/d;}' > /tmp/skillmap-alpha-database.types.ts
 cmp /tmp/skillmap-alpha-database.types.ts apps/web/lib/supabase/database.types.ts
 ```

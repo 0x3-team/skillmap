@@ -51,14 +51,15 @@ supabase db lint --local --schema api,private,public --level warning --fail-on w
 supabase test db --local
 
 tmp_types=$(mktemp)
-supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
+supabase gen types typescript --local --schema api,private | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 
-# The raw file above must stay generator-exact. The application imports
-# database.runtime.types.ts, whose narrow override restores nullable return
-# fields for the three operator RETURNS TABLE RPCs. Compile-time assertions and
-# the web truth contract guard both nullable and required fields.
+# The raw file above must stay generator-exact for both api and private. The
+# application imports database.runtime.types.ts, which excludes private from
+# clients and restores nullable return fields for the three reviewed operator
+# RETURNS TABLE RPCs. Compile-time assertions and the web truth contract guard
+# the schema boundary plus nullable and required fields.
 npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 
@@ -108,14 +109,14 @@ supabase db reset --local
 supabase db lint --local --schema api,private,public --level warning --fail-on warning
 find supabase/tests -type f -name '*.test.sql' -print0 | tr '\0' '\n' | LC_ALL=C sort | tr '\n' '\0' | xargs -0 supabase test db
 tmp_types=$(mktemp)
-supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
+supabase gen types typescript --local --schema api,private | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000`, `20260714010000`, `20260714030000`, `20260714050000`, `20260714060000`, `20260715010000`, and `20260715020000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization for report intake, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, distinct-operator dual control, exact evidence-version authority, owner-safe request-ID recovery, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact `api,private` generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which excludes `private` from application clients and narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000`, `20260714010000`, `20260714030000`, `20260714050000`, `20260714060000`, `20260715010000`, and `20260715020000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization for report intake, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, distinct-operator dual control, exact evidence-version authority, owner-safe request-ID recovery, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -151,7 +152,7 @@ supabase db push --linked --dry-run
 supabase db push --linked
 
 tmp_types=$(mktemp)
-supabase gen types typescript --linked --schema api | sed -e '${/^$/d;}' > "$tmp_types"
+supabase gen types typescript --linked --schema api,private | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 

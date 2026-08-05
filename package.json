@@ -27,6 +27,10 @@
     "test:mcp:performance": "npm run build && node --expose-gc scripts/benchmark-mcp-discovery.mjs",
     "test:mcp:consumer": "npm run build && node scripts/test-mcp-consumer.mjs",
     "test:mcp:rollback": "npm run build && node scripts/test-mcp-rollback.mjs",
+    "test:m0-07": "npm run build && node --test --test-concurrency=1 test/m0-07-cloud-routing-spike.mjs",
+    "spike:m0-07:codex": "npm run build && node scripts/run-m0-07-codex-spike.mjs",
+    "test:m0-09": "npm run build && node --test --test-concurrency=1 test/m0-07-cloud-routing-spike.mjs test/m0-09-feasibility-canary.mjs",
+    "evaluate:m0-09": "npm run build && node scripts/run-m0-09-feasibility-canary.mjs",
     "test:browser-fixture": "npm run build && node --test --test-concurrency=1 test/phase3-local-app-browser-fixture.mjs test/browser/phase3-eval-workflow-browser.mjs",
     "test:local-app-browser": "npm run test:browser:chromium",
     "test:e2e": "npm run test:browser:chromium",
@@ -133,11 +137,14 @@
     "@types/node": "^24.0.7",
     "typescript": "^5.8.3"
   },
+  "overrides": {
+    "fast-uri": "^3.1.4"
+  },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "ajv": "8.20.0",
     "yaml": "^2.9.0",
     "zod": "4.4.3"

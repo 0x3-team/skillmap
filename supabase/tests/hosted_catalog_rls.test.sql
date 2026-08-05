@@ -63,7 +63,9 @@ select is(
       'record_skill_submission_license_evidence',
       'get_skill_submission_queue_summary',
       'list_skill_submission_operator_queue',
-      'get_skill_submission_operator_detail'
+      'get_skill_submission_operator_detail',
+      'activate_managed_skill_release',
+      'export_my_managed_skill_vault'
     )),
     0::bigint,
     'no security-definer function exists outside the explicit hosted operator allowlist'

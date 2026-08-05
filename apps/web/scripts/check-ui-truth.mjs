@@ -144,6 +144,8 @@ for (const staleClaim of [/ephemeral capability cookie/i, /double-submit CSRF/i]
 const databaseRuntimeTypes = sources["lib/supabase/database.runtime.types.ts"];
 for (const boundary of [
   /Database as GeneratedDatabase.*database[.]types/,
+  /Omit<GeneratedDatabase, "api" \| "private">/,
+  /RuntimeDatabaseSchemaAssertion/,
   /type NullableFields/,
   /get_skill_submission_operator_detail/,
   /get_skill_submission_queue_summary/,

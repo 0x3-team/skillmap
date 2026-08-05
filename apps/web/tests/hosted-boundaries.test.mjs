@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   AuthApiError,
@@ -102,15 +102,65 @@ import {
 } from "../lib/security/policy.ts";
 import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-errors.ts";
 import {
+  applyRetryAfterHeader,
   InMemoryFixedWindowRateLimiter,
   applyRateLimitHeaders,
+  getAnonymousClientIdentity,
   getAnonymousClientKey,
+  isValidIpAddress,
   isPublicCatalogApiPath,
   isPublicCatalogReadRequest
 } from "../lib/security/rate-limit.ts";
+import {
+  HOSTED_API_ERROR_SCHEMA_ID,
+  validateHostedApiErrorResponse
+} from "../lib/contracts/generated/hosted-api-response-validator.ts";
+import { createHostedApiErrorPayload } from "../lib/contracts/hosted-api-response.ts";
 
 const APP_ORIGIN = "https://skillmap.invalid";
 const SKILL_ID = `skl_${"0".repeat(31)}1`;
+
+test("Next 16 hosted request boundary has one Edge middleware surface and preserves API protection", async () => {
+  const proxyUrl = new URL("../proxy.ts", import.meta.url);
+  const middlewareUrl = new URL("../middleware.ts", import.meta.url);
+  await assert.rejects(() => access(proxyUrl), /ENOENT/);
+  const middleware = await readFile(middlewareUrl, "utf8");
+  assert.match(middleware, /export async function middleware\(request: NextRequest\)/);
+  assert.doesNotMatch(middleware, /export\s+(?:async\s+)?function\s+proxy\b/);
+  assert.match(
+    middleware,
+    /matcher:\s*\["\/\(\(\?!_next\/static\|_next\/image\|favicon\.ico\|\.\*\\\\\.\(\?:svg\|png\|jpg\|jpeg\|gif\|webp\)\$\)\.\*\)"\]/
+  );
+  assert.match(middleware, /catalogError\(\s*429,\s*"RATE_LIMITED",\s*"Too many catalog requests\. Try again shortly\.",\s*true\s*\)/s);
+  assert.doesNotMatch(middleware, /NextResponse\.json\(/);
+  assert.match(middleware, /applyRateLimitHeaders\(response, decision\)/);
+  assert.match(middleware, /applyRetryAfterHeader\(response, decision\)/);
+  assert.match(middleware, /Cache-Control.*private, no-store, max-age=0/);
+  assert.match(middleware, /createServerClient<Database>/);
+  assert.match(middleware, /supabase\.auth\.getClaims\(\)/);
+  assert.match(middleware, /buildContentSecurityPolicy/);
+  assert.match(middleware, /buildResponseSecurityHeaders/);
+  assert.match(middleware, /crypto\.subtle\.digest/);
+  assert.match(middleware, /rate-limit-core/);
+  assert.match(middleware, /createHostedApiErrorPayload/);
+  assert.doesNotMatch(middleware, /@\/lib\/registry\/api\.server/);
+  assert.doesNotMatch(middleware, /node:(?:crypto|net)|Ajv2020|new Function|\beval\s*\(/);
+  assert.doesNotMatch(middleware, /(?:writeFile|mkdir|rename|unlink|rmSync|execFile|spawn)\s*\(/);
+});
+
+test("hosted runtime disables the unused Next image optimizer", async () => {
+  const config = await readFile(new URL("../next.config.mjs", import.meta.url), "utf8");
+  assert.match(config, /images:\s*\{\s*[\s\S]*?unoptimized:\s*true\s*[\s\S]*?\}/);
+
+  const sourceUrls = [
+    ...await collectTsxFiles(new URL("../app/", import.meta.url)),
+    ...await collectTsxFiles(new URL("../components/", import.meta.url))
+  ];
+  for (const sourceUrl of sourceUrls) {
+    const source = await readFile(sourceUrl, "utf8");
+    assert.doesNotMatch(source, /(?:from\s+|import\s*\()['"]next\/image['"]/, `${sourceUrl.pathname} re-enables the disabled optimizer boundary`);
+  }
+});
 
 test("streaming fallback announces without creating a second main landmark", async () => {
   const source = await readFile(new URL("../app/loading.tsx", import.meta.url), "utf8");
@@ -1200,9 +1250,14 @@ test("anonymous rate limiting is bounded, resets deterministically, and emits bo
   assert.equal(limiter.consume("client-c", 1_041).allowed, true, "expired entries must be evicted");
 
   const response = applyRateLimitHeaders(new Response(null), limited);
+  applyRetryAfterHeader(response, limited);
   assert.equal(response.headers.get("ratelimit-limit"), "2");
   assert.equal(response.headers.get("ratelimit-remaining"), "0");
   assert.equal(response.headers.get("ratelimit-reset"), "1");
+  assert.equal(response.headers.get("retry-after"), "1");
+
+  limiter.reset();
+  assert.equal(limiter.consume("client-a", 60).remaining, 1, "reset must clear prior counts");
 
   for (const policy of [
     { limit: 0, windowMs: 1_000, maxEntries: 1 },
@@ -1234,6 +1289,55 @@ test("anonymous rate-limit identity prefers provider headers and never exposes r
   assert.equal(unknown, getAnonymousClientKey(new Headers()));
   assert.doesNotMatch(unknown, /203\.0\.113|PRIVATE-CANARY/);
   assert.match(unknown, /^[A-Za-z0-9_-]{43}$/);
+});
+
+test("Edge-safe rate-limit identity accepts canonical IPv4, IPv6, and mapped IPv6 while rejecting malformed values", () => {
+  for (const value of [
+    "203.0.113.10",
+    "2001:db8::1",
+    "::ffff:192.0.2.1",
+    "2001:db8:0:0:0:0:192.0.2.1"
+  ]) assert.equal(isValidIpAddress(value), true, value);
+  for (const value of [
+    "1:2:3:4:5:6:7:",
+    "1:2:3:4:5:6:7:8:",
+    "1:::2",
+    "1::2::3",
+    "1:2:3:4:5:6:7:8:9",
+    "::ffff:192.0.2.999",
+    "01.2.3.4",
+    "PRIVATE-CANARY"
+  ]) assert.equal(isValidIpAddress(value), false, value);
+
+  assert.equal(
+    getAnonymousClientIdentity(new Headers({
+      "x-vercel-forwarded-for": "2001:db8::1, 198.51.100.5",
+      "x-real-ip": "203.0.113.20",
+      "x-forwarded-for": "203.0.113.30"
+    })),
+    "ip:2001:db8::1"
+  );
+  assert.equal(
+    getAnonymousClientIdentity(new Headers({
+      "x-vercel-forwarded-for": "malformed:::",
+      "x-real-ip": "::ffff:192.0.2.1",
+      "x-forwarded-for": "203.0.113.30, 198.51.100.1"
+    })),
+    "ip:::ffff:192.0.2.1"
+  );
+  assert.equal(
+    getAnonymousClientIdentity(new Headers({ "x-forwarded-for": "malformed:::" })),
+    "anonymous"
+  );
+});
+
+test("Edge hosted API error validator executes the exact envelope and rejects malformed fields", () => {
+  assert.match(HOSTED_API_ERROR_SCHEMA_ID, /hosted-api-error\/v1\.schema\.json$/);
+  const payload = createHostedApiErrorPayload("RATE_LIMITED", "Too many catalog requests. Try again shortly.", true);
+  assert.equal(validateHostedApiErrorResponse(payload), true);
+  assert.equal(validateHostedApiErrorResponse({ ...payload, error: { ...payload.error, retryable: "yes" } }), false);
+  assert.equal(validateHostedApiErrorResponse({ ...payload, error: { ...payload.error, code: "bad-code" } }), false);
+  assert.equal(validateHostedApiErrorResponse({ ...payload, extra: true }), false);
 });
 
 test("public catalog fetch is no-store, aborts on timeout, and redacts target details", async () => {
