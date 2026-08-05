@@ -1,0 +1,94 @@
+{
+  "artifact": "M2.16-remote-security-matrix.sql",
+  "matrix_type": "remote_safe_fail_closed",
+  "sha256": "eca93b8884e60f282bcfb60a4c56db1cd8e0071ce1e9e694965274c3bd8e7fbb",
+  "line_count": 662,
+  "transaction_shape": {
+    "statement_count": "single BEGIN ... ROLLBACK",
+    "begin_count": 1,
+    "commit_count": 0,
+    "rollback_count": 1,
+    "first_noncomment_is_begin": true,
+    "final_transactional_statement_is_rollback": true,
+    "sql_only": true
+  },
+  "design": {
+    "fixed_identities": 2,
+    "identity_insert_locations": "one outer BEGIN..ROLLBACK",
+    "hand_authored_child_uuids": false,
+    "coordinate_cache_table": "pg_temp.m16_fx",
+    "generated_ids_via_procedure": "gen_random_uuid() defaults + RETURNING capture",
+    "storage_keys_derived_from_captured_public_ids": true,
+    "shared_graph_through_sections": true,
+    "role_helper": "SET LOCAL ROLE + request.jwt.claim.sub/role/claims JSON; RESET ROLE before privileged SQL",
+    "real_functions_from_accepted_tests": true,
+    "large_sections_verbatim": false,
+    "remote_access": false
+  },
+  "coverage": {
+    "test1_anon_denial_private_tables_and_owner_rpc": "pass",
+    "test2_owner_isolation_A_B_symmetric": "pass",
+    "test3_force_rls_and_grant_boundaries": "pass",
+    "test4_storage_private_bucket_contract_owner_rls_prepare_cleanup": "pass",
+    "test5_device_register_token_import_rotate_revoke": "pass",
+    "test6_route_decision_selection_wrong_owner_correction": "pass",
+    "test7_export_my_managed_skill_vault_exclusive": "pass",
+    "test8_delete_my_account_purge_preserve_13owner": "pass",
+    "exhaustive_behavior": "delegated to local pgTAP; decisive smoke assertions only"
+  },
+  "storage_acceptance": {
+    "bucket_contract": "skill-vault-private exists, non-public, file_size_limit=16777216",
+    "object_binding_trigger": "enforce_skill_vault_storage_object_binding validates each insert against the exact managed file row; both A and B rows inserted with captured keys/owners/sizes",
+    "incomplete_upload_cleanup_path": "real enqueue/claim/complete definer functions driven as postgres (their only reachable owner); transaction-only captured object key",
+    "prepare_boundary": "as A: prepare_skill_vault_read/delete resolve A's object (1 row); as B: both resolve zero rows",
+    "b_zero_object": "B removes only its own storage.objects row (one-time allow_delete_query, immediately reset) making B zero-object WITHOUT dropping its managed-file key, so B's account deletion enqueues exactly one absence-gated storage job; job claimed and completed before the 13-owner ack",
+    "a_object_present_through_deletion": "A's storage.objects row kept present so deletion_adapter.complete_skill_vault_storage_deletion_job raises exact SQLSTATE 55000 after claim"
+  },
+  "validation": {
+    "docker_exec_psql_exact_sql": "docker exec -i supabase_db_skillmap psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < M2.16-remote-security-matrix.sql",
+    "run1_exit": 0,
+    "run2_exit": 0,
+    "aggregate_before_after": {
+      "auth.users": "0 -> 0",
+      "api.profiles": "0 -> 0",
+      "storage.objects": "0 -> 0",
+      "private.managed_skills": "0 -> 0",
+      "private.managed_skill_versions": "0 -> 0",
+      "private.managed_skill_releases": "0 -> 0",
+      "private.managed_skill_files": "0 -> 0",
+      "private.managed_skill_activation_receipts": "0 -> 0",
+      "private.devices": "0 -> 0",
+      "private.device_tokens": "0 -> 0",
+      "private.import_sessions": "0 -> 0",
+      "private.import_file_receipts": "0 -> 0",
+      "private.route_decisions": "0 -> 0",
+      "private.route_decision_selections": "0 -> 0",
+      "private.route_corrections": "0 -> 0",
+      "private.skill_vault_incomplete_upload_cleanup": "0 -> 0",
+      "private.account_deletion_receipts": "0 -> 0",
+      "private.skill_vault_storage_deletion_jobs": "0 -> 0"
+    },
+    "zero_fixture_residue": true,
+    "independent_proof": "verified externally via psql SELECT count(*) across auth.users/api.profiles/storage.objects and all 15 M2 tables, before run 1 and after run 2"
+  },
+  "route_conductor_edits_preserved": {
+    "route_decision_selections_count_scoped_to_account_A": true,
+    "static_json_fields_added_by_conductor": "kept verbatim in the post-ROLLBACK redacted result"
+  },
+  "limitations": {
+    "physical_blob_api_tested": false,
+    "remote_executed": false,
+    "exhaustive_full_behavior": "covered by local pgTAP suite (skill_vault_*.test.sql), not by this remote smoke matrix",
+    "incomplete_upload_cleanup_intended_role": "cleanup functions are SECURITY DEFINER postgres-owned and ungranted to browser/service base roles; driven as postgres (the definer owner) exactly as the validated storage section does"
+  },
+  "git": {
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "head": "83c124f81e0ecce6fc1f7acb131d861d82fa6d4e",
+    "head_subject": "feat(m2.16): reconcile linked api,private database types",
+    "remote_database_contacted": false,
+    "committed": false,
+    "other_repo_edits": "none"
+  },
+  "scratch_cleaned": true,
+  "verdict": "READY_FOR_CONDUCTOR_REMOTE_TRANSACTION"
+}
