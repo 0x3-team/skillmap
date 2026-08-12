@@ -580,9 +580,7 @@ export class DeviceAuthUseCase {
 
         const isRevoked = res.state === 'revoked' || res.state === 'disabled' || res.state === 'compromised';
         if (isRevoked) {
-          await this.credentialStore.delete();
-          this.inMemoryAccessToken = null;
-          this.inMemoryAccessTokenExpiresAt = null;
+          await this.retireLocalAuthState();
           return {
             state: 'revoked',
             authenticated: false,
@@ -593,6 +591,7 @@ export class DeviceAuthUseCase {
         }
 
         if (res.state === 'expired') {
+          await this.retireLocalAuthState();
           return {
             state: 'expired',
             authenticated: false,
@@ -614,6 +613,7 @@ export class DeviceAuthUseCase {
       }
     } catch (error: unknown) {
       if (error instanceof DeviceAuthError && isTerminalAuthFailure(error.code)) {
+        await this.retireLocalAuthState();
         return {
           state: 'expired',
           authenticated: false,

@@ -222,6 +222,39 @@ test('Default production execution fails clearly with secure_storage_unavailable
   );
 });
 
+test('login rejects unknown, positional, valued, and repeated flags before auth or browser side effects', async () => {
+  const calls = [];
+  const useCase = {
+    async initiateAndPoll() {
+      calls.push('initiateAndPoll');
+      return {};
+    }
+  };
+
+  const invalidArgv = [
+    ['--unknown'],
+    ['unexpected'],
+    ['--no-browser=unexpected'],
+    ['--no-browser', '--no-browser'],
+    ['--json=false']
+  ];
+
+  for (const argv of invalidArgv) {
+    const parsed = parseArgs(['login', ...argv]);
+    await assert.rejects(
+      async () => loginCommand('/test/cwd', parsed.positionals, parsed.flags, { useCase }),
+      (err) => {
+        assert.ok(err instanceof CliExitError);
+        assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
+        assert.equal(err.code, 'usage_error');
+        return true;
+      }
+    );
+  }
+
+  assert.deepEqual(calls, []);
+});
+
 test('Defect 1 regression: login display callback is wired through the construction seam and delivered exactly once', async () => {
   // Inject stores only: the command resolves a fresh use case via the seam,
   // binding deps.onDisplayCode at construction time.

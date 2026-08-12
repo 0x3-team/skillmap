@@ -148,7 +148,7 @@ export async function dispatchCommand(cwd: string, command: string, positionals:
     case 'route': output = await routeCommand(cwd, positionals, flags); break;
     case 'eval': output = await evalCommand(cwd, flags); break;
     case 'hook': output = await hookCommand(cwd, positionals, flags); break;
-    case 'login': output = await loginCommand(cwd, flags); break;
+    case 'login': output = await loginCommand(cwd, positionals, flags); break;
     case 'auth': output = await authCommand(cwd, positionals, flags); break;
     case 'whoami': output = await whoamiCommand(cwd, flags); break;
     case 'logout': output = await logoutCommand(cwd, flags); break;

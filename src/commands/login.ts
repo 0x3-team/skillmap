@@ -7,11 +7,56 @@ import {
   type DeviceAuthCommandDeps
 } from '../core/cli-exit.js';
 
+type LoginFlags = Record<string, string | boolean | string[]>;
+
+const LOGIN_FLAGS = new Set(['device-name', 'no-browser', 'json']);
+
+function validateLoginArgs(positionals: string[], flags: LoginFlags): void {
+  const usage = 'Usage: skillmap login [--no-browser] [--device-name NAME] [--json]';
+  if (positionals.length > 0) {
+    throw new CliExitError(CLI_EXIT_CODES.USAGE, usage, 'usage_error', {
+      success: false,
+      error: 'usage_error',
+      message: usage
+    });
+  }
+
+  for (const [name, value] of Object.entries(flags)) {
+    const valid = name === 'device-name'
+      ? typeof value === 'string'
+      : LOGIN_FLAGS.has(name) && value === true;
+    if (!valid) {
+      throw new CliExitError(CLI_EXIT_CODES.USAGE, usage, 'usage_error', {
+        success: false,
+        error: 'usage_error',
+        message: usage
+      });
+    }
+  }
+}
+
+export function loginCommand(
+  cwd: string,
+  flags: LoginFlags,
+  deps?: DeviceAuthCommandDeps
+): Promise<unknown>;
+export function loginCommand(
+  cwd: string,
+  positionals: string[],
+  flags: LoginFlags,
+  deps?: DeviceAuthCommandDeps
+): Promise<unknown>;
 export async function loginCommand(
   _cwd: string,
-  flags: Record<string, string | boolean | string[]>,
-  deps?: DeviceAuthCommandDeps
+  positionalsOrFlags: string[] | LoginFlags,
+  flagsOrDeps?: LoginFlags | DeviceAuthCommandDeps,
+  injectedDeps?: DeviceAuthCommandDeps
 ): Promise<unknown> {
+  const positionals = Array.isArray(positionalsOrFlags) ? positionalsOrFlags : [];
+  const flags = (Array.isArray(positionalsOrFlags) ? flagsOrDeps : positionalsOrFlags) as LoginFlags;
+  const deps = (Array.isArray(positionalsOrFlags) ? injectedDeps : flagsOrDeps) as DeviceAuthCommandDeps | undefined;
+  validateLoginArgs(positionals, flags);
+
   const noBrowser = hasFlag(flags, 'no-browser');
   const displayName = flagString(flags, 'device-name');
 

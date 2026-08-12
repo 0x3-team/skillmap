@@ -436,12 +436,22 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     );
     assert.equal(directQueryWithBody.status, 400);
     assert.deepEqual(await directQueryWithBody.json(), { error: 'invalid_request' });
-    const wrongType = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
-    assert.equal(wrongType.status, 400);
-    assert.deepEqual(JSON.parse(wrongType.rawBody), { error: 'invalid_request' });
-    const wrongCharset = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json; charset=utf-8', 'x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
-    assert.equal(wrongCharset.status, 400);
-    assert.deepEqual(JSON.parse(wrongCharset.rawBody), { error: 'invalid_request' });
+    // Content-type rejection happens before the Worker reads the request body.
+    // Exercise these body-bearing cases directly so Workerd does not terminate
+    // the local process because its edge transport still has unread bytes.
+    for (const [suffix, contentType] of [
+      ['missing-content-type', undefined],
+      ['wrong-charset', 'application/json; charset=utf-8'],
+    ]) {
+      const headers = { 'x-skillmap-replay-raw-target': '/proof/parse' };
+      if (contentType !== undefined) headers['content-type'] = contentType;
+      const rejected = await (await import(`./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-${suffix}`)).default.fetch(
+        new Request('http://127.0.0.1/proof/parse', { method: 'POST', headers, body: rawRing }),
+        { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+      );
+      assert.equal(rejected.status, 400, suffix);
+      assert.deepEqual(await rejected.json(), { error: 'invalid_request' }, suffix);
+    }
     const malformed = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: 'not-json' }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(malformed.status, 400);
     assert.deepEqual(JSON.parse(malformed.rawBody), { error: 'invalid_json' });
@@ -465,12 +475,21 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     ]) {
       const rejected = await rawHttpRequestWithRetry(port, path, {
         method,
-        headers: method === 'POST' ? ['content-type: application/json'] : [],
-        body: method === 'POST' ? rawRing : undefined,
+        headers: [],
       }, { isProcessAlive: () => !hasExited(child) });
       assert.equal(rejected.status, 404, `${method} ${path}`);
       assert.deepEqual(JSON.parse(rejected.rawBody), { error: 'not_found' });
     }
+    const directWrongRouteWithBody = await (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-wrong-route-body')).default.fetch(
+      new Request('http://127.0.0.1/proof/binding', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: rawRing,
+      }),
+      { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+    );
+    assert.equal(directWrongRouteWithBody.status, 404);
+    assert.deepEqual(await directWrongRouteWithBody.json(), { error: 'not_found' });
     assert.doesNotMatch(`${stdout}\n${stderr}`, /sk-[A-Za-z0-9]|CLOUDFLARE_API_TOKEN|key_b64url|AwMDA/);
   } finally {
     terminateProcessTree(child, 'SIGTERM');

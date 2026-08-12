@@ -298,3 +298,78 @@ test('Unreachable server during status check returns unreachable state cleanly',
   assert.equal(status.authenticated, false);
   assert.equal(status.devicePublicId, VALID_DEVICE_PUBLIC_ID);
 });
+
+test('Terminal status failure retires credentials, metadata, and key before returning expired', async () => {
+  const keyStore = new InMemoryDeviceKeyStore();
+  await keyStore.createKey();
+  const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  await metadataStore.save({ deviceId: VALID_DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' });
+  await credentialStore.commitExchange({
+    deviceId: VALID_DEVICE_ID,
+    tokenFamilyId: VALID_TOKEN_FAMILY_ID,
+    refreshToken: REFRESH_TOKEN_ONE,
+    scopes: ['device.status'],
+    devicePublicId: VALID_DEVICE_PUBLIC_ID,
+    accountPublicId: VALID_ACCOUNT_PUBLIC_ID,
+    updatedAt: 1735689600
+  });
+
+  const mockFetch = createMockFetch(async (url) => {
+    if (url.endsWith('/api/device-auth/v1/tokens/refresh')) {
+      return new Response(JSON.stringify({
+        device_public_id: VALID_DEVICE_PUBLIC_ID,
+        account_public_id: VALID_ACCOUNT_PUBLIC_ID,
+        token_family_id: VALID_TOKEN_FAMILY_ID,
+        access_token: ACCESS_TOKEN_ONE,
+        refresh_token: REFRESH_TOKEN_TWO,
+        expires_in: 600,
+        refresh_idle_expires_in: 2_592_000,
+        refresh_absolute_expires_in: 7_776_000
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'X-SkillMap-Response-Issued-At': '1735689600' }
+      });
+    }
+    if (url.includes(`/api/device-auth/v1/devices/${VALID_DEVICE_PUBLIC_ID}`)) {
+      return new Response(JSON.stringify({
+        error: 'invalid_token',
+        error_description: 'The access token is invalid.'
+      }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ error: 'invalid_request' }), { status: 400 });
+  });
+
+  const client = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore,
+    metadataStore,
+    clock: () => 1735689600,
+    fetchFn: mockFetch
+  });
+  const useCase = new DeviceAuthUseCase({
+    client,
+    keyStore,
+    credentialStore,
+    metadataStore,
+    clock: () => 1735689600
+  });
+
+  const status = await useCase.getAuthStatus();
+  assert.equal(status.state, 'expired');
+  assert.equal(status.authenticated, false);
+  assert.equal(await credentialStore.load(), null);
+  assert.equal(await metadataStore.load(), null);
+  assert.equal(await keyStore.hasKey(), false);
+
+  // A new client models the next login process. With all local identity
+  // material retired, it must allocate a new device ID instead of reusing the
+  // revoked identity's metadata ID.
+  const nextClient = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore,
+    metadataStore,
+    randomBytes: () => new Uint8Array(16).fill(7)
+  });
+  assert.notEqual(await nextClient.getDeviceId(), VALID_DEVICE_ID);
+});
