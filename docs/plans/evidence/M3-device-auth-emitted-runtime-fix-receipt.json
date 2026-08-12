@@ -24,7 +24,7 @@
     },
     {
       "path": "apps/web/package.json",
-      "sha256": "81557d2053a559eb9ace7860d08c2c2a51589de4df0494780761057fec4bd2d9"
+      "sha256": "cb2a65e53f5fe0feb26bbccae6a12699fba8c8c45bb282c96fe7a66cf143982d"
     },
     {
       "path": "apps/web/lib/device-auth/response.server.ts",
