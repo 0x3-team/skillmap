@@ -201,20 +201,21 @@ test('M3.08 deterministic crash points preserve or clear exactly one durable tup
   assert.equal(committedResponses, 2);
 });
 
-test('M3.08 terminal refresh errors retire the complete local identity while transient errors retain exact pending', async () => {
-  for (const code of ['invalid_grant', 'access_denied', 'expired_token', 'invalid_token']) {
+test('M3.08 terminal refresh errors, including a lost alpha response retry, retire the complete local identity while transient errors retain exact pending', async () => {
+  for (const code of ['invalid_grant', 'access_denied', 'expired_token', 'invalid_token', 'already_consumed']) {
     const descriptions = {
       invalid_grant: 'The authorization grant is invalid.',
       access_denied: 'Authorization was not granted.',
       expired_token: 'The authorization grant has expired.',
-      invalid_token: 'The access token is invalid.'
+      invalid_token: 'The access token is invalid.',
+      already_consumed: 'The authorization grant is no longer available.'
     };
     const { useCase, credentialStore, keyStore, metadataStore } = await deps({
       fetchFn: async () => new Response(JSON.stringify({
         error: code,
         error_description: descriptions[code],
         retry_after: 0
-      }), { status: code === 'invalid_token' ? 401 : 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
+      }), { status: code === 'invalid_token' ? 401 : code === 'already_consumed' ? 409 : 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
     });
     await assert.rejects(
       useCase.getAccessToken({ forceRefresh: true }),

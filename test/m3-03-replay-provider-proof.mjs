@@ -66,6 +66,10 @@ function rawHttpRequest(port, path, { method = 'GET', headers = [], body } = {})
     assert.ok(separator > 0, `raw HTTP header must contain a name and value: ${header}`);
     return [header.slice(0, separator), header.slice(separator + 1).trim()];
   }));
+  const hasHeader = (name) => Object.keys(requestHeaders).some((header) => header.toLowerCase() === name);
+  if (body !== undefined && !hasHeader('content-length') && !hasHeader('transfer-encoding')) {
+    requestHeaders['content-length'] = String(typeof body === 'string' ? Buffer.byteLength(body) : body.byteLength);
+  }
   return new Promise((resolveResponse, rejectResponse) => {
     // Workerd rejects a non-empty GET body before reading its stream. Node's
     // default agent advertises keep-alive, which lets that early response race
@@ -419,36 +423,36 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     assert.equal(getChunked.status, 400);
     assert.deepEqual(getChunked.body, { error: 'invalid_request' });
 
-    const allowedQuery = await fetch(`http://127.0.0.1:${port}/proof/binding?key=secret`, { headers: { 'x-skillmap-replay-raw-target': '/proof/binding' } });
+    const allowedQuery = await rawHttpRequestWithRetry(port, '/proof/binding?key=secret', { headers: ['x-skillmap-replay-raw-target: /proof/binding'] }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(allowedQuery.status, 400);
-    assert.deepEqual(await allowedQuery.json(), { error: 'invalid_request' });
-    const parseQuery = await fetch(`http://127.0.0.1:${port}/proof/parse?key=secret`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: rawRing });
+    assert.deepEqual(JSON.parse(allowedQuery.rawBody), { error: 'invalid_request' });
+    const parseQuery = await rawHttpRequestWithRetry(port, '/proof/parse?key=secret', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(parseQuery.status, 400);
-    assert.deepEqual(await parseQuery.json(), { error: 'invalid_request' });
-    const wrongType = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'x-skillmap-replay-raw-target': '/proof/parse' }, body: rawRing });
+    assert.deepEqual(JSON.parse(parseQuery.rawBody), { error: 'invalid_request' });
+    const wrongType = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(wrongType.status, 400);
-    assert.deepEqual(await wrongType.json(), { error: 'invalid_request' });
-    const wrongCharset = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json; charset=utf-8', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: rawRing });
+    assert.deepEqual(JSON.parse(wrongType.rawBody), { error: 'invalid_request' });
+    const wrongCharset = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json; charset=utf-8', 'x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(wrongCharset.status, 400);
-    assert.deepEqual(await wrongCharset.json(), { error: 'invalid_request' });
-    const malformed = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: 'not-json' });
+    assert.deepEqual(JSON.parse(wrongCharset.rawBody), { error: 'invalid_request' });
+    const malformed = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: 'not-json' }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(malformed.status, 400);
-    assert.deepEqual(await malformed.json(), { error: 'invalid_json' });
-    const bom = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: new Uint8Array([0xef, 0xbb, 0xbf, ...Buffer.from(rawRing)]) });
+    assert.deepEqual(JSON.parse(malformed.rawBody), { error: 'invalid_json' });
+    const bom = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: new Uint8Array([0xef, 0xbb, 0xbf, ...Buffer.from(rawRing)]) }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(bom.status, 400);
-    assert.deepEqual(await bom.json(), { error: 'invalid_json' });
-    const malformedRing = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: '{}' });
+    assert.deepEqual(JSON.parse(bom.rawBody), { error: 'invalid_json' });
+    const malformedRing = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: '{}' }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(malformedRing.status, 400);
-    assert.deepEqual(await malformedRing.json(), { error: 'invalid_ring' });
-    const duplicate = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: '{"schema":"skillmap.device-auth.replay-ring.v1","schema":"skillmap.device-auth.replay-ring.v1","primary":5,"keys":[{"epoch_id":5,"key_b64url":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"}]}' });
+    assert.deepEqual(JSON.parse(malformedRing.rawBody), { error: 'invalid_ring' });
+    const duplicate = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: '{"schema":"skillmap.device-auth.replay-ring.v1","schema":"skillmap.device-auth.replay-ring.v1","primary":5,"keys":[{"epoch_id":5,"key_b64url":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"}]}' }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(duplicate.status, 400);
-    assert.deepEqual(await duplicate.json(), { error: 'invalid_ring' });
-    const exactlyBounded = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: `${rawRing}${' '.repeat(1024 - Buffer.byteLength(rawRing))}` });
+    assert.deepEqual(JSON.parse(duplicate.rawBody), { error: 'invalid_ring' });
+    const exactlyBounded = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: `${rawRing}${' '.repeat(1024 - Buffer.byteLength(rawRing))}` }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(exactlyBounded.status, 200);
-    assert.deepEqual(await exactlyBounded.json(), { status: 'ok', schema: REPLAY_RING_SCHEMA, primary: 5, epochs: [5], key_bytes: 0 });
-    const oversized = await fetch(`http://127.0.0.1:${port}/proof/parse`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' }, body: ' '.repeat(1025) });
+    assert.deepEqual(JSON.parse(exactlyBounded.rawBody), { status: 'ok', schema: REPLAY_RING_SCHEMA, primary: 5, epochs: [5], key_bytes: 0 });
+    const oversized = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: ' '.repeat(1025) }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(oversized.status, 400);
-    assert.deepEqual(await oversized.json(), { error: 'invalid_request' });
+    assert.deepEqual(JSON.parse(oversized.rawBody), { error: 'invalid_request' });
     for (const [method, path] of [
       ['GET', '/'], ['POST', '/proof/binding'], ['GET', '/proof/parse'], ['DELETE', '/proof/binding'], ['GET', '/proof/other'], ['POST', '/proof/other'],
     ]) {

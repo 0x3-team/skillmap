@@ -671,5 +671,5 @@ export class DeviceAuthUseCase {
 }
 
 function isTerminalAuthFailure(code: DeviceAuthErrorCode): boolean {
-  return code === 'invalid_grant' || code === 'expired_token' || code === 'invalid_token' || code === 'access_denied';
+  return code === 'invalid_grant' || code === 'expired_token' || code === 'invalid_token' || code === 'access_denied' || code === 'already_consumed';
 }

@@ -149,6 +149,7 @@ export async function refreshDeviceToken(deps: RefreshServiceDependencies, input
       return { body: encodeRefreshSuccessV1(finalResponse), responseIssuedAt: transition.responseIssuedAt ?? responseIssuedAt };
     }
     if (transition.outcome === "idempotency_conflict") throw new DeviceAuthError("idempotency_conflict");
+    if (transition.outcome === "already_consumed") throw new DeviceAuthError("already_consumed");
     if (transition.outcome === "response_unavailable") throw new DeviceAuthError("temporarily_unavailable");
     if (transition.outcome === "family_revoked" || transition.outcome === "invalid_grant") throw new DeviceAuthError("invalid_grant");
     throw new DeviceAuthUnavailableError("Alpha single-shot refresh transition unavailable.");

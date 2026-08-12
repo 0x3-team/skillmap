@@ -7,11 +7,36 @@ import {
   type DeviceAuthCommandDeps
 } from '../core/cli-exit.js';
 
+const LOGOUT_FLAGS = new Set(['confirm', 'local-only', 'json']);
+
+function validateLogoutFlags(flags: Record<string, string | boolean | string[]>): void {
+  for (const [name, value] of Object.entries(flags)) {
+    // The parser represents bare boolean flags as true. Reject inline values
+    // and repeated flags instead of silently choosing one interpretation for a
+    // safety-sensitive command. `json` is an output-only global convention and
+    // is accepted here even though the command does not otherwise consume it.
+    if (!LOGOUT_FLAGS.has(name) || value !== true) {
+      throw new CliExitError(
+        CLI_EXIT_CODES.USAGE,
+        'Usage: skillmap logout [--confirm] [--local-only] [--json]',
+        'usage_error',
+        {
+          success: false,
+          error: 'usage_error',
+          message: 'Usage: skillmap logout [--confirm] [--local-only] [--json]'
+        }
+      );
+    }
+  }
+}
+
 export async function logoutCommand(
   _cwd: string,
   flags: Record<string, string | boolean | string[]>,
   deps?: DeviceAuthCommandDeps
 ): Promise<unknown> {
+  validateLogoutFlags(flags);
+
   const localOnly = hasFlag(flags, 'local-only');
   const confirm = hasFlag(flags, 'confirm');
 

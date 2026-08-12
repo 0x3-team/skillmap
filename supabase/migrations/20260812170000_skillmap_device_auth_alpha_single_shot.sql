@@ -37,8 +37,11 @@ alter table private.device_auth_refresh_replay_receipts
   );
 
 -- A first request consumes one refresh generation. A retry after a lost
--- response finds the alpha tombstone and returns a fixed unavailable result;
--- it never rotates again and never receives a stored token response.
+-- response finds the alpha tombstone and returns a strict terminal
+-- reauthentication result; it never rotates again and never receives a stored
+-- token response. `already_consumed` is deliberately distinct from a
+-- transient `temporarily_unavailable` result so the client can retire its
+-- consumed credential and device identity.
 create or replace function api.device_auth_refresh_single_shot_v1(
   p_refresh_token_digest text,
   p_refresh_token_key_version integer,
@@ -131,8 +134,9 @@ begin
       return private.device_auth_error_json('idempotency_conflict', 'The request conflicts with a prior operation.');
     end if;
     -- The response body is intentionally not recoverable. The client must
-    -- sign in again after a lost alpha response.
-    return private.device_auth_error_json('temporarily_unavailable', 'The service is temporarily unavailable.');
+    -- sign in again after a lost alpha response. This is a terminal
+    -- reauthentication signal, not a transport retry signal.
+    return private.device_auth_error_json('already_consumed', 'The authorization grant is no longer available.');
   end if;
 
   select * into v_generation from private.device_auth_refresh_generations

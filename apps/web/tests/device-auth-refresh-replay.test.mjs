@@ -105,7 +105,7 @@ test("unavailable replay provider fails closed before the refresh transition", a
   assert.equal(transitions, 0, "no token-family transition is allowed without replay sealing");
 });
 
-test("alpha single-shot rotates once, then returns fixed unavailable without replay material", async () => {
+test("alpha single-shot rotates once, then returns a terminal reauthentication outcome without replay material", async () => {
   const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const publicKeyB64 = Buffer.from(await crypto.subtle.exportKey("spki", keyPair.publicKey)).toString("base64url");
   const thumbprint = computeKeyThumbprint(publicKeyB64);
@@ -116,7 +116,7 @@ test("alpha single-shot rotates once, then returns fixed unavailable without rep
     async getRefreshContext() { return { devicePublicId: "dev_" + "2".repeat(32), accountPublicId: "acct_" + "3".repeat(32), tokenFamilyId: FAMILY_ID, currentGeneration: 1, absoluteExpiresAt: NOW + 7_776_000 }; },
     async refreshTokenSingleShot(input) {
       if (committedRequestDigest && committedRequestDigest !== input.requestDigest) return { outcome: "idempotency_conflict" };
-      if (committedRequestDigest) return { outcome: "response_unavailable" };
+      if (committedRequestDigest) return { outcome: "already_consumed" };
       committedRequestDigest = input.requestDigest;
       transitions += 1;
       return { outcome: "committed", devicePublicId: "dev_" + "2".repeat(32), accountPublicId: "acct_" + "3".repeat(32), tokenFamilyId: FAMILY_ID, priorGeneration: 1, successorGeneration: 2, responseIssuedAt: NOW };
@@ -127,7 +127,7 @@ test("alpha single-shot rotates once, then returns fixed unavailable without rep
   const deps = { repository, lookupCrypto: lookup, refreshMode: "alpha-single-shot", now: () => NOW };
   const first = await refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey) });
   assert.equal(JSON.parse(new TextDecoder().decode(first.body)).access_token.length, 43);
-  await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "QwErTyUiOpAsDfGhJkLzXc", "QwErTyUiOpAsDfGhJkLzXc") }), (error) => error instanceof DeviceAuthError && error.code === "temporarily_unavailable");
+  await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "QwErTyUiOpAsDfGhJkLzXc", "QwErTyUiOpAsDfGhJkLzXc") }), (error) => error instanceof DeviceAuthError && error.code === "already_consumed");
   assert.equal(transitions, 1);
   await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "LmNoPqRsTuVwXyZaBcDeFg", "VbNmQwErTyUiOpAsDfGhJk") }), (error) => error instanceof DeviceAuthError && error.code === "idempotency_conflict");
 });

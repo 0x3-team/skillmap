@@ -11,6 +11,7 @@ import { authCommand } from '../dist/commands/auth.js';
 import { whoamiCommand } from '../dist/commands/whoami.js';
 import { logoutCommand } from '../dist/commands/logout.js';
 import { dispatchCommand, handleCliError } from '../dist/cli.js';
+import { parseArgs } from '../dist/core/args.js';
 
 const VALID_DEVICE_ID = 'D'.repeat(22);
 const VALID_DEVICE_PUBLIC_ID = `dev_${'a'.repeat(32)}`;
@@ -659,6 +660,61 @@ test('logout command --local-only requires --confirm (exit code 64)', async () =
 
   const credsAfter = await deps.credentialStore.load();
   assert.equal(credsAfter, null);
+});
+
+test('logout rejects unknown, valued, duplicate, and global flags before auth or mutation', async () => {
+  const calls = [];
+  const useCase = {
+    async getAuthStatus() {
+      calls.push('getAuthStatus');
+      return { state: 'authenticated', authenticated: true };
+    },
+    async logout() {
+      calls.push('logout');
+      return { remoteRevoked: true, localDeleted: true };
+    }
+  };
+
+  const invalidArgv = [
+    ['--local-onli', '--confirm'],
+    ['--local-only=unexpected', '--confirm'],
+    ['--confirm', '--confirm'],
+    ['--global', '--confirm']
+  ];
+
+  for (const argv of invalidArgv) {
+    const parsed = parseArgs(['logout', ...argv]);
+    await assert.rejects(
+      async () => logoutCommand('/test/cwd', parsed.flags, { useCase }),
+      (err) => {
+        assert.ok(err instanceof CliExitError);
+        assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
+        assert.equal(err.code, 'usage_error');
+        return true;
+      }
+    );
+  }
+
+  assert.deepEqual(calls, []);
+});
+
+test('logout accepts the global json output flag without changing its safety checks', async () => {
+  const calls = [];
+  const useCase = {
+    async getAuthStatus() {
+      calls.push('getAuthStatus');
+      return { state: 'signed_out', authenticated: false };
+    },
+    async logout(options) {
+      calls.push(['logout', options]);
+      return { remoteRevoked: false, localDeleted: false };
+    }
+  };
+
+  const parsed = parseArgs(['logout', '--json']);
+  const result = await logoutCommand('/test/cwd', parsed.flags, { useCase });
+  assert.equal(result.success, true);
+  assert.deepEqual(calls, ['getAuthStatus', ['logout', { localOnly: false, confirm: false }]]);
 });
 
 test('logout command --local-only --confirm skips auth preflight and remote calls', async () => {

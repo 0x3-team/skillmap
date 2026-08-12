@@ -32,7 +32,7 @@ export interface RefreshRepositoryInput {
 }
 
 export interface RefreshRepositoryResult {
-  outcome: "committed" | "exact_replay" | "replay_corrupt" | "response_unavailable" | "idempotency_conflict" | "family_revoked" | "invalid_grant" | "unavailable";
+  outcome: "committed" | "exact_replay" | "replay_corrupt" | "response_unavailable" | "already_consumed" | "idempotency_conflict" | "family_revoked" | "invalid_grant" | "unavailable";
   devicePublicId?: string;
   accountPublicId?: string;
   tokenFamilyId?: string;
@@ -213,6 +213,7 @@ export class SupabaseDeviceAuthRefreshRepository implements DeviceAuthRefreshRep
     if (typeof raw.error === "string") {
       if (raw.error === "idempotency_conflict") throw new DeviceAuthError("idempotency_conflict");
       if (raw.error === "invalid_grant" || raw.error === "expired_token" || raw.error === "family_revoked") throw new DeviceAuthError("invalid_grant");
+      if (raw.error === "already_consumed") return { outcome: "already_consumed" };
       if (raw.error === "temporarily_unavailable") return { outcome: "response_unavailable" };
       throw new DeviceAuthUnavailableError("Single-shot refresh RPC rejected the request.");
     }
