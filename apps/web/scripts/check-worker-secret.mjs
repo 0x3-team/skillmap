@@ -7,6 +7,12 @@ import { fileURLToPath } from "node:url";
 
 export const WRANGLER_VERSION = "4.121.0";
 export const WORKER_SECRET_NAME = "SUPABASE_SERVICE_ROLE_KEY";
+export const WORKER_SECRET_NAMES = Object.freeze([
+  WORKER_SECRET_NAME,
+  "DEVICE_AUTH_LOOKUP_KEY",
+  "DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY"
+]);
+export const WORKER_SECRET_ROTATION_NAME = "DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS";
 export const WORKER_CONFIG_FILE = "wrangler.jsonc";
 
 const execFileAsync = promisify(execFile);
@@ -24,9 +30,13 @@ export function parseWorkerName(configSource) {
  * Parse Wrangler's JSON secret-name response without accepting text around it
  * or reading any value field. Secret list responses contain names only.
  */
-export function parseWorkerSecretList(raw, expectedName = WORKER_SECRET_NAME) {
+export function parseWorkerSecretList(raw, expectedNames = WORKER_SECRET_NAMES) {
   if (typeof raw !== "string" || raw.length > 64 * 1024) {
     throw new Error("Wrangler secret list output was not bounded JSON.");
+  }
+  const requiredNames = Array.isArray(expectedNames) ? expectedNames : [expectedNames];
+  if (requiredNames.length === 0 || requiredNames.some((name) => typeof name !== "string" || !name.trim())) {
+    throw new Error("Worker secret names must be non-empty strings.");
   }
   let parsed;
   try {
@@ -41,10 +51,11 @@ export function parseWorkerSecretList(raw, expectedName = WORKER_SECRET_NAME) {
     }
     return entry.name;
   });
-  if (!names.includes(expectedName)) {
-    throw new Error(`${expectedName} is not provisioned for the configured Worker.`);
+  const missingNames = requiredNames.filter((name) => !names.includes(name));
+  if (missingNames.length > 0) {
+    throw new Error(`${missingNames.join(", ")} ${missingNames.length === 1 ? "is" : "are"} not provisioned for the configured Worker.`);
   }
-  return Object.freeze({ name: expectedName });
+  return Object.freeze({ names: Object.freeze([...requiredNames]) });
 }
 
 export function buildWorkerSecretListCommand({
@@ -88,7 +99,9 @@ export async function assertWorkerSecretProvisioned({
     throw new Error(`Pinned Wrangler ${WRANGLER_VERSION} is required for the Worker secret preflight.`);
   }
   const safeEnvironment = { ...process.env };
-  delete safeEnvironment[WORKER_SECRET_NAME];
+  for (const secretName of [...WORKER_SECRET_NAMES, WORKER_SECRET_ROTATION_NAME]) {
+    delete safeEnvironment[secretName];
+  }
   let result;
   try {
     result = await execFileImpl(command.executable, command.args, {
@@ -108,7 +121,7 @@ export async function assertWorkerSecretProvisioned({
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     await assertWorkerSecretProvisioned();
-    process.stdout.write(`[skillmap] Worker secret preflight passed: ${WORKER_SECRET_NAME} is provisioned.\n`);
+    process.stdout.write(`[skillmap] Worker secret preflight passed: ${WORKER_SECRET_NAMES.join(", ")} are provisioned.\n`);
   } catch (error) {
     process.stderr.write(`[skillmap] Worker secret preflight failed: ${error instanceof Error ? error.message : "unknown error"}\n`);
     process.exitCode = 1;

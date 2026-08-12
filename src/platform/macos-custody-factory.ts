@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'node:url';
 import { accessSync, constants as fsConstants } from 'node:fs';
 import { MacOSCredentialStore } from './macos-credential-store.js';
 import { MacOSDeviceAuthMetadataStore } from './macos-device-auth-metadata-store.js';
@@ -22,7 +21,12 @@ export class MacOSCustodyError extends Error {
   }
 }
 
-/** Production custody is opt-in until the native helper has been reviewed and installed. */
+/**
+ * Production custody is opt-in until the native helper has been reviewed and
+ * installed. The package contains the helper source for review only; it does
+ * not contain a usable signed executable. Require an explicit path so an
+ * enabled installation cannot accidentally select an unusable package path.
+ */
 export function createMacOSCustodyStores(options?: { helperPath?: string; namespace?: string }): MacOSCustodyStores {
   if (process.platform !== 'darwin') {
     throw new MacOSCustodyError('unsupported_platform');
@@ -30,9 +34,10 @@ export function createMacOSCustodyStores(options?: { helperPath?: string; namesp
   if (process.env.SKILLMAP_ENABLE_MACOS_CUSTODY !== '1') {
     throw new MacOSCustodyError('disabled');
   }
-  const helperPath = options?.helperPath
-    ?? process.env.SKILLMAP_MACOS_HELPER_PATH
-    ?? fileURLToPath(new URL('../../native/macos-keychain-helper/skillmap-keychain-helper', import.meta.url));
+  const helperPath = options?.helperPath ?? process.env.SKILLMAP_MACOS_HELPER_PATH;
+  if (!helperPath) {
+    throw new MacOSCustodyError('helper_path_required');
+  }
   try {
     accessSync(helperPath, fsConstants.X_OK);
   } catch {

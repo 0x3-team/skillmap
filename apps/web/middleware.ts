@@ -11,13 +11,12 @@ import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from 
 import {
   applyRateLimitHeaders,
   applyRetryAfterHeader,
-  getDeviceAuthSourceIdentity,
   getAnonymousClientIdentity,
   InMemoryFixedWindowRateLimiter,
   isPublicCatalogApiPath,
   isPublicCatalogReadRequest,
   isPublicDeviceAuthInitiationRequest,
-  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY,
+  readDeviceAuthEdgeDecision,
   PUBLIC_SKILL_RATE_LIMIT_POLICY,
   type RateLimitDecision
 } from "@/lib/security/rate-limit-core";
@@ -38,14 +37,18 @@ export async function middleware(request: NextRequest) {
     https: request.nextUrl.protocol === "https:",
     publicIndexing: isPublicIndexingEnabled()
   });
-  const deviceAuthRateLimit = isPublicDeviceAuthInitiationRequest(
+  const isDeviceAuthInitiation = isPublicDeviceAuthInitiationRequest(
     request.nextUrl.pathname,
     request.method
-  )
-    ? await consumePublicDeviceAuthInitiation(request)
+  );
+  // The source-IP quota is authoritative in the Cloudflare Durable Object
+  // edge gate. A request that reaches Next without its private decision marker
+  // is not allowed to fall back to a per-isolate map.
+  const deviceAuthRateLimit = isDeviceAuthInitiation
+    ? readDeviceAuthEdgeDecision(request.headers)
     : null;
-  if (deviceAuthRateLimit && !deviceAuthRateLimit.allowed) {
-    return createDeviceAuthRateLimitedResponse(deviceAuthRateLimit, responseSecurityHeaders);
+  if (isDeviceAuthInitiation && !deviceAuthRateLimit) {
+    return createDeviceAuthUnavailableResponse(responseSecurityHeaders);
   }
   const rateLimit = isPublicCatalogReadRequest(request.nextUrl.pathname, request.method)
     ? await consumePublicSkillRequest(request)
@@ -94,28 +97,26 @@ export async function middleware(request: NextRequest) {
   }
 
   if (/^\/(?:account|sign-in|auth|submit)(?:\/|$)/.test(request.nextUrl.pathname)) setPrivateNoStore(response);
+  if (deviceAuthRateLimit) applyRateLimitHeaders(response, deviceAuthRateLimit);
   if (rateLimit) applyRateLimitHeaders(response, rateLimit);
   return applySecurityHeaders(response, responseSecurityHeaders);
 }
 
-function createDeviceAuthRateLimitedResponse(
-  decision: RateLimitDecision,
+function createDeviceAuthUnavailableResponse(
   securityHeaders: Readonly<Record<string, string>>
 ): NextResponse {
   const response = new NextResponse(JSON.stringify({
-    error: "rate_limited",
-    error_description: "Too many requests.",
-    retry_after: decision.retryAfterSeconds
+    error: "temporarily_unavailable",
+    error_description: "The device authorization service is temporarily unavailable."
   }), {
-    status: 429,
+    status: 503,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
+      "Retry-After": "1",
       "Referrer-Policy": "no-referrer"
     }
   });
-  applyRateLimitHeaders(response, decision);
-  applyRetryAfterHeader(response, decision);
   return applySecurityHeaders(response, securityHeaders);
 }
 
@@ -166,9 +167,6 @@ function setPrivateNoStore(response: NextResponse) {
 }
 
 const publicSkillLimiter = new InMemoryFixedWindowRateLimiter(PUBLIC_SKILL_RATE_LIMIT_POLICY);
-const publicDeviceAuthInitiationLimiter = new InMemoryFixedWindowRateLimiter(
-  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY
-);
 
 async function consumePublicSkillRequest(
   request: Pick<Request, "headers">,
@@ -179,20 +177,6 @@ async function consumePublicSkillRequest(
   let binary = "";
   for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
   return publicSkillLimiter.consume(btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""), now);
-}
-
-async function consumePublicDeviceAuthInitiation(
-  request: Pick<Request, "headers">,
-  now = Date.now()
-): Promise<RateLimitDecision> {
-  const identity = getDeviceAuthSourceIdentity(request.headers);
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
-  let binary = "";
-  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
-  return publicDeviceAuthInitiationLimiter.consume(
-    btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
-    now
-  );
 }
 
 function catalogError(status: number, code: string, message: string, retryable = false): NextResponse {

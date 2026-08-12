@@ -20,11 +20,49 @@ import { getDeviceAuthServerConfig } from "@/lib/device-auth/config";
 import { sha256Digest, buildIdempotencyDigest } from "@/lib/device-auth/crypto.server";
 import { DeviceAuthError } from "@/lib/device-auth/errors";
 import { SupabaseDeviceAuthRepository, createSupabaseFactory } from "@/lib/device-auth/repository.server";
+import { isPlainRecord } from "@/lib/device-auth/poll-exchange-contracts.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const INITIATE_PATH = "/api/device-auth/v1/pairings";
+const INITIATE_REQUIRED_KEYS = [
+  "device_id",
+  "device_public_key",
+  "key_thumbprint",
+  "audience",
+  "proof_suite",
+  "requested_scopes",
+  "platform",
+  "connector_version"
+] as const;
+const INITIATE_OPTIONAL_KEYS = ["display_name", "locale"] as const;
+
+/**
+ * Validate the decoded JSON shape before treating it as the typed request.
+ * The strict parser accepts every valid JSON root, so a type assertion alone
+ * would let null, arrays, scalars, and open objects reach field access.
+ */
+function isInitiateRequestShape(value: unknown): value is DeviceAuthInitiateRequestV1 {
+  if (!isPlainRecord(value)) return false;
+
+  const keys = Object.keys(value);
+  const allowed = new Set<string>([...INITIATE_REQUIRED_KEYS, ...INITIATE_OPTIONAL_KEYS]);
+  if (keys.length < INITIATE_REQUIRED_KEYS.length || keys.some((key) => !allowed.has(key))) return false;
+  if (INITIATE_REQUIRED_KEYS.some((key) => !keys.includes(key))) return false;
+
+  return typeof value.device_id === "string"
+    && typeof value.device_public_key === "string"
+    && typeof value.key_thumbprint === "string"
+    && typeof value.audience === "string"
+    && typeof value.proof_suite === "string"
+    && Array.isArray(value.requested_scopes)
+    && value.requested_scopes.every((scope) => typeof scope === "string")
+    && (value.platform === "macos" || value.platform === "windows" || value.platform === "linux")
+    && typeof value.connector_version === "string"
+    && (!Object.hasOwn(value, "display_name") || typeof value.display_name === "string")
+    && (!Object.hasOwn(value, "locale") || typeof value.locale === "string");
+}
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -37,7 +75,9 @@ export async function POST(request: Request): Promise<Response> {
     let body: DeviceAuthInitiateRequestV1;
     try {
       utf8 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      body = parseStrictDeviceAuthJson<DeviceAuthInitiateRequestV1>(utf8);
+      const decoded = parseStrictDeviceAuthJson<unknown>(utf8);
+      if (!isInitiateRequestShape(decoded)) throw new DeviceAuthError("invalid_request");
+      body = decoded;
     } catch {
       throw toDeviceAuthRequestError(undefined);
     }

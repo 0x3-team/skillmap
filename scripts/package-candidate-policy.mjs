@@ -250,6 +250,9 @@ const PUBLIC_PACKAGE_PATHS = new Set([
   ...PUBLIC_CONTRACT_PATHS,
   ...PUBLIC_DIST_MODULES.flatMap(module => [`dist/${module}.d.ts`, `dist/${module}.js`])
 ]);
+// The native helper source is review material only. Signing/notarization and
+// a usable executable remain deferred, so the runtime must never infer a
+// bundled helper path from this archived source file.
 PUBLIC_PACKAGE_PATHS.add('native/macos-keychain-helper/main.swift');
 
 // These hooks are automatic code-execution surfaces during npm install in at

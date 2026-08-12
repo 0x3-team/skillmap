@@ -13,6 +13,52 @@ export interface RateLimitDecision {
   resetAt: number;
 }
 
+/**
+ * Request-only headers used by the Cloudflare edge gate to pass its already
+ * authoritative decision to Next middleware. The edge worker removes any
+ * client-supplied copy before it adds these values. They are not a security
+ * boundary on their own; the edge gate is the authority.
+ */
+export const DEVICE_AUTH_EDGE_CHECKED_HEADER = "x-skillmap-device-auth-edge-checked";
+export const DEVICE_AUTH_EDGE_LIMIT_HEADER = "x-skillmap-device-auth-limit";
+export const DEVICE_AUTH_EDGE_REMAINING_HEADER = "x-skillmap-device-auth-remaining";
+export const DEVICE_AUTH_EDGE_RETRY_AFTER_HEADER = "x-skillmap-device-auth-retry-after";
+export const DEVICE_AUTH_EDGE_RESET_HEADER = "x-skillmap-device-auth-reset";
+
+export function deviceAuthEdgeDecisionHeaders(decision: RateLimitDecision): Record<string, string> {
+  return {
+    [DEVICE_AUTH_EDGE_CHECKED_HEADER]: "1",
+    [DEVICE_AUTH_EDGE_LIMIT_HEADER]: String(decision.limit),
+    [DEVICE_AUTH_EDGE_REMAINING_HEADER]: String(decision.remaining),
+    [DEVICE_AUTH_EDGE_RETRY_AFTER_HEADER]: String(decision.retryAfterSeconds),
+    [DEVICE_AUTH_EDGE_RESET_HEADER]: String(decision.resetAfterSeconds)
+  };
+}
+
+export function readDeviceAuthEdgeDecision(headers: Headers): RateLimitDecision | null {
+  if (headers.get(DEVICE_AUTH_EDGE_CHECKED_HEADER) !== "1") return null;
+  const values = [
+    DEVICE_AUTH_EDGE_LIMIT_HEADER,
+    DEVICE_AUTH_EDGE_REMAINING_HEADER,
+    DEVICE_AUTH_EDGE_RETRY_AFTER_HEADER,
+    DEVICE_AUTH_EDGE_RESET_HEADER
+  ].map((name) => parseBoundedInteger(headers.get(name)));
+  if (values.some((value) => value === null)) return null;
+  const [limit, remaining, retryAfterSeconds, resetAfterSeconds] = values as number[];
+  if (limit !== PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY.limit
+    || remaining < 0 || remaining > limit
+    || retryAfterSeconds < 0 || resetAfterSeconds < 1) return null;
+  const resetAt = Date.now() + resetAfterSeconds * 1_000;
+  return {
+    allowed: true,
+    limit,
+    remaining,
+    retryAfterSeconds,
+    resetAfterSeconds,
+    resetAt
+  };
+}
+
 interface FixedWindowEntry {
   count: number;
   resetAt: number;
@@ -224,4 +270,10 @@ function assertPolicy(policy: RateLimitPolicy): void {
       throw new TypeError(`Rate-limit ${name} must be a positive safe integer.`);
     }
   }
+}
+
+function parseBoundedInteger(value: string | null): number | null {
+  if (!value || !/^\d{1,10}$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }

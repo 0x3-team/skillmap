@@ -89,3 +89,10 @@ test('M3.12 native source has bounded binary boundary and safe local lock/query 
   assert.doesNotMatch(swift, /JSONSerialization\.jsonObject\(with: data\)/);
   assert.doesNotMatch(swift, /JSONSerialization\.isValidJSONObject\(envelope\)/);
 });
+
+test('M3.12 package does not infer an unusable bundled helper executable', () => {
+  const factory = readFileSync(new URL('../src/platform/macos-custody-factory.ts', import.meta.url), 'utf8');
+  assert.match(factory, /helperPath = options\?\.helperPath \?\? process\.env\.SKILLMAP_MACOS_HELPER_PATH/u);
+  assert.match(factory, /if \(!helperPath\) \{[\s\S]*helper_path_required/u);
+  assert.doesNotMatch(factory, /skillmap-keychain-helper['"`]/u);
+});

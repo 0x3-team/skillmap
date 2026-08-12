@@ -418,9 +418,24 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     const allowedQuery = await rawHttpRequestWithRetry(port, '/proof/binding?key=secret', { headers: ['x-skillmap-replay-raw-target: /proof/binding'] }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(allowedQuery.status, 400);
     assert.deepEqual(JSON.parse(allowedQuery.rawBody), { error: 'invalid_request' });
-    const parseQuery = await rawHttpRequestWithRetry(port, '/proof/parse?key=secret', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
+    // Query rejection happens before Workerd reads a request body. Keep this
+    // live probe bodyless so the edge transport does not terminate the local
+    // process while it reports the fail-closed response.
+    const parseQuery = await rawHttpRequestWithRetry(port, '/proof/parse?key=secret', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'] }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(parseQuery.status, 400);
     assert.deepEqual(JSON.parse(parseQuery.rawBody), { error: 'invalid_request' });
+    // Preserve coverage for a body-bearing query rejection at the Worker seam;
+    // the live edge transport must not receive this unread body.
+    const directQueryWithBody = await (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-query-body')).default.fetch(
+      new Request('http://127.0.0.1/proof/parse?key=secret', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' },
+        body: rawRing,
+      }),
+      { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+    );
+    assert.equal(directQueryWithBody.status, 400);
+    assert.deepEqual(await directQueryWithBody.json(), { error: 'invalid_request' });
     const wrongType = await rawHttpRequestWithRetry(port, '/proof/parse', { method: 'POST', headers: ['x-skillmap-replay-raw-target: /proof/parse'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(wrongType.status, 400);
     assert.deepEqual(JSON.parse(wrongType.rawBody), { error: 'invalid_request' });

@@ -30,9 +30,13 @@ the browser:
 - GitHub OAuth client secrets
 - backup encryption keys
 
-The Cloudflare Worker receives the Supabase service-role key only as an
-encrypted Worker secret named `SUPABASE_SERVICE_ROLE_KEY`. It is not a
-`wrangler.vars` entry, a Next `NEXT_PUBLIC_*` variable, a client bundle value,
+The Cloudflare Worker receives the Supabase service-role key, DeviceAuth lookup
+key, and primary DeviceAuth IP-rate-limit key only as encrypted Worker secrets
+named `SUPABASE_SERVICE_ROLE_KEY`, `DEVICE_AUTH_LOOKUP_KEY`, and
+`DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY`. During key rotation, the optional
+`DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS` secret may also be present. It is not
+mandatory. These secrets are not
+`wrangler.vars` entries, Next `NEXT_PUBLIC_*` variables, client bundle values,
 or a checked-in file. OpenNext copies Worker secret bindings into the server
 runtime only; the server-only DeviceAuth module reads the value there and does
 not return it in configuration errors or logs. `next build` does not need the
@@ -50,14 +54,31 @@ printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" \
   | ./node_modules/.bin/wrangler secret put SUPABASE_SERVICE_ROLE_KEY \
       --config ./wrangler.jsonc --name skillmap
 unset SUPABASE_SERVICE_ROLE_KEY
+read -r -s DEVICE_AUTH_LOOKUP_KEY
+printf '%s' "$DEVICE_AUTH_LOOKUP_KEY" \
+  | ./node_modules/.bin/wrangler secret put DEVICE_AUTH_LOOKUP_KEY \
+      --config ./wrangler.jsonc --name skillmap
+unset DEVICE_AUTH_LOOKUP_KEY
+read -r -s DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY
+printf '%s' "$DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY" \
+  | ./node_modules/.bin/wrangler secret put DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY \
+      --config ./wrangler.jsonc --name skillmap
+unset DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY
+# Optional: provision only during a primary-key rotation.
+read -r -s DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS
+printf '%s' "$DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS" \
+  | ./node_modules/.bin/wrangler secret put DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS \
+      --config ./wrangler.jsonc --name skillmap
+unset DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS
 ```
 
 Do not use the secret value as a `wrangler.jsonc` variable. `npm run deploy`
 runs a read-only preflight with the pinned local Wrangler executable from this
 directory. It calls `secret list --format json --config ./wrangler.jsonc
---name skillmap`, checks only for the exact secret name, and then runs the
-OpenNext build and deploy. The preflight does not print secret values, and the
-secret is not passed to `next build`.
+--name skillmap`, checks for the three mandatory exact secret names, and then
+runs the OpenNext build and deploy. The previous IP-rate-limit key is optional
+and is used only during rotation. The preflight does not print secret values,
+and the secrets are not passed to `next build`.
 
 The public Worker configuration receives only:
 
@@ -112,7 +133,7 @@ The GitHub-to-Supabase callback above is distinct from the application callback 
 
 1. Select and record the zero-cost-compatible provider, project owner, plan/limits, deployment command, rollback command, and log/health surface. Selection is an owner decision; this runbook does not default to a paid provider.
 2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, keep the project floor of Node 22 or newer, and use Node 24.x as the reviewed hosted deployment runtime.
-3. Leave preview variables unset until a separate preview database exists. Add the production public variables from the secret boundary using the checked-in `wrangler.jsonc`; provision `SUPABASE_SERVICE_ROLE_KEY` separately with the exact `apps/web` Wrangler command above. Do not add it to `vars`, a dashboard plaintext variable, shell history, logs, or artifacts.
+3. Leave preview variables unset until a separate preview database exists. Add the production public variables from the secret boundary using the checked-in `wrangler.jsonc`; provision `SUPABASE_SERVICE_ROLE_KEY`, `DEVICE_AUTH_LOOKUP_KEY`, and `DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY` separately with the exact `apps/web` Wrangler command above. Provision `DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS` only during rotation. Do not add them to `vars`, a dashboard plaintext variable, shell history, logs, or artifacts.
 4. Keep `SKILLMAP_RELEASE_STAGE=private-alpha` and `SKILLMAP_INDEXING_MODE=private-alpha` until the public gate explicitly changes both. Indexing requires the exact pair `public-alpha` and `public`.
 5. Before public alpha, configure `SKILLMAP_SUPPORT_URL` to the approved reachable intake page, open it from the deployed `/support` page while signed out, and verify that its public and confidential reporting instructions match the approved policy. A private repository issue URL is not a public support route.
 

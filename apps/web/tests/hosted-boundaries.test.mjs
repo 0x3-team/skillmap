@@ -114,6 +114,7 @@ import {
   isPublicDeviceAuthInitiationRequest,
   PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY
 } from "../lib/security/rate-limit.ts";
+import { gateDeviceAuthRequest } from "../cloudflare/device-auth-edge-gate.ts";
 import {
   HOSTED_API_ERROR_SCHEMA_ID,
   validateHostedApiErrorResponse
@@ -146,17 +147,24 @@ test("Next 16 hosted request boundary has one Edge middleware surface and preser
   assert.match(middleware, /crypto\.subtle\.digest/);
   assert.match(middleware, /rate-limit-core/);
   assert.match(middleware, /isPublicDeviceAuthInitiationRequest/);
-  assert.match(middleware, /PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY/);
-  assert.match(middleware, /getDeviceAuthSourceIdentity/);
+  assert.match(middleware, /readDeviceAuthEdgeDecision/);
+  assert.doesNotMatch(middleware, /publicDeviceAuthInitiationLimiter/);
   assert.ok(
-    middleware.indexOf("consumePublicDeviceAuthInitiation(request)")
+    middleware.indexOf("readDeviceAuthEdgeDecision(request.headers)")
       < middleware.indexOf("let response = createPassthroughResponse(request, nonce, contentSecurityPolicy)"),
-    "the source limiter must run before the request reaches the downstream route"
+    "the edge source decision must be read before the request reaches the downstream route"
   );
   assert.match(middleware, /createHostedApiErrorPayload/);
   assert.doesNotMatch(middleware, /@\/lib\/registry\/api\.server/);
   assert.doesNotMatch(middleware, /node:(?:crypto|net)|Ajv2020|new Function|\beval\s*\(/);
   assert.doesNotMatch(middleware, /(?:writeFile|mkdir|rename|unlink|rmSync|execFile|spawn)\s*\(/);
+  const workerEntry = await readFile(new URL("../cloudflare-worker.ts", import.meta.url), "utf8");
+  assert.match(workerEntry, /gateDeviceAuthRequest/);
+  assert.match(workerEntry, /export \{ DeviceAuthIpRateLimiter \}/);
+  const wrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  assert.match(wrangler, /"main":\s*"cloudflare-worker\.ts"/);
+  assert.match(wrangler, /"DEVICE_AUTH_IP_RATE_LIMITER"/);
+  assert.match(wrangler, /"new_sqlite_classes":\s*\["DeviceAuthIpRateLimiter"\]/);
 });
 
 test("hosted runtime disables the unused Next image optimizer", async () => {
@@ -1307,6 +1315,92 @@ test("device-auth source limiter has the frozen N/N+1 boundary", () => {
   assert.equal(denied.retryAfterSeconds, 600);
   assert.equal(limiter.consume("ip:198.51.100.20", 2000).allowed, true, "different source gets its own budget");
   assert.equal(limiter.consume("ip:203.0.113.10", 601_002).allowed, true, "expired source window resets");
+});
+
+test("device-auth edge gate is fail-closed, strips caller headers, and passes only the DO decision", async () => {
+  const calls = [];
+  const binding = {
+    idFromName(name) {
+      calls.push(["id", name]);
+      return { id: name };
+    },
+    get(id) {
+      calls.push(["get", id.id]);
+      return {
+        async fetch(request) {
+          calls.push(["fetch", request]);
+          return new Response(JSON.stringify({
+            allowed: true,
+            limit: 5,
+            remaining: 4,
+            retryAfterSeconds: 0,
+            resetAfterSeconds: 600,
+            resetAt: 600_000
+          }), { status: 200 });
+        }
+      };
+    }
+  };
+  const result = await gateDeviceAuthRequest(
+    new Request("https://skillmap.invalid/api/device-auth/v1/pairings", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.10",
+        "x-forwarded-for": "198.51.100.20",
+        "x-skillmap-device-auth-edge-checked": "1"
+      }
+    }),
+    { DEVICE_AUTH_IP_RATE_LIMITER: binding, DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY: "test-ip-limit-secret-0123456789" },
+    { now: 0 }
+  );
+  assert.equal(result.response, undefined);
+  assert.equal(calls.length, 3);
+  assert.equal(result.request.headers.get("cf-connecting-ip"), null);
+  assert.equal(result.request.headers.get("x-forwarded-for"), null);
+  assert.equal(result.request.headers.get("x-skillmap-device-auth-edge-checked"), "1");
+  assert.equal(result.request.headers.get("x-skillmap-device-auth-remaining"), "4");
+});
+
+test("device-auth edge gate returns temporary unavailable without the shared binding", async () => {
+  const result = await gateDeviceAuthRequest(
+    new Request("https://skillmap.invalid/api/device-auth/v1/pairings", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.10" }
+    }),
+    { DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY: "test-ip-limit-secret-0123456789" }
+  );
+  assert.equal(result.response.status, 503);
+  assert.match(await result.response.text(), /temporarily_unavailable/);
+});
+
+test("device-auth edge gate returns the Durable Object denial as a public 429", async () => {
+  const result = await gateDeviceAuthRequest(
+    new Request("https://skillmap.invalid/api/device-auth/v1/pairings", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.10" }
+    }),
+    {
+      DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY: "test-ip-limit-secret-0123456789",
+      DEVICE_AUTH_IP_RATE_LIMITER: {
+        idFromName: () => ({ id: "test" }),
+        get: () => ({
+          fetch: async () => new Response(JSON.stringify({
+            allowed: false,
+            limit: 5,
+            remaining: 0,
+            retryAfterSeconds: 42,
+            resetAfterSeconds: 42,
+            resetAt: 42_000
+          }), { status: 200 })
+        })
+      }
+    }
+  );
+  assert.equal(result.request, undefined);
+  assert.equal(result.response.status, 429);
+  assert.equal(result.response.headers.get("retry-after"), "42");
+  assert.equal(result.response.headers.get("ratelimit-remaining"), "0");
+  assert.match(await result.response.text(), /rate_limited/);
 });
 
 test("anonymous rate limiting is bounded, resets deterministically, and emits bounded headers", () => {

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "cloudflare-worker.ts",
   "name": "skillmap",
   "compatibility_date": "2026-07-26",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,8 +9,26 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DEVICE_AUTH_IP_RATE_LIMITER",
+        "class_name": "DeviceAuthIpRateLimiter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "m3-device-auth-ip-rate-limiter-v1",
+      "new_sqlite_classes": ["DeviceAuthIpRateLimiter"]
+    }
+  ],
   // DeviceAuth's SUPABASE_SERVICE_ROLE_KEY is intentionally absent from vars.
   // Provision it as an encrypted Worker secret with `wrangler secret put`.
+  // DeviceAuth's source-IP limiter key ring is also intentionally absent from
+  // vars. Provision DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY as an encrypted
+  // Worker secret. DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS is optional during
+  // key rotation and must be retained for one complete overlap window.
   "vars": {
     "NEXT_PUBLIC_SITE_URL": "https://skillmap.hi-430.workers.dev",
     "NEXT_PUBLIC_SUPABASE_URL": "https://nciathykwjlrkikzyirv.supabase.co",

@@ -203,3 +203,38 @@ test("route: invalid UTF-8 body bytes are a deterministic invalid_request", asyn
     retry_after: 0,
   });
 });
+
+test("route: initiation rejects non-object, open, missing, and wrongly typed JSON shapes before field access", async () => {
+  const validShape = {
+    device_id: DEVICE_ID,
+    device_public_key: "not-a-key-yet",
+    key_thumbprint: "not-a-thumbprint-yet",
+    audience: AUDIENCE,
+    proof_suite: PROOF_SUITE,
+    requested_scopes: ["device.route"],
+    platform: "macos",
+    connector_version: "1.2.3",
+  };
+  const cases = [
+    ["null", null],
+    ["array", []],
+    ["scalar", 1],
+    ["extra key", { ...validShape, unexpected: true }],
+    ["missing key", (() => { const body = { ...validShape }; delete body.platform; return body; })()],
+    ["wrong member type", { ...validShape, requested_scopes: [1] }],
+  ];
+
+  for (const [name, body] of cases) {
+    const response = await POST(new Request(ORIGIN + PATH, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+    assert.equal(response.status, 400, `${name} must be a canonical invalid_request`);
+    assert.deepEqual(await response.json(), {
+      error: "invalid_request",
+      error_description: "The request is invalid.",
+      retry_after: 0,
+    });
+  }
+});
