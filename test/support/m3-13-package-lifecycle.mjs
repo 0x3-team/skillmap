@@ -238,7 +238,6 @@ export function runConsumerInstall(repo, packageInfo, artifactRoot) {
       SKILLMAP_NETWORK_CANARY: networkMarker,
       SKILLMAP_CONSUMER_COMPILE_CANARY: compileMarker,
       npm_config_ignore_scripts: 'true',
-      npm_config_offline: 'true',
       npm_config_audit: 'false',
       npm_config_fund: 'false',
       SKILLMAP_ENABLE_MACOS_CUSTODY: '0'

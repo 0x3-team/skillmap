@@ -85,7 +85,7 @@ test('continues after a bounded entry failure, writes one owner-only receipt, an
   assert.equal(exitCode, 1);
   assert.match(stdout, /Audited 19\/20 exact corpus entries; 1 failed/);
   assert.match(stdout, /No source content was executed/);
-  assert.equal((await stat(output)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal((await stat(output)).mode & 0o777, 0o600);
   const receipt = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(receipt.state, 'audit-incomplete');
   assert.equal(receipt.counts.audited, 19);

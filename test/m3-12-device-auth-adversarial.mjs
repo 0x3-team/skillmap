@@ -32,7 +32,7 @@ const NOW = Math.floor(Date.now() / 1000);
 // import the unchanged production proof module under Node.
 const serverOnlyLoader = join(root, '.tmp/m3-12-device-auth/server-only-loader.mjs');
 mkdirSync(resolve(serverOnlyLoader, '..'), { recursive: true });
-writeFileSync(serverOnlyLoader, 'export async function resolve(specifier, context, nextResolve) { if (specifier === "server-only") return { url: "data:text/javascript,export default {}", shortCircuit: true }; return nextResolve(specifier, context); }\n', { mode: 0o600 });
+writeFileSync(serverOnlyLoader, 'export { resolve, load } from "../../test/support/node-typescript-loader.mjs";\n', { mode: 0o600 });
 register(serverOnlyLoader, import.meta.url);
 const { validateProofEnvelope } = await import('../apps/web/lib/device-auth/poll-exchange-service.server.ts');
 

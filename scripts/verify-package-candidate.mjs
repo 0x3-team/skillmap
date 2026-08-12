@@ -79,8 +79,11 @@ for (const entry of manifest[0].files) {
   assert.equal(packagePathPolicyError(entry.path), null, packagePathPolicyError(entry.path) ?? undefined);
   assert.equal(Number.isSafeInteger(entry.size) && entry.size >= 0 && entry.size <= MAX_UNPACKED_BYTES, true, `pack entry has an invalid size: ${entry.path}`);
   assert.equal(Number.isSafeInteger(entry.mode), true, `pack entry has an invalid mode: ${entry.path}`);
-  const expectedMode = entry.path === 'dist/cli.js' ? 0o755 : 0o644;
-  assert.equal(entry.mode & 0o777, expectedMode, `pack entry mode must be ${expectedMode.toString(8)}: ${entry.path}`);
+  const mode = entry.mode & 0o777;
+  const validModes = entry.path === 'dist/cli.js'
+    ? (process.platform === 'win32' ? new Set([0o644, 0o755]) : new Set([0o755]))
+    : new Set([0o644]);
+  assert.equal(validModes.has(mode), true, `pack entry mode is not supported: ${entry.path} (${mode.toString(8)})`);
   declaredUnpackedBytes += entry.size;
   assert.equal(Number.isSafeInteger(declaredUnpackedBytes) && declaredUnpackedBytes <= MAX_UNPACKED_BYTES, true, 'pack manifest file sizes exceed the unpacked byte limit');
 }

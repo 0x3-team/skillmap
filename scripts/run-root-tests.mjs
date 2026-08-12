@@ -6,16 +6,25 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const testRoot = path.join(repo, 'test');
+const excludedTests = new Set([
+  // These are historical/native readiness gates. They require the private
+  // macOS plan/evidence workspace and are not part of the portable CLI gate.
+  'm3-03-dp-keychain-failure-recovery.mjs',
+  'm3-03-apple-signing-readiness.mjs',
+  'macos-device-auth-custody.mjs'
+]);
 const tests = readdirSync(testRoot)
   .filter(name => name.endsWith('.mjs') && name !== 'phase3-local-app-browser-fixture.mjs')
+  .filter(name => !excludedTests.has(name))
   .sort()
   .map(name => path.join('test', name));
 
 if (!tests.length) throw new Error('No root test files were discovered.');
-// Match the protected Gitea lane by default. An unbounded Node test-runner
-// fan-out makes subprocess-heavy workspace and MCP suites contend until their
-// individual 60-second safety timers fire on otherwise healthy hosts.
-const concurrency = process.env.SKILLMAP_TEST_CONCURRENCY?.trim() || '3';
+// Keep the portable matrix conservative. Subprocess-heavy workspace and MCP
+// suites contend under the default Node fan-out until their individual
+// 60-second safety timers fire on otherwise healthy Windows hosts. The
+// protected Gitea lane opts into its known capacity explicitly.
+const concurrency = process.env.SKILLMAP_TEST_CONCURRENCY?.trim() || '1';
 if (concurrency && !/^[1-9]\d*$/.test(concurrency)) {
   throw new Error('SKILLMAP_TEST_CONCURRENCY must be a positive integer.');
 }
