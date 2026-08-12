@@ -61,6 +61,12 @@ const JOB_ID = '00000000-0000-4000-8000-000000000005';
 const EVENT_ID = '00000000-0000-4000-8000-000000000006';
 const FEEDBACK_ID = '00000000-0000-4000-8000-000000000007';
 const REQUEST_ID = '00000000-0000-4000-8000-000000000008';
+const DEVICE_AUTH_DEVICE_ID = 'D'.repeat(22);
+const DEVICE_AUTH_PUBLIC_KEY = 'A'.repeat(122);
+const DEVICE_AUTH_KEY_THUMBPRINT = `sha256:${'a'.repeat(64)}`;
+const DEVICE_AUTH_DEVICE_CODE = 'B'.repeat(43);
+const DEVICE_AUTH_DEVICE_PUBLIC_ID = `dev_${'b'.repeat(32)}`;
+const DEVICE_AUTH_ACCOUNT_PUBLIC_ID = `acct_${'c'.repeat(32)}`;
 const NOW = '2026-07-10T12:00:00.000Z';
 const LATER = '2026-07-10T12:01:00.000Z';
 const HOLDOUT_FROZEN = '2026-07-10T12:02:00.000Z';
@@ -797,10 +803,71 @@ const validVectors = new Map([
     inventorySkills: 1,
     trackedSkills: 1,
     records: mcpPage([])
-  })]
+  })],
+  [IDS['device-auth-error-v1'], {
+    error: 'invalid_request',
+    error_description: 'Invalid request',
+    retry_after: 0
+  }],
+  [IDS['device-auth-initiate-request-v1'], {
+    device_id: DEVICE_AUTH_DEVICE_ID,
+    device_public_key: DEVICE_AUTH_PUBLIC_KEY,
+    key_thumbprint: DEVICE_AUTH_KEY_THUMBPRINT,
+    audience: 'skillmap.connector.v1',
+    proof_suite: 'skillmap.ecdsa-p256-sha256.v2',
+    requested_scopes: ['device.status'],
+    platform: 'macos',
+    connector_version: '1.0.0'
+  }],
+  [IDS['device-auth-initiate-response-v1'], {
+    device_code: DEVICE_AUTH_DEVICE_CODE,
+    user_code: 'ABCDE-12345',
+    verification_uri: 'https://skillmap.dev/device',
+    expires_in: 600,
+    interval: 5,
+    display: {
+      name: '',
+      platform: 'macos',
+      connector_version: '1.0.0',
+      locale: 'en-US'
+    }
+  }],
+  [IDS['device-auth-cancel-request-v1'], {
+    device_code: DEVICE_AUTH_DEVICE_CODE,
+    device_id: DEVICE_AUTH_DEVICE_ID,
+    audience: 'skillmap.connector.v1',
+    reason: 'user_cancelled'
+  }],
+  [IDS['device-auth-cancel-response-v1'], { status: 'cancelled' }],
+  [IDS['device-auth-authenticate-request-v1'], {
+    device_id: DEVICE_AUTH_DEVICE_ID,
+    audience: 'skillmap.connector.v1'
+  }],
+  [IDS['device-auth-authenticate-response-v1'], {
+    active: true,
+    device_public_id: DEVICE_AUTH_DEVICE_PUBLIC_ID,
+    account_public_id: DEVICE_AUTH_ACCOUNT_PUBLIC_ID,
+    scopes: ['device.status'],
+    audience: 'skillmap.connector.v1',
+    expires_at: 1735689600
+  }],
+  [IDS['device-auth-status-response-v1'], {
+    device_public_id: DEVICE_AUTH_DEVICE_PUBLIC_ID,
+    account_public_id: DEVICE_AUTH_ACCOUNT_PUBLIC_ID,
+    state: 'active',
+    scopes: ['device.status'],
+    expires_at: 1735689600,
+    key_thumbprint: DEVICE_AUTH_KEY_THUMBPRINT
+  }],
+  [IDS['device-auth-revoke-request-v1'], { reason: 'user_offboarded' }],
+  [IDS['device-auth-revoke-response-v1'], {
+    status: 'revoked',
+    device_public_id: DEVICE_AUTH_DEVICE_PUBLIC_ID
+  }]
 ]);
 
 const dedicatedContractSchemas = new Set([
+  IDS['device-auth-common-v1'],
   IDS['hosted-grade-summary-v1'],
   IDS['hosted-skill-v1'],
   IDS['hosted-skill-list-v1'],
@@ -926,6 +993,39 @@ test('generated standalone validator modules are root/web-identical and Worker-s
   assert.doesNotMatch(rootStandalone, /new Function|\beval\s*\(|\brequire\s*\(/i);
 });
 
+test('contract generator keeps standalone roots collision-free and idempotent', async () => {
+  const generatedPaths = [
+    'src/contracts/generated/schema-bundle.ts',
+    'src/contracts/generated/types.ts',
+    'src/contracts/generated/standalone-validators.ts',
+    'apps/web/lib/contracts/generated/schema-bundle.ts',
+    'apps/web/lib/contracts/generated/types.ts',
+    'apps/web/lib/contracts/generated/standalone-validators.ts',
+    'apps/web/lib/contracts/generated/validate.server.ts',
+    'apps/web/lib/contracts/generated/hosted-api-response-validator.ts',
+    'apps/web/lib/contracts/generated/eval-semantics.ts',
+    'apps/web/lib/contracts/generated/route-ranking.ts',
+    'apps/web/lib/contracts/generated/fixture-path.ts'
+  ];
+  const runGenerator = () => execFileAsync(process.execPath, ['scripts/generate-contracts.mjs'], { cwd: repo });
+  await runGenerator();
+  const first = await Promise.all(generatedPaths.map((relativePath) => readFile(path.join(repo, relativePath))));
+  await runGenerator();
+  const second = await Promise.all(generatedPaths.map((relativePath) => readFile(path.join(repo, relativePath))));
+  assert.deepEqual(second, first, 'a second normal generation must not change any generated output');
+
+  const standalone = second[2].toString('utf8');
+  const exportedRoots = [...standalone.matchAll(/export const (contractSchema\d+) =/g)].map((match) => match[1]);
+  assert.equal(exportedRoots.length, manifest.schemas.length);
+  assert.equal(new Set(exportedRoots).size, exportedRoots.length, 'standalone validator exports must be unique');
+  assert.doesNotMatch(standalone, /export const schema\d+\s*=/, 'manifest roots must not use Ajv internal schema names');
+
+  const standaloneEntries = [...standalone.matchAll(/\n  "([^"]+)": (contractSchema\d+),?/g)];
+  assert.deepEqual(standaloneEntries.map(([, schemaId]) => schemaId), manifest.schemas.map(({ id }) => id));
+  assert.equal(new Set(standaloneEntries.map(([, schemaId]) => schemaId)).size, manifest.schemas.length);
+  assert.equal(new Set(manifest.schemas.map(({ id }) => id)).size, manifest.schemas.length, 'manifest schema IDs must be unique');
+});
+
 function normalizeOnlySchemaId(schema) {
   const normalized = structuredClone(schema);
   delete normalized.$id;
@@ -993,8 +1093,11 @@ test('canonicalization vectors remain stable', async () => {
 });
 
 test('every canonical product contract accepts its valid bounded vector', () => {
-  assert.equal(validVectors.size + dedicatedContractSchemas.size, manifest.schemas.length - 1,
-    'all product schemas except common definitions need a generic or dedicated valid vector');
+  assert.equal(manifest.schemas.length, 41, 'canonical contract manifest count is frozen');
+  assert.equal(validVectors.size, 30, 'generic valid-vector count is frozen');
+  assert.equal(dedicatedContractSchemas.size, 10, 'dedicated definitions/hosted contract count is frozen');
+  assert.equal(validVectors.size + dedicatedContractSchemas.size, 40,
+    'all product schemas except the canonical common definitions need a generic or dedicated valid vector');
   for (const [schemaId, vector] of validVectors) assertValid(schemaId, vector);
 });
 

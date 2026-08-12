@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/revoke-response.schema.json",
+  "title": "SkillMap DeviceAuth v1 Device Revoke Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "device_public_id"],
+  "properties": {
+    "status": { "const": "revoked" },
+    "device_public_id": { "type": "string", "pattern": "^dev_[0-9a-f]{32}$" }
+  }
+}

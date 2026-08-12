@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/cancel-request.schema.json",
+  "title": "SkillMap DeviceAuth v1 Pairing Cancellation Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["device_code", "device_id", "audience", "reason"],
+  "properties": {
+    "device_code": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Base64Url256Bit" },
+    "device_id": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DeviceId" },
+    "audience": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience" },
+    "reason": { "enum": ["user_cancelled", "timeout", "local_shutdown"] }
+  }
+}

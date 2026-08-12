@@ -98,7 +98,7 @@ type RuntimeFunctions = Omit<ApiFunctions, OperatorFunctionName> & {
 // its output byte-exact in database.types.ts and override only the three
 // operator RPCs at the application boundary, following Supabase's documented
 // generated-type override pattern.
-export type Database = Omit<GeneratedDatabase, "api" | "private"> & {
+export type Database = Omit<GeneratedDatabase, "__InternalSupabase" | "api" | "private"> & {
   api: Omit<ApiSchema, "Functions"> & { Functions: RuntimeFunctions };
 };
 

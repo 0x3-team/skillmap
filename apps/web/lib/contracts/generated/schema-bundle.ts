@@ -9433,6 +9433,468 @@ export const CONTRACT_SCHEMAS = [
         }
       }
     ]
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json",
+    "title": "SkillMap DeviceAuth v1 Common Definitions",
+    "description": "Shared bounded primitives for the DeviceAuth v1 wire contract (M1.08 + P-256 amendment v2). All identifiers use exact ASCII grammars; bytes are measured after UTF-8 encoding.",
+    "$defs": {
+      "Sha256Digest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "DeviceId": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{22}$",
+        "maxLength": 22,
+        "minLength": 22,
+        "description": "128-bit random identifier encoded base64url without padding; immutable for a device lineage."
+      },
+      "IdempotencyKey": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{22}$",
+        "maxLength": 22,
+        "minLength": 22,
+        "description": "128-bit random idempotency key (required header, never a body field)."
+      },
+      "DevicePublicKey": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{122}$",
+        "minLength": 122,
+        "maxLength": 122,
+        "description": "Base64url (no padding) canonical 91-byte DER SubjectPublicKeyInfo for an uncompressed P-256 point (proof suite skillmap.ecdsa-p256-sha256.v2)."
+      },
+      "KeyThumbprint": {
+        "$ref": "#/$defs/Sha256Digest",
+        "description": "sha256:<hex> over the exact 91 DER SPKI bytes."
+      },
+      "ProofSuite": {
+        "enum": [
+          "skillmap.ecdsa-p256-sha256.v2"
+        ]
+      },
+      "Audience": {
+        "const": "skillmap.connector.v1"
+      },
+      "Platform": {
+        "enum": [
+          "macos",
+          "windows",
+          "linux"
+        ]
+      },
+      "SemVer": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+        "minLength": 1,
+        "maxLength": 32,
+        "description": "Strict SemVer 2.0.0, total ASCII length 1-32."
+      },
+      "Scope": {
+        "enum": [
+          "device.route",
+          "device.feedback",
+          "device.import",
+          "device.bundle",
+          "device.status"
+        ],
+        "description": "v1 exact scope allowlist. Canonicalized by bytewise sort/deduplicate; M3.03 stores and re-echoes the canonical set."
+      },
+      "Locale": {
+        "type": "string",
+        "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+        "minLength": 2,
+        "maxLength": 35,
+        "description": "BCP-47 canonical presentation tag (ASCII letters/digits/hyphens). Presentation-only."
+      },
+      "DisplayName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "description": "Trimmed, NFC-normalized, single-line UTF-8, 1-64 bytes; controls and line separators rejected. Must already be normalized before wire."
+      },
+      "UnixSeconds": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9223372036854776000,
+        "description": "Unsigned decimal Unix seconds, no leading zeroes."
+      },
+      "Base64Url256Bit": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{43}$",
+        "minLength": 43,
+        "maxLength": 43,
+        "description": "256-bit opaque secret base64url (no padding)."
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/error.schema.json",
+    "title": "SkillMap DeviceAuth v1 Error Response",
+    "description": "Closed error envelope for all DeviceAuth v1 failures. error_description is a fixed safe literal containing no identifiers; retry_after is present and positive only for rate_limited and slow_down.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "error",
+      "error_description",
+      "retry_after"
+    ],
+    "properties": {
+      "error": {
+        "enum": [
+          "invalid_request",
+          "invalid_scope",
+          "invalid_grant",
+          "authorization_pending",
+          "slow_down",
+          "access_denied",
+          "expired_token",
+          "invalid_client",
+          "invalid_token",
+          "proof_required",
+          "proof_invalid",
+          "insufficient_scope",
+          "already_consumed",
+          "idempotency_conflict",
+          "rate_limited",
+          "secure_storage_unavailable",
+          "temporarily_unavailable"
+        ]
+      },
+      "error_description": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "retry_after": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/initiate-request.schema.json",
+    "title": "SkillMap DeviceAuth v1 Pairing Initiation Request",
+    "description": "Closed request body for POST /api/device-auth/v1/pairings (M1.08 init). Unknown fields, duplicate keys, and values outside these bounds are rejected before authorization.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "device_id",
+      "device_public_key",
+      "key_thumbprint",
+      "audience",
+      "proof_suite",
+      "requested_scopes",
+      "platform",
+      "connector_version"
+    ],
+    "properties": {
+      "device_id": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DeviceId"
+      },
+      "device_public_key": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DevicePublicKey"
+      },
+      "key_thumbprint": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/KeyThumbprint"
+      },
+      "audience": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience"
+      },
+      "proof_suite": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/ProofSuite"
+      },
+      "requested_scopes": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 16,
+        "uniqueItems": false,
+        "items": {
+          "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Scope"
+        }
+      },
+      "display_name": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DisplayName"
+      },
+      "platform": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Platform"
+      },
+      "connector_version": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/SemVer"
+      },
+      "locale": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Locale"
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/initiate-response.schema.json",
+    "title": "SkillMap DeviceAuth v1 Pairing Initiation Response",
+    "description": "Exact Connector-only initiation response (M1.08). device_code and user_code are secret; this body is served with Cache-Control: no-store and never reaches the browser.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "device_code",
+      "user_code",
+      "verification_uri",
+      "expires_in",
+      "interval",
+      "display"
+    ],
+    "properties": {
+      "device_code": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Base64Url256Bit"
+      },
+      "user_code": {
+        "type": "string",
+        "pattern": "^[0-9A-Z]{5}-[0-9A-Z]{5}$",
+        "description": "10 Crockford Base32 characters displayed as XXXXX-XXXXX; 50 random bits; case-insensitive input."
+      },
+      "verification_uri": {
+        "type": "string",
+        "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/device$",
+        "minLength": 16,
+        "maxLength": 2096
+      },
+      "expires_in": {
+        "const": 600
+      },
+      "interval": {
+        "const": 5
+      },
+      "display": {
+        "$ref": "#/$defs/Display"
+      }
+    },
+    "$defs": {
+      "Display": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "platform",
+          "connector_version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 64
+          },
+          "platform": {
+            "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Platform"
+          },
+          "connector_version": {
+            "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/SemVer"
+          },
+          "locale": {
+            "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Locale"
+          }
+        }
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/cancel-request.schema.json",
+    "title": "SkillMap DeviceAuth v1 Pairing Cancellation Request",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "device_code",
+      "device_id",
+      "audience",
+      "reason"
+    ],
+    "properties": {
+      "device_code": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Base64Url256Bit"
+      },
+      "device_id": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DeviceId"
+      },
+      "audience": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience"
+      },
+      "reason": {
+        "enum": [
+          "user_cancelled",
+          "timeout",
+          "local_shutdown"
+        ]
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/cancel-response.schema.json",
+    "title": "SkillMap DeviceAuth v1 Pairing Cancellation Response",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "status"
+    ],
+    "properties": {
+      "status": {
+        "const": "cancelled"
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/authenticate-request.schema.json",
+    "title": "SkillMap DeviceAuth v1 Access Authentication Request",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "device_id",
+      "audience"
+    ],
+    "properties": {
+      "device_id": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DeviceId"
+      },
+      "audience": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience"
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/authenticate-response.schema.json",
+    "title": "SkillMap DeviceAuth v1 Access Authentication Response",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "active",
+      "device_public_id",
+      "account_public_id",
+      "scopes",
+      "audience",
+      "expires_at"
+    ],
+    "properties": {
+      "active": {
+        "const": true
+      },
+      "device_public_id": {
+        "type": "string",
+        "pattern": "^dev_[0-9a-f]{32}$"
+      },
+      "account_public_id": {
+        "type": "string",
+        "pattern": "^acct_[0-9a-f]{32}$"
+      },
+      "scopes": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": true,
+        "items": {
+          "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Scope"
+        }
+      },
+      "audience": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience"
+      },
+      "expires_at": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/UnixSeconds"
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/status-response.schema.json",
+    "title": "SkillMap DeviceAuth v1 Protected Device Status Response",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "device_public_id",
+      "account_public_id",
+      "state",
+      "scopes",
+      "expires_at",
+      "key_thumbprint"
+    ],
+    "properties": {
+      "device_public_id": {
+        "type": "string",
+        "pattern": "^dev_[0-9a-f]{32}$"
+      },
+      "account_public_id": {
+        "type": "string",
+        "pattern": "^acct_[0-9a-f]{32}$"
+      },
+      "state": {
+        "enum": [
+          "active",
+          "disabled",
+          "revoked",
+          "compromised",
+          "expired"
+        ]
+      },
+      "scopes": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": true,
+        "items": {
+          "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Scope"
+        }
+      },
+      "expires_at": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/UnixSeconds"
+      },
+      "key_thumbprint": {
+        "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/KeyThumbprint"
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/revoke-request.schema.json",
+    "title": "SkillMap DeviceAuth v1 Device Revoke Request",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reason"
+    ],
+    "properties": {
+      "reason": {
+        "enum": [
+          "user_offboarded",
+          "suspected_compromise",
+          "account_disabled",
+          "owner_requested",
+          "operator_incident"
+        ]
+      }
+    }
+  },
+  {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://skillmap.dev/contracts/device-auth/v1/revoke-response.schema.json",
+    "title": "SkillMap DeviceAuth v1 Device Revoke Response",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "status",
+      "device_public_id"
+    ],
+    "properties": {
+      "status": {
+        "const": "revoked"
+      },
+      "device_public_id": {
+        "type": "string",
+        "pattern": "^dev_[0-9a-f]{32}$"
+      }
+    }
   }
 ] as const;
 

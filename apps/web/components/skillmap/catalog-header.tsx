@@ -32,8 +32,8 @@ export async function CatalogHeader({ accountState }: { accountState?: HostedAcc
             <span className="hidden lg:inline">Support</span>
           </Link>
           {resolvedAccountState === "unavailable" ? (
-            <span aria-label="Account status unavailable" className="inline-flex h-9 items-center rounded-full border border-warning/35 bg-warning/10 px-2 text-xs font-semibold text-muted-foreground sm:px-3.5 sm:text-sm">
-              <span className="sm:hidden">Unavailable</span><span className="hidden sm:inline">Account unavailable</span>
+            <span role="status" aria-live="polite" className="inline-flex h-9 items-center rounded-full border border-warning/35 bg-warning/10 px-2 text-xs font-semibold text-muted-foreground sm:px-3.5 sm:text-sm">
+              Account unavailable
             </span>
           ) : (
             <Link href={resolvedAccountState === "authenticated" ? "/account" : "/sign-in"} prefetch={false} className="inline-flex h-9 items-center rounded-full border border-border bg-card px-3.5 font-semibold text-foreground hover:border-primary/35 hover:bg-accent/70">

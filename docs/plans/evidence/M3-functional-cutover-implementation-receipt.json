@@ -1,0 +1,94 @@
+{
+  "$schema": "skillmap.m3.functional-cutover-implementation-receipt/v1",
+  "status": "IMPLEMENTATION_CANDIDATE",
+  "scope": "M3.02 legacy admission fence and atomic DeviceAuth cutover implementation plus provenance reconciliation",
+  "supersedes": {
+    "receipt": "docs/plans/evidence/M3.02-bounded-implementation-receipt.json",
+    "old_receipt_sha256": "71a95fa54dc7dd805c4c16cb73d433a8ad9d67dc418a2e51cc4899600290a937",
+    "supersession_boundary": "Only migration-sequence mapping and implementation provenance are superseded. M3.02 security semantics, decisions, vectors, and acceptance gates remain authoritative and unchanged."
+  },
+  "candidate": {
+    "worktree": "/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate",
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "head": "0bc3c7e2e7b6523c018980714eef4d26ae8dc80e",
+    "head_is_ancestor_of_candidate": true,
+    "dirty_main_touched": false,
+    "tree_inventory": {
+      "status_lines": 111,
+      "modified_entries": 17,
+      "untracked_entries": 94,
+      "git_status_short_sha256": "b6b63c317ef199c989f00b8f5b06dc19b42569be423ce4bc789f9de7904b5adb",
+      "inventory_note": "The digest is SHA-256 over the exact NUL-delimited `git status --porcelain=v1 -z` output for the whole dirty candidate at final local acceptance. Existing unrelated and duplicate paths are preserved and are not owned by this implementation receipt."
+    }
+  },
+  "migration_sequence_reconciliation": {
+    "planned_m302_names": [
+      "20260810050000_skillmap_device_auth_legacy_admission_fence.sql",
+      "20260810060000_skillmap_device_auth_atomic_cutover.sql"
+    ],
+    "actual_additive_names": [
+      "20260810080000_skillmap_device_auth_legacy_admission_fence.sql",
+      "20260810090000_skillmap_device_auth_cutover.sql"
+    ],
+    "reason": "Creation milestones occupy 20260810010000 through 20260810070000 in the candidate. Re-numbering is implementation-era provenance drift only; the shared/exclusive lock, forward-only flag, six-entrypoint fence, replacement privilege matrix, atomic flip, and rollback floor retain the M3.02 security semantics.",
+    "legacy_entrypoints": 6,
+    "lock_pair": [1397442892, 1145132372],
+    "replacement_tables_remain_feature_ready": true,
+    "owner_rpc_matrix_reconciliation": "The accepted matrix is five permanent authenticated owner RPCs: M3.04 review_my_pairing and confirm_my_pairing, plus M3.10 list_my_devices, rename_my_device, and revoke_my_device. This explicitly resolves the earlier four-RPC registry shorthand without changing security semantics.",
+    "refresh_provider_gate": "No production secret, replay key, or provider credential is created. Refresh remains unavailable until the accepted replay-key provider is configured."
+  },
+  "bounded_artifacts": [
+    {"path": "package.json", "sha256": "4dc2e98706fbce3467f3248f80cad0f6bf75d78d74a43d019036541046484e85"},
+    {"path": "contracts/test-vectors/device-auth-p256-v2.json", "sha256": "768f546d50084fbe5f02794cafd9f0b3379107674c28ad0bfbdc82a4be2d4ad9"},
+    {"path": "contracts/test-vectors/device-auth-refresh-replay-v1.json", "sha256": "23df6d5d3ce9ea491d9ca13eb24857f000fe3e21bdc7e502259e2bbd40727f83"},
+    {"path": "apps/web/lib/contracts/generated/schema-bundle.ts", "sha256": "684f1dc8e409e5183bdbcd26db733f67d1ecc50eeff69ed547d3c793b89a9abe"},
+    {"path": "apps/web/lib/contracts/generated/standalone-validators.ts", "sha256": "cfac7221372ca5f0b24b85c6a9b5d8ede846228ab376821a694a583720ba01fb"},
+    {"path": "apps/web/lib/supabase/database.runtime.types.ts", "sha256": "bd05e96a535df400750f04713ee20a3df1a3e03a57b9aae619db378de8249715"},
+    {"path": "src/contracts/generated/schema-bundle.ts", "sha256": "684f1dc8e409e5183bdbcd26db733f67d1ecc50eeff69ed547d3c793b89a9abe"},
+    {"path": "src/contracts/generated/standalone-validators.ts", "sha256": "cfac7221372ca5f0b24b85c6a9b5d8ede846228ab376821a694a583720ba01fb"},
+    {"path": "supabase/migrations/20260810050000_skillmap_device_auth_key_rotation.sql", "sha256": "7b9e47479c674404fdef1c5b5aef9fcefcf2f0e885d973fbe1b0b2bf15e88bbe"},
+    {"path": "supabase/migrations/20260810060000_skillmap_device_auth_owner_devices.sql", "sha256": "a82d3a0ebb27288169204e2d6df4df0b4c4e76697dbc72a3dcdb8752c71ae089"},
+    {"path": "supabase/migrations/20260810070000_skillmap_device_auth_lifecycle.sql", "sha256": "4ce5c69e144c5c77d0b3b1543ac2ba73cb6fd75933f7950230d332393b386f70"},
+    {"path": "supabase/migrations/20260810080000_skillmap_device_auth_legacy_admission_fence.sql", "sha256": "745a95d811cfc0c161da9c8f8d345b8373ac5f52733828fb3c1880089e8752cb"},
+    {"path": "supabase/migrations/20260810090000_skillmap_device_auth_cutover.sql", "sha256": "660784219d399b7cde9b66665b2145ab180784c5dc06efdf1cc91fcd2da6fcd7"},
+    {"path": "supabase/tests/device_auth_cutover.test.sql", "sha256": "10e43327ff0871a9258c0f38e53182cfbbeb277104b3e8e2e986fe265fe22788"},
+    {"path": "test/m3-02-amendments.mjs", "sha256": "6babf876620b536f0300533aa7bafe75431e864bdb5e8e04f8bd36fcf3049b5e"},
+    {"path": "test/m3-cutover-provenance.mjs", "sha256": "365713ad4698cf4a857e8c5b7994b128d0ffd223e74fcf36f2f9f21587aa7938"}
+  ],
+  "validation": {
+    "local_commands": {
+      "npm run test:m3-02": "PASS 10/10 provenance subtests after receipt hash reconciliation",
+      "git diff --check": "PASS",
+      "supabase db reset exact candidate chain": "PASS on untouched disposable source copy through 20260810090000; no source patches were applied to the copy",
+      "disposable migration rehearsal": "PASS exact 100100-100900 chain on disposable exact7; predecessor suites were run at the 20260810070000 floor",
+      "device_auth_cutover pgTAP": "PASS 33/33 on disposable exact7 before the predecessor-floor reset",
+      "supabase db lint": "PASS with warnings only; fail-on error returned zero",
+      "supabase db diff --use-migra": "PASS command completed; output contains expected historical drift in the disposable baseline, with no live/shared database mutation",
+      "npm run typecheck": "PASS",
+      "live/provider/deploy/push": "NOT RUN"
+    },
+    "limitations": [
+      "The exact candidate chain was validated only in disposable local Postgres; shared/live/provider/deploy acceptance remains unclaimed.",
+      "Predecessor test fixtures retain their historical feature-off floor; cutover assertions run only after the full 100900 chain.",
+      "No production, hosted, provider, secret, replay-key, deployment, push, or live schema-cache proof is present."
+    ]
+  },
+  "claims": {
+    "local_only": true,
+    "live_verified": false,
+    "deployed": false,
+    "pushed": false,
+    "production_ready": false,
+    "runtime_env_changed": false,
+    "provider_configured": false,
+    "production_secrets_created": false
+  },
+  "external_mutation": false,
+  "ledger_mutation": false,
+  "protected_files_touched": false,
+  "route": {
+    "requested": "gpt-5.6-luna/high",
+    "confirmed": false,
+    "receipt_note": "Runtime identity/effort confirmation was not exposed; no stronger route claim is made."
+  }
+}

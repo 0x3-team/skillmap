@@ -202,13 +202,15 @@ test("hosted home exposes a truthful account control below the sm breakpoint", a
   const unavailableOpening = source.match(/<span data-account-control="unavailable"[^>]*>/)?.[0];
   const accountOpening = source.match(/<Link data-account-control=\{accountState\}[^>]*>/)?.[0];
   assert.ok(unavailableOpening, "Hosted home omitted its unavailable account state.");
+  assert.match(unavailableOpening, /role="status"/);
+  assert.match(unavailableOpening, /aria-live="polite"/);
   assert.ok(accountOpening, "Hosted home omitted its direct account or sign-in action.");
   assert.match(unavailableOpening, /className="inline-flex/);
   assert.doesNotMatch(unavailableOpening, /className="[^"]*\bhidden\b/);
   assert.match(accountOpening, /className="inline-flex/);
   assert.doesNotMatch(accountOpening, /className="[^"]*\bhidden\b/);
   assert.match(source, /accountState === "authenticated" \? "Account" : "Sign in"/);
-  assert.match(source, /<span className="sm:hidden">Unavailable<\/span>/);
+  assert.match(source, />Account unavailable<\/span>/);
 });
 
 test("public catalog, privacy, and security pages publish route-specific metadata", async () => {
@@ -414,7 +416,9 @@ test("hosted product surfaces expose truthful trust, route, auth, and semantic e
   assert.match(evidence, /<details/);
   assert.match(evidence, /Show machine \{title\}/);
   assert.match(header, /resolveHostedAccountState/);
-  assert.match(header, /Account status unavailable/);
+  assert.match(header, /Account unavailable/);
+  assert.match(header, /role="status"/);
+  assert.match(header, /aria-live="polite"/);
   assert.match(landing, /accountState === "authenticated" \? "Account" : "Sign in"/);
   assert.match(landing, /Listings without current receipts remain visibly not run, not tested, and ungraded/);
   assert.doesNotMatch(landing, /Current seeds remain/i);

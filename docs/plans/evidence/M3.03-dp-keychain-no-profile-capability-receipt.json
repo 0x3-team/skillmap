@@ -1,0 +1,152 @@
+{
+  "schema": "skillmap.m3-03.dp-keychain-no-profile-capability.receipt.v1",
+  "status": "FAIL_DP_KEYCHAIN_NO_PROFILE_CAPABILITY",
+  "observed_at": "2026-08-12T05:58:53.490Z",
+  "source": {
+    "path": "test/fixtures/m3-03-dp-keychain-no-profile-capability/CapabilityProbe.swift",
+    "sha256": "sha256:d90330d5b7a23336b4c14d934f3a6ae9fbc4360713db38dd12757c1de43ffea9",
+    "compiler": "/usr/bin/xcrun",
+    "compiler_version_digest": "sha256:00aa49fe91b635b848be0c6e380090c1ca9ba8eba40af687930dcdaaf86bcdc7"
+  },
+  "target": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "os_product_version": "26.6.1",
+    "os_build": "25G76"
+  },
+  "binaries": {
+    "unsigned": {
+      "relative_path": "unsigned",
+      "outside_repo": true,
+      "sha256": "sha256:3011d6189905a3f6b3fd5bcb3ac9c86f7161b63924e829ab5b472da8cb94a8c7",
+      "signature": {
+        "state": "unsigned",
+        "identity": "none",
+        "no_team_identifier": true,
+        "team_identifier_state": "absent",
+        "entitlements_present": false,
+        "provisioning_profile_marker": null,
+        "mode": "0755",
+        "path_digest": "sha256:e6ed4dc58cf4890f619576ee9d8e60d1faf47e72ddd076dfc9206eb02eea9857",
+        "display_digest": "sha256:bb273aec5475a353f2656c82ff79ecee84393c08856cdaaff6bee8b5e8375940",
+        "evidence_commands_ok": true
+      }
+    },
+    "adhoc": {
+      "relative_path": "adhoc",
+      "outside_repo": true,
+      "sha256": "sha256:8bb435bb4dcea6f951b2f04e5b653348dc40b96202d22ecd416706bf4261fa07",
+      "signature": {
+        "state": "adhoc",
+        "identity": "adhoc",
+        "no_team_identifier": true,
+        "team_identifier_state": "not set",
+        "entitlements_present": false,
+        "provisioning_profile_marker": null,
+        "mode": "0755",
+        "path_digest": "sha256:70af6c3f3f307b21c9588e34f4f5f693a1c6bff32de9b692456ac16b537ad9fa",
+        "display_digest": "sha256:92b243a11695de98c119479c9f42474b3f03347aa1706a8a4c004f5f95994106",
+        "evidence_commands_ok": true
+      }
+    },
+    "same_source_sha256": "sha256:d90330d5b7a23336b4c14d934f3a6ae9fbc4360713db38dd12757c1de43ffea9",
+    "hashes_distinct": true
+  },
+  "rows": [
+    {
+      "mode": "unsigned",
+      "execution": {
+        "ok": false,
+        "exit": null,
+        "signal": "SIGKILL",
+        "timed_out": false,
+        "oversized": false,
+        "stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "native": {
+        "mode": "unsigned",
+        "signature_state": "unsigned",
+        "status": "FAIL",
+        "unavailable_reason": "invalid_output",
+        "lifecycle": {},
+        "assertions": {}
+      }
+    }
+  ],
+  "cleanup": {
+    "temp_relative_path": "<mktemp>/skillmap-m303-dp-*",
+    "temp_existed_before": false,
+    "temp_observed_before_removal": true,
+    "temp_removed": true,
+    "rows": [
+      {
+        "mode": "unsigned",
+        "execution": {
+          "ok": false,
+          "exit": null,
+          "signal": "SIGKILL",
+          "timed_out": false,
+          "oversized": false,
+          "stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "native": {
+          "status": "FAIL",
+          "unavailable_reason": "invalid_output"
+        }
+      }
+    ],
+    "canary_material": "not retained"
+  },
+  "adversarial": {
+    "dirty_worktree": {
+      "checked": true,
+      "before_status_digest": "sha256:977c902e84b535969756e0936e1c60a392f921c540fe799152e6e4b4c9a728cc",
+      "after_status_digest": "sha256:977c902e84b535969756e0936e1c60a392f921c540fe799152e6e4b4c9a728cc",
+      "unrelated_mutation": false
+    },
+    "malformed_input": {
+      "checked": true,
+      "runner_args_closed": true,
+      "Swift_environment_shape_closed": true
+    },
+    "stale_state": {
+      "checked": true,
+      "unique_run_nonce": true,
+      "cleanup_only_replay": true
+    },
+    "misleading_success_output": {
+      "checked": true,
+      "strict_json": true,
+      "stderr_must_be_empty": true,
+      "native_status_recomputed": true
+    },
+    "hung_or_long_command": {
+      "checked": true,
+      "timeout_ms": 15000,
+      "terminated_processes": true
+    },
+    "repeated_interruptions": {
+      "checked": true,
+      "cleanup_attempted_in_finally": true
+    }
+  },
+  "worktree": {
+    "path": "/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate",
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "dirty_main_touched": false,
+    "ledger_mutation": false
+  },
+  "route": {
+    "requested": "gpt-5.6-luna/high",
+    "confirmed": false
+  },
+  "external_mutation": false,
+  "ledger_mutation": false,
+  "product_source_or_contract_touched": false,
+  "non_claims": [
+    "No Apple Developer identity, Team ID, entitlement, profile, access group, production key, provider, browser, database, push, or deploy action.",
+    "Capability evidence only; no V3 custody, helper, support label, or product contract was selected."
+  ]
+}

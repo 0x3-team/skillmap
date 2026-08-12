@@ -47,6 +47,8 @@
     "test:consumer-install": "node scripts/test-consumer-install.mjs",
     "test:upgrade-rollback": "node scripts/test-package-upgrade-rollback.mjs",
     "test:upgrade-rollback:required": "node scripts/test-package-upgrade-rollback.mjs --required",
+    "test:m3-13-package-lifecycle": "npm run build && node --test --test-concurrency=1 test/m3-13-package-lifecycle.mjs",
+    "test:m3-02": "node --test --test-concurrency=1 test/m3-02-amendments.mjs test/m3-cutover-provenance.mjs",
     "test:release-path": "node --test test/release-package-candidate.mjs test/package-candidate-verifier.mjs test/release-ci-candidate-binding.mjs test/release-operations-ci.mjs test/release-truth-consistency.mjs",
     "release:candidate": "node scripts/release-package-candidate.mjs",
     "hosted:audit:dry-run": "npm run build && node apps/worker/src/audit-once.mjs",
@@ -75,7 +77,9 @@
   },
   "files": [
     "dist",
+    "native",
     "contracts",
+    "!contracts/test-vectors/device-auth-*.json",
     "assets/local-app",
     "docs/architecture.md",
     "docs/architecture/hosted-registry.md",
