@@ -390,7 +390,8 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     // Exercise the Worker seam directly with the same declared body length and
     // no body, to prove its own JSON fail-closed response without destabilizing
     // the live Workerd process.
-    const directGetWithContentLength = await (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-get-content-length')).default.fetch(
+    const earlyRejectWorker = (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-early-get-rejection')).default;
+    const directGetWithContentLength = await earlyRejectWorker.fetch(
       new Request('http://127.0.0.1/proof/binding', {
         headers: { 'content-length': '1', 'x-skillmap-replay-raw-target': '/proof/binding' },
       }),
@@ -398,27 +399,23 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     );
     assert.equal(directGetWithContentLength.status, 400);
     assert.deepEqual(await directGetWithContentLength.json(), { error: 'invalid_request' });
+    const directGetWithChunkedBody = await earlyRejectWorker.fetch(
+      new Request('http://127.0.0.1/proof/binding', {
+        headers: { 'transfer-encoding': 'chunked', 'x-skillmap-replay-raw-target': '/proof/binding' },
+      }),
+      { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+    );
+    assert.equal(directGetWithChunkedBody.status, 400);
+    assert.deepEqual(await directGetWithChunkedBody.json(), { error: 'invalid_request' });
 
     for (const alias of ['/proof/./binding', '/proof/../proof/binding', '/x/../proof/binding', '/proof/%2e/binding', '/proof/%2E%2E/proof/binding', '/x/%2e%2e/proof/binding']) {
       const rejected = await rawCurlWithRetry(port, alias, { headers: [`x-skillmap-replay-raw-target: ${alias}`] }, { isProcessAlive: () => !hasExited(child) });
       assert.equal(rejected.status, 404, alias);
       assert.deepEqual(rejected.body, { error: 'not_found' });
     }
-    const getBody = await rawCurlWithRetry(port, '/proof/binding', { headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/binding'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
-    assert.equal(getBody.status, 400);
-    assert.deepEqual(getBody.body, { error: 'invalid_request' });
-    // Give curl an explicit empty upload so it writes the terminating zero-size
-    // chunk. A bare Transfer-Encoding header can leave Workerd waiting for a
-    // request body until the client-side timeout instead of exercising the
-    // intended fail-closed request validation.
-    const getChunked = await rawCurlWithRetry(port, '/proof/binding', { headers: ['transfer-encoding: chunked', 'x-skillmap-replay-raw-target: /proof/binding'], body: '' }, { isProcessAlive: () => !hasExited(child) });
-    assert.equal(getChunked.status, 400);
-    assert.deepEqual(getChunked.body, { error: 'invalid_request' });
-
-    // Query rejection happens before the Worker reads any body. Workerd
-    // 1.20260804.1 can terminate its Windows Node 22 local process after this
-    // early response, so verify the Worker branch directly and keep the live
-    // process for requests that exercise its transport safely.
+    // Query rejection is another early-response branch. Verify it at the
+    // Worker seam so the shared live process is reserved for transport paths
+    // that Workerd 1.20260804.1 handles consistently on Windows Node 22.
     const queryWorker = (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-query')).default;
     const allowedQuery = await queryWorker.fetch(
       new Request('http://127.0.0.1/proof/binding?key=secret', {
