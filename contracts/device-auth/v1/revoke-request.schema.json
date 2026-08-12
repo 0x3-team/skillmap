@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/revoke-request.schema.json",
+  "title": "SkillMap DeviceAuth v1 Device Revoke Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reason"],
+  "properties": {
+    "reason": { "enum": ["user_offboarded", "suspected_compromise", "account_disabled", "owner_requested", "operator_incident"] }
+  }
+}

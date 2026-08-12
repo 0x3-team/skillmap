@@ -73,7 +73,11 @@ try {
   assert.equal(dashboard.startup.kind, "skillmap.dashboard-started");
   assert.equal(dashboard.startup.mode, "foreground");
   assert.equal(dashboard.startup.promptRetention, false);
-  assert.equal(dashboard.startup.workspace, workspace);
+  assert.equal(
+    await realpath(dashboard.startup.workspace),
+    await realpath(workspace),
+    "dashboard started a different workspace"
+  );
   assert.match(dashboard.startup.origin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.equal(new URL(dashboard.startup.bootstrapUrl).origin, dashboard.startup.origin);
 
@@ -2169,7 +2173,10 @@ function isActivityReadPath(pathname) {
 
 function isNavigationAbort(event) {
   return event?.kind === "requestfailed"
-    && ["net::ERR_ABORTED", "NS_BINDING_ABORTED", "Load request cancelled"].includes(event.message);
+    // WebKit reports the same client-side navigation cancellation simply as
+    // "cancelled", while Chromium and Firefox provide their engine-specific
+    // abort codes.
+    && ["net::ERR_ABORTED", "NS_BINDING_ABORTED", "Load request cancelled", "cancelled"].includes(event.message);
 }
 
 function formatDiagnostics(events) {

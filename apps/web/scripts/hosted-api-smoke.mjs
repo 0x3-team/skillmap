@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { execLocalPsql } from "./local-supabase-psql.mjs";
 
 const baseUrl = (process.env.SKILLMAP_HOSTED_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
 const smokeClientIp = "203.0.113.76";
@@ -42,7 +42,7 @@ assert.equal(health.body.releaseStage, "private-alpha");
 assert.deepEqual(health.body.checks, {
   application: "ok",
   publicConfiguration: "ok",
-  support: "ok",
+  support: "not-required",
   indexing: "not-required"
 });
 assert.match(health.headers.get("cache-control") ?? "", /no-store/);
@@ -212,7 +212,7 @@ assert.match(await rateLimitedPage.text(), /Too many catalog requests/);
 
 function runFixture(path, action) {
   try {
-    execFileSync("psql", [testDatabaseUrl, "-X", "-1", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "ignore" });
+    execLocalPsql([testDatabaseUrl, "-X", "-1", "-v", "ON_ERROR_STOP=1", "-f", path], { stdio: "ignore" });
   } catch {
     throw new Error(`Hosted API hidden fixture ${action} failed.`);
   }

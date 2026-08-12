@@ -59,7 +59,7 @@ redirect_uri = ""
 enabled = false
 
 [storage]
-enabled = false
+enabled = true
 
 [studio]
 enabled = true

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/authenticate-request.schema.json",
+  "title": "SkillMap DeviceAuth v1 Access Authentication Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["device_id", "audience"],
+  "properties": {
+    "device_id": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DeviceId" },
+    "audience": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience" }
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "status": "NON_PRODUCT_PROVIDER_PROOF_VALIDATED_LOCALLY",
+  "scope": "M3.03 preimplementation replay epoch-key ring/provider proof only",
+  "candidate": {
+    "path": "/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate",
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "head": "0bc3c7e2e7b6523c018980714eef4d26ae8dc80e"
+  },
+  "contract": {
+    "schema": "skillmap.device-auth.replay-ring.v1",
+    "max_binding_bytes": 4096,
+    "max_entries": 4,
+    "epoch_seconds": 300,
+    "logical_seconds": 600,
+    "purge_seconds": 900,
+    "destroy_skew_seconds": 30,
+    "exposure_bound_seconds": 1230,
+    "key_bytes": 32,
+    "properties": [
+      "strict exact-key JSON parser accepting only UTF-8 string/bytes input",
+      "independent random epoch keys; no root derivation",
+      "exact epoch selection and closed expiry/destroy errors",
+      "generation compare-and-swap with deterministic failpoints",
+      "irreversible fake-provider destruction and restore denial",
+      "branded frozen rings only for redacted summaries",
+      "redacted summaries never expose key bytes"
+    ]
+  },
+  "changed_files": [
+    {
+      "path": "test/support/m3-03-replay-provider-proof.mjs",
+      "sha256": "df24ba0c6c42f969a1aee62713342882e331f334355f2df188f976ff3fc7d3e2",
+      "bytes": 14495
+    },
+    {
+      "path": "test/m3-03-replay-provider-proof.mjs",
+      "sha256": "1edc851b75062b283495ac709d328248a2f8aa062c893a0c762f255f9ea5bb00",
+      "bytes": 21945
+    },
+    {
+      "path": "test/fixtures/m3-03-replay-provider-proof/worker.mjs",
+      "sha256": "a04bd64c3097de69b6a08af7bd019f57eea767c34b9a1dad45f56f3dd9f7ab8b",
+      "bytes": 8979
+    },
+    {
+      "path": "test/fixtures/m3-03-replay-provider-proof/wrangler.jsonc",
+      "sha256": "03b9795cc76e7a7e49157a2146bfedd287970f12c1bbe874fce233b6e00f1e33",
+      "bytes": 369
+    }
+  ],
+  "allowlisted_added_paths": [
+    "docs/plans/evidence/M3.03-preimplementation-replay-provider-proof-receipt.json",
+    "test/fixtures/m3-03-replay-provider-proof/worker.mjs",
+    "test/fixtures/m3-03-replay-provider-proof/wrangler.jsonc",
+    "test/m3-03-replay-provider-proof.mjs",
+    "test/support/m3-03-replay-provider-proof.mjs"
+  ],
+  "failing_first": {
+    "command": "node --test test/m3-03-replay-provider-proof.mjs",
+    "result": "PASS 9/9 after bounded rework; no hang",
+    "reason": "The pre-rework slice was present before this worker ran and passed 7/7; independent review identified contract gaps. The repaired slice passed the full 9-test Node 22 suite, including BOM, raw-target, GET-body, and local-binding lexical vectors."
+  },
+  "checks": {
+    "node_22": "PASS 9/9",
+    "node_24": "PASS 9/9",
+    "m3_01_regression": "PASS 6/6",
+    "m3_02_regression": "PASS 8/8",
+    "generated_contract_check": "PASS",
+    "git_diff_check": "PASS",
+    "wrangler_deploy_dry_run": "PASS; local fixture only; no upload/provider URL"
+  },
+  "workerd": {
+    "result": "PASS",
+    "mode": "wrangler dev --local --no-bundle",
+    "runtime": "local Workerd bundled with Wrangler 4.114.0",
+    "compatibility_date": "2026-07-29",
+    "port": "dynamic localhost port",
+    "persistence": "task-specific temporary --persist-to directory",
+    "observed": [
+      "GET /proof/binding returned 200 from the local REPLAY_BINDING_SUMMARY binding",
+      "POST /proof/parse returned 200 for the raw UTF-8 ring and matched the Node redacted summary",
+      "query-bearing allowed routes returned fixed 400 invalid_request",
+      "the local raw-target adapter rejected dot-segment and encoded-dot aliases before URL pathname matching",
+      "UTF-8 BOM POST body returned the same invalid_json code as Node",
+      "GET with a non-empty stream, non-zero content-length, or transfer-encoding returned invalid_request",
+      "local binding scanner rejected 5e0, 5.0, and -0 before JSON materialization",
+      "wrong content type, malformed JSON/ring, duplicate keys, and body >1024 bytes returned closed 400 codes",
+      "exactly 1024-byte POST body was accepted; all other paths/methods returned 404 not_found",
+      "response included x-skillmap-replay-proof: local-only",
+      "stdout/stderr contained no provider token, key material, or key_b64url",
+      "the emitted Worker required the explicit non-secret REPLAY_BINDING_SUMMARY local test binding"
+    ],
+    "cleanup": [
+      "named Cloudflare/Supabase credential environment variables removed",
+      "SIGTERM followed by bounded SIGKILL fallback",
+      "child exit asserted",
+      "post-termination localhost fetch rejected",
+      "temporary fixture and persistence directory removed",
+      "dry-run was moved to a task-specific temporary fixture so Wrangler did not leave repository .wrangler residue",
+      "repository .wrangler residue scan was empty after cleanup"
+    ]
+  },
+  "adversarial_probes": [
+    "invalid JSON, duplicate decoded JSON member names, non-canonical numeric forms, UTF-8 bytes, and wrong object/getter/inherited binding types",
+    "unknown fields, wrong schema, empty ring, wrong primary",
+    "duplicate/out-of-order epochs and entry overflow",
+    "31-byte, malformed, and non-canonical key encodings",
+    "oversized binding and secret-bearing field",
+    "missing/stale/destroyed epoch, clock-before-issued, 600-second boundary",
+    "fake-provider rotation, CAS winner/loser, unavailable-before-read, unavailable-before-CAS, conflict, unavailable-after-CAS, unavailable-during-destroy, expired-entry, restore denial, and retained-deleted-version exposure",
+    "full Workerd method/path/query/content-type/body-size/malformed-body matrix, Node summary/closed-code parity, and output secret scan"
+  ],
+  "worktree_integrity": {
+    "preexisting_dirty_path_count": 13,
+    "preexisting_manifest_sha256": "4859cf30da1acea1fcf32fc0101b289562be05477a05961f19e024e1a8c8ae14",
+    "preexisting_paths_byte_identical_after": true,
+    "main_worktree_touched": false,
+    "provider_remote_or_git_history_mutation": false
+  },
+  "non_claims": [
+    "No product API, DB schema, migration, provider binding, secret, deploy, push, or ledger mutation was performed.",
+    "This does not prove a real provider/escrow deletion receipt, backup restore, or production exposure bound.",
+    "This does not prove Next/OpenNext emitted production integration or live Cloudflare behavior.",
+    "The local x-skillmap-replay-raw-target header models a trusted pre-URL-normalization edge adapter; this slice does not prove that production edge wiring or header stripping.",
+    "This does not prove Apple signing, Secure Enclave, Keychain, or native caller identity.",
+    "This is validated locally only; it is not pushed, deployed, live-verified, or M3.03 product acceptance."
+  ],
+  "route": {
+    "requested": "worker / GPT-5.6 Luna / high / Fast N/A",
+    "runtime_identity": "unconfirmed by child runtime receipt",
+    "strict_route_status": "requested route used by dispatch; identity confirmation unavailable",
+    "acceptance": "parent coordinator/reviewer must decide"
+  }
+}

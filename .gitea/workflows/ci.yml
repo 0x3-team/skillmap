@@ -116,7 +116,7 @@ jobs:
 
       - name: Verify generated database types are current
         run: |
-          supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > /tmp/skillmap-database.types.ts
+          supabase gen types typescript --local --schema api,private | sed -e '${/^$/d;}' > /tmp/skillmap-database.types.ts
           cmp /tmp/skillmap-database.types.ts apps/web/lib/supabase/database.types.ts
 
       - name: Stop the local Supabase stack

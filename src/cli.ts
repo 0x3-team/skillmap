@@ -22,6 +22,11 @@ import { identityCommand } from './commands/identity.js';
 import { WorkspaceStateStore, type PublicationResult } from './core/workspace-state/index.js';
 import { stateCommand } from './commands/state.js';
 import { dashboardCommand } from './commands/dashboard.js';
+import { loginCommand } from './commands/login.js';
+import { authCommand } from './commands/auth.js';
+import { whoamiCommand } from './commands/whoami.js';
+import { logoutCommand } from './commands/logout.js';
+import { CliExitError, mapDeviceAuthErrorToExitCode, SAFE_ERROR_MESSAGES } from './core/cli-exit.js';
 import { SKILLMAP_PRODUCT_VERSION } from './server/compatibility.js';
 
 async function main() {
@@ -36,37 +41,73 @@ async function main() {
     return;
   }
   let output: unknown;
-  const mutation = mutationOperation(parsed.command, parsed.positionals, parsed.flags);
-  if (mutation) {
-    const store = WorkspaceStateStore.open(cwd);
-    const wrapped = await store.withMutationLock(`cli:${mutation}`, async (context) => {
-      const migrated = await store.isMigrated();
-      if (migrated) {
-        const preflight = await store.readCurrent({ purpose: 'status' });
-        if (preflight.legacyDivergence.some((item) => item.severity === 'blocking')) {
-          throw new Error('Canonical legacy projections diverged from the approved revision. Review them, then run `skillmap state import-legacy --confirm` or `skillmap state repair-projections --confirm` explicitly.');
+  try {
+    const mutation = mutationOperation(parsed.command, parsed.positionals, parsed.flags);
+    if (mutation) {
+      const store = WorkspaceStateStore.open(cwd);
+      const wrapped = await store.withMutationLock(`cli:${mutation}`, async (context) => {
+        const migrated = await store.isMigrated();
+        if (migrated) {
+          const preflight = await store.readCurrent({ purpose: 'status' });
+          if (preflight.legacyDivergence.some((item) => item.severity === 'blocking')) {
+            throw new Error('Canonical legacy projections diverged from the approved revision. Review them, then run `skillmap state import-legacy --confirm` or `skillmap state repair-projections --confirm` explicitly.');
+          }
         }
-      }
-      const value = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
-      const approveForRouting = routingApprovalCandidate(parsed.command, value);
-      const publication = migrated
-        ? await context.publishLegacySnapshot({ approveForRouting, actor: 'local-cli', reason: `Successful ${mutation} command.` })
-        : await context.migrateLegacy({ confirm: true, approveForRouting, actor: 'local-cli', reason: `Initial state publication after ${mutation}.` });
-      return { value, publication };
-    });
-    output = attachPublicationReceipt(wrapped.value, wrapped.publication);
-  } else {
-    output = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
-  }
-  if (output === undefined) return;
-  if (hasFlag(parsed.flags, 'json')) {
-    console.log(JSON.stringify(output, null, 2));
-  } else {
-    printHuman(output);
+        const carryForwardRoutingApproval = migrated
+          && isDerivedApprovedGraphBuild(parsed.command, parsed.positionals, parsed.flags)
+          && await hasExactCurrentRoutingApproval(store);
+        const value = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
+        const approveForRouting = routingApprovalCandidate(parsed.command, value);
+        const publication = migrated
+          ? await context.publishLegacySnapshot({
+            approveForRouting,
+            ...(carryForwardRoutingApproval ? { carryForwardRoutingApproval: true } : {}),
+            actor: 'local-cli',
+            reason: `Successful ${mutation} command.`
+          })
+          : await context.migrateLegacy({ confirm: true, approveForRouting, actor: 'local-cli', reason: `Initial state publication after ${mutation}.` });
+        return { value, publication };
+      });
+      output = attachPublicationReceipt(wrapped.value, wrapped.publication);
+    } else {
+      output = await dispatchCommand(cwd, parsed.command, parsed.positionals, parsed.flags);
+    }
+    if (output === undefined) return;
+    if (hasFlag(parsed.flags, 'json')) {
+      console.log(JSON.stringify(output, null, 2));
+    } else {
+      printHuman(output);
+    }
+  } catch (error: unknown) {
+    handleCliError(error, hasFlag(parsed.flags, 'json'));
   }
 }
 
-async function dispatchCommand(cwd: string, command: string, positionals: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
+export function handleCliError(error: unknown, isJson: boolean): void {
+  if (error instanceof CliExitError) {
+    // Never echo error.message or payload.message: only a fixed safe message
+    // derived from the exit code's category may reach the user.
+    const safeMsg =
+      SAFE_ERROR_MESSAGES[error.code] ?? SAFE_ERROR_MESSAGES.usage_error ?? 'CLI command error.';
+    if (isJson) {
+      console.log(JSON.stringify({ error: error.code, message: safeMsg }, null, 2));
+    } else {
+      console.error(`skillmap error: ${safeMsg}`);
+    }
+    process.exitCode = error.exitCode;
+    return;
+  }
+
+  const mapped = mapDeviceAuthErrorToExitCode(error);
+  if (isJson) {
+    console.log(JSON.stringify({ error: mapped.code, message: mapped.message }, null, 2));
+  } else {
+    console.error(`skillmap error: ${mapped.message}`);
+  }
+  process.exitCode = mapped.exitCode;
+}
+
+export async function dispatchCommand(cwd: string, command: string, positionals: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
   let output: unknown;
   switch (command) {
     case 'init': output = await initCommand(cwd, flags); break;
@@ -90,7 +131,11 @@ async function dispatchCommand(cwd: string, command: string, positionals: string
     case 'route': output = await routeCommand(cwd, positionals, flags); break;
     case 'eval': output = await evalCommand(cwd, flags); break;
     case 'hook': output = await hookCommand(cwd, positionals, flags); break;
-    default: throw new Error(`Unknown command: ${command}`);
+    case 'login': output = await loginCommand(cwd, flags); break;
+    case 'auth': output = await authCommand(cwd, positionals, flags); break;
+    case 'whoami': output = await whoamiCommand(cwd, flags); break;
+    case 'logout': output = await logoutCommand(cwd, flags); break;
+    default: throw new CliExitError(64, `Unknown command: ${command}`, 'usage_error');
   }
   return output;
 }
@@ -114,6 +159,19 @@ function routingApprovalCandidate(command: string, value: unknown): boolean {
   return Boolean(validation
     && (validation.duplicateInventoryNameGroups?.length ?? 0) === 0
     && (validation.invalidCanonicalDecisions?.length ?? 0) === 0);
+}
+
+function isDerivedApprovedGraphBuild(command: string, positionals: string[], flags: Record<string, string | boolean | string[]>): boolean {
+  return command === 'graph' && (positionals[0] ?? 'build') === 'build' && !hasFlag(flags, 'raw');
+}
+
+async function hasExactCurrentRoutingApproval(store: WorkspaceStateStore): Promise<boolean> {
+  try {
+    const routing = await store.readCurrent({ purpose: 'routing' });
+    return routing.source === 'current' && routing.selectedPointer.revisionId === routing.currentPointer.revisionId;
+  } catch {
+    return false;
+  }
 }
 
 function attachPublicationReceipt(value: unknown, publication: PublicationResult): unknown {
@@ -153,6 +211,10 @@ Usage:
   skillmap <command> [options]
 
 Commands:
+  login [--no-browser] [--device-name NAME] [--json]
+  auth status [--check] [--json]
+  whoami [--json]
+  logout [--confirm] [--local-only] [--json]
   init [--root PATH] [--dry-run] [--json]
   scan [--root PATH] [--fixtures PATH] [--json]
   list [--json]
@@ -202,7 +264,5 @@ Safety defaults: no cloud calls, no skill script execution, source updates are p
 }
 
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`skillmap error: ${message}`);
-  process.exitCode = 1;
+  handleCliError(error, false);
 });

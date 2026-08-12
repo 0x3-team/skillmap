@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/initiate-request.schema.json",
+  "title": "SkillMap DeviceAuth v1 Pairing Initiation Request",
+  "description": "Closed request body for POST /api/device-auth/v1/pairings (M1.08 init). Unknown fields, duplicate keys, and values outside these bounds are rejected before authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "device_id",
+    "device_public_key",
+    "key_thumbprint",
+    "audience",
+    "proof_suite",
+    "requested_scopes",
+    "platform",
+    "connector_version"
+  ],
+  "properties": {
+    "device_id": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DeviceId" },
+    "device_public_key": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DevicePublicKey" },
+    "key_thumbprint": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/KeyThumbprint" },
+    "audience": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience" },
+    "proof_suite": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/ProofSuite" },
+    "requested_scopes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": false,
+      "items": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Scope" }
+    },
+    "display_name": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/DisplayName" },
+    "platform": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Platform" },
+    "connector_version": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/SemVer" },
+    "locale": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Locale" }
+  }
+}

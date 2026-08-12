@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 import { HostedSkipLink } from "@/components/skillmap/hosted-skip-link";
-import { getOptionalSiteUrl } from "@/lib/metadata";
+import { getMetadataBase, getOptionalSiteUrl } from "@/lib/metadata";
 import { isPublicIndexingEnabled } from "@/lib/security/policy";
 import "./globals.css";
 
@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 const siteUrl = getOptionalSiteUrl();
 
 export const metadata: Metadata = {
-  metadataBase: siteUrl ?? undefined,
+  metadataBase: getMetadataBase(),
   title: "SkillMap | Auditable Skill Library and Local Router",
   description:
     "Inspect hosted skill evidence, save useful skills, and route compact policy-backed advice without flooding the agent prompt.",

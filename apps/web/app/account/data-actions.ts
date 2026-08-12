@@ -12,7 +12,7 @@ import {
   serializeAccountDeletionFlash
 } from "@/lib/account/deletion-flash";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
-import { SupabaseConfigurationError } from "@/lib/supabase/config";
+import { SupabaseConfigurationError, siteOriginUsesHttps } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -21,6 +21,7 @@ export async function deleteMyAccount(formData: FormData) {
     redirect("/account?accountStatus=delete-confirmation#account-data");
   }
 
+  const accountDeletionFlashCookieSecure = siteOriginUsesHttps();
   const context = await deletionActionContext();
   if (context.state === "signed-out") redirect("/sign-in?next=%2Faccount%23account-data");
   if (context.state === "unavailable") redirect("/account?accountStatus=delete-unavailable#account-data");
@@ -42,17 +43,9 @@ export async function deleteMyAccount(formData: FormData) {
     maxAge: 120,
     path: "/sign-in",
     sameSite: "strict",
-    secure: publicOriginUsesHttps()
+    secure: accountDeletionFlashCookieSecure
   });
   redirect(`/sign-in?accountFlash=${encodeURIComponent(token)}`);
-}
-
-function publicOriginUsesHttps(): boolean {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1").protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 type DeletionActionContext =

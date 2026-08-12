@@ -1,0 +1,86 @@
+{
+  "schema": "skillmap.m3-03.dp-keychain-failure-recovery.dry-run.v1",
+  "outcome": "DRY_RUN_BLOCKED",
+  "observed_at": "2026-08-11T00:15:21.120Z",
+  "implementation_sha256": {
+    "test/fixtures/m3-03-dp-keychain-failure-recovery/ResidueRecovery.swift": "70db195cc07e9d1470463d196ec808fa133ae7f27bc2a7880fdf1c71761a48cc",
+    "test/support/m3-03-dp-keychain-failure-recovery.mjs": "142d2a41fd6c70f307c1e96ba4abd4200529a9acb347a0d8dbd6b82ba110f9fc",
+    "scripts/m3-03-dp-keychain-failure-recovery.mjs": "83e507220f94365d2519d846b646807a1a380ee95f658deb4364f445fa984ea1",
+    "test/m3-03-dp-keychain-failure-recovery.mjs": "85bf864a29ae62a2226cfc76be1f19612ea8714368807005130f81343b4d1134"
+  },
+  "source_sha256": "70db195cc07e9d1470463d196ec808fa133ae7f27bc2a7880fdf1c71761a48cc",
+  "amendment_sha256": "3a87a9040fd29825c37ef9ab47deeeffd08b3f850c5532fcd278d7308fbd6df1",
+  "target": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "os_product_version": "26.6.1",
+    "os_build": "25G76",
+    "non_root": true,
+    "uid_equal": true,
+    "user_context_sha256": "4c753925dd1d4835fa01b25eaf752603d75e23e63331c772ea7e2be8848c2846"
+  },
+  "inventory": {
+    "unsigned_count": 0,
+    "adhoc_count": 0,
+    "candidate_count": 0,
+    "pair_fingerprints": [],
+    "candidate_manifest_sha256": "b75edfeff396e6c29486d14e044d015cb8656a520771f6287f388850c0beed7e",
+    "authority_manifest_sha256": null
+  },
+  "clocks": {
+    "observed_at_wall_ns": "1786407321392000000",
+    "expires_at_wall_ns": "1786408221392000000",
+    "observed_at_monotonic_ns": "53658179770500",
+    "expires_at_monotonic_ns": "54558179770500"
+  },
+  "boot_audit_session_context_sha256": null,
+  "blocked_reason": "audit_context_unavailable",
+  "process_evidence": [
+    {
+      "row": "unsigned",
+      "phase": "context",
+      "process": {
+        "ok": false,
+        "exit": null,
+        "signal": "SIGKILL",
+        "timed_out": false,
+        "oversized": false,
+        "stdout_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "adversarial": {
+    "dirty_worktree": {
+      "checked": true,
+      "before_status_sha256": "ce51818e2b1bb219928e44f34e102a41b721b2dbe826a35428d8d87529de1ea4",
+      "after_status_sha256": "ce51818e2b1bb219928e44f34e102a41b721b2dbe826a35428d8d87529de1ea4"
+    },
+    "malformed_input": {
+      "checked": true
+    },
+    "stale_state": {
+      "checked": true
+    },
+    "misleading_success_output": {
+      "checked": true
+    },
+    "hung_or_long_command": {
+      "checked": true,
+      "timeout_ms": 45000
+    },
+    "repeated_interruptions": {
+      "checked": true
+    }
+  },
+  "cleanup": {
+    "authority_manifest_mode": "0600",
+    "run_directory_mode": "0700",
+    "authority_manifest_removed": false,
+    "temp_removed": false
+  },
+  "external_mutation": false,
+  "keychain_mutation": false,
+  "deletion_reachable": false,
+  "deletion_spy_calls": 0
+}

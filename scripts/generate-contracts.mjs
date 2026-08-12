@@ -3,6 +3,9 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import standaloneCode from "ajv/dist/standalone/index.js";
+import { _ } from "ajv/dist/compile/codegen/index.js";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = path.join(repo, "contracts/manifest.json");
@@ -34,11 +37,173 @@ const routeRankingPath = path.join(repo, "src/contracts/route-ranking.ts");
 const routeRanking = await readFile(routeRankingPath, "utf8");
 const fixturePathPath = path.join(repo, "src/contracts/fixture-path.ts");
 const fixturePath = await readFile(fixturePathPath, "utf8");
+const standaloneAjv = new Ajv2020({
+  allErrors: true,
+  strictSchema: true,
+  strictRequired: true,
+  strictTypes: false,
+  strictTuples: false,
+  validateFormats: true,
+  coerceTypes: false,
+  useDefaults: false,
+  removeAdditional: false,
+  code: { esm: true, source: true, formats: _`dateTimeFormats` }
+});
+standaloneAjv.addFormat("date-time", {
+  type: "string",
+  validate: (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?Z$/.exec(value);
+    if (!match) return false;
+    const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;
+    const [year, month, day, hour, minute, second] = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);
+    if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) return false;
+    const date = new Date(0);
+    date.setUTCFullYear(year, month - 1, day);
+    date.setUTCHours(hour, minute, second, 0);
+    return date.getUTCFullYear() === year
+      && date.getUTCMonth() === month - 1
+      && date.getUTCDate() === day
+      && date.getUTCHours() === hour
+      && date.getUTCMinutes() === minute
+      && date.getUTCSeconds() === second;
+  }
+});
+for (const schema of schemas) standaloneAjv.addSchema(JSON.parse(JSON.stringify(schema)));
+// Ajv's standalone generator reserves `schema<N>` for internal schema fragments.
+// Prefix the exported roots so a manifest index can never collide with one of
+// those generated declarations (for example, schema31 when the manifest grows).
+const standaloneNames = Object.fromEntries(schemas.map((schema, index) => [`contractSchema${index}`, schema.$id]));
+const standaloneDateTimeSource = `const dateTimeFormats = {\n` +
+  `  "date-time": {\n` +
+  `    type: "string",\n` +
+  `    validate(value: string): boolean {\n` +
+  `      const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.\\d{1,9})?Z$/.exec(value);\n` +
+  `      if (!match) return false;\n` +
+  `      const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;\n` +
+  `      const [year, month, day, hour, minute, second] = [yearText, monthText, dayText, hourText, minuteText, secondText].map(Number);\n` +
+  `      if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) return false;\n` +
+  `      const date = new Date(0);\n` +
+  `      date.setUTCFullYear(year, month - 1, day);\n` +
+  `      date.setUTCHours(hour, minute, second, 0);\n` +
+  `      return date.getUTCFullYear() === year\n` +
+  `        && date.getUTCMonth() === month - 1\n` +
+  `        && date.getUTCDate() === day\n` +
+  `        && date.getUTCHours() === hour\n` +
+  `        && date.getUTCMinutes() === minute\n` +
+  `        && date.getUTCSeconds() === second;\n` +
+  `    }\n` +
+  `  }\n` +
+  `} as const;\n`;
+const standaloneRuntimeSource = `function standaloneUcs2Length(str: string): number {\n` +
+  `  const len = str.length;\n` +
+  `  let length = 0;\n` +
+  `  let pos = 0;\n` +
+  `  let value;\n` +
+  `  while (pos < len) {\n` +
+  `    length++;\n` +
+  `    value = str.charCodeAt(pos++);\n` +
+  `    if (value >= 0xd800 && value <= 0xdbff && pos < len) {\n` +
+  `      value = str.charCodeAt(pos);\n` +
+  `      if ((value & 0xfc00) === 0xdc00) pos++;\n` +
+  `    }\n` +
+  `  }\n` +
+  `  return length;\n` +
+  `}\n` +
+  `function standaloneEqual(a: unknown, b: unknown): boolean {\n` +
+  `  if (a === b) return true;\n` +
+  `  if (a && b && typeof a === "object" && typeof b === "object") {\n` +
+  `    if ((a as { constructor: unknown }).constructor !== (b as { constructor: unknown }).constructor) return false;\n` +
+  `    if (Array.isArray(a)) {\n` +
+  `      if (a.length !== (b as unknown[]).length) return false;\n` +
+  `      for (let i = a.length; i-- !== 0;) if (!standaloneEqual(a[i], (b as unknown[])[i])) return false;\n` +
+  `      return true;\n` +
+  `    }\n` +
+  `    if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags;\n` +
+  `    if ((a as { valueOf: () => unknown }).valueOf !== Object.prototype.valueOf) return (a as { valueOf: () => unknown }).valueOf() === (b as { valueOf: () => unknown }).valueOf();\n` +
+  `    if ((a as { toString: () => unknown }).toString !== Object.prototype.toString) return (a as { toString: () => unknown }).toString() === (b as { toString: () => unknown }).toString();\n` +
+  `    const keys = Object.keys(a);\n` +
+  `    if (keys.length !== Object.keys(b).length) return false;\n` +
+  `    for (let i = keys.length; i-- !== 0;) if (!Object.prototype.hasOwnProperty.call(b, keys[i])) return false;\n` +
+  `    for (let i = keys.length; i-- !== 0;) if (!standaloneEqual((a as Record<string, unknown>)[keys[i]], (b as Record<string, unknown>)[keys[i]])) return false;\n` +
+  `    return true;\n` +
+  `  }\n` +
+  `  return a !== a && b !== b;\n` +
+  `}\n`;
+const standaloneGeneratedCode = standaloneCode(standaloneAjv, standaloneNames)
+  .replaceAll('require("ajv/dist/runtime/ucs2length").default', "standaloneUcs2Length")
+  .replaceAll('require("ajv/dist/runtime/equal").default', "standaloneEqual");
+const standaloneValidatorSource = `// @ts-nocheck\n// Generated by scripts/generate-contracts.mjs from the canonical schema bundle. Do not edit by hand.\n` +
+  standaloneDateTimeSource +
+  standaloneRuntimeSource +
+  standaloneGeneratedCode +
+  `\nexport const CONTRACT_STANDALONE_VALIDATORS = {\n` +
+  schemas.map((schema, index) => `  ${JSON.stringify(schema.$id)}: contractSchema${index}`).join(",\n") +
+  `\n} as const;\n`;
+const webValidatorTypeSource = `type ErrorObject = { instancePath?: string; schemaPath: string; keyword: string; message?: string };\n` +
+  `type ValidateFunction = ((value: unknown) => boolean) & { errors?: ErrorObject[] | null };\n`;
+const webValidatorRoot = rootValidator.replace(
+  "import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';\n",
+  webValidatorTypeSource
+);
+const webValidatorStaticBlockStart = webValidatorRoot.indexOf("const cloudflareStaticValidation =");
+const webValidatorStaticBlockEnd = webValidatorRoot.indexOf("const validators =", webValidatorStaticBlockStart);
+if (webValidatorStaticBlockStart < 0 || webValidatorStaticBlockEnd < 0) {
+  throw new Error("Unable to locate the validator runtime-selection block in src/contracts/validate.ts");
+}
+const webValidatorGetValidatorStart = webValidatorRoot.indexOf("function getValidator(schemaId: string): ValidateFunction {");
+const webValidatorGetValidatorEnd = webValidatorRoot.indexOf("function formatAjvIssues", webValidatorGetValidatorStart);
+if (webValidatorGetValidatorStart < 0 || webValidatorGetValidatorEnd < 0) {
+  throw new Error("Unable to locate the validator dispatch block in src/contracts/validate.ts");
+}
+const webValidatorStaticDispatch = `function getValidator(schemaId: string): ValidateFunction {\n` +
+  `  const cached = validators.get(schemaId);\n` +
+  `  if (cached) return cached;\n` +
+  `  const validator = CONTRACT_STANDALONE_VALIDATORS[schemaId as keyof typeof CONTRACT_STANDALONE_VALIDATORS] as ValidateFunction | undefined;\n` +
+  `  if (!validator) throw new Error(\`Unknown SkillMap contract schema: \${schemaId}\`);\n` +
+  `  validators.set(schemaId, validator);\n` +
+  `  return validator;\n` +
+  `}\n\n`;
+const webValidatorBody = webValidatorRoot.slice(0, webValidatorStaticBlockStart) +
+  webValidatorRoot.slice(webValidatorStaticBlockEnd, webValidatorGetValidatorStart) +
+  webValidatorStaticDispatch +
+  webValidatorRoot.slice(webValidatorGetValidatorEnd);
 const webValidatorSource = `// Generated by scripts/generate-contracts.mjs from src/contracts/validate.ts. Do not edit by hand.\n` +
-  rootValidator
+  webValidatorBody
+    .replaceAll("formatAjvIssues", "formatValidationIssues")
     .replace("'./generated/schema-bundle.js'", "'./schema-bundle.js'")
     .replace("'./generated/types.js'", "'./types.js'")
+    .replace("'./generated/standalone-validators.js'", "'./standalone-validators.js'")
     .replace(/from '(\.\/[^']+)\.js';/g, "from '$1';");
+const hostedApiResponseSchemaId = "https://skillmap.dev/contracts/hosted-api-response/v1.schema.json";
+const hostedApiResponseSchema = schemas.find((schema) => schema.$id === hostedApiResponseSchemaId);
+if (!hostedApiResponseSchema?.$defs?.Error) throw new Error("Hosted API response schema is missing its canonical Error definition");
+const hostedApiErrorSchemaId = "https://skillmap.dev/contracts/hosted-api-error/v1.schema.json";
+const hostedApiErrorSchema = structuredClone(hostedApiResponseSchema.$defs.Error);
+hostedApiErrorSchema.$id = hostedApiErrorSchemaId;
+const hostedApiErrorAjv = new Ajv2020({
+  allErrors: true,
+  strictSchema: true,
+  strictRequired: true,
+  strictTypes: false,
+  strictTuples: false,
+  validateFormats: true,
+  coerceTypes: false,
+  useDefaults: false,
+  removeAdditional: false,
+  code: { esm: true, source: true, formats: _`dateTimeFormats` }
+});
+hostedApiErrorAjv.addSchema(hostedApiErrorSchema);
+const hostedApiResponseGeneratedCode = standaloneCode(hostedApiErrorAjv, { hostedApiErrorResponse: hostedApiErrorSchemaId })
+  .replaceAll('require("ajv/dist/runtime/ucs2length").default', "standaloneUcs2Length")
+  .replaceAll('require("ajv/dist/runtime/equal").default', "standaloneEqual");
+const hostedApiResponseValidatorSource = `// @ts-nocheck\n` +
+  `// Generated by scripts/generate-contracts.mjs from the canonical hosted API schema. Do not edit by hand.\n` +
+  standaloneDateTimeSource +
+  standaloneRuntimeSource +
+  hostedApiResponseGeneratedCode +
+  `\nexport const HOSTED_API_RESPONSE_SCHEMA_ID = ${JSON.stringify(hostedApiResponseSchemaId)};\n` +
+  `export const HOSTED_API_ERROR_SCHEMA_ID = ${JSON.stringify(hostedApiErrorSchemaId)};\n` +
+  `export const validateHostedApiErrorResponse = hostedApiErrorResponse;\n`;
 const webEvalSemanticsSource = `// Generated by scripts/generate-contracts.mjs from src/contracts/eval-semantics.ts. Do not edit by hand.\n${evalSemantics}`;
 const webRouteRankingSource = `// Generated by scripts/generate-contracts.mjs from src/contracts/route-ranking.ts. Do not edit by hand.\n${routeRanking}`;
 const webFixturePathSource = `// Generated by scripts/generate-contracts.mjs from src/contracts/fixture-path.ts. Do not edit by hand.\n${fixturePath}`;
@@ -55,6 +220,11 @@ const webValidatorTarget = path.join(repo, "apps/web/lib/contracts/generated/val
 const webEvalSemanticsTarget = path.join(repo, "apps/web/lib/contracts/generated/eval-semantics.ts");
 const webRouteRankingTarget = path.join(repo, "apps/web/lib/contracts/generated/route-ranking.ts");
 const webFixturePathTarget = path.join(repo, "apps/web/lib/contracts/generated/fixture-path.ts");
+const standaloneValidatorTargets = [
+  path.join(repo, "src/contracts/generated/standalone-validators.ts"),
+  path.join(repo, "apps/web/lib/contracts/generated/standalone-validators.ts")
+];
+const hostedApiResponseValidatorTarget = path.join(repo, "apps/web/lib/contracts/generated/hosted-api-response-validator.ts");
 const check = process.argv.includes("--check");
 const stale = [];
 
@@ -76,9 +246,20 @@ for (const target of typeTargets) {
   }
 }
 
+for (const target of standaloneValidatorTargets) {
+  if (check) {
+    const current = await readFile(target, "utf8").catch(() => "");
+    if (current !== standaloneValidatorSource) stale.push(path.relative(repo, target));
+  } else {
+    await writeFile(target, standaloneValidatorSource, "utf8");
+  }
+}
+
 if (check) {
   const current = await readFile(webValidatorTarget, "utf8").catch(() => "");
   if (current !== webValidatorSource) stale.push(path.relative(repo, webValidatorTarget));
+  const currentHostedApiResponseValidator = await readFile(hostedApiResponseValidatorTarget, "utf8").catch(() => "");
+  if (currentHostedApiResponseValidator !== hostedApiResponseValidatorSource) stale.push(path.relative(repo, hostedApiResponseValidatorTarget));
   const currentEvalSemantics = await readFile(webEvalSemanticsTarget, "utf8").catch(() => "");
   if (currentEvalSemantics !== webEvalSemanticsSource) stale.push(path.relative(repo, webEvalSemanticsTarget));
   const currentRouteRanking = await readFile(webRouteRankingTarget, "utf8").catch(() => "");
@@ -87,6 +268,7 @@ if (check) {
   if (currentFixturePath !== webFixturePathSource) stale.push(path.relative(repo, webFixturePathTarget));
 } else {
   await writeFile(webValidatorTarget, webValidatorSource, "utf8");
+  await writeFile(hostedApiResponseValidatorTarget, hostedApiResponseValidatorSource, "utf8");
   await writeFile(webEvalSemanticsTarget, webEvalSemanticsSource, "utf8");
   await writeFile(webRouteRankingTarget, webRouteRankingSource, "utf8");
   await writeFile(webFixturePathTarget, webFixturePathSource, "utf8");

@@ -1,6 +1,12 @@
 const SUBMISSION_ID = /^sub_[0-9a-f]{32}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+/**
+ * Renew the lease held on a claimed skill submission.
+ * @param {object} rpc The Supabase RPC client.
+ * @param {object} claim The claimed submission.
+ * @param {{ workerVersion?: string, leaseSeconds?: number }} [options] Renewal options.
+ */
 export async function renewClaimLease(rpc, claim, { workerVersion, leaseSeconds = 300 } = {}) {
   if (!rpc || typeof rpc.call !== 'function') throw new Error('Claim lease renewal requires an RPC client.');
   if (!claim || typeof claim !== 'object' || Array.isArray(claim)

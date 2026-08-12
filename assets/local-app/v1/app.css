@@ -228,7 +228,9 @@ dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 12px; text-ali
 .progress-panel strong, .progress-panel span { display: block; }
 .progress-panel span { margin-top: 4px; color: var(--muted); font-size: 11px; }
 .progress-panel progress { width: 100%; accent-color: var(--accent); }
-.onboarding-steps .step-action { display: flex; align-items: center; justify-content: flex-end; }
+.onboarding-steps > li > span:first-child { min-width: 0; }
+.onboarding-steps .step-action { display: flex; flex: 0 0 auto; min-width: max-content; align-items: center; justify-content: flex-end; }
+.onboarding-steps .step-action .pill { max-width: none; overflow-wrap: normal; white-space: nowrap; }
 .divider { height: 1px; margin: 16px 0; border: 0; background: var(--line); }
 .help-text, .microcopy { display: block; margin-top: 9px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .spaced-control { margin-top: 12px; }

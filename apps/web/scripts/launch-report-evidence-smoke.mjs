@@ -1,8 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { chromium } from "playwright";
+import { execLocalPsql } from "./local-supabase-psql.mjs";
 
 const baseUrl = process.env.SKILLMAP_WEB_BASE_URL ?? "http://127.0.0.1:3108";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -638,7 +638,7 @@ try {
   // A queued report can outlive the 24-hour cooldown. Reproduce that valid
   // state without weakening the production immutability trigger, then prove
   // the partial unique-index conflict resolves to the account-owned row.
-  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+  execLocalPsql([databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
     `begin; set local session_replication_role = replica; update api.skill_reports set created_at = now() - interval '25 hours' where public_id = '${reportId}'; commit;`
   ], { stdio: ["ignore", "ignore", "pipe"] });
   await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
@@ -779,7 +779,7 @@ try {
     || blockingQueuedReportId === reportId) {
     throw new Error("Second queued report did not return a distinct canonical receipt ID.");
   }
-  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+  execLocalPsql([databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
     `begin; set local session_replication_role = replica; update api.skill_reports set created_at = now() - interval '25 hours' where public_id = '${blockingQueuedReportId}'; commit;`
   ], { stdio: ["ignore", "ignore", "pipe"] });
   await page.goto(new URL(detailPath, baseUrl).toString(), { waitUntil: "load" });
@@ -1198,8 +1198,7 @@ function cleanupOperatorFixtures(authority) {
 
 function runLocalSuperuserSql(sql, label) {
   try {
-    return execFileSync(
-      "psql",
+    return execLocalPsql(
       [databaseUrl, "-X", "-qAt", "-v", "ON_ERROR_STOP=1"],
       { input: sql, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], maxBuffer: 1024 * 1024 }
     ).trim();
@@ -1383,8 +1382,7 @@ function cleanupPublishedFixture(identity) {
       'versions', (select count(*)::integer from private.skill_versions where false ${versionIdPredicate})
     )::text;
   `;
-  const output = execFileSync(
-    "psql",
+  const output = execLocalPsql(
     [databaseUrl, "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", sql],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   ).trim();

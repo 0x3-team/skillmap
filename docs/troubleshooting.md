@@ -67,7 +67,7 @@ GitHub raw rate-limited the check. Re-run later or use authenticated/manual sour
 Run the route directly:
 
 ```bash
-skillmap route --trace "your prompt"
+skillmap route "your prompt" --trace
 skillmap hook dry-run codex "your prompt"
 ```
 

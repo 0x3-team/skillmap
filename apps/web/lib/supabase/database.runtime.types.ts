@@ -98,7 +98,7 @@ type RuntimeFunctions = Omit<ApiFunctions, OperatorFunctionName> & {
 // its output byte-exact in database.types.ts and override only the three
 // operator RPCs at the application boundary, following Supabase's documented
 // generated-type override pattern.
-export type Database = Omit<GeneratedDatabase, "api"> & {
+export type Database = Omit<GeneratedDatabase, "__InternalSupabase" | "api" | "private"> & {
   api: Omit<ApiSchema, "Functions"> & { Functions: RuntimeFunctions };
 };
 
@@ -114,6 +114,12 @@ type IsExact<Left, Right> =
       : false
     : false;
 type AssertTrue<Value extends true> = Value;
+
+// Raw generator parity includes private so M2.03-M2.14 database objects are
+// reviewable, but application clients must expose only the reviewed API schema.
+export type RuntimeDatabaseSchemaAssertion = AssertTrue<
+  IsExact<keyof Database, "api">
+>;
 
 // These expected sets are deliberately independent from the unions that drive
 // the overrides above. Changing an override without changing the reviewed SQL

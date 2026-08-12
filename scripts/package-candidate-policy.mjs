@@ -116,6 +116,23 @@ const PUBLIC_CONTRACT_PATHS = [
   'contracts/workspace-revision/v1.schema.json'
 ];
 
+// Device-auth command modules are imported by the public CLI entrypoint. Keep
+// the exact paths here so a consumer install cannot ship a CLI whose module
+// graph is incomplete while still rejecting unrelated source/build output.
+PUBLIC_CONTRACT_PATHS.push(
+  'contracts/device-auth/v1/authenticate-request.schema.json',
+  'contracts/device-auth/v1/authenticate-response.schema.json',
+  'contracts/device-auth/v1/cancel-request.schema.json',
+  'contracts/device-auth/v1/cancel-response.schema.json',
+  'contracts/device-auth/v1/common.schema.json',
+  'contracts/device-auth/v1/error.schema.json',
+  'contracts/device-auth/v1/initiate-request.schema.json',
+  'contracts/device-auth/v1/initiate-response.schema.json',
+  'contracts/device-auth/v1/revoke-request.schema.json',
+  'contracts/device-auth/v1/revoke-response.schema.json',
+  'contracts/device-auth/v1/status-response.schema.json'
+);
+
 const PUBLIC_DIST_MODULES = [
   'cli',
   'commands/apply-policy',
@@ -205,6 +222,27 @@ const PUBLIC_DIST_MODULES = [
   'services/workspace-read-model'
 ];
 
+PUBLIC_DIST_MODULES.push(
+  'commands/auth',
+  'commands/login',
+  'commands/logout',
+  'commands/whoami',
+  'contracts/device-auth',
+  'core/cli-exit',
+  'network/device-auth-client',
+  'platform/credential-store',
+  'platform/device-auth-metadata-store',
+  'platform/device-key-store',
+  'platform/macos-credential-store',
+  'platform/macos-custody-factory',
+  'platform/macos-device-auth-metadata-store',
+  'platform/macos-device-key-store',
+  'platform/macos-keychain-helper-client',
+  'platform/macos-keychain-protocol',
+  'services/device-auth-use-case',
+  'contracts/generated/standalone-validators'
+);
+
 const PUBLIC_PACKAGE_PATHS = new Set([
   ...PUBLIC_ROOT_PATHS,
   ...PUBLIC_DOC_PATHS,
@@ -212,6 +250,7 @@ const PUBLIC_PACKAGE_PATHS = new Set([
   ...PUBLIC_CONTRACT_PATHS,
   ...PUBLIC_DIST_MODULES.flatMap(module => [`dist/${module}.d.ts`, `dist/${module}.js`])
 ]);
+PUBLIC_PACKAGE_PATHS.add('native/macos-keychain-helper/main.swift');
 
 // These hooks are automatic code-execution surfaces during npm install in at
 // least one supported install shape (dependency, bare/local, link, or git).

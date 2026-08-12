@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/initiate-response.schema.json",
+  "title": "SkillMap DeviceAuth v1 Pairing Initiation Response",
+  "description": "Exact Connector-only initiation response (M1.08). device_code and user_code are secret; this body is served with Cache-Control: no-store and never reaches the browser.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "device_code",
+    "user_code",
+    "verification_uri",
+    "expires_in",
+    "interval",
+    "display"
+  ],
+  "properties": {
+    "device_code": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Base64Url256Bit" },
+    "user_code": {
+      "type": "string",
+      "pattern": "^[0-9A-Z]{5}-[0-9A-Z]{5}$",
+      "description": "10 Crockford Base32 characters displayed as XXXXX-XXXXX; 50 random bits; case-insensitive input."
+    },
+    "verification_uri": {
+      "type": "string",
+      "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/device$",
+      "minLength": 16,
+      "maxLength": 2096
+    },
+    "expires_in": {
+      "const": 600
+    },
+    "interval": {
+      "const": 5
+    },
+    "display": { "$ref": "#/$defs/Display" }
+  },
+  "$defs": {
+    "Display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "platform", "connector_version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 0, "maxLength": 64 },
+        "platform": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Platform" },
+        "connector_version": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/SemVer" },
+        "locale": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Locale" }
+      }
+    }
+  }
+}

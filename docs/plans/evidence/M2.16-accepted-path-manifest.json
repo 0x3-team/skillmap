@@ -1,0 +1,1193 @@
+{
+  "$schema": "skillmap.m2.16-accepted-path-manifest/v1",
+  "phase": "M2.16-A",
+  "slice": "candidate-assembly",
+  "derived_from": "final PASS/APPROVED M2.01-M2.15 review_result ledger dispositions",
+  "ledger": {
+    "valid_rows": 290,
+    "sha256": "b053ebfb5de281e28ff2b30bf73ec6c077216b9c5d55f36a36a9a450cc82fe0b"
+  },
+  "source_tree": {
+    "head": "cb062dd35de76cc3b40c1d004a13b50663cc1aa6",
+    "branch": "main",
+    "status_sha256_before": "489c4be3881f0d0d6a1a0eae472d78d0a7c22fd13ecde33e6611771fcdab1276",
+    "duplicate_suffix_files_sha_before": {
+      "apps/web/lib/security/rate-limit 2.ts": "02b97294ddc447883b148ab3c712fa244fae1a0f5d2a02fcfbbf7b2734e5e389",
+      "docs/graphs/README 2.md": "98587b2eee7af3c9c86a6ec9d3fdb77a9bbf49dcebab9d249cb444c8c7bd98aa",
+      "docs/plans/evidence/M0.01-opennext-artifact-proof-r3 2.md": "ebe65217d2377e72487cfa32ab113eeaad596e9a53c1b628dd9281a85e152eee",
+      "docs/project-map 2.md": "bac73644864aeb1402235c30696af399cf4915908cf4dd9ecc7bb19ba3be4413"
+    }
+  },
+  "transfer_rule": "explicit per-path copy only; no cp/rsync/globs, no git add ., no git add -A",
+  "accepted_paths": [
+    {
+      "path": "docs/plans/evidence/M2.01-hosted-schema-auth-inventory.md",
+      "milestone_owner": "M2.01",
+      "authorizing_review": "M2.01-R3-REVIEW",
+      "marker": "APPROVED",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "3574d9ce4e4a35bf9141c4586615f219f09691b5643a9a0ccb2994a35cf8c24b",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.01-luna-review-r3.md",
+      "milestone_owner": "M2.01",
+      "authorizing_review": "M2.01-R3-REVIEW",
+      "marker": "APPROVED",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "1009880e72b4752cf9df9985d0570995e8f832c0eb4b80d2a6ef9224fb5a1e33",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.02-luna-review-r1.md",
+      "milestone_owner": "M2.02",
+      "authorizing_review": "M2.02-R1-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "4bef791a6283b1a2b309ee71cc3af25ef0c37d78590206487082455b33beeec9",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.02-import-vault-error-registry-v1.schema.json",
+      "milestone_owner": "M2.02",
+      "authorizing_review": "M2.02-R1-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "9a9738dbbe64d8fff9ab5211b1ca7902bc89dfc6c79d7d3a0801206e123a6223",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.02-import-vault-error-registry-v1.json",
+      "milestone_owner": "M2.02",
+      "authorizing_review": "M2.02-R1-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "182fa493af69f8d506e5acae84f42445d28c939e716d3f3d5d106aad13d82f2e",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060200_skill_vault_managed_skills.sql",
+      "milestone_owner": "M2.03",
+      "authorizing_review": "M2.03-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_03_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "c1395998b977c446a9eb23243ec4cacf10cda21b74d43eb1cb7b0989a4738dd6",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_managed_skills.test.sql",
+      "milestone_owner": "M2.03",
+      "authorizing_review": "M2.03-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_03_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "2dd4f3e40f9fb02348b42661a41db44625b8396fcb5c1ef5b63e1029a570d414",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.03-managed-skills-migration-acceptance.md",
+      "milestone_owner": "M2.03",
+      "authorizing_review": "M2.03-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_03_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "ff92f8d6f5f0193afae0cd8c694c1dc47cb172784dcd5096fedf2f298da6d08a",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.03-luna-review-r2.md",
+      "milestone_owner": "M2.03",
+      "authorizing_review": "M2.03-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_03_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "4db62aa936b2f6c0a2cfde34edec255f327df4fe602e17126ebb8772473f015e",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060300_skill_vault_versions_releases_activation.sql",
+      "milestone_owner": "M2.04",
+      "authorizing_review": "M2.04-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_04_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "371121348a041df275662ab7c2e13379c84c6c1e4da626570a70a82edc657d5d",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_versions_activation.test.sql",
+      "milestone_owner": "M2.04",
+      "authorizing_review": "M2.04-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_04_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "edff4b4b51c7bb3466185199d8394100789177fef1aa7ea3a55e400122316de1",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/hosted_catalog_rls.test.sql",
+      "milestone_owner": "M2.04",
+      "authorizing_review": "M2.04-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_04_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "d606e2fd4fba6f0bd5b615ee98ed7a8580643e5dfca863b193020f159963a402",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.04-versions-releases-activation-acceptance.md",
+      "milestone_owner": "M2.04",
+      "authorizing_review": "M2.04-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_04_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "2de2c6b1ca1f5a5f0734b1623f761a83b62d7726dfdbe36d88b10684a4dee1fe",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.04-luna-review-r1.md",
+      "milestone_owner": "M2.04",
+      "authorizing_review": "M2.04-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_04_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "e92e265876736ece611f07a4985bb866983e543b8ac6d5db2550d2e8b3090440",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.04-luna-review-r2.md",
+      "milestone_owner": "M2.04",
+      "authorizing_review": "M2.04-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_04_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "0f1f67a04f239e8a4492fd0d88bf18dcfc8002cbde0efb1273b5eb30502e9c2c",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060400_skill_vault_files.sql",
+      "milestone_owner": "M2.05",
+      "authorizing_review": "M2.05-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_05_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "1d9fa26064809903447c01010666b65931cba64f429c6b1f41930a78f65a8c64",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_files.test.sql",
+      "milestone_owner": "M2.05",
+      "authorizing_review": "M2.05-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_05_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "110e97529c91ba118782c5fd5fa2c2147444bea2170ae4ece5800348d6d295b7",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.05-bounded-files-acceptance.md",
+      "milestone_owner": "M2.05",
+      "authorizing_review": "M2.05-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_05_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "d1ed9199513d654a7b11476fcd4d13a704735a23a406398da39922518ba0a4f8",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.05-luna-review-r1.md",
+      "milestone_owner": "M2.05",
+      "authorizing_review": "M2.05-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_05_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "2c7a98a43c48ca489743e07f667176c2401a590b1779f0cff21c43d0cfb1ec09",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.05-luna-review-r2.md",
+      "milestone_owner": "M2.05",
+      "authorizing_review": "M2.05-R2-REVIEW",
+      "marker": "APPROVED_INDEPENDENT_LUNA_M2_05_R2_PASS",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "dd2f80ce5025b57e59dc3b8fa2ceba9ef070f7cde6818cb75b0ee7423a40bcfc",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060500_skill_vault_private_storage.sql",
+      "milestone_owner": "M2.06",
+      "authorizing_review": "M2.06-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_06_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "60530f993603e61a4da011b4bc59c2ab7e04142fc93d7e232a3fcee67dec5dc8",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_storage.test.sql",
+      "milestone_owner": "M2.06",
+      "authorizing_review": "M2.06-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_06_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "bb9822b237adbaa4b21322b143e73f74ef285f061ca994749360685e619fe33a",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.06-private-storage-policy-checkpoint.md",
+      "milestone_owner": "M2.06",
+      "authorizing_review": "M2.06-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_06_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "595251e20e27950d77f22c7d083712e79290ab0cf70cf010f4d9e1f0f9c6486f",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060600_skill_vault_devices.sql",
+      "milestone_owner": "M2.07",
+      "authorizing_review": "M2.07-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_07_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "6a38f1ee5f36d83f9784b8df11cc5e544c38a0c4f0d9cad093cf82c091c7766d",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_devices.test.sql",
+      "milestone_owner": "M2.07",
+      "authorizing_review": "M2.07-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_07_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "376128b7ccdf3506b814279562b36ccefb83797a5a4d0ae800a75adc1abccd69",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/m2.07_credential_digest_contract_vectors.sql",
+      "milestone_owner": "M2.07",
+      "authorizing_review": "M2.07-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_07_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "2680f8ea7aefe4872c6eabf052bd79c1640422522a730c610dccb9f90d351e60",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.07-device-token-authority-checkpoint.md",
+      "milestone_owner": "M2.07",
+      "authorizing_review": "M2.07-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_07_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "c2171899c074bf5d8d1c5acb96e54294bcc012008e5eb7e52ffe6b18201e3c95",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.07-luna-review-r1.md",
+      "milestone_owner": "M2.07",
+      "authorizing_review": "M2.07-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_07_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "NOT_ON_DISK_MESSAGE_ARTIFACT",
+      "on_disk": false,
+      "transfer": "excluded",
+      "reason": "Listed in M2.07 acceptance files as an in-band message artifact, not an on-disk file; no source file to copy."
+    },
+    {
+      "path": "docs/plans/evidence/M2.07-luna-review-r2.md",
+      "milestone_owner": "M2.07",
+      "authorizing_review": "M2.07-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_07_ACCEPT",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "NOT_ON_DISK_MESSAGE_ARTIFACT",
+      "on_disk": false,
+      "transfer": "excluded",
+      "reason": "Listed in M2.07 acceptance files as an in-band message artifact, not an on-disk file; no source file to copy."
+    },
+    {
+      "path": "supabase/migrations/20260727060700_skill_vault_import_sessions.sql",
+      "milestone_owner": "M2.08",
+      "authorizing_review": "M2.08-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_08_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "22955d0aae7fec6a67e6e5fe0645b00fd92808602f40ee51d6574eabce51c8d1",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_import_sessions.test.sql",
+      "milestone_owner": "M2.08",
+      "authorizing_review": "M2.08-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_08_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "d7f154b7160c7b23c2c2dbe83a134baa18e56b59fdf24a45788e355215e27255",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.08-import-session-authority-checkpoint.md",
+      "milestone_owner": "M2.08",
+      "authorizing_review": "M2.08-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_08_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "ebd2aa818580baacb5c47d5543b0f3aef3e1557c7e4a9a042e80a6169076b6e9",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060800_skill_vault_route_records.sql",
+      "milestone_owner": "M2.09",
+      "authorizing_review": "M2.09-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_09_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "80ead77346db494667e2f6badd541fb8f0150b573d39a8db174e83c36ddf685c",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_route_records.test.sql",
+      "milestone_owner": "M2.09",
+      "authorizing_review": "M2.09-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_09_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "7d3b35f60f5cb635c2727f4220ad0eb3d682fdb3e86b46ed1b68dae80d3406b0",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.09-route-decision-correction-checkpoint.md",
+      "milestone_owner": "M2.09",
+      "authorizing_review": "M2.09-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_09_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "c1cbe0df416711048b54c4e9b6cc44da72cbd135c63466b9065365dd8f2f4bd2",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727060900_skill_vault_managed_rls.sql",
+      "milestone_owner": "M2.10",
+      "authorizing_review": "M2.10-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_10_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "6b066ba943e443475104c80853c341832cee719bd78ef7d73da8898a20e28712",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_managed_rls.test.sql",
+      "milestone_owner": "M2.10",
+      "authorizing_review": "M2.10-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_10_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "d4eb9421b2c2c019934617cd9a4839173b6bfbaf9b46a0645196706b47fa73a0",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.10-managed-rls-checkpoint.md",
+      "milestone_owner": "M2.10",
+      "authorizing_review": "M2.10-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_10_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "ba22a0698b451bfed297a26fd72e16298a76b68734d01237ef07f42ec2925ad2",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727061000_skill_vault_device_import_rls.sql",
+      "milestone_owner": "M2.11",
+      "authorizing_review": "M2.11-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_11_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "0a1b2978277c2c2d74b79abef882a6ed12e60cda0a298525b3faf900bb10f0dd",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_device_import_rls.test.sql",
+      "milestone_owner": "M2.11",
+      "authorizing_review": "M2.11-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_11_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "b7db7c52eb2420f0d365c9c6907c6f486a2b3a19dc8383a27de7f196c6a3c7fc",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.11-device-import-rls-checkpoint.md",
+      "milestone_owner": "M2.11",
+      "authorizing_review": "M2.11-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_11_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "45bbeb08bdcf070f466729eb9fb01ad8838c3e635cdf282a44349a2c1304a3e6",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727061100_skill_vault_route_rls.sql",
+      "milestone_owner": "M2.12",
+      "authorizing_review": "M2.12-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_12_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "b8d510088561858c3c312833fbace55fb156258a1eac2cd1fab5f9264119a86e",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_route_rls.test.sql",
+      "milestone_owner": "M2.12",
+      "authorizing_review": "M2.12-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_12_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "a28f9592378bdfa32dda30b881d4e83a7b6dbc71c73e163db6e57fa4de43e635",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.12-route-rls-checkpoint.md",
+      "milestone_owner": "M2.12",
+      "authorizing_review": "M2.12-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_12_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "4aedda399e62518e27ba4f9a91f50a2e5d074078e74f999db7e1c71b42bcd03e",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727061200_skill_vault_account_export.sql",
+      "milestone_owner": "M2.13",
+      "authorizing_review": "M2.13-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_13_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "ca84e22df4a03c42dc2b716816770cbd68338e6cd11516713044d646f9e55086",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_account_export.test.sql",
+      "milestone_owner": "M2.13",
+      "authorizing_review": "M2.13-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_13_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "2b3b67a03e039cfb9431d2378746707b9905f2c90425b7001dfcd2e7215c3e95",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/web/app/account/export/route.ts",
+      "milestone_owner": "M2.13",
+      "authorizing_review": "M2.13-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_13_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "079e8c984d28d1c62b73905f868ed0ee73337db8e0e3d8296a2b3f93585bb4eb",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/web/tests/skill-vault-export.test.mjs",
+      "milestone_owner": "M2.13",
+      "authorizing_review": "M2.13-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_13_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "615b8ca6f5e47f452f504a45af209fcb8719d3b428c31d5d7c3d08e60809b65f",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.13-account-export-checkpoint.md",
+      "milestone_owner": "M2.13",
+      "authorizing_review": "M2.13-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_13_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "4d4bccf18977c23c66b66575cfcad6f35a86ecb6b40fa9482cd667576eefad9b",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/migrations/20260727061300_skill_vault_account_deletion.sql",
+      "milestone_owner": "M2.14",
+      "authorizing_review": "M2.14-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_14_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "7766fa7f4dc7e442c3f9c617a5206491347a8e4ededc0de9f511fb675ead814d",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/skill_vault_account_deletion.test.sql",
+      "milestone_owner": "M2.14",
+      "authorizing_review": "M2.14-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_14_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "542f9dfe9361c1786c002c3aabcf3e930f37c44f8b22346c782a649f776a66b8",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/web/tests/skill-vault-account-deletion.test.mjs",
+      "milestone_owner": "M2.14",
+      "authorizing_review": "M2.14-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_14_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "90d2f64a726f6845aa0e8e9b6ab60e16e67d48e6d73ead5ade5210f852a18c2f",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/hosted_operator_publication.test.sql",
+      "milestone_owner": "M2.14",
+      "authorizing_review": "M2.14-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_14_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "e7c5d58f3a6c90f68668c6e7a99eccd0afab41e85141a286c486b9be14eb1bf3",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.14-account-deletion-checkpoint.md",
+      "milestone_owner": "M2.14",
+      "authorizing_review": "M2.14-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_14_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "baff56227f2d2bd04cb0effe6a953b9234d63e0ed3e78fc5920649b68da4a0e1",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": ".gitea/workflows/ci.yml",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "bbd2558063578690c14d206d3cedd8c66cfe40dfb8f8da352d21d84f26f89118",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/web/lib/supabase/database.types.ts",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "57788bbd5cdff1ddff6f3ba61b43391dbb7c58bfb9eed808cc5650a5b6b83625",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/web/lib/supabase/database.runtime.types.ts",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "118a04d4beddfe695d1ae3306358f9e82d704eeb9945df65e4b24adf0039ddde",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/web/scripts/check-ui-truth.mjs",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "64ab363ec549f5b097071c3df82437ed46254a2af82e13473f59080c34ae6ab3",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/worker/package.json",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "2410544de69113545f602c60947377f7bb8faf1120c555e2700564ca9d3dbee6",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/worker/tsconfig.json",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "82efbcf0dce613799eb3e74a9ac8641a9b4ee1d1aac676345d04e93dd2fc8f1a",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/worker/src/claim-lease.mjs",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "1d56f4baa9d2a505ba6095b82f7903ee88e757f9fd918c5ac8795483557ddd85",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "apps/worker/README.md",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "f39fd63415e8d09c9ff9268098e86c9eaebc44b042a925fa49a85822c3b96eea",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/operations/free-public-alpha-runbook.md",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "50ab8bbb5d8abb13962a841933fca6f9926ffeea89bf67199c2cb972f6abc172",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/operations/hosted-alpha-deploy.md",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "8b71c1837cd5f7c624e597f1c11e1ea03f272c4b031eca518dee43ec262530e8",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/hosted_submission_authority.test.sql",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "c6ac9eb090daae6f0bdeb97bf46842f4786c9433c44911b38c284871dfa26a4f",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/tests/launch_safety_authority.test.sql",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "5cb7b71ed9eea807ffd7888e2ea587ee6283e3e7e23489363e95276c99ba4635",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "test/release-truth-consistency.mjs",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "e4d73419c49cfe5196ca90f49a61c7acbb35a33e723c9c07cf16b43ba5f0f369",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "docs/plans/evidence/M2.15-generated-database-types-checkpoint.md",
+      "milestone_owner": "M2.15",
+      "authorizing_review": "M2.15-INDEPENDENT-ACCEPTANCE",
+      "marker": "APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY",
+      "accepted_committed_cb062dd": true,
+      "source_sha256": "f391ad7dfb93818e8437c1b09db0be2944d4b6ee3f1952556d91a0224c8c13a7",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "supabase/config.toml",
+      "milestone_owner": "M2.16-A",
+      "authorizing_review": "M2.16-A-coordinator-authority (storage.enabled=true prerequisite for M2.06 private-storage migration reset)",
+      "marker": "M2.16-A-COORDINATOR_AUTHORIZED_PREREQUISITE",
+      "accepted_committed_cb062dd": false,
+      "source_sha256": "90c2df78c394733e80e5a2d2c52e984ddadcda26f7b39f3c59ef88b28cc46baf",
+      "on_disk": true,
+      "transfer": "copy"
+    },
+    {
+      "path": "package.json",
+      "milestone_owner": "M0.11/M0.01 (predecessor)",
+      "authorizing_review": "M0.11-R4 + M0-CLOSEOUT",
+      "marker": "COORDINATOR_AUTHORIZED_PREDECESSOR_DEPENDENCY",
+      "accepted_committed_cb062dd": false,
+      "source_sha256": "e9512791144585057baec48787d9925546cd1ee1020e99a1b968f8868f0ca74d",
+      "candidate_sha256": "e9512791144585057baec48787d9925546cd1ee1020e99a1b968f8868f0ca74d",
+      "on_disk": true,
+      "transfer": "copy",
+      "reason": "root dependency manifest; SDK 1.30.0 / Hono 2.0.12 chain"
+    },
+    {
+      "path": "package-lock.json",
+      "milestone_owner": "M0.11/M0.01 (predecessor)",
+      "authorizing_review": "M0.11-R4 + M0-CLOSEOUT",
+      "marker": "COORDINATOR_AUTHORIZED_PREDECESSOR_DEPENDENCY",
+      "accepted_committed_cb062dd": false,
+      "source_sha256": "343e04bd2bbb7379bc23a301eb5a50595696c3367ca958fe13c4bcfe62b55551",
+      "candidate_sha256": "343e04bd2bbb7379bc23a301eb5a50595696c3367ca958fe13c4bcfe62b55551",
+      "on_disk": true,
+      "transfer": "copy",
+      "reason": "root lockfile reproducing SDK 1.30.0 chain"
+    },
+    {
+      "path": "apps/web/package.json",
+      "milestone_owner": "M0.11/M0.01 (predecessor)",
+      "authorizing_review": "M0.01-PREWRITE-REVIEW-R5 (+M0.11)",
+      "marker": "COORDINATOR_AUTHORIZED_PREDECESSOR_DEPENDENCY",
+      "accepted_committed_cb062dd": false,
+      "source_sha256": "d841f9aa021fcc8aa6b1da6bb6b0ca5456059c893c28a0239d97625881c454e3",
+      "candidate_sha256": "d841f9aa021fcc8aa6b1da6bb6b0ca5456059c893c28a0239d97625881c454e3",
+      "on_disk": true,
+      "transfer": "copy",
+      "reason": "web manifest: OpenNext/Wrangler scripts + dev deps"
+    },
+    {
+      "path": "apps/web/package-lock.json",
+      "milestone_owner": "M0.11/M0.01 (predecessor)",
+      "authorizing_review": "M0.01-PREWRITE-REVIEW-R5 (+M0.11)",
+      "marker": "COORDINATOR_AUTHORIZED_PREDECESSOR_DEPENDENCY",
+      "accepted_committed_cb062dd": false,
+      "source_sha256": "16dfd75fa427f1a58cfe33c44816ee8af0d34e65345e6e921ff945adf317dee3",
+      "candidate_sha256": "16dfd75fa427f1a58cfe33c44816ee8af0d34e65345e6e921ff945adf317dee3",
+      "on_disk": true,
+      "transfer": "copy",
+      "reason": "web lockfile for OpenNext runtime deps"
+    }
+  ],
+  "baseline_mapping": {
+    "_definition": "15-row accepted baseline migration mapping (source local file <-> remote-stamped candidate file). Rows are exactly the 15 immutable acceptance-pipeline migrations; the 13 renamed carry R100 byte-identical content; the 2 trailing are the accepted untracked later-migration-owner files expose_api_schema + reload_postgrest_schema_cache. remote_raw_sha256 is None because `migration list --linked` reports presence/version only, never a raw file-content digest.",
+    "rows": [
+      {
+        "local_source_filename": "20260711192500_hosted_catalog_foundation.sql",
+        "candidate_remote_filename": "20260727050142_hosted_catalog_foundation.sql",
+        "source_raw_sha256": "73834cc04f4ddfa6e28035b1cfe593144be457d8603eab0b93520ab42834d0e9",
+        "candidate_raw_sha256": "73834cc04f4ddfa6e28035b1cfe593144be457d8603eab0b93520ab42834d0e9",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "73834cc04f4ddfa6e28035b1cfe593144be457d8603eab0b93520ab42834d0e9",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260712170000_hosted_submission_queue_foundation.sql",
+        "candidate_remote_filename": "20260727050148_hosted_submission_queue_foundation.sql",
+        "source_raw_sha256": "3a49a63677f591a44ab0b5ed1e084145e6514fd619afa3379ce62d4a37a2f509",
+        "candidate_raw_sha256": "3a49a63677f591a44ab0b5ed1e084145e6514fd619afa3379ce62d4a37a2f509",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "3a49a63677f591a44ab0b5ed1e084145e6514fd619afa3379ce62d4a37a2f509",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260712233000_hosted_operator_publication_authority.sql",
+        "candidate_remote_filename": "20260727050200_hosted_operator_publication_authority.sql",
+        "source_raw_sha256": "6590d93718033c91a0f130eb3493d519129cd3e946fdcac7a29ab47269bdc51d",
+        "candidate_raw_sha256": "6590d93718033c91a0f130eb3493d519129cd3e946fdcac7a29ab47269bdc51d",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "6590d93718033c91a0f130eb3493d519129cd3e946fdcac7a29ab47269bdc51d",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260713003000_launch_safety_reports_lifecycle.sql",
+        "candidate_remote_filename": "20260727050206_launch_safety_reports_lifecycle.sql",
+        "source_raw_sha256": "004bded9aa1ea9ceeb204eb0150c3aec4e6d7553af0fb619cc7a0d84801202e6",
+        "candidate_raw_sha256": "004bded9aa1ea9ceeb204eb0150c3aec4e6d7553af0fb619cc7a0d84801202e6",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "004bded9aa1ea9ceeb204eb0150c3aec4e6d7553af0fb619cc7a0d84801202e6",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260713020000_backend_completion_hardening.sql",
+        "candidate_remote_filename": "20260727050214_backend_completion_hardening.sql",
+        "source_raw_sha256": "9d9e3883d4a545142c73ca6abdba9bf7b3437ceee0fbb24088143b8ffeebde12",
+        "candidate_raw_sha256": "9d9e3883d4a545142c73ca6abdba9bf7b3437ceee0fbb24088143b8ffeebde12",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "9d9e3883d4a545142c73ca6abdba9bf7b3437ceee0fbb24088143b8ffeebde12",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260713050000_submission_authority_completion.sql",
+        "candidate_remote_filename": "20260727050220_submission_authority_completion.sql",
+        "source_raw_sha256": "6862834247875b83950469bcca6628ae965afae9c55d6724c4429831a70ab9bf",
+        "candidate_raw_sha256": "6862834247875b83950469bcca6628ae965afae9c55d6724c4429831a70ab9bf",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "6862834247875b83950469bcca6628ae965afae9c55d6724c4429831a70ab9bf",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260713060000_operator_submission_read_plane.sql",
+        "candidate_remote_filename": "20260727050300_operator_submission_read_plane.sql",
+        "source_raw_sha256": "703f695d031140624a271692ea59ee11cd30ea1c0b21d89c1ebb1a70fa38baf4",
+        "candidate_raw_sha256": "703f695d031140624a271692ea59ee11cd30ea1c0b21d89c1ebb1a70fa38baf4",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "703f695d031140624a271692ea59ee11cd30ea1c0b21d89c1ebb1a70fa38baf4",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260714010000_atomic_report_enforcement.sql",
+        "candidate_remote_filename": "20260727050305_atomic_report_enforcement.sql",
+        "source_raw_sha256": "bc2c5c12cf7de1ec797504237ee007b7ed43dc4ed76dcc54e55d696161e9aed2",
+        "candidate_raw_sha256": "bc2c5c12cf7de1ec797504237ee007b7ed43dc4ed76dcc54e55d696161e9aed2",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "bc2c5c12cf7de1ec797504237ee007b7ed43dc4ed76dcc54e55d696161e9aed2",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260714030000_github_provider_rate_limit_deferral.sql",
+        "candidate_remote_filename": "20260727050312_github_provider_rate_limit_deferral.sql",
+        "source_raw_sha256": "b53e47f01cf93504c138a3d0c16aa3d8c6c5fbdff8b4ce435a2ecb34606a7623",
+        "candidate_raw_sha256": "b53e47f01cf93504c138a3d0c16aa3d8c6c5fbdff8b4ce435a2ecb34606a7623",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "b53e47f01cf93504c138a3d0c16aa3d8c6c5fbdff8b4ce435a2ecb34606a7623",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260714050000_report_authorization_enforcement.sql",
+        "candidate_remote_filename": "20260727050316_report_authorization_enforcement.sql",
+        "source_raw_sha256": "c59574d46f73718a2478c9490134ab46945655fe78b45f56a04c4ffa6c274229",
+        "candidate_raw_sha256": "c59574d46f73718a2478c9490134ab46945655fe78b45f56a04c4ffa6c274229",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "c59574d46f73718a2478c9490134ab46945655fe78b45f56a04c4ffa6c274229",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260714060000_operator_dual_control.sql",
+        "candidate_remote_filename": "20260727050320_operator_dual_control.sql",
+        "source_raw_sha256": "8d842091a52b03787c21682f08f67060d994eb37a52301068721c32ee9963d6c",
+        "candidate_raw_sha256": "8d842091a52b03787c21682f08f67060d994eb37a52301068721c32ee9963d6c",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "8d842091a52b03787c21682f08f67060d994eb37a52301068721c32ee9963d6c",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260715010000_hosted_evidence_version_authority.sql",
+        "candidate_remote_filename": "20260727050324_hosted_evidence_version_authority.sql",
+        "source_raw_sha256": "1de4a606d8d90077b67ac9b0fe7f33411a19d0667fce753beea702356a3bf1a8",
+        "candidate_raw_sha256": "1de4a606d8d90077b67ac9b0fe7f33411a19d0667fce753beea702356a3bf1a8",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "1de4a606d8d90077b67ac9b0fe7f33411a19d0667fce753beea702356a3bf1a8",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260715020000_hosted_report_idempotency_recovery.sql",
+        "candidate_remote_filename": "20260727050328_hosted_report_idempotency_recovery.sql",
+        "source_raw_sha256": "522acb09860003eb9018e4c0c85a91e1ac4955a2fc440b9342945551157742b8",
+        "candidate_raw_sha256": "522acb09860003eb9018e4c0c85a91e1ac4955a2fc440b9342945551157742b8",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "522acb09860003eb9018e4c0c85a91e1ac4955a2fc440b9342945551157742b8",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M2.01-R3-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_01_R3_PASS) froze committed hosted-schema/auth authority; M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline (M2.02-forward-only-skill-vault-migration-series.md). Candidate carries this renamed to a 20260727-05vv remote-stamped version, R100 byte-identical. Read-only remote listing confirms presence."
+      },
+      {
+        "local_source_filename": "20260727060000_expose_api_schema.sql",
+        "candidate_remote_filename": "20260727055057_expose_api_schema.sql",
+        "source_raw_sha256": "8bd1806a3f6a35902314f72c764e9a8218a7bfb3df31ecb55a44800ad81db3f8",
+        "candidate_raw_sha256": "8bd1806a3f6a35902314f72c764e9a8218a7bfb3df31ecb55a44800ad81db3f8",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "8bd1806a3f6a35902314f72c764e9a8218a7bfb3df31ecb55a44800ad81db3f8",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M0.01-PREWRITE-REVIEW-R5 (ACCEPT_PREWRITE, APPROVED): PRESERVE_OUTSIDE_CANDIDATE; later-supabase-migration-owner; not executed/accepted by M0.01. M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline, latest 20260727060100_reload_postgrest_schema_cache.sql (M2.02-forward-only-skill-vault-migration-series.md, M2.02-luna-review-r1.md). Read-only remote presence confirmed here."
+      },
+      {
+        "local_source_filename": "20260727060100_reload_postgrest_schema_cache.sql",
+        "candidate_remote_filename": "20260727055126_reload_postgrest_schema_cache.sql",
+        "source_raw_sha256": "52383c4990ece2e14a1cc658fd8e28408ea39cf46ff3b3b7736c910169340de6",
+        "candidate_raw_sha256": "52383c4990ece2e14a1cc658fd8e28408ea39cf46ff3b3b7736c910169340de6",
+        "remote_raw_sha256": null,
+        "remote_evidence_method": "supabase migration list --linked (read-only; no write/import/repair/include-all), npx --no-install supabase v2.111.0 vs linked ref nciathykwjlrkikzyirv, exit 0 'Migrations listed': remote_matched_baseline_count=15 local_baseline_count=15, every baseline remote version timestamp 2026-07-27 05:xx; the 12 local_only_pending are exactly the M2.03-M2.14 (05:02-05:13) migrations. Presence listing only; raw remote content SHA-256 is NOT fabricated (None).",
+        "normalized_semantic_digest": "52383c4990ece2e14a1cc658fd8e28408ea39cf46ff3b3b7736c910169340de6",
+        "byte_identical_source_to_candidate": true,
+        "authority": "M0.01-PREWRITE-REVIEW-R5 (ACCEPT_PREWRITE, APPROVED): PRESERVE_OUTSIDE_CANDIDATE; later-supabase-migration-owner; not executed/accepted by M0.01. M2.02-R1-REVIEW (APPROVED_INDEPENDENT_LUNA_M2_02_R1_PASS) froze the 15-migration baseline, latest 20260727060100_reload_postgrest_schema_cache.sql (M2.02-forward-only-skill-vault-migration-series.md, M2.02-luna-review-r1.md). Read-only remote presence confirmed here."
+      }
+    ]
+  },
+  "baseline_mapping_sha256": "364b6dc0dd206e764e594f00b7be626306baca0988188b0e66b8c32e859c0d16",
+  "baseline_mapping_sha256_method": "Non-circular canonical digest of the 15-row baseline_mapping: SHA-256 of the object {_definition, rows:[15]} serialized as canonical JSON (json.dumps sort_keys=True, separators=(',',':'), ensure_ascii=False); no self-referential digest key, so it is a pure function of the mapping content. Recorded identically in the manifest and the assembly receipt.",
+  "package_file_authority": {
+    "_definition": "Final PASS/APPROVED authority and current candidate SHA-256 for the four package+lock files the candidate carries from accepted predecessor M0.11/M0.01 dispositions. Candidate is byte-identical to the accepted source on-disk file.",
+    "files": [
+      {
+        "path": "package.json",
+        "role": "root dependency manifest; SDK 1.30.0 / Hono 2.0.12 chain",
+        "primary_authority": "M0.11-R4 + M0-CLOSEOUT",
+        "authority_detail": "M0.11-R4 (2026-07-31T22:39:33Z @ cb062dd35de76cc3b40c1d004a13b50663cc1aa6, COORDINATOR_HIGH_SECURITY_RESOLUTION, result ACCEPT_OWNER_PILOT_RESIDUALS, coordinator APPROVED_WITH_EXPIRING_RESIDUALS): supported @modelcontextprotocol/sdk@1.30.0 -> @hono/node-server@2.0.12 chain makes root full/production npm audits clean ('0 total / 0 total'); unsupported downgrades/overrides rejected. Evidence M0.11-r4-resolution.md. M0-CLOSEOUT (same ts, CLOSED_APPROVED_FOR_M1) locks root manifest+lock as accepted and reproducible ('locks remain reproducible from the previously accepted clean-install receipts').",
+        "candidate_sha256": "e9512791144585057baec48787d9925546cd1ee1020e99a1b968f8868f0ca74d",
+        "source_sha256": "e9512791144585057baec48787d9925546cd1ee1020e99a1b968f8868f0ca74d",
+        "candidate_bytes_unchanged": true
+      },
+      {
+        "path": "package-lock.json",
+        "role": "root lockfile reproducing SDK 1.30.0 chain",
+        "primary_authority": "M0.11-R4 + M0-CLOSEOUT",
+        "authority_detail": "M0.11-R4 (2026-07-31T22:39:33Z @ cb062dd35de76cc3b40c1d004a13b50663cc1aa6, COORDINATOR_HIGH_SECURITY_RESOLUTION, result ACCEPT_OWNER_PILOT_RESIDUALS, coordinator APPROVED_WITH_EXPIRING_RESIDUALS): supported @modelcontextprotocol/sdk@1.30.0 -> @hono/node-server@2.0.12 chain makes root full/production npm audits clean ('0 total / 0 total'); unsupported downgrades/overrides rejected. Evidence M0.11-r4-resolution.md. M0-CLOSEOUT (same ts, CLOSED_APPROVED_FOR_M1) locks root manifest+lock as accepted and reproducible ('locks remain reproducible from the previously accepted clean-install receipts').",
+        "candidate_sha256": "343e04bd2bbb7379bc23a301eb5a50595696c3367ca958fe13c4bcfe62b55551",
+        "source_sha256": "343e04bd2bbb7379bc23a301eb5a50595696c3367ca958fe13c4bcfe62b55551",
+        "candidate_bytes_unchanged": true
+      },
+      {
+        "path": "apps/web/package.json",
+        "role": "web manifest: OpenNext/Wrangler scripts + dev deps",
+        "primary_authority": "M0.01-PREWRITE-REVIEW-R5 (+M0.11)",
+        "authority_detail": "M0.01-PREWRITE-REVIEW-R5 (2026-07-30T08:39:00Z, ACCEPT_PREWRITE, APPROVED) INCLUDEs apps/web/package.json and apps/web/package-lock.json as 'successor dependency owner; Next/OpenNext/Wrangler scripts build and dry-run locally' (M0.01-prewrite-review-r5.md rows 4-5). M0.11-PRE row (2026-07-27T10:55:43Z) reviewed both as 'intentional OpenNext Cloudflare preview/deploy scripts and matching development dependencies', APPROVED_FOR_M0.11_ONLY. M0.11-R4 concludes OpenNext@1.20.2 / Wrangler@4.114 supported web dependency chain.",
+        "candidate_sha256": "d841f9aa021fcc8aa6b1da6bb6b0ca5456059c893c28a0239d97625881c454e3",
+        "source_sha256": "d841f9aa021fcc8aa6b1da6bb6b0ca5456059c893c28a0239d97625881c454e3",
+        "candidate_bytes_unchanged": true
+      },
+      {
+        "path": "apps/web/package-lock.json",
+        "role": "web lockfile for OpenNext runtime deps",
+        "primary_authority": "M0.01-PREWRITE-REVIEW-R5 (+M0.11)",
+        "authority_detail": "M0.01-PREWRITE-REVIEW-R5 (2026-07-30T08:39:00Z, ACCEPT_PREWRITE, APPROVED) INCLUDEs apps/web/package.json and apps/web/package-lock.json as 'successor dependency owner; Next/OpenNext/Wrangler scripts build and dry-run locally' (M0.01-prewrite-review-r5.md rows 4-5). M0.11-PRE row (2026-07-27T10:55:43Z) reviewed both as 'intentional OpenNext Cloudflare preview/deploy scripts and matching development dependencies', APPROVED_FOR_M0.11_ONLY. M0.11-R4 concludes OpenNext@1.20.2 / Wrangler@4.114 supported web dependency chain.",
+        "candidate_sha256": "16dfd75fa427f1a58cfe33c44816ee8af0d34e65345e6e921ff945adf317dee3",
+        "source_sha256": "16dfd75fa427f1a58cfe33c44816ee8af0d34e65345e6e921ff945adf317dee3",
+        "candidate_bytes_unchanged": true
+      }
+    ]
+  },
+  "coverage_summary": {
+    "_definition": "Exact machine-readable coverage of `git diff --name-only HEAD^ HEAD` (103 paths). Every changed path must be authorized by exactly one accepted bucket and no path may be unauthorized/extra. The 2 M2.07 non-disk message artifacts are transfer=excluded transfers and are NOT changed paths, so they are not counted as missing files.",
+    "diff_total_paths": 103,
+    "accepted_copy_paths": 67,
+    "package_file_paths": 4,
+    "predecessor_closure_paths": 15,
+    "baseline_remote_migrations": 15,
+    "m2_16_evidence_paths": 2,
+    "authorized_union": 103,
+    "unauthorized_extra_paths": 0,
+    "coverage_exact": true,
+    "excluded_nondisk_message_artifacts": 2,
+    "excluded_transfer_definition": "M2.07-luna-review-r1.md and M2.07-luna-review-r2.md are in-band message artifacts recorded in the M2.07 acceptance transfer list (ledger row M2.07-INDEPENDENT-ACCEPTANCE correction records standalone_review_files_removed=true); they are not on-disk candidate files, remain transfer=excluded, and are NOT treated as missing."
+  },
+  "manifest_sha256": "ed826e747c69a6daf81965d76f9a9de27d37979b54dad25e8f06a15b883632c9",
+  "manifest_sha256_method": "Non-circular manifest digest: SHA-256 of this manifest serialized as canonical JSON (json.dumps with sort_keys=True, separators=(',' ,':'), ensure_ascii=False) with the manifest_sha256 key omitted. Omitting manifest_sha256 avoids self-reference: the digest is a pure function of the file's content fields only, not of any digest recorded inside the file. This is intentionally not a raw whole-file SHA-256, because a file cannot truthfully record its own full-file hash without a fixed point. The identical digest is recorded in the assembly receipt.",
+  "predecessor_dependency_closure": {
+    "_notice": "Smallest explicit M0.01/M2.15 source dependency closure required so the two final-accepted anchor test files (test/phase1-contracts.mjs, apps/web/tests/hosted-boundaries.test.mjs) build and run at full count in the candidate. Every path accepted in final PASS/APPROVED M0.01 + M2.15 disposition course (ledger docs/plans/2026-07-27-...-implementation-ledger.jsonl). All candidate_sha dependencies are final and committed; no copies are pending.",
+    "authority_rows": [
+      "M0.01-PREWRITE-REVIEW-R5 APPROVED (M0.01 Cloudflare standalone + middleware course)",
+      "M0-CLOSEOUT APPROVED",
+      "M1-CLOSEOUT-M2-ELIGIBLE CLOSED_APPROVED_FOR_M2",
+      "M2.15-INDEPENDENT-ACCEPTANCE APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY"
+    ],
+    "dependencies": [
+      {
+        "path": "test/phase1-contracts.mjs",
+        "phase_owner": "M2.15",
+        "final_authority": "M2.15-INDEPENDENT-ACCEPTANCE (APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY)",
+        "source_sha256": "b7190cae7d0c123021329497289a6bb1d827aa01857f408dc527a9a9c9104e24",
+        "candidate_sha": "b7190cae7d0c123021329497289a6bb1d827aa01857f408dc527a9a9c9104e24",
+        "reason": "Anchor contract suite; candidate copy was stale cb062dd variant (24) instead of final source (27); missing 3 Cloudflare-static/hosted-API validator tests."
+      },
+      {
+        "path": "apps/web/tests/hosted-boundaries.test.mjs",
+        "phase_owner": "M2.15",
+        "final_authority": "M2.15-INDEPENDENT-ACCEPTANCE (APPROVED_INDEPENDENT_M2_15_ACCEPT_LOCAL_ONLY)",
+        "source_sha256": "02a51314dec651f0fe1f6b2dc85f81073099725a1c7cfca68837032afbefa388",
+        "candidate_sha": "02a51314dec651f0fe1f6b2dc85f81073099725a1c7cfca68837032afbefa388",
+        "reason": "Anchor hosted test; candidate must run 42/42; missing 4 Edge middleware/rate-limit/next-image tests."
+      },
+      {
+        "path": "scripts/generate-contracts.mjs",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED) via M0-CLOSEOUT",
+        "source_sha256": "4fb281a9918ff23185822afb1bf4aa8feed37b19992377dbfe394d79b1e81cca",
+        "candidate_sha": "4fb281a9918ff23185822afb1bf4aa8feed37b19992377dbfe394d79b1e81cca",
+        "reason": "Generator emits standalone-validators and hosted-api-response-validator; candidate version predates these outputs."
+      },
+      {
+        "path": "src/contracts/validate.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "3b3c7e6c94a6542a634c91ff9e02184095186fc6bb40359e043be701b1e3ad28",
+        "candidate_sha": "3b3c7e6c94a6542a634c91ff9e02184095186fc6bb40359e043be701b1e3ad28",
+        "reason": "Adds cloudflare-static validation mode referenced by the 3 missing phase1 tests."
+      },
+      {
+        "path": "src/contracts/generated/standalone-validators.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "be83dfce3c92a2d779fa0544af02f9c0be6d9c865e8bea2aad2e1ef90a71ba22",
+        "candidate_sha": "be83dfce3c92a2d779fa0544af02f9c0be6d9c865e8bea2aad2e1ef90a71ba22",
+        "reason": "ROOT standalone validator module asserted by 'generated standalone validator modules are root/web-identical' phase1 test."
+      },
+      {
+        "path": "apps/web/lib/contracts/generated/standalone-validators.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "be83dfce3c92a2d779fa0544af02f9c0be6d9c865e8bea2aad2e1ef90a71ba22",
+        "candidate_sha": "be83dfce3c92a2d779fa0544af02f9c0be6d9c865e8bea2aad2e1ef90a71ba22",
+        "reason": "WEB standalone validator; must byte-match root standalone (assert.equal(webStandalone, rootStandalone))."
+      },
+      {
+        "path": "apps/web/lib/contracts/generated/hosted-api-response-validator.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "370f7bcfb305811cab15de9e78dadcc5fb7bad1df773efa6e870b8f43043e838",
+        "candidate_sha": "370f7bcfb305811cab15de9e78dadcc5fb7bad1df773efa6e870b8f43043e838",
+        "reason": "Hosted API error validator exercised by the missing 'Edge hosted API error validator' phase1 test."
+      },
+      {
+        "path": "apps/web/lib/contracts/generated/validate.server.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "52c5de8da7c8c22767018c8f63e3aceb4a7cefbcbafbd3dc9cff504612fa2ad3",
+        "candidate_sha": "52c5de8da7c8c22767018c8f63e3aceb4a7cefbcbafbd3dc9cff504612fa2ad3",
+        "reason": "Web server validator now routes through standalone-validators."
+      },
+      {
+        "path": "apps/web/lib/contracts/hosted-api-response.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "a0d2c4c6c8a9b61bccadcced2cd48e59911e19cb6e6cb430e66b052397a23b0d",
+        "candidate_sha": "a0d2c4c6c8a9b61bccadcced2cd48e59911e19cb6e6cb430e66b052397a23b0d",
+        "reason": "createHostedApiErrorPayload used by hosted-boundaries Edge test."
+      },
+      {
+        "path": "apps/web/middleware.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PROXY-BOUNDARY-RESOLUTION (APPROVED)",
+        "source_sha256": "2e14eb8414a1ee4584ae0ff1be218dacbbe29e45e6bc6085aeeba4bd44e93de1",
+        "candidate_sha": "2e14eb8414a1ee4584ae0ff1be218dacbbe29e45e6bc6085aeeba4bd44e93de1",
+        "reason": "Edge middleware surface asserted by 'Next 16 hosted request boundary' hosted test."
+      },
+      {
+        "path": "apps/web/lib/security/rate-limit.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "cd41c6df55c2f061b521c2de49a5acbda6666110fe6de01b19c97bfa2b1e0f8e",
+        "candidate_sha": "cd41c6df55c2f061b521c2de49a5acbda6666110fe6de01b19c97bfa2b1e0f8e",
+        "reason": "Rate-limit boundary referenced by middleware and hosted tests."
+      },
+      {
+        "path": "apps/web/lib/security/rate-limit-core.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED)",
+        "source_sha256": "76c9fa3395cc5c8b36f129f4696094a2514be2dcc4d13a7628204a3915d48a23",
+        "candidate_sha": "76c9fa3395cc5c8b36f129f4696094a2514be2dcc4d13a7628204a3915d48a23",
+        "reason": "Edge-safe rate-limit identity; asserted by 'Edge rate-limit identity' hosted test."
+      },
+      {
+        "path": "apps/web/lib/registry/api.server.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PROXY-BOUNDARY-RESOLUTION (APPROVED)",
+        "source_sha256": "9c43be8f960180efb13de6f84ae8f30c1b042fae25dc5dec27eed4d266a94b6e",
+        "candidate_sha": "9c43be8f960180efb13de6f84ae8f30c1b042fae25dc5dec27eed4d266a94b6e",
+        "reason": "must-not-import marker asserted by middleware test (doesNotMatch api.server)."
+      },
+      {
+        "path": "apps/web/next.config.mjs",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PROXY-BOUNDARY-RESOLUTION (APPROVED)",
+        "source_sha256": "c97d11fa90a2f94670944c1a3fd2565389513ea6fa3cd344d7f8071714a28b4d",
+        "candidate_sha": "c97d11fa90a2f94670944c1a3fd2565389513ea6fa3cd344d7f8071714a28b4d",
+        "reason": "Next config: images.unoptimized=true asserted by the 'hosted runtime disables unused Next image optimizer' test."
+      },
+      {
+        "path": "apps/web/open-next.config.ts",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-OPENNEXT-ARTIFACT-PROOF-R3 (APPROVED)",
+        "source_sha256": "8e02c850592160eb80d1aed908789f317babcb76985792a86bb79e7c0dd4b1d9",
+        "candidate_sha": "8e02c850592160eb80d1aed908789f317babcb76985792a86bb79e7c0dd4b1d9",
+        "reason": "OpenNext workerd adapter config for the accepted hosted runtime."
+      }
+    ],
+    "normalization_plan": {
+      "category": "git-diff --check (M2.16 normalization)",
+      "status": "DONE"
+    },
+    "deleted_superseded_paths": [
+      {
+        "path": "apps/web/proxy.ts",
+        "reason": "Superseded by apps/web/middleware.ts as the single Edge request boundary (final accepted M0.01 working tree). The anchor hosted test 'Next 16 hosted request boundary has one Edge middleware surface' asserts proxy.ts is absent (access rejects ENOENT).",
+        "phase_owner": "M0.01",
+        "final_authority": "M0.01-PREWRITE-REVIEW-R5 (APPROVED) / accepted final source working tree"
+      }
+    ],
+    "normalization_record": {
+      "docs/plans/evidence/M2.02-luna-review-r1.md": {
+        "original_source_sha256": "4bef791a6283b1a2b309ee71cc3af25ef0c37d78590206487082455b33beeec9",
+        "candidate_normalized_sha256": "83ba8f2d943a122e094c0f827157fdd644abfcf5bebb949c90dd70c001bde63d",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.04-luna-review-r1.md": {
+        "original_source_sha256": "e92e265876736ece611f07a4985bb866983e543b8ac6d5db2550d2e8b3090440",
+        "candidate_normalized_sha256": "320630b8b636dc213ad1585a85664856989dd202f2ab0f8ada13ccba8da6ee7a",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.04-luna-review-r2.md": {
+        "original_source_sha256": "0f1f67a04f239e8a4492fd0d88bf18dcfc8002cbde0efb1273b5eb30502e9c2c",
+        "candidate_normalized_sha256": "78608652a9640afa3197fba6b0c261e91b6fbc0a707bd1223b988fab925925f2",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.04-versions-releases-activation-acceptance.md": {
+        "original_source_sha256": "2de2c6b1ca1f5a5f0734b1623f761a83b62d7726dfdbe36d88b10684a4dee1fe",
+        "candidate_normalized_sha256": "3835cf53c6d466325afe3e9a5366108fd32358e3843018b0fba606ca546881e6",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.05-bounded-files-acceptance.md": {
+        "original_source_sha256": "d1ed9199513d654a7b11476fcd4d13a704735a23a406398da39922518ba0a4f8",
+        "candidate_normalized_sha256": "ef06a59baa27325fb1d3f75c27b0502f5603ebbff3e6ef15eac1c3b236835949",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.11-device-import-rls-checkpoint.md": {
+        "original_source_sha256": "45bbeb08bdcf070f466729eb9fb01ad8838c3e635cdf282a44349a2c1304a3e6",
+        "candidate_normalized_sha256": "997d59b6dbe3dbd230af2a02e0c938e13e989fdc1e7c6150c105803f7ec5227e",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.12-route-rls-checkpoint.md": {
+        "original_source_sha256": "4aedda399e62518e27ba4f9a91f50a2e5d074078e74f999db7e1c71b42bcd03e",
+        "candidate_normalized_sha256": "d28d06866c88d2aa6116c7401dc96e93bf979bd2b1168da2b5c6c3ce9539c38d",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.13-account-export-checkpoint.md": {
+        "original_source_sha256": "4d4bccf18977c23c66b66575cfcad6f35a86ecb6b40fa9482cd667576eefad9b",
+        "candidate_normalized_sha256": "d673ccbc809d3fa8c768ba40741309d7f1785b833b23e686c0b7f65e010478f8",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.14-account-deletion-checkpoint.md": {
+        "original_source_sha256": "baff56227f2d2bd04cb0effe6a953b9234d63e0ed3e78fc5920649b68da4a0e1",
+        "candidate_normalized_sha256": "16c467bfc7898fa78b6246968c175d63407411972480a721ae8be883b6e924c4",
+        "kind": "markdown-hard-break"
+      },
+      "docs/plans/evidence/M2.15-generated-database-types-checkpoint.md": {
+        "original_source_sha256": "f391ad7dfb93818e8437c1b09db0be2944d4b6ee3f1952556d91a0224c8c13a7",
+        "candidate_normalized_sha256": "152d7c7200cc37fa59d220b8406324249a43957ba143c0395ccb7dbb5320976c",
+        "kind": "markdown-hard-break"
+      },
+      "supabase/tests/skill_vault_files.test.sql": {
+        "original_source_sha256": "110e97529c91ba118782c5fd5fa2c2147444bea2170ae4ece5800348d6d295b7",
+        "candidate_normalized_sha256": "f27e58c9f093755219d91e3482a2741fc40e730c4cf619dd0acd84ff701c144f",
+        "kind": "sql-comment-space"
+      }
+    }
+  }
+}

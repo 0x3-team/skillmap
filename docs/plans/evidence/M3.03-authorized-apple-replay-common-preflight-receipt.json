@@ -1,0 +1,132 @@
+{
+  "schema": "skillmap.m3-03.authorized-apple-replay-common-preflight.v1",
+  "status": "READ_ONLY_COMPUTER_USE_INVENTORY_ALLOWED",
+  "read_only_computer_use_inventory_allowed": true,
+  "read_only_computer_use_inventory_scope": ["Apple", "Cloudflare", "GCP"],
+  "mutation_gate": "BLOCKED_UNTIL_EXACT_TARGET_READBACK_AND_SEPARATE_RELEASE",
+  "scope": "M3.03 authorized external-proof common preflight only; no product implementation or provider mutation",
+  "evidence_tier": "HIGH",
+  "run_id": "m303-common-preflight-20260810",
+  "observed_at": "2026-08-10T18:26:58Z",
+  "anchors": {
+    "candidate": {
+      "branch": "Masih-0x3/m2-16-candidate-exact",
+      "head": "0bc3c7e2e7b6523c018980714eef4d26ae8dc80e",
+      "head_tree": "eabadbeb69513607e382a92dd4107358005ea6e0",
+      "dirty_entry_count": 23,
+      "nul_status_sha256": "29d4433632bde48b3bfef3b1149cb1cf54b6aa1fb3745d802193e7af9c68b933",
+      "nul_manifest_sha256": "aab170fa8435ea6009b9a404840db446f8596254dd6f77ac05a054272ec3e010",
+      "manifest_method": "sorted status, relative path, lstat kind, byte digest, and size records from git status --porcelain=v1 -z"
+    },
+    "dirty_main": {
+      "branch": "main",
+      "head": "cb062dd35de76cc3b40c1d004a13b50663cc1aa6",
+      "head_tree": "b3126f7ff4a5972aee2ff6bb29668e069a719c9c",
+      "dirty_entry_count": 361,
+      "nul_status_sha256": "b01d3c47988ab9ca32ff1efc51c4f4b4c676f2f3bb6daf633acf24afb072f276",
+      "nul_manifest_sha256": "1a6d32a7b04711df51698dbe56e694c347c6277ec325bcea59237aba3c31499b",
+      "write_boundary": "read_only"
+    },
+    "protected_duplicate_baseline": [
+      { "path": "apps/web/lib/security/rate-limit 2.ts", "sha256": "02b97294ddc447883b148ab3c712fa244fae1a0f5d2a02fcfbbf7b2734e5e389" },
+      { "path": "docs/graphs/README 2.md", "sha256": "98587b2eee7af3c9c86a6ec9d3fdb77a9bbf49dcebab9d249cb444c8c7bd98aa" },
+      { "path": "docs/plans/evidence/M0.01-opennext-artifact-proof-r3 2.md", "sha256": "ebe65217d2377e72487cfa32ab113eeaad596e9a53c1b628dd9281a85e152eee" },
+      { "path": "docs/project-map 2.md", "sha256": "bac73644864aeb1402235c30696af399cf4915908cf4dd9ecc7bb19ba3be4413" }
+    ]
+  },
+  "input_digests": [
+    { "path": "docs/plans/evidence/M3.03-authorized-apple-replay-proof-execution-handoff.md", "sha256": "d4f8b7d6a7511534980d024e22389d99abc80abf19979fa04bd398ef04058b4d", "bytes": 36821 },
+    { "path": "docs/plans/evidence/M3.03-apple-signing-readiness-preimplementation-plan.md", "sha256": "5e5f34ccbe743d5ac774d2f6cf27f2e0da9f12e0703a2e04a378bc1692b2f53c", "bytes": 52928 },
+    { "path": "docs/plans/evidence/M3.03-apple-signing-readiness-receipt.json", "sha256": "2a300284ff907d871885b2b9ea351d7bfe4e975b672f778688af4d28b8f1f143", "bytes": 6126 },
+    { "path": "docs/plans/evidence/M3.03-preimplementation-replay-provider-proof-receipt.json", "sha256": "acc3f6652fda5dd34a15dfc9119fd091db636620203d7acd4aa21943f891fb3c", "bytes": 7017 },
+    { "path": "docs/plans/evidence/M3.02-device-auth-seams-security-decisions.md", "sha256": "21d84b00460d38fea48a8ac568cfb7771188e7d5c16c0c90f90d7349534e016c", "bytes": 94487 },
+    { "path": "docs/plans/2026-08-10-skillmap-m3-device-connector-implementation-plan.md", "sha256": "752f6d33ca2438b903ecac017eba82111a24d661ad1ad290ab283bd3942d6060", "source_state": "matches on read_only_dirty_main; candidate copy disappeared during concurrent work and was not recreated" }
+  ],
+  "host": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node_runtime": "v22.23.1",
+    "clt_package_probe": { "exit": 0, "version": "26.6.0.0.1781586589", "output_sha256": "fea182c6e213673fe68cc765e884fdb6c158c6a8ffeaba04e7b9e0ef7ce4e8a0" }
+  },
+  "tool_facts": [
+    { "tool": "swiftc", "present": true, "probe": "--version", "result": "timeout", "path_digest": "ff1151cdb65c8e15913f1a7920ec6daaea3a500d51cf604ff431255a5e974545", "file_digest": "8712ce09d049dc96245adf407ef18fbef783b5e0b540e7a4ddc89d4103c7615b", "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "stderr_sha256": "542ca724f46d8a3dffb85c3cd4b6e0d2fdf6c1bd4c484e6978dd9ed2f22cd639" },
+    { "tool": "codesign", "present": true, "probe": "-h", "exit": 2, "result": "usage_exit_observed", "path_digest": "8f1b0c5eaaab8167557e20bba512a180a5a04dcd19d1c8bdebee95315afea25b", "file_digest": "b65b3db8c6e424aae3f829c00f36be4ee42e7dcb87aa18f51cf9241b739621f6", "interface_sha256": "c8940899163b0b684c930aec023823952b7c2b8a0b747098519c59ffdf28d1ab" },
+    { "tool": "security", "present": true, "probe": "help find-identity", "exit": 0, "path_digest": "de2e84d72f264a2c021d1321334de02b14c09207870b9ec323f1471069e2a723", "file_digest": "12fb4e4a7fff6466cd880a667a57c355df236e362ed7b441fda702e99b4015a4", "interface_sha256": "a39410a657c684da1ce396880ab61da08cc35c206d3a29214e816c636bcc08b2" },
+    { "tool": "security", "present": true, "probe": "help cms", "exit": 0, "interface_sha256": "f7a1ed4f704c7c1968722ef2cb6edd026799beb26f4c321b47697d4116d72b48" },
+    { "tool": "notarytool", "present": true, "discovery": "xcrun --find notarytool", "probe": "--version", "result": "pass", "version": "1.1.2 (41)", "path_digest": "c40fd9421e6bf71b540dba90a80fa548094296a03c1be9bcfea174144cf11b99", "file_digest": "dcc348cbbfb38b0b211e78bd9e7cd1cafae640210c3e46128beacad3cf771d10", "version_output_sha256": "07d86d5fb36c39bc211673fcfc56b96caab6dc436db64036fc5220b417052771" },
+    { "tool": "stapler", "present": true, "probe": "bare help surface", "exit": 1, "result": "capability_exit_drift", "path_digest": "db2d8753470d37b0a6fd6c451234864be772abd128fab78087e935d576e1f204", "file_digest": "684a5238ec07bd87376bf14f8b282a28df1f0f0610f3a7115c6d6142f9f19e2a", "interface_sha256": "b7e62abf8882100b908f27e8999d383a85a01bd03e6bf8adf66967009f6b03b8" },
+    { "tool": "spctl", "present": true, "probe": "--help", "exit": 2, "result": "usage_exit_observed", "path_digest": "62afd21ccc928fcf733b32bdb0b359e25de84d2e58a8686c46263f4afc7ea0f9", "file_digest": "20f6ec9317f66efd08d6ae25be3aaa11ab54b76dec5ca7da085fb7da25bfb729", "interface_sha256": "10f0f67ecde8cbc7921e30a7c2d348aa0d380ffc1e12c55fe818887053f89257" },
+    { "tool": "gcloud", "present": true, "probe": "--version", "result": "pass", "stdout_bytes": 111, "stderr_bytes": 119, "auth_probe_active_count": 1, "project_probe": "unconfigured" },
+    { "tool": "wrangler", "present": "unresolved", "probe": "direct availability/auth", "result": "not_claimed" },
+    { "tool": "node", "present": true, "probe": "--version", "result": "pass", "stdout_sha256": "b8139b18707113247bd3eba5bff8ee50ed8f6bfd5076113805af4e414abfdf23" },
+    { "tool": "npm", "present": true, "probe": "--version", "result": "pass", "stdout_sha256": "7eeb2f42ee0d10d4e00355252af2e7468bbff992af43b511355feb76da5c7cfb" }
+  ],
+  "auth_availability": {
+    "gcloud_auth_list": { "state": "available_redacted", "active_count": 1, "stdout_bytes": 74, "stderr_bytes": 0, "stdout_sha256": "06bd8ed8cb8f11d3ae96a9d846223c3649b82214f9edfba6a0085410c09375a9", "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "raw_account_output_retained": false },
+    "gcloud_project_context": { "state": "unconfigured", "stdout_bytes": 0, "stderr_bytes": 8, "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "stderr_sha256": "25fbd7bf96bb1c4a266ab57297c4c351dd44b3f5241d3c4b7d1d312b472e3494" },
+    "wrangler_whoami": { "state": "unresolved", "raw_account_output_retained": false },
+    "secrets_read": false,
+    "credential_mutation": false
+  },
+  "lane_readiness": {
+    "apple": {
+      "tool_only_probe": { "exit": 2, "status": "BLOCKED_DISPOSABLE_RUNNER_MISSING", "receipt_sha256": "2a300284ff907d871885b2b9ea351d7bfe4e975b672f778688af4d28b8f1f143", "guarded_keychain_or_profile_commands": false },
+      "ready_for_computer_use_inventory": true,
+      "computer_use_inventory_scope": "read_only Apple runner/user/team/role/slot readiness inventory only",
+      "blockers": ["Disposable non-admin runner/task-root provisioning remains an input to the Computer Use inventory/provisioning phase; no mutation is authorized by this receipt.", "Identity, keychain, profile, portal, signing, notarization, and Secure Enclave proof remain unperformed."]
+    },
+    "replay": {
+      "local_preimplementation_receipt_status": "NON_PRODUCT_PROVIDER_PROOF_VALIDATED_LOCALLY",
+      "ready_for_computer_use_inventory": true,
+      "computer_use_inventory_scope": "read_only Cloudflare/GCP account, store, quota, role, project, region, IAM, audit, and cleanup-target inventory only",
+      "blockers": ["GCP has one active redacted auth entry but no configured project; exact approved non-production project must be selected during read-only inventory.", "Direct Wrangler availability/auth is unresolved; exact Cloudflare account/store and cleanup target must be read back before any mutation.", "Production replay key, production binding, and provider mutation remain forbidden."]
+    }
+  },
+  "repository_allowlist": {
+    "purpose": "future external-proof receipts and non-product harnesses only",
+    "allowed_relative_paths": [
+      "docs/plans/evidence/M3.03-authorized-apple-replay-common-preflight-receipt.json",
+      "docs/plans/evidence/M3.03-authorized-apple-proof-receipt.json",
+      "docs/plans/evidence/M3.03-authorized-replay-provider-proof-receipt.json",
+      "scripts/m3-03-authorized-apple-proof.swift",
+      "scripts/m3-03-authorized-apple-proof.mjs",
+      "scripts/m3-03-authorized-replay-provider-proof.mjs",
+      "test/m3-03-authorized-apple-proof.mjs",
+      "test/m3-03-authorized-replay-provider-proof.mjs",
+      "test/support/m3-03-authorized-apple-proof.mjs",
+      "test/support/m3-03-authorized-replay-provider-proof.mjs",
+      "test/fixtures/m3-03-authorized-apple-proof/",
+      "test/fixtures/m3-03-authorized-replay-provider-proof/"
+    ],
+    "forbidden_relative_prefixes": ["src/", "apps/", "supabase/", "dist/", "node_modules/", ".env", "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "wrangler.toml", "docs/plans/*implementation-ledger*"],
+    "product_or_provider_mutation_allowed": false
+  },
+  "cleanup": {
+    "temporary_files_created_by_preflight": false,
+    "tool_only_scratch_remaining": 0,
+    "gcloud_processes_remaining": 0,
+    "wrangler_processes_remaining": 0,
+    "raw_auth_output_retained": false,
+    "credentials_or_secrets_created": false,
+    "keychains_profiles_identities_provider_resources_changed": false
+  },
+  "drift_and_blockers": [
+    "The candidate master-plan copy matching 752f6d33ca2438b903ecac017eba82111a24d661ad1ad290ab283bd3942d6060 was absent; each step is bound read-only to the dirty-main exact digest and no candidate copy was recreated or edited.",
+    "The corrected handoff was concurrently updated to d4f8b7d6a7511534980d024e22389d99abc80abf19979fa04bd398ef04058b4d before this repair; the current candidate manifest binds that exact digest and no handoff content was edited here.",
+    "Configured dispatch role/model/effort was accepted; independent runtime identity remains unknown/unconfirmed and is not used as a stop condition.",
+    "Read-only Computer Use inventory is permitted for Apple, Cloudflare, and GCP; every account, user, keychain, certificate, profile, project, IAM, store, secret, Worker, provider, and production-key mutation remains blocked until exact targets are read back and separately released."
+  ],
+  "non_claims": [
+    "No Apple account, team, identity, certificate, profile, keychain, Secure Enclave item, notarization, Gatekeeper check, or browser action was performed.",
+    "No Cloudflare or GCP provider resource, secret, Worker binding, IAM policy, token, project, or account was created, changed, deleted, or queried with raw values.",
+    "The local replay receipt proves only the prior fake/local provider harness; it does not prove real provider deletion, restore denial, backup erasure, cache eviction, or the 1,230-second production bound.",
+    "This receipt does not accept M3.03 product/API/database/native work and does not authorize a production replay key.",
+    "No push, commit, deploy, Git-history, main-worktree, or protected-duplicate mutation was performed."
+  ],
+  "route": {
+    "requested": "worker / GPT-5.6 Luna / high / Fast N/A",
+    "runtime_identity_confirmed": false,
+    "strict_route_status": "CONFIGURED_ROUTE_ACCEPTED_RUNTIME_IDENTITY_UNCONFIRMED",
+    "computer_use_route": "not invoked; required later as GPT-5.6 Sol / low / Fast in Codex native browser or target macOS app"
+  }
+}

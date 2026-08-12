@@ -10,6 +10,7 @@ import {
 import { effectiveRegistryUsesFixtureState } from './fixture-path.js';
 import { rankRoutePrompt, validateRoutePrompt, type RouteRankingSkill } from './route-ranking.js';
 import { CONTRACT_SCHEMAS, type ContractSchemaId } from './generated/schema-bundle.js';
+import { CONTRACT_STANDALONE_VALIDATORS } from './generated/standalone-validators.js';
 import type { ContractBySchemaId, EvalRunV3, KnownContractSchemaId, RevisionRef, Sha256Digest } from './generated/types.js';
 
 export interface ContractIssue {
@@ -77,28 +78,34 @@ const SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9._~+/-]+=*\b/i
 ];
 
-const ajv = new Ajv2020({
-  allErrors: true,
-  strictSchema: true,
-  strictRequired: true,
-  strictTypes: false,
-  strictTuples: false,
-  validateFormats: true,
-  coerceTypes: false,
-  useDefaults: false,
-  removeAdditional: false
-});
+const cloudflareStaticValidation = process.env.SKILLMAP_CONTRACT_VALIDATION_MODE === 'cloudflare-static'
+  || process.env.NEXT_PUBLIC_SKILLMAP_CONTRACT_VALIDATION_MODE === 'cloudflare-static';
+const ajv = cloudflareStaticValidation
+  ? null
+  : new Ajv2020({
+      allErrors: true,
+      strictSchema: true,
+      strictRequired: true,
+      strictTypes: false,
+      strictTuples: false,
+      validateFormats: true,
+      coerceTypes: false,
+      useDefaults: false,
+      removeAdditional: false
+    });
 
-ajv.addFormat('date-time', {
-  type: 'string',
-  validate: isRealUtcTimestamp
-});
+if (ajv) {
+  ajv.addFormat('date-time', {
+    type: 'string',
+    validate: isRealUtcTimestamp
+  });
 
-// Ajv normalizes some numeric subschemas in place while compiling them. Keep
-// the exported generated bundle immutable so callers and convergence tests see
-// the exact checked-in JSON Schema bytes rather than Ajv's internal form.
-for (const schema of CONTRACT_SCHEMAS) {
-  ajv.addSchema(JSON.parse(JSON.stringify(schema)) as object);
+  // Ajv normalizes some numeric subschemas in place while compiling them. Keep
+  // the exported generated bundle immutable so callers and convergence tests see
+  // the exact checked-in JSON Schema bytes rather than Ajv's internal form.
+  for (const schema of CONTRACT_SCHEMAS) {
+    ajv.addSchema(JSON.parse(JSON.stringify(schema)) as object);
+  }
 }
 
 const validators = new Map<string, ValidateFunction>();
@@ -497,7 +504,14 @@ export function computeEvalSuiteV3CaseSetDigest(value: unknown): Sha256Digest {
 function getValidator(schemaId: string): ValidateFunction {
   const cached = validators.get(schemaId);
   if (cached) return cached;
-  const validator = ajv.getSchema(schemaId);
+  // Cloudflare Workers disallows Ajv's runtime code generation.
+  if (cloudflareStaticValidation) {
+    const validator = CONTRACT_STANDALONE_VALIDATORS[schemaId as keyof typeof CONTRACT_STANDALONE_VALIDATORS] as ValidateFunction | undefined;
+    if (!validator) throw new Error(`Unknown SkillMap contract schema: ${schemaId}`);
+    validators.set(schemaId, validator);
+    return validator;
+  }
+  const validator = ajv?.getSchema(schemaId);
   if (!validator) throw new Error(`Unknown SkillMap contract schema: ${schemaId}`);
   validators.set(schemaId, validator);
   return validator;

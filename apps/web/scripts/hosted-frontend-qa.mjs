@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import pixelmatch from "pixelmatch";
 import { chromium } from "playwright";
 import { PNG } from "pngjs";
+import { execLocalPsql } from "./local-supabase-psql.mjs";
 
 const appDir = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const baseUrl = process.env.SKILLMAP_WEB_BASE_URL ?? "http://127.0.0.1:3000";
@@ -76,7 +76,7 @@ try {
     user_id: signedIn.user.id
   });
   if (profileError) throw profileError;
-  execFileSync("psql", [databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
+  execLocalPsql([databaseUrl, "-v", "ON_ERROR_STOP=1", "-AtX", "-c",
     `update api.profiles set created_at = '2026-07-13T00:00:00.000Z' where user_id = '${signedIn.user.id}'::uuid`
   ], { stdio: ["ignore", "ignore", "pipe"] });
 
@@ -287,7 +287,7 @@ try {
   }
   try {
     if (!/^[0-9a-f-]{36}$/.test(created.user.id)) throw new Error("Hosted frontend QA user ID was not canonical during cleanup.");
-    const remainingProfiles = execFileSync("psql", [databaseUrl, "-AtX", "-c", `select count(*) from api.profiles where user_id = '${created.user.id}'::uuid`], {
+    const remainingProfiles = execLocalPsql([databaseUrl, "-AtX", "-c", `select count(*) from api.profiles where user_id = '${created.user.id}'::uuid`], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"]
     }).trim();

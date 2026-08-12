@@ -1,4 +1,4 @@
-import { getApprovedSupportUrl, getReleaseStage, isHostedReleaseStage, isPublicIndexingEnabled } from "@/lib/security/policy";
+import { getApprovedSupportUrl, getReleaseStage, isPublicIndexingEnabled } from "@/lib/security/policy";
 import { getPublicSupabaseConfig, getSiteUrl, SupabaseConfigurationError } from "@/lib/supabase/config";
 
 type CheckState = "ok" | "not-required" | "unavailable";
@@ -33,8 +33,7 @@ export function evaluateHealth(
     publicConfiguration = "unavailable";
   }
 
-  const hosted = isHostedReleaseStage(releaseStage);
-  const support: CheckState = hosted
+  const support: CheckState = releaseStage === "public-alpha"
     ? (getApprovedSupportUrl(environment) ? "ok" : "unavailable")
     : "not-required";
   const indexing: CheckState = releaseStage === "public-alpha"
