@@ -415,15 +415,28 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     assert.equal(getChunked.status, 400);
     assert.deepEqual(getChunked.body, { error: 'invalid_request' });
 
-    const allowedQuery = await rawHttpRequestWithRetry(port, '/proof/binding?key=secret', { headers: ['x-skillmap-replay-raw-target: /proof/binding'] }, { isProcessAlive: () => !hasExited(child) });
+    // Query rejection happens before the Worker reads any body. Workerd
+    // 1.20260804.1 can terminate its Windows Node 22 local process after this
+    // early response, so verify the Worker branch directly and keep the live
+    // process for requests that exercise its transport safely.
+    const queryWorker = (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-query')).default;
+    const allowedQuery = await queryWorker.fetch(
+      new Request('http://127.0.0.1/proof/binding?key=secret', {
+        headers: { 'x-skillmap-replay-raw-target': '/proof/binding' },
+      }),
+      { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+    );
     assert.equal(allowedQuery.status, 400);
-    assert.deepEqual(JSON.parse(allowedQuery.rawBody), { error: 'invalid_request' });
-    // Query rejection happens before Workerd reads a request body. Keep this
-    // live probe bodyless so the edge transport does not terminate the local
-    // process while it reports the fail-closed response.
-    const parseQuery = await rawHttpRequestWithRetry(port, '/proof/parse?key=secret', { method: 'POST', headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/parse'] }, { isProcessAlive: () => !hasExited(child) });
+    assert.deepEqual(await allowedQuery.json(), { error: 'invalid_request' });
+    const parseQuery = await queryWorker.fetch(
+      new Request('http://127.0.0.1/proof/parse?key=secret', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-skillmap-replay-raw-target': '/proof/parse' },
+      }),
+      { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+    );
     assert.equal(parseQuery.status, 400);
-    assert.deepEqual(JSON.parse(parseQuery.rawBody), { error: 'invalid_request' });
+    assert.deepEqual(await parseQuery.json(), { error: 'invalid_request' });
     // Preserve coverage for a body-bearing query rejection at the Worker seam;
     // the live edge transport must not receive this unread body.
     const directQueryWithBody = await (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-query-body')).default.fetch(
