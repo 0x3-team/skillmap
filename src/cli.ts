@@ -29,6 +29,8 @@ import { logoutCommand } from './commands/logout.js';
 import { CliExitError, mapDeviceAuthErrorToExitCode, SAFE_ERROR_MESSAGES } from './core/cli-exit.js';
 import { SKILLMAP_PRODUCT_VERSION } from './server/compatibility.js';
 
+const DEVICE_AUTH_COMMANDS = new Set(['login', 'auth', 'whoami', 'logout']);
+
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
   const cwd = process.cwd();
@@ -79,8 +81,23 @@ async function main() {
       printHuman(output);
     }
   } catch (error: unknown) {
-    handleCliError(error, hasFlag(parsed.flags, 'json'));
+    const isJson = hasFlag(parsed.flags, 'json');
+    if (DEVICE_AUTH_COMMANDS.has(parsed.command) || error instanceof CliExitError) {
+      handleCliError(error, isJson);
+    } else {
+      handleLegacyCliError(error, isJson);
+    }
   }
+}
+
+function handleLegacyCliError(error: unknown, isJson: boolean): void {
+  const message = error instanceof Error ? error.message : String(error);
+  if (isJson) {
+    console.log(JSON.stringify({ error: 'error', message }, null, 2));
+  } else {
+    console.error(`skillmap error: ${message}`);
+  }
+  process.exitCode = 1;
 }
 
 export function handleCliError(error: unknown, isJson: boolean): void {
