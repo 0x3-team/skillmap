@@ -103,13 +103,16 @@ import {
 import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-errors.ts";
 import {
   applyRetryAfterHeader,
+  getDeviceAuthSourceIdentity,
   InMemoryFixedWindowRateLimiter,
   applyRateLimitHeaders,
   getAnonymousClientIdentity,
   getAnonymousClientKey,
   isValidIpAddress,
   isPublicCatalogApiPath,
-  isPublicCatalogReadRequest
+  isPublicCatalogReadRequest,
+  isPublicDeviceAuthInitiationRequest,
+  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY
 } from "../lib/security/rate-limit.ts";
 import {
   HOSTED_API_ERROR_SCHEMA_ID,
@@ -142,6 +145,14 @@ test("Next 16 hosted request boundary has one Edge middleware surface and preser
   assert.match(middleware, /buildResponseSecurityHeaders/);
   assert.match(middleware, /crypto\.subtle\.digest/);
   assert.match(middleware, /rate-limit-core/);
+  assert.match(middleware, /isPublicDeviceAuthInitiationRequest/);
+  assert.match(middleware, /PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY/);
+  assert.match(middleware, /getDeviceAuthSourceIdentity/);
+  assert.ok(
+    middleware.indexOf("consumePublicDeviceAuthInitiation(request)")
+      < middleware.indexOf("let response = createPassthroughResponse(request, nonce, contentSecurityPolicy)"),
+    "the source limiter must run before the request reaches the downstream route"
+  );
   assert.match(middleware, /createHostedApiErrorPayload/);
   assert.doesNotMatch(middleware, /@\/lib\/registry\/api\.server/);
   assert.doesNotMatch(middleware, /node:(?:crypto|net)|Ajv2020|new Function|\beval\s*\(/);
@@ -1232,6 +1243,66 @@ test("catalog rate limiting covers API and server-rendered read paths only", () 
   assert.equal(isPublicCatalogApiPath("/api/v1/skills"), true);
   assert.equal(isPublicCatalogApiPath("/api/v1/skills/example"), true);
   assert.equal(isPublicCatalogApiPath("/skills"), false);
+});
+
+test("device-auth initiation source gate matches the public POST seam only", () => {
+  assert.equal(isPublicDeviceAuthInitiationRequest("/api/device-auth/v1/pairings", "POST"), true);
+  for (const [pathname, method] of [
+    ["/api/device-auth/v1/pairings", "GET"],
+    ["/api/device-auth/v1/pairings/", "POST"],
+    ["/api/device-auth/v1/pairings/poll", "POST"],
+    ["/api/v1/skills", "POST"]
+  ]) assert.equal(isPublicDeviceAuthInitiationRequest(pathname, method), false, `${method} ${pathname}`);
+});
+
+test("device-auth source identity trusts only CF-Connecting-IP", () => {
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({
+      "cf-connecting-ip": "203.0.113.10",
+      "x-forwarded-for": "198.51.100.20"
+    })),
+    "ip:203.0.113.10"
+  );
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({ "x-forwarded-for": "198.51.100.20" })),
+    "anonymous",
+    "a client-supplied forwarded header must not become the source identity"
+  );
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({
+      "cf-connecting-ip": "203.0.113.10, 198.51.100.20",
+      "x-forwarded-for": "198.51.100.20"
+    })),
+    "anonymous",
+    "a list-valued Cloudflare source header is not an authoritative address"
+  );
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({
+      "cf-connecting-ip": "not-an-ip",
+      "x-forwarded-for": "198.51.100.20"
+    })),
+    "anonymous"
+  );
+});
+
+test("device-auth source limiter has the frozen N/N+1 boundary", () => {
+  assert.deepEqual(PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY, {
+    limit: 5,
+    windowMs: 600_000,
+    maxEntries: 5_000
+  });
+  const limiter = new InMemoryFixedWindowRateLimiter(PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY);
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const decision = limiter.consume("ip:203.0.113.10", 1000 + attempt);
+    assert.equal(decision.allowed, true, `attempt ${attempt} must pass`);
+    assert.equal(decision.remaining, 5 - attempt);
+  }
+  const denied = limiter.consume("ip:203.0.113.10", 2000);
+  assert.equal(denied.allowed, false);
+  assert.equal(denied.remaining, 0);
+  assert.equal(denied.retryAfterSeconds, 600);
+  assert.equal(limiter.consume("ip:198.51.100.20", 2000).allowed, true, "different source gets its own budget");
+  assert.equal(limiter.consume("ip:203.0.113.10", 601_002).allowed, true, "expired source window resets");
 });
 
 test("anonymous rate limiting is bounded, resets deterministically, and emits bounded headers", () => {

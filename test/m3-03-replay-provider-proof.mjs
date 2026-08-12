@@ -55,6 +55,31 @@ function rawCurl(port, path, { method = 'GET', headers = [], body } = {}) {
   return { status, body: JSON.parse(lines.join('\n')) };
 }
 
+function terminateProcessTree(child, signal) {
+  if (hasExited(child)) return;
+  if (process.platform === 'win32') {
+    // Wrangler's launcher starts a second Node process. Windows does not
+    // propagate child.kill() to that process tree, so target this exact PID
+    // and its descendants without invoking a shell or matching by name.
+    assert.equal(Number.isInteger(child.pid), true, 'local Workerd process must expose a PID for Windows cleanup');
+    spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { shell: false, stdio: 'ignore', windowsHide: true });
+    return;
+  }
+  child.kill(signal);
+}
+
+function hasExited(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+function waitForProcessExit(child, timeoutMs) {
+  if (hasExited(child)) return Promise.resolve();
+  return Promise.race([
+    new Promise((resolveExit) => child.once('exit', resolveExit)),
+    delay(timeoutMs),
+  ]);
+}
+
 test('M3.03 replay ring exports freeze the bounded v1 contract', () => {
   assert.equal(REPLAY_RING_SCHEMA, 'skillmap.device-auth.replay-ring.v1');
   assert.equal(REPLAY_RING_MAX_BYTES, 4096);
@@ -300,11 +325,11 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     }
     assert.doesNotMatch(`${stdout}\n${stderr}`, /sk-[A-Za-z0-9]|CLOUDFLARE_API_TOKEN|key_b64url|AwMDA/);
   } finally {
-    child.kill('SIGTERM');
-    await Promise.race([new Promise((resolveExit) => child.once('exit', resolveExit)), delay(5000)]);
-    if (child.exitCode === null) child.kill('SIGKILL');
-    if (child.exitCode === null) await Promise.race([new Promise((resolveExit) => child.once('exit', resolveExit)), delay(2000)]);
-    assert.notEqual(child.exitCode, null, 'local Workerd process must terminate during cleanup');
+    terminateProcessTree(child, 'SIGTERM');
+    await waitForProcessExit(child, 5000);
+    if (!hasExited(child)) terminateProcessTree(child, 'SIGKILL');
+    if (!hasExited(child)) await waitForProcessExit(child, 2000);
+    assert.equal(hasExited(child), true, 'local Workerd process must terminate during cleanup');
     await assert.rejects(fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(1000) }));
     rmSync(temp, { recursive: true, force: true });
   }

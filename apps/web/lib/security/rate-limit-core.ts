@@ -25,6 +25,17 @@ export const PUBLIC_SKILL_RATE_LIMIT_POLICY: Readonly<RateLimitPolicy> = Object.
 });
 
 /**
+ * Device-auth initiation is an expensive public operation. Keep its source
+ * budget aligned with the database initiation budget while bounding the
+ * in-process map used by the Next middleware seam.
+ */
+export const PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY: Readonly<RateLimitPolicy> = Object.freeze({
+  limit: 5,
+  windowMs: 600_000,
+  maxEntries: 5_000
+});
+
+/**
  * A bounded, per-process fixed-window limiter shared by the Node and Edge
  * adapters. It is defense in depth, not a globally consistent quota.
  */
@@ -96,6 +107,10 @@ export function isPublicCatalogApiPath(pathname: string): boolean {
   return isPathOrDescendant(pathname, "/api/v1/skills");
 }
 
+export function isPublicDeviceAuthInitiationRequest(pathname: string, method: string): boolean {
+  return method === "POST" && pathname === "/api/device-auth/v1/pairings";
+}
+
 /** Returns a bounded, non-secret identity before adapter-specific hashing. */
 export function getAnonymousClientIdentity(headers: Headers): string {
   const vercelForwarded = firstHeaderValue(headers.get("x-vercel-forwarded-for"));
@@ -104,6 +119,20 @@ export function getAnonymousClientIdentity(headers: Headers): string {
   const address = [vercelForwarded, realIp, forwarded]
     .find((candidate) => candidate !== null && isValidIpAddress(candidate));
   return address ? `ip:${address}` : "anonymous";
+}
+
+/**
+ * Cloudflare supplies the client source in CF-Connecting-IP. It is the only
+ * accepted source for the device-auth edge budget. In particular, do not fall
+ * back to x-forwarded-for: callers can provide that header when they bypass
+ * the trusted Cloudflare edge.
+ */
+export function getDeviceAuthSourceIdentity(headers: Headers): string {
+  const value = headers.get("cf-connecting-ip");
+  if (!value || value.length > 64 || value.trim() !== value || value.includes(",")) {
+    return "anonymous";
+  }
+  return isValidIpAddress(value) ? `ip:${value}` : "anonymous";
 }
 
 /** Matches Node net.isIP for the bounded address forms accepted by headers. */

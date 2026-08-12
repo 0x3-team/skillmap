@@ -2,11 +2,14 @@ import { createHash } from "node:crypto";
 import {
   applyRateLimitHeaders,
   applyRetryAfterHeader,
+  getDeviceAuthSourceIdentity,
   getAnonymousClientIdentity,
   InMemoryFixedWindowRateLimiter,
   isPublicCatalogApiPath,
   isPublicCatalogReadRequest,
+  isPublicDeviceAuthInitiationRequest,
   isValidIpAddress,
+  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY,
   PUBLIC_SKILL_RATE_LIMIT_POLICY,
   type RateLimitDecision,
   type RateLimitPolicy
@@ -15,11 +18,14 @@ import {
 export {
   applyRateLimitHeaders,
   applyRetryAfterHeader,
+  getDeviceAuthSourceIdentity,
   getAnonymousClientIdentity,
   InMemoryFixedWindowRateLimiter,
   isPublicCatalogApiPath,
   isPublicCatalogReadRequest,
+  isPublicDeviceAuthInitiationRequest,
   isValidIpAddress,
+  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY,
   PUBLIC_SKILL_RATE_LIMIT_POLICY,
   type RateLimitDecision,
   type RateLimitPolicy

@@ -4,8 +4,8 @@ import { test } from "node:test";
 
 import { sha256Digest } from "../lib/device-auth/crypto.server.ts";
 import { computeKeyThumbprint } from "../lib/device-auth/crypto.server.ts";
-import { DeviceAuthError } from "../lib/device-auth/errors.ts";
-import { createRefreshLookupCrypto, openRefreshResponseV1, sealRefreshResponseV1 } from "../lib/device-auth/refresh-crypto.server.ts";
+import { DeviceAuthError, DeviceAuthUnavailableError } from "../lib/device-auth/errors.ts";
+import { createRefreshLookupCrypto, openRefreshResponseV1, sealRefreshResponseV1, UnavailableReplayKeyProvider } from "../lib/device-auth/refresh-crypto.server.ts";
 import { REFRESH_PATH } from "../lib/device-auth/refresh-contracts.server.ts";
 import { refreshDeviceToken } from "../lib/device-auth/refresh-service.server.ts";
 import { buildProofPreimageV2 } from "../../../src/contracts/device-auth.ts";
@@ -84,6 +84,25 @@ test("one transition gives exact replay bytes and changed digest is a conflict",
   await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "QwErTyUiOpAsDfGhJkLzXc", "AsDfGhJkLzXcVbNmQwErTy") }), (error) => error instanceof DeviceAuthError && error.code === "temporarily_unavailable");
   assert.equal(failClosed, true);
   await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "LmNoPqRsTuVwXyZaBcDeFg", "VbNmQwErTyUiOpAsDfGhJk") }), (error) => error instanceof DeviceAuthError && error.code === "idempotency_conflict");
+});
+
+test("unavailable replay provider fails closed before the refresh transition", async () => {
+  const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const publicKeyB64 = Buffer.from(await crypto.subtle.exportKey("spki", keyPair.publicKey)).toString("base64url");
+  const thumbprint = computeKeyThumbprint(publicKeyB64);
+  let transitions = 0;
+  const repository = {
+    async getActiveProofKey() { return { publicKey: publicKeyB64, keyThumbprint: thumbprint, proofSuite: "skillmap.ecdsa-p256-sha256.v2" }; },
+    async getRefreshContext() { return { devicePublicId: "dev_" + "2".repeat(32), accountPublicId: "acct_" + "3".repeat(32), tokenFamilyId: FAMILY_ID, currentGeneration: 1, absoluteExpiresAt: NOW + 7_776_000 }; },
+    async refreshToken() { transitions += 1; return { outcome: "committed" }; }
+  };
+  const lookup = createRefreshLookupCrypto({ key: Uint8Array.from({ length: 32 }, () => 9), keyVersion: 11, randomBytes: (n) => Uint8Array.from({ length: n }, () => 7) });
+  const deps = { repository, lookupCrypto: lookup, replayKeys: new UnavailableReplayKeyProvider(), now: () => NOW, randomBytes: (n) => NONCE.subarray(0, n) };
+  await assert.rejects(
+    refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey) }),
+    (error) => error instanceof DeviceAuthUnavailableError && error.status === 503
+  );
+  assert.equal(transitions, 0, "no token-family transition is allowed without replay sealing");
 });
 
 test("fabricated, wrong-path, wrong-body, and wrong-key proofs never reach refresh transition", async () => {

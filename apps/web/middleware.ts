@@ -11,10 +11,13 @@ import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from 
 import {
   applyRateLimitHeaders,
   applyRetryAfterHeader,
+  getDeviceAuthSourceIdentity,
   getAnonymousClientIdentity,
   InMemoryFixedWindowRateLimiter,
   isPublicCatalogApiPath,
   isPublicCatalogReadRequest,
+  isPublicDeviceAuthInitiationRequest,
+  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY,
   PUBLIC_SKILL_RATE_LIMIT_POLICY,
   type RateLimitDecision
 } from "@/lib/security/rate-limit-core";
@@ -35,6 +38,15 @@ export async function middleware(request: NextRequest) {
     https: request.nextUrl.protocol === "https:",
     publicIndexing: isPublicIndexingEnabled()
   });
+  const deviceAuthRateLimit = isPublicDeviceAuthInitiationRequest(
+    request.nextUrl.pathname,
+    request.method
+  )
+    ? await consumePublicDeviceAuthInitiation(request)
+    : null;
+  if (deviceAuthRateLimit && !deviceAuthRateLimit.allowed) {
+    return createDeviceAuthRateLimitedResponse(deviceAuthRateLimit, responseSecurityHeaders);
+  }
   const rateLimit = isPublicCatalogReadRequest(request.nextUrl.pathname, request.method)
     ? await consumePublicSkillRequest(request)
     : null;
@@ -86,6 +98,27 @@ export async function middleware(request: NextRequest) {
   return applySecurityHeaders(response, responseSecurityHeaders);
 }
 
+function createDeviceAuthRateLimitedResponse(
+  decision: RateLimitDecision,
+  securityHeaders: Readonly<Record<string, string>>
+): NextResponse {
+  const response = new NextResponse(JSON.stringify({
+    error: "rate_limited",
+    error_description: "Too many requests.",
+    retry_after: decision.retryAfterSeconds
+  }), {
+    status: 429,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer"
+    }
+  });
+  applyRateLimitHeaders(response, decision);
+  applyRetryAfterHeader(response, decision);
+  return applySecurityHeaders(response, securityHeaders);
+}
+
 function createRateLimitedResponse(
   request: NextRequest,
   decision: RateLimitDecision,
@@ -133,6 +166,9 @@ function setPrivateNoStore(response: NextResponse) {
 }
 
 const publicSkillLimiter = new InMemoryFixedWindowRateLimiter(PUBLIC_SKILL_RATE_LIMIT_POLICY);
+const publicDeviceAuthInitiationLimiter = new InMemoryFixedWindowRateLimiter(
+  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY
+);
 
 async function consumePublicSkillRequest(
   request: Pick<Request, "headers">,
@@ -143,6 +179,20 @@ async function consumePublicSkillRequest(
   let binary = "";
   for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
   return publicSkillLimiter.consume(btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""), now);
+}
+
+async function consumePublicDeviceAuthInitiation(
+  request: Pick<Request, "headers">,
+  now = Date.now()
+): Promise<RateLimitDecision> {
+  const identity = getDeviceAuthSourceIdentity(request.headers);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  let binary = "";
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return publicDeviceAuthInitiationLimiter.consume(
+    btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
+    now
+  );
 }
 
 function catalogError(status: number, code: string, message: string, retryable = false): NextResponse {
