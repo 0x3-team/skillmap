@@ -132,7 +132,8 @@ function unavailableRow(mode, reason) {
   return { mode, signature_state: mode, status: 'FAIL', unavailable_reason: reason, lifecycle: {}, assertions: {} };
 }
 
-export async function runCapabilityProbe() {
+export async function runCapabilityProbe(options = {}) {
+  const receiptPath = options.receiptPath ?? RECEIPT;
   const observedAt = new Date().toISOString();
   const beforeStatus = spawnSync('/usr/bin/git', ['status', '--short', '--untracked-files=all'], { cwd: ROOT, encoding: 'utf8' }).stdout ?? '';
   const temp = realpathSync(mkdtempSync(join(tmpdir(), 'skillmap-m303-dp-')));
@@ -207,8 +208,8 @@ export async function runCapabilityProbe() {
       },
       worktree: { path: '/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate', branch: 'Masih-0x3/m2-16-candidate-exact', dirty_main_touched: false, ledger_mutation: false },
     });
-    mkdirSync(resolve(RECEIPT, '..'), { recursive: true });
-    writeFileSync(RECEIPT, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
+    mkdirSync(resolve(receiptPath, '..'), { recursive: true });
+    writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
     return receipt;
   }
 }

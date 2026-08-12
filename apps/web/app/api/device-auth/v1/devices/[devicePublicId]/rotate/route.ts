@@ -3,7 +3,6 @@ import {
   assertNoQuery,
   parseStrictDeviceAuthJson,
   readDeviceAuthBody,
-  StrictDeviceAuthJsonError,
   toDeviceAuthRequestError
 } from "@/lib/device-auth/raw-json.server";
 import { deviceAuthErrorResponse, deviceAuthSuccessResponse } from "@/lib/device-auth/response.server";
@@ -88,6 +87,6 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     });
     return deviceAuthSuccessResponse(result);
   } catch (error) {
-    return deviceAuthErrorResponse(error instanceof StrictDeviceAuthJsonError ? new DeviceAuthError("invalid_request") : error);
+    return deviceAuthErrorResponse(error);
   }
 }

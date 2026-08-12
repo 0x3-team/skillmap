@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test:fixtures": "node scripts/check-fixtures.mjs && node scripts/test-snapshot-integrity.mjs && node scripts/check-ui-truth.mjs && npm run test:hosted-boundaries",
     "test:hosted-boundaries": "node --experimental-strip-types --test tests/hosted-boundaries.test.mjs",
+    "test:device-auth": "node --experimental-strip-types --import ./tests/register-device-auth-loader.mjs --test --test-concurrency=1 tests/device-auth.seams.test.mjs tests/device-auth.test.mjs tests/device-auth.route.test.mjs tests/device-auth-confirmation.test.mjs tests/device-auth-poll-exchange.test.mjs tests/device-auth-refresh-replay.test.mjs tests/device-auth-key-rotation.test.mjs tests/device-auth-lifecycle.test.mjs tests/device-auth-owner-devices.test.mjs",
+    "test:device-auth:worker": "opennextjs-cloudflare build && node scripts/device-auth-worker-smoke.mjs",
     "test:ui-contracts": "node scripts/check-ui-truth.mjs",
     "test:integrity": "node scripts/test-snapshot-integrity.mjs",
     "test:browser": "node scripts/run-browser-smoke.mjs",

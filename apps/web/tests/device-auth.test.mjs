@@ -20,6 +20,7 @@ import {
   StrictDeviceAuthJsonError,
   DEVICE_AUTH_MAX_BODY_BYTES
 } from "../lib/device-auth/raw-json.server.ts";
+import { deviceAuthErrorResponse } from "../lib/device-auth/response.server.ts";
 
 // ============================================================================
 // M3.03 focused web tests — DeviceAuth pairing seams.
@@ -207,4 +208,16 @@ test("toDeviceAuthRequestError: invalid-body maps to invalid_request", () => {
   const mapped = toDeviceAuthRequestError(new Error("syntax"));
   assert.ok(mapped instanceof DeviceAuthError);
   assert.equal(mapped.code, "invalid_request");
+});
+
+test("deviceAuthErrorResponse: strict request errors stay closed 400 responses", async () => {
+  const response = deviceAuthErrorResponse(new StrictDeviceAuthJsonError("private parser detail"));
+  assert.equal(response.status, 400);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.deepEqual(await response.json(), {
+    error: "invalid_request",
+    error_description: "The request is invalid.",
+    retry_after: 0
+  });
 });

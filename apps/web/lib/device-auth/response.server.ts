@@ -8,6 +8,7 @@
 
 import "server-only";
 import { DeviceAuthError } from "./errors.ts";
+import { StrictDeviceAuthJsonError } from "./raw-json.server.ts";
 
 const SECRET_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -29,6 +30,8 @@ export function deviceAuthJsonResponse(body: unknown, status: number, secretBear
 export function deviceAuthErrorResponse(error: unknown): Response {
   const err = error instanceof DeviceAuthError
     ? error
+    : error instanceof StrictDeviceAuthJsonError
+      ? new DeviceAuthError("invalid_request")
     : new DeviceAuthError("temporarily_unavailable");
   return new Response(JSON.stringify(err.toJSON()), {
     status: err.httpStatus,

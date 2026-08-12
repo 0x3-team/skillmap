@@ -6,12 +6,14 @@ import { test } from 'node:test';
 
 const root = resolve(import.meta.dirname, '..');
 const receiptPath = join(root, 'docs/plans/evidence/M3-functional-cutover-implementation-receipt.json');
+const runtimeReceiptPath = join(root, 'docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json');
 const historicalReceiptPath = join(root, 'docs/plans/evidence/M3.02-bounded-implementation-receipt.json');
 const sha256 = (path) => createHash('sha256').update(readFileSync(join(root, path))).digest('hex');
 
 test('historical M3.02 receipt is immutable and superseding receipt binds current artifacts', () => {
   const historical = JSON.parse(readFileSync(historicalReceiptPath, 'utf8'));
   const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
+  const runtimeReceipt = JSON.parse(readFileSync(runtimeReceiptPath, 'utf8'));
   assert.equal(historical.status, 'AMENDMENT_CANDIDATE');
   assert.equal(receipt.status, 'IMPLEMENTATION_CANDIDATE');
   assert.equal(receipt.supersedes.receipt, 'docs/plans/evidence/M3.02-bounded-implementation-receipt.json');
@@ -28,8 +30,37 @@ test('historical M3.02 receipt is immutable and superseding receipt binds curren
   assert.equal(receipt.claims.production_secrets_created, false);
   for (const artifact of receipt.bounded_artifacts) {
     assert.match(artifact.path, /^(?:apps\/web\/lib\/contracts\/generated|apps\/web\/lib\/supabase|contracts\/test-vectors|src\/contracts\/generated|supabase\/migrations\/202608100[5-9]|supabase\/tests\/device_auth_cutover|test\/m3-(?:02-amendments|cutover-provenance)|package\.json)/);
-    assert.equal(sha256(artifact.path), artifact.sha256, `${artifact.path} hash drift`);
+    if (!['package.json', 'test/m3-cutover-provenance.mjs'].includes(artifact.path)) {
+      assert.equal(sha256(artifact.path), artifact.sha256, `${artifact.path} hash drift`);
+    }
   }
+  assert.equal(runtimeReceipt.status, 'IMPLEMENTATION_CANDIDATE');
+  assert.equal(runtimeReceipt.supersedes.receipt, 'docs/plans/evidence/M3-functional-cutover-implementation-receipt.json');
+  assert.equal(runtimeReceipt.supersedes.old_receipt_sha256, '150f8cf5d4a226ae3b342a0f1f46c2c515cd4de2f1d0eca4efac6040184d242d');
+  assert.equal(sha256('docs/plans/evidence/M3-functional-cutover-implementation-receipt.json'), runtimeReceipt.supersedes.old_receipt_sha256);
+  assert.deepEqual(runtimeReceipt.artifacts.map(({ path }) => path), [
+    '.gitignore',
+    'package.json',
+    'apps/web/package.json',
+    'apps/web/lib/device-auth/response.server.ts',
+    'apps/web/app/api/device-auth/v1/devices/[devicePublicId]/rotate/route.ts',
+    'apps/web/tests/device-auth.test.mjs',
+    'apps/web/scripts/device-auth-worker-smoke.mjs',
+    'apps/web/tests/register-device-auth-loader.mjs',
+    'scripts/m3-03-dp-keychain-no-profile-capability.mjs',
+    'test/m3-03-dp-keychain-no-profile-capability.mjs',
+    'test/m3-cutover-provenance.mjs'
+  ]);
+  for (const artifact of runtimeReceipt.artifacts) {
+    assert.equal(sha256(artifact.path), artifact.sha256, `${artifact.path} current hash drift`);
+  }
+  assert.equal(runtimeReceipt.claims.validated_locally, true);
+  assert.equal(runtimeReceipt.claims.live_verified, false);
+  assert.equal(runtimeReceipt.claims.committed, false);
+  assert.equal(runtimeReceipt.claims.pushed, false);
+  assert.equal(runtimeReceipt.claims.deployed, false);
+  assert.equal(runtimeReceipt.claims.provider_mutated, false);
+  assert.equal(runtimeReceipt.claims.ledger_mutated, false);
 });
 
 test('cutover source binds the frozen lock, forward-only flip, exact six legacy surfaces, and no secrets', () => {

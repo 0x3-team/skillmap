@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 
@@ -15,29 +16,35 @@ import {
 const root = resolve(import.meta.dirname, '..');
 
 test('M3.03 DP Keychain capability probe emits a truthful redacted receipt', async () => {
-  const receipt = await runCapabilityProbe();
-  assert.equal(receipt.schema, `${DP_KEYCHAIN_SCHEMA}.receipt.v1`);
-  assert.ok([DP_KEYCHAIN_STATUS.PASS, DP_KEYCHAIN_STATUS.FAIL].includes(receipt.status));
-  assert.equal(receipt.route.requested, 'gpt-5.6-luna/high');
-  assert.equal(receipt.route.confirmed, false);
-  assert.equal(receipt.external_mutation, false);
-  assert.equal(receipt.ledger_mutation, false);
-  assert.equal(receipt.product_source_or_contract_touched, false);
-  assertNoSensitiveCapabilityOutput(JSON.stringify(receipt));
-  assert.equal(Array.isArray(receipt.rows), true);
-  assert.equal(receipt.rows.length <= 2, true);
-  for (const row of receipt.rows) {
-    assert.ok(['unsigned', 'adhoc'].includes(row.mode));
-    assert.equal(row.execution.timed_out, false);
-    assert.equal(row.execution.oversized, false);
-    if (row.native.status === 'PASS') parseCapabilityRowV1(row.native);
+  const temp = mkdtempSync(join(tmpdir(), 'skillmap-m303-capability-test-'));
+  const receiptPath = join(temp, 'receipt.json');
+  try {
+    const receipt = await runCapabilityProbe({ receiptPath });
+    assert.equal(receipt.schema, `${DP_KEYCHAIN_SCHEMA}.receipt.v1`);
+    assert.ok([DP_KEYCHAIN_STATUS.PASS, DP_KEYCHAIN_STATUS.FAIL].includes(receipt.status));
+    assert.equal(receipt.route.requested, 'gpt-5.6-luna/high');
+    assert.equal(receipt.route.confirmed, false);
+    assert.equal(receipt.external_mutation, false);
+    assert.equal(receipt.ledger_mutation, false);
+    assert.equal(receipt.product_source_or_contract_touched, false);
+    assertNoSensitiveCapabilityOutput(JSON.stringify(receipt));
+    assert.equal(Array.isArray(receipt.rows), true);
+    assert.equal(receipt.rows.length <= 2, true);
+    for (const row of receipt.rows) {
+      assert.ok(['unsigned', 'adhoc'].includes(row.mode));
+      assert.equal(row.execution.timed_out, false);
+      assert.equal(row.execution.oversized, false);
+      if (row.native.status === 'PASS') parseCapabilityRowV1(row.native);
+    }
+    for (const cleanup of receipt.cleanup.rows ?? []) {
+      if (cleanup.native.status === 'PASS') parseCleanupV1(cleanup.native);
+    }
+    assert.equal(receipt.cleanup.temp_removed, true);
+    const persisted = JSON.parse(readFileSync(receiptPath, 'utf8'));
+    assert.deepEqual(persisted, receipt);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
   }
-  for (const cleanup of receipt.cleanup.rows ?? []) {
-    if (cleanup.native.status === 'PASS') parseCleanupV1(cleanup.native);
-  }
-  assert.equal(receipt.cleanup.temp_removed, true);
-  const persisted = JSON.parse(readFileSync(join(root, 'docs/plans/evidence/M3.03-dp-keychain-no-profile-capability-receipt.json'), 'utf8'));
-  assert.deepEqual(persisted, receipt);
 });
 
 test('M3.03 strict redaction and malformed-input probes fail closed', () => {
