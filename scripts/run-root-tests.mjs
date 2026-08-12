@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const testRoot = path.join(repo, 'test');
+const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
 const excludedTests = new Set([
   // These are historical/native readiness gates. They require the private
   // macOS plan/evidence workspace and are not part of the portable CLI gate.
@@ -15,6 +16,10 @@ const excludedTests = new Set([
 const tests = readdirSync(testRoot)
   .filter(name => name.endsWith('.mjs') && name !== 'phase3-local-app-browser-fixture.mjs')
   .filter(name => !excludedTests.has(name) && (name !== 'macos-device-auth-custody.mjs' || process.platform === 'darwin'))
+  // M3.12 imports the production Next/TypeScript DeviceAuth seams. The web
+  // package requires Node 22+, so the Node 20 CLI lane leaves this cross-stack
+  // test to every Node 22 platform while retaining the rest of the CLI suite.
+  .filter(name => name !== 'm3-12-device-auth-adversarial.mjs' || nodeMajor >= 22)
   .sort()
   .map(name => path.join('test', name));
 

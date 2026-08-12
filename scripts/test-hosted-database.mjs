@@ -6,13 +6,19 @@ import { join } from 'node:path';
 
 const REPO = process.cwd();
 const TEST_ROOT = join(REPO, 'supabase', 'tests');
-const PREDECESSOR_FLOOR = '20260810070000';
+const LEGACY_FLOOR = '20260727061300';
+const PRE_CUTOVER_FLOOR = '20260810070000';
 
-// These suites intentionally describe the feature-off/M2.11 state that exists
-// immediately before the M3 admission fence and atomic cutover. They must not
-// be run after 20260810090000, where the retired wrapper grants and old policy
-// shape are no longer true.
-const PREDECESSOR_ONLY = new Set([
+// This suite asserts the exact M2.11 policy and error surface. M3's additive
+// owner-device migration intentionally changes both before the cutover.
+const LEGACY_ONLY = new Set([
+  'skill_vault_devices.test.sql',
+]);
+
+// These suites exercise the additive M3 authority while legacy entrypoints are
+// still admitted. They must run after all creation migrations and before the
+// admission fence and atomic cutover.
+const PRE_CUTOVER_ONLY = new Set([
   'device_auth_confirmation.test.sql',
   'device_auth_key_rotation.test.sql',
   'device_auth_lifecycle.test.sql',
@@ -20,13 +26,17 @@ const PREDECESSOR_ONLY = new Set([
   'device_auth_poll_exchange.test.sql',
   'device_auth_refresh_replay.test.sql',
   'skill_vault_device_import_rls.test.sql',
-  'skill_vault_devices.test.sql',
 ]);
 
+const FLOOR_ONLY = new Set([...LEGACY_ONLY, ...PRE_CUTOVER_ONLY]);
+
 const HARNESS_PHASE_ORDER = Object.freeze([
-  'predecessor-reset',
-  'predecessor-state',
-  'predecessor-pgtap',
+  'legacy-reset',
+  'legacy-state',
+  'legacy-pgtap',
+  'pre-cutover-reset',
+  'pre-cutover-state',
+  'pre-cutover-pgtap',
   'head-reset',
   'post-cutover-state',
   'post-cutover-lint',
@@ -37,9 +47,9 @@ const tests = readdirSync(TEST_ROOT)
   .filter((name) => name.endsWith('.sql'))
   .sort()
   .map((name) => join('supabase', 'tests', name));
-const postCutoverTests = tests.filter((path) => !PREDECESSOR_ONLY.has(path.split('/').pop()));
-const predecessorTests = tests.filter((path) => path !== 'supabase/tests/device_auth_cutover.test.sql'
-  && path !== 'supabase/tests/device_auth_owner_devices.test.sql');
+const legacyTests = tests.filter((path) => LEGACY_ONLY.has(path.split('/').pop()));
+const preCutoverTests = tests.filter((path) => PRE_CUTOVER_ONLY.has(path.split('/').pop()));
+const postCutoverTests = tests.filter((path) => !FLOOR_ONLY.has(path.split('/').pop()));
 
 function run(command, args) {
   process.stdout.write(`\n$ ${command} ${args.join(' ')}\n`);
@@ -130,9 +140,9 @@ function assertHarnessOrderingFixtures() {
   valid.assertComplete();
 
   const invalid = createPhaseTracker();
-  invalid.run('predecessor-reset', () => {});
-  invalid.run('predecessor-state', () => {});
-  invalid.run('predecessor-pgtap', () => {});
+  invalid.run('legacy-reset', () => {});
+  invalid.run('legacy-state', () => {});
+  invalid.run('legacy-pgtap', () => {});
   let rejected = false;
   try {
     invalid.run('post-cutover-lint', () => {});
@@ -142,10 +152,24 @@ function assertHarnessOrderingFixtures() {
   if (!rejected) throw new Error('hosted database ordering fixture accepted lint before full-head reset');
 }
 
-function assertPredecessorState() {
+function assertFloorFixtures() {
+  assertEqual(legacyTests.map((path) => path.split('/').pop()).join(','), [...LEGACY_ONLY].join(','), 'legacy-only test selection');
+  assertEqual(preCutoverTests.map((path) => path.split('/').pop()).join(','), [...PRE_CUTOVER_ONLY].sort().join(','), 'pre-cutover test selection');
+  assertEqual(String(postCutoverTests.length + FLOOR_ONLY.size), String(tests.length), 'floor-specific tests are excluded exactly once from head');
+}
+
+function assertLegacyState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
-  assertEqual(version, PREDECESSOR_FLOOR, 'predecessor migration floor');
-  assertEqual(query("select coalesce(to_regclass('private.device_auth_authority_control')::text, 'absent')"), 'absent', 'predecessor authority control');
+  assertEqual(version, LEGACY_FLOOR, 'legacy migration floor');
+  assertEqual(query("select coalesce(to_regclass('private.device_auth_pairing_sessions')::text, 'absent')"), 'absent', 'legacy device-auth pairing table');
+  assertEqual(query("select coalesce(to_regclass('private.device_auth_authority_control')::text, 'absent')"), 'absent', 'legacy authority control');
+}
+
+function assertPreCutoverState() {
+  const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
+  assertEqual(version, PRE_CUTOVER_FLOOR, 'pre-cutover migration floor');
+  assertEqual(query("select coalesce(to_regclass('private.device_auth_pairing_sessions')::text, 'absent')"), 'private.device_auth_pairing_sessions', 'pre-cutover device-auth pairing table');
+  assertEqual(query("select coalesce(to_regclass('private.device_auth_authority_control')::text, 'absent')"), 'absent', 'pre-cutover authority control');
 }
 
 function assertPostCutoverState() {
@@ -162,13 +186,17 @@ function runTests(label, paths) {
 
 assertDbUrlParserFixtures();
 assertHarnessOrderingFixtures();
+assertFloorFixtures();
 if (process.argv.includes('--parser-self-test')) {
-  process.stdout.write('Hosted database parser and ordering fixtures passed.\n');
+  process.stdout.write('Hosted database parser, floor selection, and ordering fixtures passed.\n');
 } else {
   const phase = createPhaseTracker();
-  phase.run('predecessor-reset', () => run('supabase', ['db', 'reset', '--local', '--version', PREDECESSOR_FLOOR]));
-  phase.run('predecessor-state', assertPredecessorState);
-  phase.run('predecessor-pgtap', () => runTests(`predecessor floor ${PREDECESSOR_FLOOR}`, predecessorTests));
+  phase.run('legacy-reset', () => run('supabase', ['db', 'reset', '--local', '--version', LEGACY_FLOOR]));
+  phase.run('legacy-state', assertLegacyState);
+  phase.run('legacy-pgtap', () => runTests(`legacy M2.11 floor ${LEGACY_FLOOR}`, legacyTests));
+  phase.run('pre-cutover-reset', () => run('supabase', ['db', 'reset', '--local', '--version', PRE_CUTOVER_FLOOR]));
+  phase.run('pre-cutover-state', assertPreCutoverState);
+  phase.run('pre-cutover-pgtap', () => runTests(`M3 pre-cutover floor ${PRE_CUTOVER_FLOOR}`, preCutoverTests));
   phase.run('head-reset', () => run('supabase', ['db', 'reset', '--local']));
   phase.run('post-cutover-state', assertPostCutoverState);
   phase.run('post-cutover-lint', () => run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']));

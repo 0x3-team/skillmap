@@ -74,8 +74,13 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   const steps = Array.isArray(job.steps) ? job.steps : [];
   const source = steps.map(step => step.run ?? '').join('\n');
   assert.match(source, /supabase start(?:\s|$)/, 'hosted browser CI does not start the complete disposable stack');
-  assert.match(source, /supabase db reset --local/, 'hosted browser CI does not rebuild from migrations and seed');
-  assert.match(source, /supabase test db --local/, 'hosted browser CI omits database authority tests');
+  assert.match(source, /node scripts\/test-hosted-database[.]mjs/, 'hosted browser CI does not invoke the database authority harness');
+  const databaseHarness = readFileSync(path.join(repo, 'scripts', 'test-hosted-database.mjs'), 'utf8');
+  assert.match(databaseHarness, /run\('supabase', \['db', 'reset', '--local'/, 'hosted database harness does not rebuild from migrations and seed');
+  assert.match(databaseHarness, /run\('supabase', \['test', 'db', '--local'/, 'hosted database harness omits database authority tests');
+  for (const floor of ['20260727061300', '20260810070000', '20260812010000']) {
+    assert.match(databaseHarness, new RegExp(floor), `hosted database harness omits required migration floor ${floor}`);
+  }
   assert.match(source, /command -v psql/, 'hosted browser CI does not install its PostgreSQL client dependency when absent');
   assert.match(source, /psql --version/, 'hosted browser CI does not verify the PostgreSQL client before running fixtures');
   assert.match(source, /npm --prefix apps\/web run build/, 'hosted browser CI does not build the exact web source');
