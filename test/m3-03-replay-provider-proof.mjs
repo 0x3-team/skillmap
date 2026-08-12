@@ -84,6 +84,28 @@ function rawHttpRequest(port, path, { method = 'GET', headers = [], body } = {})
   });
 }
 
+function assertMiniflareTransportError(rawBody) {
+  const lines = rawBody.split('\n');
+  assert.ok(lines.length === 1 || lines.length === 2, 'transport error must contain only its message and optional known frame');
+  assert.equal(lines[0], 'Error: Network connection lost.');
+  if (lines.length === 2) {
+    assert.match(lines[1], /^    at async Object\.fetch \(file:\/\/\/(?:[A-Za-z]:\/)?[A-Za-z0-9._/-]+\/apps\/web\/node_modules\/miniflare\/dist\/src\/workers\/core\/entry\.worker\.js:\d+:\d+\)$/);
+  }
+  assert.doesNotMatch(rawBody, /sk-[A-Za-z0-9]|CLOUDFLARE_API_TOKEN|key_b64url|AwMDA|secret|token/i);
+}
+
+test('Miniflare transport error validation permits only known POSIX and Windows frames', () => {
+  assert.doesNotThrow(() => assertMiniflareTransportError('Error: Network connection lost.\n    at async Object.fetch (file:///Users/runner/work/skillmap/skillmap/apps/web/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4719:22)'));
+  assert.doesNotThrow(() => assertMiniflareTransportError('Error: Network connection lost.\n    at async Object.fetch (file:///D:/a/skillmap/skillmap/apps/web/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4719:22)'));
+  for (const invalid of [
+    'Error: Network connection lost.\n    at async Object.fetch (file://D:/a/skillmap/apps/web/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4719:22)',
+    'Error: Network connection lost.\n    at async Object.fetch (file:///Users/runner/work/skillmap/skillmap/apps/web/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4719:22)\nextra',
+    'Error: Network connection lost.\n    at async Other.fetch (file:///Users/runner/work/skillmap/skillmap/apps/web/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4719:22)',
+    'Error: Network connection lost.\n    at async Object.fetch (file:///Users/runner/work/skillmap/skillmap/apps/web/node_modules/miniflare/dist/src/workers/core/entry.worker.js:4719:22?token=secret)',
+    'Error: Network connection lost. sk-test-secret',
+  ]) assert.throws(() => assertMiniflareTransportError(invalid));
+});
+
 function terminateProcessTree(child, signal) {
   if (hasExited(child)) return;
   if (process.platform === 'win32') {
@@ -322,7 +344,8 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
       assert.deepEqual(JSON.parse(getContentLength.rawBody), { error: 'invalid_request' });
     } else {
       assert.equal(getContentLength.status, 500);
-      assert.equal(getContentLength.rawBody, 'Error: Network connection lost.');
+      assert.equal(getContentLength.headers['content-type'], 'text/plain;charset=UTF-8');
+      assertMiniflareTransportError(getContentLength.rawBody);
     }
     // Give curl an explicit empty upload so it writes the terminating zero-size
     // chunk. A bare Transfer-Encoding header can leave Workerd waiting for a
