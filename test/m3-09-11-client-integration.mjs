@@ -347,11 +347,12 @@ test('M3.09 remote logout attempts every local cleanup and reports storage failu
   }
 });
 
-test('M3.09 local-only confirmed logout removes credentials but retains device identity', async () => {
+test('M3.09 local-only confirmed logout retires the full identity before the next login', async () => {
   const ks = await keyStore();
   const credentialStore = new InMemoryCredentialStore();
   const metadataStore = new InMemoryDeviceAuthMetadataStore();
   const metadata = { deviceId: DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' };
+  const oldThumbprint = await ks.getThumbprint();
   await metadataStore.save(metadata);
   await credentialStore.commitExchange({
     deviceId: DEVICE_ID,
@@ -374,8 +375,161 @@ test('M3.09 local-only confirmed logout removes credentials but retains device i
 
   assert.deepEqual(result, { remoteRevoked: false, localDeleted: true });
   assert.equal(await credentialStore.load(), null);
-  assert.equal(await ks.hasKey(), true);
+  assert.equal(await ks.hasKey(), false);
+  assert.equal(await metadataStore.load(), null);
+
+  // The next login process uses the same durable stores but constructs a fresh
+  // client. Its device ID and proof key must not reuse the retired identity.
+  await ks.createKey();
+  const nextClient = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore: ks,
+    metadataStore,
+    randomBytes: () => new Uint8Array(16).fill(7)
+  });
+  assert.notEqual(await nextClient.getDeviceId(), DEVICE_ID);
+  assert.notEqual(await ks.getThumbprint(), oldThumbprint);
+});
+
+test('M3.09 local-only confirmed logout retires orphaned identity material without credentials', async () => {
+  const ks = await keyStore();
+  const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  await metadataStore.save({ deviceId: DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' });
+  const client = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore: ks,
+    metadataStore,
+    fetchFn: async () => { throw new Error('local-only logout must not call remote'); }
+  });
+  const useCase = new DeviceAuthUseCase({ client, keyStore: ks, credentialStore, metadataStore });
+
+  const result = await useCase.logout({ localOnly: true, confirm: true });
+
+  assert.deepEqual(result, { remoteRevoked: false, localDeleted: true });
+  assert.equal(await credentialStore.load(), null);
+  assert.equal(await metadataStore.load(), null);
+  assert.equal(await ks.hasKey(), false);
+});
+
+test('M3.09 local-only confirmed logout clears in-memory access and device-code state', async () => {
+  const ks = await keyStore();
+  const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  await credentialStore.commitExchange({
+    deviceId: DEVICE_ID,
+    tokenFamilyId: FAMILY_ID,
+    refreshToken: REFRESH_TOKEN,
+    scopes: ['device.status'],
+    devicePublicId: DEVICE_PUBLIC_ID,
+    accountPublicId: ACCOUNT_PUBLIC_ID,
+    updatedAt: 1_735_689_600
+  });
+
+  let displayCode;
+  const displayReady = new Promise((resolve) => { displayCode = resolve; });
+  let cancelCalls = 0;
+  const client = {
+    setMetadataStore() {},
+    async getDeviceId() { return DEVICE_ID; },
+    async refreshToken() {
+      return {
+        device_public_id: DEVICE_PUBLIC_ID,
+        account_public_id: ACCOUNT_PUBLIC_ID,
+        token_family_id: FAMILY_ID,
+        access_token: ACCESS_TOKEN,
+        refresh_token: REFRESH_TOKEN,
+        expires_in: 600,
+        refresh_idle_expires_in: 2_592_000,
+        refresh_absolute_expires_in: 7_776_000,
+        responseIssuedAt: 1_735_689_600
+      };
+    },
+    async initiatePairing() {
+      return {
+        device_code: 'pairing-code-canary',
+        user_code: 'TEST0-1234A',
+        verification_uri: 'https://skillmap.example.test/device',
+        expires_in: 600,
+        interval: 1,
+        display: { platform: 'macos', connector_version: '0.1.0' }
+      };
+    },
+    async cancelPairing() {
+      cancelCalls += 1;
+      return { status: 'cancelled' };
+    },
+    async pollPairing() {
+      throw new Error('poll must not run after confirmed local logout');
+    }
+  };
+  const useCase = new DeviceAuthUseCase({
+    client,
+    keyStore: ks,
+    credentialStore,
+    metadataStore,
+    clock: () => 1_735_689_600,
+    randomBytes: (count) => new Uint8Array(count),
+    onDisplayCode: () => displayCode()
+  });
+
+  assert.equal(await useCase.getAccessToken({ forceRefresh: true }), ACCESS_TOKEN);
+  const abortController = new AbortController();
+  const pendingLogin = useCase.initiateAndPoll({
+    scopes: ['device.status'],
+    signal: abortController.signal
+  });
+  await displayReady;
+
+  await useCase.logout({ localOnly: true, confirm: true });
+  await assert.rejects(
+    useCase.getAccessToken(),
+    (error) => error instanceof DeviceAuthError && error.code === 'invalid_token'
+  );
+
+  abortController.abort();
+  await assert.rejects(
+    pendingLogin,
+    (error) => error instanceof DeviceAuthError && error.code === 'access_denied'
+  );
+  assert.equal(cancelCalls, 0, 'retired device code must not be sent after local logout');
+});
+
+test('M3.09 invalid normal logout and unconfirmed local-only logout do not mutate local identity', async () => {
+  const ks = await keyStore();
+  const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  const metadata = { deviceId: DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' };
+  const oldThumbprint = await ks.getThumbprint();
+  await metadataStore.save(metadata);
+  await credentialStore.commitExchange({
+    deviceId: 'invalid-device-id',
+    tokenFamilyId: FAMILY_ID,
+    refreshToken: REFRESH_TOKEN,
+    scopes: ['device.status'],
+    devicePublicId: DEVICE_PUBLIC_ID,
+    accountPublicId: ACCOUNT_PUBLIC_ID,
+    updatedAt: Math.floor(Date.now() / 1000)
+  });
+  const client = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore: ks,
+    metadataStore,
+    fetchFn: async () => { throw new Error('invalid and unconfirmed logout must not call remote'); }
+  });
+  const useCase = new DeviceAuthUseCase({ client, keyStore: ks, credentialStore, metadataStore });
+
+  assert.deepEqual(
+    await useCase.logout(),
+    { remoteRevoked: false, localDeleted: false, unconfirmed: true }
+  );
+  assert.deepEqual(
+    await useCase.logout({ localOnly: true }),
+    { remoteRevoked: false, localDeleted: false }
+  );
+  assert.equal((await credentialStore.load()).deviceId, 'invalid-device-id');
   assert.deepEqual(await metadataStore.load(), metadata);
+  assert.equal(await ks.getThumbprint(), oldThumbprint);
 });
 
 test('M3.11 status only reports live server state and never infers authenticated from stored credentials', async () => {

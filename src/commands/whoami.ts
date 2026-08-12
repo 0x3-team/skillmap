@@ -6,11 +6,56 @@ import {
   type DeviceAuthCommandDeps
 } from '../core/cli-exit.js';
 
+type WhoamiFlags = Record<string, string | boolean | string[]>;
+
+function validateWhoamiInput(positionals: string[], flags: WhoamiFlags): void {
+  if (positionals.length > 0) {
+    throwWhoamiUsageError();
+  }
+
+  for (const [name, value] of Object.entries(flags)) {
+    if (name !== 'json' || value !== true) {
+      throwWhoamiUsageError();
+    }
+  }
+}
+
+function throwWhoamiUsageError(): never {
+  const usage = 'Usage: skillmap whoami [--json]';
+  throw new CliExitError(CLI_EXIT_CODES.USAGE, usage, 'usage_error', {
+    authenticated: false,
+    error: 'usage_error',
+    message: usage
+  });
+}
+
+export function whoamiCommand(
+  cwd: string,
+  flags: WhoamiFlags,
+  deps?: DeviceAuthCommandDeps
+): Promise<unknown>;
+export function whoamiCommand(
+  cwd: string,
+  positionals: string[],
+  flags: WhoamiFlags,
+  deps?: DeviceAuthCommandDeps
+): Promise<unknown>;
 export async function whoamiCommand(
   _cwd: string,
-  flags: Record<string, string | boolean | string[]>,
-  deps?: DeviceAuthCommandDeps
+  positionalsOrFlags: string[] | WhoamiFlags,
+  flagsOrDeps?: WhoamiFlags | DeviceAuthCommandDeps,
+  injectedDeps?: DeviceAuthCommandDeps
 ): Promise<unknown> {
+  const hasPositionalsArgument = Array.isArray(positionalsOrFlags);
+  const positionals = hasPositionalsArgument ? positionalsOrFlags : [];
+  const flags = hasPositionalsArgument
+    ? (flagsOrDeps as WhoamiFlags | undefined) ?? {}
+    : positionalsOrFlags;
+  const deps = hasPositionalsArgument
+    ? injectedDeps
+    : flagsOrDeps as DeviceAuthCommandDeps | undefined;
+
+  validateWhoamiInput(positionals, flags);
   const useCase = resolveDeviceAuthUseCase(deps);
 
   try {

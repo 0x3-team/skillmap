@@ -421,16 +421,16 @@ export class DeviceAuthUseCase {
   }
 
   public async logout(options?: { localOnly?: boolean; confirm?: boolean }): Promise<LogoutResult> {
-    const creds = await this.credentialStore.load();
-    if (!creds) {
+    if (options?.localOnly) {
+      if (options?.confirm) {
+        await this.retireLocalAuthState();
+        return { remoteRevoked: false, localDeleted: true };
+      }
       return { remoteRevoked: false, localDeleted: false };
     }
 
-    if (options?.localOnly) {
-      if (options?.confirm) {
-        await this.deleteLocalCredentials();
-        return { remoteRevoked: false, localDeleted: true };
-      }
+    const creds = await this.credentialStore.load();
+    if (!creds) {
       return { remoteRevoked: false, localDeleted: false };
     }
 
@@ -481,13 +481,6 @@ export class DeviceAuthUseCase {
     }
 
     return { remoteRevoked, localDeleted, unconfirmed: !remoteRevoked && !localDeleted };
-  }
-
-  private async deleteLocalCredentials(): Promise<void> {
-    await this.credentialStore.delete();
-    this.inMemoryAccessToken = null;
-    this.inMemoryAccessTokenExpiresAt = null;
-    this.inMemoryDeviceCode = null;
   }
 
   private async retireLocalAuthState(): Promise<void> {

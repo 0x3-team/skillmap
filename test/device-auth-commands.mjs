@@ -719,6 +719,72 @@ test('whoami command returns live identity (exit code 0) when authenticated, and
   );
 });
 
+test('whoami rejects positionals and invalid, valued, and repeated flags before auth calls', async () => {
+  const calls = [];
+  const useCase = {
+    async getAuthStatus() {
+      calls.push('getAuthStatus');
+      return { state: 'authenticated', authenticated: true };
+    }
+  };
+
+  const invalidArgv = [
+    ['--josn'],
+    ['--json=false'],
+    ['--json', '--json'],
+    ['unexpected']
+  ];
+
+  for (const argv of invalidArgv) {
+    const parsed = parseArgs(['whoami', ...argv]);
+    await assert.rejects(
+      async () => whoamiCommand('/test/cwd', parsed.positionals, parsed.flags, { useCase }),
+      (err) => {
+        assert.ok(err instanceof CliExitError);
+        assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
+        assert.equal(err.code, 'usage_error');
+        return true;
+      }
+    );
+  }
+
+  assert.deepEqual(calls, []);
+
+  await assert.rejects(
+    async () => dispatchCommand('/test/cwd', 'whoami', ['unexpected'], {}),
+    (err) => {
+      assert.ok(err instanceof CliExitError);
+      assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
+      assert.equal(err.code, 'usage_error');
+      return true;
+    }
+  );
+});
+
+test('whoami accepts the bare json output flag', async () => {
+  let calls = 0;
+  const parsed = parseArgs(['whoami', '--json']);
+  const result = await whoamiCommand('/test/cwd', parsed.positionals, parsed.flags, {
+    useCase: {
+      async getAuthStatus() {
+        calls += 1;
+        return {
+          state: 'authenticated',
+          authenticated: true,
+          devicePublicId: VALID_DEVICE_PUBLIC_ID,
+          accountPublicId: VALID_ACCOUNT_PUBLIC_ID,
+          scopes: ['device.status']
+        };
+      }
+    }
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.authenticated, true);
+  assert.equal(result.devicePublicId, VALID_DEVICE_PUBLIC_ID);
+  assert.equal(result.accountPublicId, VALID_ACCOUNT_PUBLIC_ID);
+});
+
 test('logout command --local-only requires --confirm (exit code 64)', async () => {
   const deps = await createTestDeps();
 

@@ -150,7 +150,7 @@ export async function dispatchCommand(cwd: string, command: string, positionals:
     case 'hook': output = await hookCommand(cwd, positionals, flags); break;
     case 'login': output = await loginCommand(cwd, positionals, flags); break;
     case 'auth': output = await authCommand(cwd, positionals, flags); break;
-    case 'whoami': output = await whoamiCommand(cwd, flags); break;
+    case 'whoami': output = await whoamiCommand(cwd, positionals, flags); break;
     case 'logout': output = await logoutCommand(cwd, positionals, flags); break;
     default: throw new CliExitError(64, `Unknown command: ${command}`, 'usage_error');
   }
