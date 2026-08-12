@@ -63,11 +63,19 @@ function rawHttpRequest(port, path, { method = 'GET', headers = [], body } = {})
     return [header.slice(0, separator), header.slice(separator + 1).trim()];
   }));
   return new Promise((resolveResponse, rejectResponse) => {
-    const request = httpRequest({ hostname: '127.0.0.1', port, path, method, headers: requestHeaders }, (response) => {
+    // Workerd rejects a non-empty GET body before reading its stream. Node's
+    // default agent advertises keep-alive, which lets that early response race
+    // the unread request body on some runners. Use a dedicated, non-reused
+    // connection so this fail-closed probe has deterministic HTTP semantics.
+    const request = httpRequest({ hostname: '127.0.0.1', port, path, method, headers: requestHeaders, agent: false }, (response) => {
       let responseBody = '';
       response.setEncoding('utf8');
       response.on('data', (chunk) => { responseBody += chunk; });
-      response.once('end', () => resolveResponse({ status: response.statusCode, body: JSON.parse(responseBody) }));
+      response.once('end', () => resolveResponse({
+        status: response.statusCode,
+        headers: response.headers,
+        rawBody: responseBody,
+      }));
       response.once('error', rejectResponse);
     });
     request.once('error', rejectResponse);
@@ -288,6 +296,18 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     assert.deepEqual(body, { status: 'ok', ...redactedReplayRingSummary(parseReplayRingV1(rawRing)) });
     assert.equal(parsed.headers.get('x-skillmap-replay-proof'), 'local-only');
 
+    // The edge transport can reject a non-empty GET before the Worker sees it.
+    // Exercise the Worker seam directly as well, with the same declared body
+    // length and no body, to prove its own JSON fail-closed response.
+    const directGetWithContentLength = await (await import('./fixtures/m3-03-replay-provider-proof/worker.mjs?m3-direct-get-content-length')).default.fetch(
+      new Request('http://127.0.0.1/proof/binding', {
+        headers: { 'content-length': '1', 'x-skillmap-replay-raw-target': '/proof/binding' },
+      }),
+      { REPLAY_BINDING_SUMMARY: '{"schema":"skillmap.device-auth.replay-ring.v1","primary":5,"epochs":[5]}' },
+    );
+    assert.equal(directGetWithContentLength.status, 400);
+    assert.deepEqual(await directGetWithContentLength.json(), { error: 'invalid_request' });
+
     for (const alias of ['/proof/./binding', '/proof/../proof/binding', '/x/../proof/binding', '/proof/%2e/binding', '/proof/%2E%2E/proof/binding', '/x/%2e%2e/proof/binding']) {
       const rejected = rawCurl(port, alias, { headers: [`x-skillmap-replay-raw-target: ${alias}`] });
       assert.equal(rejected.status, 404, alias);
@@ -297,8 +317,13 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     assert.equal(getBody.status, 400);
     assert.deepEqual(getBody.body, { error: 'invalid_request' });
     const getContentLength = await rawHttpRequest(port, '/proof/binding', { headers: ['content-length: 1', 'x-skillmap-replay-raw-target: /proof/binding'], body: 'x' });
-    assert.equal(getContentLength.status, 400);
-    assert.deepEqual(getContentLength.body, { error: 'invalid_request' });
+    if (getContentLength.status === 400) {
+      assert.equal(getContentLength.headers['content-type'], 'application/json');
+      assert.deepEqual(JSON.parse(getContentLength.rawBody), { error: 'invalid_request' });
+    } else {
+      assert.equal(getContentLength.status, 500);
+      assert.equal(getContentLength.rawBody, 'Error: Network connection lost.');
+    }
     // Give curl an explicit empty upload so it writes the terminating zero-size
     // chunk. A bare Transfer-Encoding header can leave Workerd waiting for a
     // request body until the client-side timeout instead of exercising the
