@@ -105,6 +105,33 @@ test("unavailable replay provider fails closed before the refresh transition", a
   assert.equal(transitions, 0, "no token-family transition is allowed without replay sealing");
 });
 
+test("alpha single-shot rotates once, then returns fixed unavailable without replay material", async () => {
+  const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const publicKeyB64 = Buffer.from(await crypto.subtle.exportKey("spki", keyPair.publicKey)).toString("base64url");
+  const thumbprint = computeKeyThumbprint(publicKeyB64);
+  let transitions = 0;
+  let committedRequestDigest;
+  const repository = {
+    async getActiveProofKey() { return { publicKey: publicKeyB64, keyThumbprint: thumbprint, proofSuite: "skillmap.ecdsa-p256-sha256.v2" }; },
+    async getRefreshContext() { return { devicePublicId: "dev_" + "2".repeat(32), accountPublicId: "acct_" + "3".repeat(32), tokenFamilyId: FAMILY_ID, currentGeneration: 1, absoluteExpiresAt: NOW + 7_776_000 }; },
+    async refreshTokenSingleShot(input) {
+      if (committedRequestDigest && committedRequestDigest !== input.requestDigest) return { outcome: "idempotency_conflict" };
+      if (committedRequestDigest) return { outcome: "response_unavailable" };
+      committedRequestDigest = input.requestDigest;
+      transitions += 1;
+      return { outcome: "committed", devicePublicId: "dev_" + "2".repeat(32), accountPublicId: "acct_" + "3".repeat(32), tokenFamilyId: FAMILY_ID, priorGeneration: 1, successorGeneration: 2, responseIssuedAt: NOW };
+    }
+  };
+  let tokenSeed = 7;
+  const lookup = createRefreshLookupCrypto({ key: Uint8Array.from({ length: 32 }, () => 9), keyVersion: 11, randomBytes: () => Uint8Array.from({ length: 32 }, () => tokenSeed++) });
+  const deps = { repository, lookupCrypto: lookup, refreshMode: "alpha-single-shot", now: () => NOW };
+  const first = await refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey) });
+  assert.equal(JSON.parse(new TextDecoder().decode(first.body)).access_token.length, 43);
+  await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "QwErTyUiOpAsDfGhJkLzXc", "QwErTyUiOpAsDfGhJkLzXc") }), (error) => error instanceof DeviceAuthError && error.code === "temporarily_unavailable");
+  assert.equal(transitions, 1);
+  await assert.rejects(refreshDeviceToken(deps, { body, rawBody, proof: await signedProof(keyPair, keyPair.publicKey, "LmNoPqRsTuVwXyZaBcDeFg", "VbNmQwErTyUiOpAsDfGhJk") }), (error) => error instanceof DeviceAuthError && error.code === "idempotency_conflict");
+});
+
 test("fabricated, wrong-path, wrong-body, and wrong-key proofs never reach refresh transition", async () => {
   const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const publicKeyB64 = Buffer.from(await crypto.subtle.exportKey("spki", keyPair.publicKey)).toString("base64url");

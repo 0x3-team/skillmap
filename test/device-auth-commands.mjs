@@ -615,6 +615,58 @@ test('logout command --local-only requires --confirm (exit code 64)', async () =
   assert.equal(credsAfter, null);
 });
 
+test('logout command --local-only --confirm skips auth preflight and remote calls', async () => {
+  const calls = [];
+  const useCase = {
+    async getAuthStatus() {
+      calls.push('getAuthStatus');
+      throw new Error('local-only logout must not query remote auth');
+    },
+    async logout(options) {
+      calls.push(['logout', options]);
+      return { remoteRevoked: false, localDeleted: true };
+    }
+  };
+
+  const result = await logoutCommand('/test/cwd', { 'local-only': true, confirm: true }, { useCase });
+
+  assert.deepEqual(calls, [['logout', { localOnly: true, confirm: true }]]);
+  assert.deepEqual(result, {
+    success: true,
+    remoteRevoked: false,
+    localDeleted: true,
+    message: 'Local credentials removed.',
+    summary: 'Local credentials removed.'
+  });
+});
+
+test('logout command treats terminal revoked or expired preflight status with removed credentials as successful logout', async () => {
+  for (const terminalState of ['revoked', 'expired']) {
+    const calls = [];
+    const useCase = {
+      async getAuthStatus() {
+        calls.push('getAuthStatus');
+        return { state: terminalState, authenticated: false };
+      },
+      async logout(options) {
+        calls.push(['logout', options]);
+        return { remoteRevoked: false, localDeleted: false };
+      }
+    };
+
+    const result = await logoutCommand('/test/cwd', { confirm: true }, { useCase });
+
+    assert.deepEqual(calls, ['getAuthStatus', ['logout', { localOnly: false, confirm: true }]]);
+    assert.deepEqual(result, {
+      success: true,
+      remoteRevoked: false,
+      localDeleted: false,
+      message: 'Already logged out.',
+      summary: 'Already logged out.'
+    });
+  }
+});
+
 test('normal unreachable logout retains credentials and exits with exit code 3', async () => {
   const unreachableDeps = await createTestDeps({ unreachableRevoke: true });
   await unreachableDeps.credentialStore.commitExchange({
@@ -643,6 +695,16 @@ test('normal unreachable logout retains credentials and exits with exit code 3',
   const creds = await unreachableDeps.credentialStore.load();
   assert.ok(creds);
   assert.equal(creds.devicePublicId, VALID_DEVICE_PUBLIC_ID);
+
+  const localOnlyResult = await logoutCommand(
+    '/test/cwd',
+    { 'local-only': true, confirm: true },
+    unreachableDeps
+  );
+  assert.equal(localOnlyResult.success, true);
+  assert.equal(localOnlyResult.localDeleted, true);
+  assert.equal(localOnlyResult.remoteRevoked, false);
+  assert.equal(await unreachableDeps.credentialStore.load(), null);
 });
 
 test('normal successful logout revokes remotely, deletes locally, and exits code 0', async () => {

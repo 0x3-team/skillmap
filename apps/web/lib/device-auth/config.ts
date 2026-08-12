@@ -19,6 +19,18 @@ export interface DeviceAuthServerConfig {
   supabaseUrl: string;
   /** Server-only service role key for allowlisted RPCs. */
   serviceRoleKey: string;
+  /** Refresh response mode. alpha-single-shot is an explicitly non-production seam. */
+  refreshMode: DeviceAuthRefreshMode;
+}
+
+export type DeviceAuthRefreshMode = "alpha-single-shot" | "exact-replay";
+
+export function parseDeviceAuthRefreshMode(value: string | undefined): DeviceAuthRefreshMode {
+  const mode = (value ?? "").trim() || "exact-replay";
+  if (mode === "alpha-single-shot" || mode === "exact-replay") return mode;
+  throw new DeviceAuthConfigurationError(
+    "DEVICE_AUTH_REFRESH_MODE must be exactly alpha-single-shot or exact-replay."
+  );
 }
 
 function env(name: string, environment?: Record<string, string | undefined>): string {
@@ -70,5 +82,10 @@ export function getDeviceAuthServerConfig(
   if (!serviceRoleKey) {
     throw new DeviceAuthConfigurationError("SUPABASE_SERVICE_ROLE_KEY must be configured for the server-only DeviceAuth RPC.");
   }
-  return { verificationUrl, supabaseUrl, serviceRoleKey };
+  return {
+    verificationUrl,
+    supabaseUrl,
+    serviceRoleKey,
+    refreshMode: parseDeviceAuthRefreshMode(env("DEVICE_AUTH_REFRESH_MODE", environment))
+  };
 }

@@ -31,12 +31,27 @@ export async function logoutCommand(
   const useCase = resolveDeviceAuthUseCase(deps);
 
   try {
-    const statusBefore = await useCase.getAuthStatus();
+    // A confirmed local-only logout must stay local. In particular, do not
+    // make a status/refresh request before the use case removes credentials.
+    const statusBefore = localOnly
+      ? { state: 'signed_out' as const }
+      : await useCase.getAuthStatus();
     const hadCredentialsBefore = statusBefore.state !== 'signed_out';
+    const terminalPreflight = statusBefore.state === 'revoked' || statusBefore.state === 'expired';
 
     const res = await useCase.logout({ localOnly, confirm });
 
     if (!res.remoteRevoked && !res.localDeleted) {
+      if (terminalPreflight && !res.unconfirmed) {
+        return {
+          success: true,
+          remoteRevoked: false,
+          localDeleted: false,
+          message: 'Already logged out.',
+          summary: 'Already logged out.'
+        };
+      }
+
       if (hadCredentialsBefore && !localOnly) {
         throw new CliExitError(
           CLI_EXIT_CODES.UNREACHABLE,

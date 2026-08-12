@@ -32,7 +32,7 @@ export interface RefreshRepositoryInput {
 }
 
 export interface RefreshRepositoryResult {
-  outcome: "committed" | "exact_replay" | "replay_corrupt" | "idempotency_conflict" | "family_revoked" | "invalid_grant" | "unavailable";
+  outcome: "committed" | "exact_replay" | "replay_corrupt" | "response_unavailable" | "idempotency_conflict" | "family_revoked" | "invalid_grant" | "unavailable";
   devicePublicId?: string;
   accountPublicId?: string;
   tokenFamilyId?: string;
@@ -40,6 +40,27 @@ export interface RefreshRepositoryResult {
   successorGeneration?: number;
   responseIssuedAt?: number;
   replay?: SealedRefreshResponse;
+}
+
+/** Inputs for the alpha-only transition. It has no replay-key or ciphertext fields. */
+export interface RefreshSingleShotRepositoryInput {
+  refreshTokenDigest: string;
+  successorRefreshTokenDigest: string;
+  refreshTokenKeyVersion: number;
+  deviceId: string;
+  tokenFamilyId: string;
+  audience: string;
+  proofSuite: string;
+  proofPurpose: string;
+  proofNonce: string;
+  issuedAt: string;
+  requestDigest: string;
+  idempotencyKeyDigest: string;
+  idempotencyKeyVersion: number;
+  responseIssuedAt: number;
+  responseFormatVersion: string;
+  accessTokenDigest: string;
+  accessTokenKeyVersion: number;
 }
 export interface RefreshFamilyContext {
   devicePublicId: string;
@@ -53,6 +74,7 @@ export interface DeviceAuthRefreshRepository {
   getActiveProofKey?(deviceId: string): Promise<DeviceAuthProofKey>;
   getRefreshContext?(deviceId: string, tokenFamilyId: string): Promise<RefreshFamilyContext>;
   refreshToken(input: RefreshRepositoryInput): Promise<RefreshRepositoryResult>;
+  refreshTokenSingleShot?(input: RefreshSingleShotRepositoryInput): Promise<RefreshRepositoryResult>;
   failClosed?(idempotencyKeyDigest: string, tokenFamilyId: string): Promise<void>;
   purgeExpiredReplay?(now: number, limit?: number): Promise<number>;
 }
@@ -156,6 +178,50 @@ export class SupabaseDeviceAuthRefreshRepository implements DeviceAuthRefreshRep
       outcome, devicePublicId: stringOrUndefined(raw.device_public_id), accountPublicId: stringOrUndefined(raw.account_public_id),
       tokenFamilyId: stringOrUndefined(raw.token_family_id), priorGeneration: integerOrUndefined(raw.prior_generation),
       successorGeneration: integerOrUndefined(raw.successor_generation), responseIssuedAt: integerOrUndefined(raw.response_issued_at), replay
+    };
+  }
+
+  async refreshTokenSingleShot(input: RefreshSingleShotRepositoryInput): Promise<RefreshRepositoryResult> {
+    const params = {
+      p_refresh_token_digest: input.refreshTokenDigest,
+      p_refresh_token_key_version: input.refreshTokenKeyVersion,
+      p_successor_refresh_token_digest: input.successorRefreshTokenDigest,
+      p_device_id: input.deviceId,
+      p_token_family_id: input.tokenFamilyId,
+      p_audience: input.audience,
+      p_proof_suite: input.proofSuite,
+      p_proof_purpose: input.proofPurpose,
+      p_proof_nonce: input.proofNonce,
+      p_issued_at: input.issuedAt,
+      p_request_digest: input.requestDigest,
+      p_idempotency_key_digest: input.idempotencyKeyDigest,
+      p_idempotency_key_version: input.idempotencyKeyVersion,
+      p_response_issued_at: input.responseIssuedAt,
+      p_response_format_version: input.responseFormatVersion,
+      p_access_token_digest: input.accessTokenDigest,
+      p_access_token_key_version: input.accessTokenKeyVersion
+    };
+    let raw: unknown;
+    try {
+      const result = await this.factory().rpc("device_auth_refresh_single_shot_v1", params).single<unknown>();
+      if (result.error || result.data === null) throw new Error("single-shot refresh RPC unavailable");
+      raw = result.data;
+    } catch (error) {
+      throw new DeviceAuthUnavailableError("DeviceAuth single-shot refresh RPC unavailable.", error);
+    }
+    if (!isPlainObject(raw)) throw new DeviceAuthUnavailableError("Invalid single-shot refresh RPC result.");
+    if (typeof raw.error === "string") {
+      if (raw.error === "idempotency_conflict") throw new DeviceAuthError("idempotency_conflict");
+      if (raw.error === "invalid_grant" || raw.error === "expired_token" || raw.error === "family_revoked") throw new DeviceAuthError("invalid_grant");
+      if (raw.error === "temporarily_unavailable") return { outcome: "response_unavailable" };
+      throw new DeviceAuthUnavailableError("Single-shot refresh RPC rejected the request.");
+    }
+    if (raw.outcome !== "committed") throw new DeviceAuthUnavailableError("Invalid single-shot refresh RPC outcome.");
+    return {
+      outcome: "committed",
+      devicePublicId: stringOrUndefined(raw.device_public_id), accountPublicId: stringOrUndefined(raw.account_public_id),
+      tokenFamilyId: stringOrUndefined(raw.token_family_id), priorGeneration: integerOrUndefined(raw.prior_generation),
+      successorGeneration: integerOrUndefined(raw.successor_generation), responseIssuedAt: integerOrUndefined(raw.response_issued_at)
     };
   }
 }

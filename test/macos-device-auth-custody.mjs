@@ -283,6 +283,22 @@ process.stdin.on('end', () => {
   const resolved = resolveDeviceAuthUseCase();
   assert.equal(resolved.constructor.name, 'DeviceAuthUseCase');
   assert.equal(resolved.metadataStore.constructor.name, 'MacOSDeviceAuthMetadataStore');
+  assert.equal(typeof resolved.onDisplayCodeFn, 'function');
+  assert.equal(typeof resolved.openBrowserFn, 'function');
+  const previousError = console.error;
+  const displayOutput = [];
+  console.error = (...args) => displayOutput.push(args.join(' '));
+  try {
+    resolved.onDisplayCodeFn({
+      userCode: 'TEST0-1234A',
+      verificationUri: 'https://skillmap.example.test/device',
+      expiresIn: 600
+    });
+  } finally {
+    console.error = previousError;
+  }
+  assert.match(displayOutput.join('\n'), /TEST0-1234A/);
+  assert.match(displayOutput.join('\n'), /https:\/\/skillmap\.example\.test\/device/);
   const dispatched = await dispatchCommand('/test/cwd', 'auth', ['status'], {});
   assert.equal(dispatched.state, 'signed_out');
   rmSync(root, { recursive: true, force: true });

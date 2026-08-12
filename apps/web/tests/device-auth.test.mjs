@@ -21,6 +21,7 @@ import {
   DEVICE_AUTH_MAX_BODY_BYTES
 } from "../lib/device-auth/raw-json.server.ts";
 import { deviceAuthErrorResponse } from "../lib/device-auth/response.server.ts";
+import { getDeviceAuthServerConfig, parseDeviceAuthRefreshMode, DeviceAuthConfigurationError } from "../lib/device-auth/config.ts";
 
 // ============================================================================
 // M3.03 focused web tests — DeviceAuth pairing seams.
@@ -220,4 +221,29 @@ test("deviceAuthErrorResponse: strict request errors stay closed 400 responses",
     error_description: "The request is invalid.",
     retry_after: 0
   });
+});
+
+test("refresh configuration accepts only the explicit alpha or exact modes", () => {
+  assert.equal(parseDeviceAuthRefreshMode("alpha-single-shot"), "alpha-single-shot");
+  assert.equal(parseDeviceAuthRefreshMode("exact-replay"), "exact-replay");
+  assert.throws(() => parseDeviceAuthRefreshMode("shared-fake-key"), DeviceAuthConfigurationError);
+});
+
+test("hosted alpha configuration uses a bare verification origin and explicit single-shot mode", () => {
+  const config = getDeviceAuthServerConfig({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SUPABASE_URL: "https://supabase.example.test",
+    DEVICE_AUTH_VERIFICATION_URL: "https://skillmap.example.test",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-test-only",
+    DEVICE_AUTH_REFRESH_MODE: "alpha-single-shot"
+  });
+  assert.equal(config.verificationUrl, "https://skillmap.example.test");
+  assert.equal(config.refreshMode, "alpha-single-shot");
+  assert.throws(() => getDeviceAuthServerConfig({
+    NODE_ENV: "production",
+    NEXT_PUBLIC_SUPABASE_URL: "https://supabase.example.test",
+    DEVICE_AUTH_VERIFICATION_URL: "https://skillmap.example.test/device",
+    SUPABASE_SERVICE_ROLE_KEY: "service-role-test-only",
+    DEVICE_AUTH_REFRESH_MODE: "alpha-single-shot"
+  }), DeviceAuthConfigurationError);
 });

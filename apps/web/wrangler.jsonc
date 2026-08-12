@@ -18,6 +18,8 @@
     "SKILLMAP_CONTRACT_VALIDATION_MODE": "cloudflare-static",
     "NEXT_PUBLIC_SKILLMAP_CONTRACT_VALIDATION_MODE": "cloudflare-static",
     "DEVICE_AUTH_LOOKUP_KEY_VERSION": "1",
-    "DEVICE_AUTH_VERIFICATION_URL": "https://skillmap.hi-430.workers.dev/device"
+    "DEVICE_AUTH_VERIFICATION_URL": "https://skillmap.hi-430.workers.dev",
+    // Explicit private-alpha seam: exact replay stays disabled until a real provider is authorized.
+    "DEVICE_AUTH_REFRESH_MODE": "alpha-single-shot"
   }
 }

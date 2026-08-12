@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { DeviceAuthUseCase, type DisplayCodeInfo } from '../services/device-auth-use-case.js';
 import { DeviceAuthClient, DeviceAuthError } from '../network/device-auth-client.js';
 import type { DeviceKeyStore } from '../platform/device-key-store.js';
@@ -76,6 +77,21 @@ export const SAFE_ERROR_MESSAGES: Record<string, string> = {
   revoked: 'Unauthenticated: device revoked.'
 };
 
+function displayDeviceAuthCode(info: DisplayCodeInfo): void {
+  // Keep pairing instructions on stderr so --json remains valid on stdout.
+  // The user code is intentionally displayed; no credential or bearer value is
+  // included in this message.
+  console.error(`To finish login, open ${info.verificationUri} and enter code ${info.userCode}. The code expires in ${info.expiresIn} seconds.`);
+}
+
+function openVerificationUri(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn('/usr/bin/open', [url], { shell: false, stdio: 'ignore' });
+    child.once('error', () => resolve(false));
+    child.once('close', (code) => resolve(code === 0));
+  });
+}
+
 export function resolveDeviceAuthUseCase(deps?: DeviceAuthCommandDeps): DeviceAuthUseCase {
   const onDisplayCode = deps?.onDisplayCode;
   const openBrowser = deps?.openBrowser;
@@ -118,7 +134,14 @@ export function resolveDeviceAuthUseCase(deps?: DeviceAuthCommandDeps): DeviceAu
       const stores = createMacOSCustodyStores();
       const metadataStore = stores.metadataStore;
       const client = new DeviceAuthClient({ origin, keyStore: stores.keyStore, metadataStore });
-      return new DeviceAuthUseCase({ client, keyStore: stores.keyStore, credentialStore: stores.credentialStore, metadataStore });
+      return new DeviceAuthUseCase({
+        client,
+        keyStore: stores.keyStore,
+        credentialStore: stores.credentialStore,
+        metadataStore,
+        onDisplayCode: displayDeviceAuthCode,
+        openBrowser: openVerificationUri
+      });
     } catch (error) {
       if (error instanceof MacOSCustodyError) {
         throw new CliExitError(CLI_EXIT_CODES.INTEGRITY_PROTOCOL_ERROR, SAFE_ERROR_MESSAGES.secure_storage_unavailable, 'secure_storage_unavailable');

@@ -114,8 +114,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  42::bigint,
-  'the API security-definer boundary contains exactly forty-two reviewed functions'
+  43::bigint,
+  'the API security-definer boundary contains exactly forty-three reviewed functions'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -143,8 +143,8 @@ select is(
       'device_auth_list_my_devices_v1', 'device_auth_rename_my_device_v1',
       'device_auth_revoke_my_device_v1', 'device_auth_get_revoke_key_v1',
       'device_auth_cancel_v1', 'device_auth_authenticate_v1',
-      'device_auth_get_status_v1', 'device_auth_revoke_v1')),
-  42::bigint,
+      'device_auth_get_status_v1', 'device_auth_revoke_v1', 'device_auth_refresh_single_shot_v1')),
+  43::bigint,
   'all API security-definer functions are on the reviewed allowlist'
 );
 

@@ -8,6 +8,7 @@ const REPO = process.cwd();
 const TEST_ROOT = join(REPO, 'supabase', 'tests');
 const LEGACY_FLOOR = '20260727061300';
 const PRE_CUTOVER_FLOOR = '20260810070000';
+const POST_CUTOVER_HEAD = '20260812170000';
 
 // This suite asserts the exact M2.11 policy and error surface. M3's additive
 // owner-device migration intentionally changes both before the cutover.
@@ -158,6 +159,15 @@ function assertFloorFixtures() {
   assertEqual(String(postCutoverTests.length + FLOOR_ONLY.size), String(tests.length), 'floor-specific tests are excluded exactly once from head');
 }
 
+function assertMigrationHeadFixture() {
+  const migrations = readdirSync(join(REPO, 'supabase', 'migrations'))
+    .filter((name) => /^\d{14}_.+\.sql$/.test(name))
+    .map((name) => name.slice(0, 14))
+    .sort();
+  const actual = migrations.at(-1);
+  assertEqual(actual, POST_CUTOVER_HEAD, 'checked-in post-cutover migration head');
+}
+
 function assertLegacyState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
   assertEqual(version, LEGACY_FLOOR, 'legacy migration floor');
@@ -174,9 +184,9 @@ function assertPreCutoverState() {
 
 function assertPostCutoverState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
-  assertEqual(version, '20260812115813', 'post-cutover migration head');
+  assertEqual(version, POST_CUTOVER_HEAD, 'post-cutover migration head');
   assertEqual(query("select legacy_device_authority_enabled::text || ':' || revision::text from private.device_auth_authority_control where control_key = 'legacy_device_authority'"), 'false:2', 'post-cutover authority state');
-  assertEqual(query("select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef"), '42', 'post-cutover API definer allowlist count');
+  assertEqual(query("select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef"), '43', 'post-cutover API definer allowlist count');
 }
 
 function runTests(label, paths) {
@@ -187,6 +197,7 @@ function runTests(label, paths) {
 assertDbUrlParserFixtures();
 assertHarnessOrderingFixtures();
 assertFloorFixtures();
+assertMigrationHeadFixture();
 if (process.argv.includes('--parser-self-test')) {
   process.stdout.write('Hosted database parser, floor selection, and ordering fixtures passed.\n');
 } else {
@@ -200,7 +211,7 @@ if (process.argv.includes('--parser-self-test')) {
   phase.run('head-reset', () => run('supabase', ['db', 'reset', '--local']));
   phase.run('post-cutover-state', assertPostCutoverState);
   phase.run('post-cutover-lint', () => run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']));
-  phase.run('post-cutover-pgtap', () => runTests('post-cutover head 20260812115813 (after 20260810090000 atomic cutover)', postCutoverTests));
+  phase.run('post-cutover-pgtap', () => runTests(`post-cutover head ${POST_CUTOVER_HEAD} (after 20260810090000 atomic cutover)`, postCutoverTests));
   phase.assertComplete();
 
   process.stdout.write('\nHosted database two-floor harness passed.\n');

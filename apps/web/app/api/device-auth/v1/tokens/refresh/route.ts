@@ -47,9 +47,10 @@ export async function POST(request: Request): Promise<Response> {
     const result = await refreshDeviceToken({
       repository,
       lookupCrypto: refreshLookupCryptoFromEnvironment(),
-      // No production/default replay key is permitted. M3.03 provider wiring
-      // must inject an authorized provider before this feature can be granted.
-      replayKeys: new UnavailableReplayKeyProvider()
+      // Alpha single-shot has no replay provider by design. Exact replay keeps
+      // the fail-closed provider seam until an authorized provider is wired.
+      refreshMode: cfg.refreshMode,
+      ...(cfg.refreshMode === "exact-replay" ? { replayKeys: new UnavailableReplayKeyProvider() } : {})
     }, {
       body,
       rawBody: bytes,

@@ -1373,6 +1373,28 @@ export type Database = {
         }
         Returns: Json
       }
+      device_auth_refresh_single_shot_v1: {
+        Args: {
+          p_access_token_digest: string
+          p_access_token_key_version: number
+          p_audience: string
+          p_device_id: string
+          p_idempotency_key_digest: string
+          p_idempotency_key_version: number
+          p_issued_at: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_refresh_token_digest: string
+          p_refresh_token_key_version: number
+          p_request_digest: string
+          p_response_format_version: string
+          p_response_issued_at: number
+          p_successor_refresh_token_digest: string
+          p_token_family_id: string
+        }
+        Returns: Json
+      }
       device_auth_rename_my_device_v1: {
         Args: {
           p_display_name: string
@@ -2330,48 +2352,51 @@ export type Database = {
           created_at: string
           db_committed_at: string
           device_id: string
-          expired_at: string
+          expired_at: string | null
           family_id: string
           idempotency_key_digest: string
           idempotency_key_version: number
           outcome: string
           prior_generation: number
-          replay_until: number
+          replay_until: number | null
           request_digest: string
           response_issued_at: number
-          runtime_purge_after: number
+          runtime_purge_after: number | null
+          refresh_mode: string
           successor_generation: number
         }
         Insert: {
           created_at?: string
           db_committed_at: string
           device_id: string
-          expired_at: string
+          expired_at: string | null
           family_id: string
           idempotency_key_digest: string
           idempotency_key_version: number
           outcome?: string
           prior_generation: number
-          replay_until: number
+          replay_until: number | null
           request_digest: string
           response_issued_at: number
-          runtime_purge_after: number
+          runtime_purge_after: number | null
+          refresh_mode?: string
           successor_generation: number
         }
         Update: {
           created_at?: string
           db_committed_at?: string
           device_id?: string
-          expired_at?: string
+          expired_at?: string | null
           family_id?: string
           idempotency_key_digest?: string
           idempotency_key_version?: number
           outcome?: string
           prior_generation?: number
-          replay_until?: number
+          replay_until?: number | null
           request_digest?: string
           response_issued_at?: number
-          runtime_purge_after?: number
+          runtime_purge_after?: number | null
+          refresh_mode?: string
           successor_generation?: number
         }
         Relationships: [

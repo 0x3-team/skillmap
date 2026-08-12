@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -53,6 +54,26 @@ function rawCurl(port, path, { method = 'GET', headers = [], body } = {}) {
   const lines = output.trimEnd().split('\n');
   const status = Number(lines.pop());
   return { status, body: JSON.parse(lines.join('\n')) };
+}
+
+function rawHttpRequest(port, path, { method = 'GET', headers = [], body } = {}) {
+  const requestHeaders = Object.fromEntries(headers.map((header) => {
+    const separator = header.indexOf(':');
+    assert.ok(separator > 0, `raw HTTP header must contain a name and value: ${header}`);
+    return [header.slice(0, separator), header.slice(separator + 1).trim()];
+  }));
+  return new Promise((resolveResponse, rejectResponse) => {
+    const request = httpRequest({ hostname: '127.0.0.1', port, path, method, headers: requestHeaders }, (response) => {
+      let responseBody = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { responseBody += chunk; });
+      response.once('end', () => resolveResponse({ status: response.statusCode, body: JSON.parse(responseBody) }));
+      response.once('error', rejectResponse);
+    });
+    request.once('error', rejectResponse);
+    if (body !== undefined) request.write(body);
+    request.end();
+  });
 }
 
 function terminateProcessTree(child, signal) {
@@ -275,7 +296,7 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     const getBody = rawCurl(port, '/proof/binding', { headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/binding'], body: rawRing });
     assert.equal(getBody.status, 400);
     assert.deepEqual(getBody.body, { error: 'invalid_request' });
-    const getContentLength = rawCurl(port, '/proof/binding', { headers: ['content-length: 1', 'x-skillmap-replay-raw-target: /proof/binding'], body: 'x' });
+    const getContentLength = await rawHttpRequest(port, '/proof/binding', { headers: ['content-length: 1', 'x-skillmap-replay-raw-target: /proof/binding'], body: 'x' });
     assert.equal(getContentLength.status, 400);
     assert.deepEqual(getContentLength.body, { error: 'invalid_request' });
     // Give curl an explicit empty upload so it writes the terminating zero-size

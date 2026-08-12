@@ -43,7 +43,9 @@ export function buildRefreshProofPreimageV2(args: {
 export interface RefreshServiceDependencies {
   repository: DeviceAuthRefreshRepository;
   lookupCrypto: RefreshLookupCrypto;
-  replayKeys: ReplayKeyProvider;
+  replayKeys?: ReplayKeyProvider;
+  /** Explicitly non-production mode. Exact replay remains the default seam. */
+  refreshMode?: "alpha-single-shot" | "exact-replay";
   now?: () => number;
   randomBytes?: (length: number) => Uint8Array;
 }
@@ -110,6 +112,48 @@ export async function refreshDeviceToken(deps: RefreshServiceDependencies, input
   };
   const provisionalBody = encodeRefreshSuccessV1(candidate);
   const bodyDigest = sha256Digest(provisionalBody);
+  if ((deps.refreshMode ?? "exact-replay") === "alpha-single-shot") {
+    if (!deps.repository.refreshTokenSingleShot) {
+      throw new DeviceAuthUnavailableError("Alpha single-shot refresh transition is unavailable.");
+    }
+    const transition = await deps.repository.refreshTokenSingleShot({
+      refreshTokenDigest: deps.lookupCrypto.digest("refresh-token", input.body.refresh_token),
+      successorRefreshTokenDigest: deps.lookupCrypto.digest("refresh-token", refreshToken),
+      refreshTokenKeyVersion: deps.lookupCrypto.keyVersion,
+      deviceId: input.body.device_id,
+      tokenFamilyId,
+      audience: input.body.audience,
+      proofSuite: input.proof.proofSuite,
+      proofPurpose: input.proof.purpose,
+      proofNonce: input.proof.proofNonce,
+      issuedAt: input.proof.issuedAt,
+      requestDigest,
+      idempotencyKeyDigest: idempotencyDigest,
+      idempotencyKeyVersion: deps.lookupCrypto.keyVersion,
+      responseIssuedAt,
+      responseFormatVersion: REFRESH_RESPONSE_VERSION,
+      accessTokenDigest: deps.lookupCrypto.digest("access-token", accessToken),
+      accessTokenKeyVersion: deps.lookupCrypto.keyVersion
+    });
+    if (transition.outcome === "committed") {
+      if (!transition.devicePublicId || !transition.accountPublicId || !transition.tokenFamilyId || !Number.isSafeInteger(transition.successorGeneration)) {
+        throw new DeviceAuthUnavailableError("Refresh transition was incomplete.");
+      }
+      const finalResponse = {
+        ...candidate,
+        device_public_id: transition.devicePublicId,
+        account_public_id: transition.accountPublicId,
+        token_family_id: transition.tokenFamilyId
+      };
+      if (!isRefreshResponse(finalResponse)) throw new DeviceAuthUnavailableError("Refresh response schema mismatch.");
+      return { body: encodeRefreshSuccessV1(finalResponse), responseIssuedAt: transition.responseIssuedAt ?? responseIssuedAt };
+    }
+    if (transition.outcome === "idempotency_conflict") throw new DeviceAuthError("idempotency_conflict");
+    if (transition.outcome === "response_unavailable") throw new DeviceAuthError("temporarily_unavailable");
+    if (transition.outcome === "family_revoked" || transition.outcome === "invalid_grant") throw new DeviceAuthError("invalid_grant");
+    throw new DeviceAuthUnavailableError("Alpha single-shot refresh transition unavailable.");
+  }
+  if (!deps.replayKeys) throw new DeviceAuthUnavailableError("Replay key provider is unavailable.");
   const replayKeyVersion = replayEpochId(responseIssuedAt);
   const nonce = (deps.randomBytes ?? ((length: number) => crypto.getRandomValues(new Uint8Array(length))))(12);
   // The public IDs and generation are authoritative DB values. The RPC binds
