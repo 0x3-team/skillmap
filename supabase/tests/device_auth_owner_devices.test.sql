@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
-select plan(81);
+select plan(82);
 
 select has_function('api', 'device_auth_list_my_devices_v1', array[]::text[], 'owner list RPC exists');
 select has_function('api', 'device_auth_rename_my_device_v1', array['text','text','bigint'], 'owner rename RPC exists');
@@ -28,6 +28,11 @@ select ok(has_function_privilege('skillmap_device_auth_definer','private.current
   and not has_function_privilege('anon','private.current_request_uid()','execute')
   and not has_function_privilege('authenticated','private.current_request_uid()','execute')
   and not has_function_privilege('service_role','private.current_request_uid()','execute'), 'UID bridge is executable by the definer only');
+select ok(has_function_privilege('skillmap_device_auth_definer','private.valid_text_array(text[],integer,integer,text)','execute')
+  and not has_function_privilege('public','private.valid_text_array(text[],integer,integer,text)','execute')
+  and not has_function_privilege('anon','private.valid_text_array(text[],integer,integer,text)','execute')
+  and not has_function_privilege('authenticated','private.valid_text_array(text[],integer,integer,text)','execute')
+  and not has_function_privilege('service_role','private.valid_text_array(text[],integer,integer,text)','execute'), 'scope constraint helper is executable by the DeviceAuth definer only');
 select ok((select proconfig @> array['search_path=""'] from pg_proc where oid='api.device_auth_list_my_devices_v1()'::regprocedure), 'list pins empty search_path');
 select ok((select proconfig @> array['search_path=""'] from pg_proc where oid='api.device_auth_rename_my_device_v1(text,text,bigint)'::regprocedure), 'rename pins empty search_path');
 select ok((select proconfig @> array['search_path=""'] from pg_proc where oid='api.device_auth_revoke_my_device_v1(text,bigint)'::regprocedure), 'revoke pins empty search_path');
@@ -109,7 +114,7 @@ select ok((api.device_auth_list_my_devices_v1()::text not like '%account_id%')
   and api.device_auth_list_my_devices_v1()::text not like '%family_id%'
   and api.device_auth_list_my_devices_v1()::text not like '%key_thumbprint%'
   and api.device_auth_list_my_devices_v1()::text not like '%hmac-sha256%', 'owner output has no internal UUID/token/digest/key');
-select ok((api.device_auth_rename_my_device_v1('11111111','Cafe'||U&'\\0301',1)->'device'->>'display_name') = U&'Caf\\00E9', 'rename canonicalizes NFC display name');
+select ok((api.device_auth_rename_my_device_v1('11111111','Cafe'||U&'\0301',1)->'device'->>'display_name') = U&'Caf\00E9', 'rename canonicalizes NFC display name');
 select ok((api.device_auth_rename_my_device_v1('11111111','stale',1)->>'status') = 'conflict', 'stale rename returns conflict');
 select ok((api.device_auth_rename_my_device_v1('bbbbbbbb','foreign',1)->>'status') = 'unavailable', 'foreign rename is indistinguishable');
 select ok((api.device_auth_revoke_my_device_v1('22222222',1)->'device'->>'state') = 'revoked', 'exact revoke returns revoked device');
@@ -151,7 +156,10 @@ as $function$
   select not exists (
     select 1
       from pg_temp.m310_device_snapshot s
-      full join private.devices d using (account_id, public_id)
+      full join (
+        select * from private.devices
+         where account_id = 'a3100000-0000-4310-8310-000000000001'::uuid
+      ) d using (account_id, public_id)
      where s.public_id is null or d.public_id is null
         or s.display_name is distinct from d.display_name
         or s.state is distinct from d.state
@@ -161,7 +169,10 @@ as $function$
   and not exists (
     select 1
       from pg_temp.m310_family_snapshot s
-      full join private.device_auth_token_families f using (family_id)
+      full join (
+        select * from private.device_auth_token_families
+         where account_id = 'a3100000-0000-4310-8310-000000000001'::uuid
+      ) f using (family_id)
      where s.family_id is null or f.family_id is null
         or s.state is distinct from f.state
         or s.current_generation is distinct from f.current_generation
@@ -195,7 +206,10 @@ as $function$
   and not exists (
     select 1
       from pg_temp.m310_legacy_token_snapshot s
-      full join private.device_tokens t using (account_id, device_id, credential_digest, generation)
+      full join (
+        select * from private.device_tokens
+         where account_id = 'a3100000-0000-4310-8310-000000000001'::uuid
+      ) t using (account_id, device_id, credential_digest, generation)
      where s.credential_digest is null or t.credential_digest is null
         or s.revoked_at is distinct from t.revoked_at
   )
