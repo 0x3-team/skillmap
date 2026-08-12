@@ -195,8 +195,17 @@ test('M3.08 deterministic crash points preserve or clear exactly one durable tup
 
 test('M3.08 terminal errors delete credentials while transient errors retain exact pending', async () => {
   for (const code of ['invalid_grant', 'access_denied', 'invalid_token']) {
+    const descriptions = {
+      invalid_grant: 'The authorization grant is invalid.',
+      access_denied: 'Authorization was not granted.',
+      invalid_token: 'The access token is invalid.'
+    };
     const { useCase, credentialStore } = await deps({
-      fetchFn: async () => new Response(JSON.stringify({ error: code }), { status: code === 'invalid_token' ? 401 : 400, headers: { 'content-type': 'application/json' } })
+      fetchFn: async () => new Response(JSON.stringify({
+        error: code,
+        error_description: descriptions[code],
+        retry_after: 0
+      }), { status: code === 'invalid_token' ? 401 : 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
     });
     await assert.rejects(useCase.getAccessToken({ forceRefresh: true }));
     assert.equal(await credentialStore.load(), null);
@@ -209,6 +218,25 @@ test('M3.08 terminal errors delete credentials while transient errors retain exa
   assert.equal(pending.wireVersion, 'v1');
   assert.equal(pending.responseVersion, 'v1');
   assert.equal(calls, 3);
+});
+
+test('M3.08 proof and client-auth failures retain credentials while invalid_token deletes them', async () => {
+  for (const code of ['proof_invalid', 'proof_required', 'invalid_client']) {
+    const { useCase, credentialStore } = await deps({
+      fetchFn: async () => new Response(JSON.stringify({
+        error: code,
+        error_description: {
+          proof_invalid: 'Device proof is invalid.',
+          proof_required: 'Device proof is required.',
+          invalid_client: 'Client authentication failed.'
+        }[code],
+        retry_after: 0
+      }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8' } })
+    });
+    await assert.rejects(useCase.getAccessToken({ forceRefresh: true }), (error) => error.code === code);
+    assert.ok(await credentialStore.load(), `${code} must not purge credentials`);
+    assert.ok((await credentialStore.loadState()).pending, `${code} must retain pending refresh state`);
+  }
 });
 
 test('M3.08 changed family and generation are blocked before network', async () => {

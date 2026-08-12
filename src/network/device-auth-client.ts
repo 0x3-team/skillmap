@@ -985,15 +985,61 @@ function isJsonContentType(response: Response): boolean {
 }
 
 function errorCodeForStatus(status: number, payload: unknown): DeviceAuthErrorCode {
-  if (status === 401) return 'invalid_token';
+  // A 401 controls whether the caller destroys or retains its credential
+  // state, so preserve a narrower typed code only from the exact closed wire
+  // envelope. All malformed or incompatible 401 bodies fail back to the
+  // terminal invalid_token behavior.
+  if (status === 401) return validatedTypedErrorCode(status, payload) ?? 'invalid_token';
   if (status === 403) return 'insufficient_scope';
   if (status === 409) return 'idempotency_conflict';
   if (status === 429) return 'rate_limited';
   if (status >= 500 && status <= 599) return 'temporarily_unavailable';
-  if (isPlainObject(payload) && typeof payload.error === 'string' && payload.error in DEVICE_AUTH_ERROR_DESCRIPTIONS) {
-    return payload.error as DeviceAuthErrorCode;
+  if (isPlainObject(payload)
+    && typeof payload.error === 'string'
+    && payload.error in DEVICE_AUTH_ERROR_DESCRIPTIONS) {
+    const code = payload.error as DeviceAuthErrorCode;
+    if (DEVICE_AUTH_ERROR_STATUS[code] === status) return code;
   }
   return status >= 500 ? 'temporarily_unavailable' : 'invalid_request';
+}
+
+const DEVICE_AUTH_ERROR_STATUS: Readonly<Record<DeviceAuthErrorCode, number>> = {
+  invalid_request: 400,
+  invalid_scope: 400,
+  invalid_grant: 400,
+  authorization_pending: 400,
+  slow_down: 400,
+  access_denied: 400,
+  expired_token: 400,
+  invalid_client: 401,
+  invalid_token: 401,
+  proof_required: 401,
+  proof_invalid: 401,
+  insufficient_scope: 403,
+  already_consumed: 409,
+  idempotency_conflict: 409,
+  rate_limited: 429,
+  secure_storage_unavailable: 503,
+  temporarily_unavailable: 503
+};
+
+function validatedTypedErrorCode(status: number, payload: unknown): DeviceAuthErrorCode | undefined {
+  if (!isPlainObject(payload)
+    || !hasOnlyKeys(payload, ['error', 'error_description', 'retry_after'])
+    || typeof payload.error !== 'string'
+    || !(payload.error in DEVICE_AUTH_ERROR_DESCRIPTIONS)
+    || payload.error_description !== DEVICE_AUTH_ERROR_DESCRIPTIONS[payload.error as DeviceAuthErrorCode]
+    || !Number.isSafeInteger(payload.retry_after)
+    || (payload.retry_after as number) < 0) {
+    return undefined;
+  }
+  const code = payload.error as DeviceAuthErrorCode;
+  if (DEVICE_AUTH_ERROR_STATUS[code] !== status) return undefined;
+  const mayCarryRetryGuidance = code === 'authorization_pending'
+    || code === 'rate_limited'
+    || code === 'slow_down';
+  if (!mayCarryRetryGuidance && payload.retry_after !== 0) return undefined;
+  return code;
 }
 
 function retryAfterSecondsFor(response: Response, payload: unknown, maxRetryAfterMs: number): number | undefined {

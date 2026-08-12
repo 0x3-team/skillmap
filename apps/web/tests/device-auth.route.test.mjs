@@ -185,3 +185,21 @@ test("route: accepted client with frozen header names is not rejected and reache
     restore();
   }
 });
+
+test("route: invalid UTF-8 body bytes are a deterministic invalid_request", async () => {
+  // 0xc3 must be followed by a UTF-8 continuation byte; 0x28 is invalid.
+  const bodyBytes = Uint8Array.from([0x7b, 0x22, 0x78, 0xc3, 0x28, 0x22, 0x3a, 0x31, 0x7d]);
+  const request = new Request(ORIGIN + PATH, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: bodyBytes,
+  });
+
+  const response = await POST(request);
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    error: "invalid_request",
+    error_description: "The request is invalid.",
+    retry_after: 0,
+  });
+});

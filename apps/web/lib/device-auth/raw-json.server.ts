@@ -39,14 +39,91 @@ export async function readDeviceAuthBody(
   maxBytes: number = DEVICE_AUTH_MAX_BODY_BYTES
 ): Promise<Uint8Array> {
   const lengthHeader = request.headers.get("content-length");
+  let declaredLength: number | null = null;
   if (lengthHeader !== null) {
     if (!/^\d+$/.test(lengthHeader)) throw new StrictDeviceAuthJsonError("invalid content length.");
     const declared = Number(lengthHeader);
-    if (declared > maxBytes) throw new StrictDeviceAuthJsonError("request body too large.");
+    if (!Number.isSafeInteger(declared)) throw new StrictDeviceAuthJsonError("invalid content length.");
+    declaredLength = declared;
+    if (declared > maxBytes) {
+      await cancelBodyStream(request.body);
+      throw new StrictDeviceAuthJsonError("request body too large.");
+    }
   }
-  const buffer = await request.arrayBuffer();
-  if (buffer.byteLength > maxBytes) throw new StrictDeviceAuthJsonError("request body too large.");
-  return new Uint8Array(buffer);
+
+  const body = request.body;
+  if (body === null) {
+    if (declaredLength !== null && declaredLength !== 0) {
+      throw new StrictDeviceAuthJsonError("content length does not match request body.");
+    }
+    return new Uint8Array(0);
+  }
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      let result: ReadableStreamReadResult<Uint8Array>;
+      try {
+        result = await reader.read();
+      } catch {
+        await cancelBodyReader(reader);
+        throw new StrictDeviceAuthJsonError("request body could not be read.");
+      }
+      if (result.done) break;
+
+      const chunk = result.value;
+      if (!(chunk instanceof Uint8Array)) {
+        await cancelBodyReader(reader);
+        throw new StrictDeviceAuthJsonError("request body could not be read.");
+      }
+      const remaining = maxBytes - total;
+      // The first byte beyond the ceiling is the over-limit sentinel. Cancel
+      // immediately so an unknown-length/chunked body cannot be buffered in full.
+      if (chunk.byteLength > remaining) {
+        await cancelBodyReader(reader);
+        throw new StrictDeviceAuthJsonError("request body too large.");
+      }
+      chunks.push(chunk);
+      total += chunk.byteLength;
+    }
+
+    if (declaredLength !== null && total !== declaredLength) {
+      throw new StrictDeviceAuthJsonError("content length does not match request body.");
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new StrictDeviceAuthJsonError("invalid UTF-8 request body.");
+    }
+    return bytes;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function cancelBodyReader(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch {
+    // Preserve the deterministic request error that caused cancellation.
+  }
+}
+
+async function cancelBodyStream(body: ReadableStream<Uint8Array> | null): Promise<void> {
+  if (body === null) return;
+  try {
+    await body.cancel();
+  } catch {
+    // Preserve the deterministic request error that caused cancellation.
+  }
 }
 
 /** Validate content-type is the allowed JSON type with an allowed charset. */

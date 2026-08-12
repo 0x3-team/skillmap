@@ -260,6 +260,21 @@ test('go-to-market checklist records source integration without claiming externa
 });
 
 test('operator documentation, commands, and application types bind the final read plane', () => {
+  const legacyRenamedMigrationIds = [
+    '20260711192500',
+    '20260712170000',
+    '20260712233000',
+    '20260713003000',
+    '20260713020000',
+    '20260713050000',
+    '20260713060000',
+    '20260714010000',
+    '20260714030000',
+    '20260714050000',
+    '20260714060000',
+    '20260715010000',
+    '20260715020000'
+  ];
   for (const file of ['apps/worker/README.md', 'docs/operations/free-public-alpha-runbook.md']) {
     const source = sources[file];
     assert.match(source, /20260727050300_operator_submission_read_plane[.]sql/, file);
@@ -277,6 +292,9 @@ test('operator documentation, commands, and application types bind the final rea
     assert.match(source, /after-updated-at/, file);
     assert.match(source, /licref_[0-9a-f]{32}/, file);
     assert.match(source, /sha256:[0-9a-f]{64}/, file);
+    for (const legacyId of legacyRenamedMigrationIds) {
+      assert.doesNotMatch(source, new RegExp(legacyId), `${file}: stale pre-baseline migration id ${legacyId}`);
+    }
     const digestTokens = [...source.matchAll(/sha256:[^\s`"'<>]*/gi)].map(match => match[0]);
     assert.ok(digestTokens.length > 0, `${file}: no SHA-256 token found`);
     for (const token of digestTokens) assert.match(token, /^sha256:[0-9a-f]{64}$/i, file);

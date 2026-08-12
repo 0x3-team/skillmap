@@ -33,9 +33,10 @@ export async function POST(request: Request): Promise<Response> {
     assertJsonContentType(request);
 
     const bytes = await readDeviceAuthBody(request);
-    const utf8 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    let utf8: string;
     let body: DeviceAuthInitiateRequestV1;
     try {
+      utf8 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       body = parseStrictDeviceAuthJson<DeviceAuthInitiateRequestV1>(utf8);
     } catch {
       throw toDeviceAuthRequestError(undefined);

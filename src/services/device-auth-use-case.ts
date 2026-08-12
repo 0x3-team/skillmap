@@ -158,8 +158,20 @@ export class DeviceAuthUseCase {
 
     let baseInterval = Math.max(1, initRes.interval || 5);
     let currentInterval = baseInterval;
-    const maxPolls = 90;
-    const deadlineTime = this.clockFn() + (initRes.expires_in || 600);
+    const expiresInSeconds = initRes.expires_in || 600;
+    const deadlineTime = this.clockFn() + expiresInSeconds;
+    // Keep a finite guard for a stalled/injected clock, but derive it from the
+    // advertised deadline and the smallest possible jittered delay. A fixed
+    // poll count can expire a valid 600-second pairing early (90 polls take
+    // about 7.6-9 minutes with the 5-second interval and 1-20% jitter).
+    const minimumJitteredPollDelayMs = Math.min(
+      60_000,
+      Math.floor((baseInterval * 1000 * 101) / 100)
+    );
+    const maxPolls = Math.max(
+      1,
+      Math.ceil((expiresInSeconds * 1000) / minimumJitteredPollDelayMs)
+    );
     let pollCount = 0;
     let exchangeCode: string | null = null;
 
@@ -188,6 +200,11 @@ export class DeviceAuthUseCase {
           await this.cancel('user_cancelled');
           throw new DeviceAuthError(400, 'access_denied', 'Polling aborted');
         }
+
+        // The authorization code is no longer valid at the advertised
+        // deadline. Do not issue one final request after a long sleep crosses
+        // that boundary.
+        if (this.clockFn() >= deadlineTime) break;
 
         if (!this.inMemoryDeviceCode) {
           throw new DeviceAuthError(400, 'access_denied', 'Device code cleared');
@@ -413,10 +430,7 @@ export class DeviceAuthUseCase {
 
     if (options?.localOnly) {
       if (options?.confirm) {
-        await this.credentialStore.delete();
-        this.inMemoryAccessToken = null;
-        this.inMemoryAccessTokenExpiresAt = null;
-        this.inMemoryDeviceCode = null;
+        await this.deleteLocalCredentials();
         return { remoteRevoked: false, localDeleted: true };
       }
       return { remoteRevoked: false, localDeleted: false };
@@ -448,7 +462,6 @@ export class DeviceAuthUseCase {
           accessToken
         });
         remoteRevoked = true;
-        localDeleted = true;
       } catch {
         // Errors never prove remote revocation. The backend's exact validated
         // success body is the sole cleanup authority, including idempotent
@@ -460,14 +473,49 @@ export class DeviceAuthUseCase {
       return { remoteRevoked: false, localDeleted: false, unconfirmed: true };
     }
 
-    if (localDeleted) {
-      await this.credentialStore.delete();
-      this.inMemoryAccessToken = null;
-      this.inMemoryAccessTokenExpiresAt = null;
-      this.inMemoryDeviceCode = null;
+    if (remoteRevoked) {
+      // A successful revoke retires the server-side key binding. Remove the
+      // matching local key and device ID as part of the same logout outcome so
+      // the next login creates a fresh identity instead of reusing a retired
+      // binding. Unconfirmed logout paths never reach this cleanup.
+      await this.retireLocalAuthState();
+      localDeleted = true;
     }
 
     return { remoteRevoked, localDeleted, unconfirmed: !remoteRevoked && !localDeleted };
+  }
+
+  private async deleteLocalCredentials(): Promise<void> {
+    await this.credentialStore.delete();
+    this.inMemoryAccessToken = null;
+    this.inMemoryAccessTokenExpiresAt = null;
+    this.inMemoryDeviceCode = null;
+  }
+
+  private async retireLocalAuthState(): Promise<void> {
+    const errors: unknown[] = [];
+    // Remove identity material before credentials, and keep trying after each
+    // failure. A credential-delete failure therefore cannot skip either
+    // identity deletion, and every failure is reported to the caller.
+    for (const operation of [
+      () => this.metadataStore.delete(),
+      () => this.keyStore.deleteKey(),
+      () => this.credentialStore.delete()
+    ]) {
+      try {
+        await operation();
+      } catch (error: unknown) {
+        errors.push(error);
+      }
+    }
+
+    this.inMemoryAccessToken = null;
+    this.inMemoryAccessTokenExpiresAt = null;
+    this.inMemoryDeviceCode = null;
+
+    if (errors.length > 0) {
+      throw new DeviceAuthError(503, 'secure_storage_unavailable');
+    }
   }
 
 

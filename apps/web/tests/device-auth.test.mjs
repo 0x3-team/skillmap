@@ -16,6 +16,7 @@ import {
 import { redactSecrets, safeDeviceAuthLogLine } from "../lib/device-auth/redaction.ts";
 import {
   parseStrictDeviceAuthJson,
+  readDeviceAuthBody,
   toDeviceAuthRequestError,
   StrictDeviceAuthJsonError,
   DEVICE_AUTH_MAX_BODY_BYTES
@@ -203,6 +204,83 @@ test("parseStrictDeviceAuthJson: array round-trips at top level", () => {
 
 test("DEVICE_AUTH_MAX_BODY_BYTES: caps the request body", () => {
   assert.equal(DEVICE_AUTH_MAX_BODY_BYTES, 16 * 1024);
+});
+
+test("readDeviceAuthBody: accepts an unknown-length body exactly at the byte boundary", async () => {
+  const bytes = new Uint8Array(DEVICE_AUTH_MAX_BODY_BYTES).fill(0x61);
+  const request = new Request("https://skillmap.example.test", {
+    method: "POST",
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes);
+        controller.close();
+      }
+    }),
+    duplex: "half"
+  });
+
+  assert.deepEqual(await readDeviceAuthBody(request), bytes);
+});
+
+test("readDeviceAuthBody: cancels an unknown-length oversized stream at the first over-limit chunk", async () => {
+  const chunks = [
+    new Uint8Array(8 * 1024),
+    new Uint8Array(8 * 1024),
+    new Uint8Array(8 * 1024),
+    new Uint8Array(1024),
+    new Uint8Array(1024)
+  ];
+  let pulls = 0;
+  let canceled = false;
+  const request = new Request("https://skillmap.example.test", {
+    method: "POST",
+    body: new ReadableStream({
+      pull(controller) {
+        const chunk = chunks[pulls++];
+        if (chunk === undefined) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        canceled = true;
+      }
+    }),
+    duplex: "half"
+  });
+
+  await assert.rejects(readDeviceAuthBody(request), (error) => {
+    assert.equal(error?.message, "request body too large.");
+    assert.ok(error instanceof StrictDeviceAuthJsonError);
+    return true;
+  });
+  assert.equal(canceled, true);
+  assert.ok(pulls < chunks.length, "the source must not be consumed after the limit is crossed");
+});
+
+test("readDeviceAuthBody: rejects invalid UTF-8 and mismatched Content-Length deterministically", async () => {
+  const invalidUtf8 = new Request("https://skillmap.example.test", {
+    method: "POST",
+    body: new Uint8Array([0xc3, 0x28]),
+    headers: { "content-length": "2" }
+  });
+  await assert.rejects(readDeviceAuthBody(invalidUtf8), (error) => {
+    assert.equal(error?.message, "invalid UTF-8 request body.");
+    assert.ok(error instanceof StrictDeviceAuthJsonError);
+    return true;
+  });
+
+  const mismatchedLength = new Request("https://skillmap.example.test", {
+    method: "POST",
+    body: new Uint8Array([0x7b]),
+    headers: { "content-length": "2" }
+  });
+  await assert.rejects(readDeviceAuthBody(mismatchedLength), (error) => {
+    assert.equal(error?.message, "content length does not match request body.");
+    assert.ok(error instanceof StrictDeviceAuthJsonError);
+    return true;
+  });
 });
 
 test("toDeviceAuthRequestError: invalid-body maps to invalid_request", () => {

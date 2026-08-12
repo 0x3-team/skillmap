@@ -46,6 +46,13 @@ const VALID_EXCHANGE_RESPONSE = {
   refresh_absolute_expires_in: 7_776_000
 };
 
+const DEVICE_AUTH_ERROR_DESCRIPTIONS = {
+  invalid_client: 'Client authentication failed.',
+  invalid_token: 'The access token is invalid.',
+  proof_required: 'Device proof is required.',
+  proof_invalid: 'Device proof is invalid.'
+};
+
 test('M3.07 rejects production HTTP and path query/fragment/foreign-origin injection', async () => {
   const keyStore = new InMemoryDeviceKeyStore();
   await keyStore.createKey();
@@ -219,6 +226,55 @@ test('M3.07 retries transient failures only within the bound and keeps request i
     return true;
   });
   assert.equal(conflictCalls, 1);
+});
+
+test('M3.07 preserves valid status-compatible typed 401 errors', async () => {
+  for (const code of Object.keys(DEVICE_AUTH_ERROR_DESCRIPTIONS)) {
+    const client = await makeClient(async () => new Response(JSON.stringify({
+      error: code,
+      error_description: DEVICE_AUTH_ERROR_DESCRIPTIONS[code],
+      retry_after: 0
+    }), {
+      status: 401,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    }));
+    await assert.rejects(
+      client.getStatus({ devicePublicId: VALID_DEVICE_PUBLIC_ID, accessToken: VALID_ACCESS_TOKEN }),
+      (error) => error instanceof DeviceAuthError && error.status === 401 && error.code === code
+    );
+  }
+});
+
+test('M3.07 falls back safely for malformed or status-incompatible typed error bodies', async () => {
+  const malformedBodies = [
+    { error: 'proof_invalid' },
+    { error: 'proof_invalid', error_description: DEVICE_AUTH_ERROR_DESCRIPTIONS.proof_invalid, retry_after: 0, extra: true },
+    { error: 'invalid_grant', error_description: 'The authorization grant is invalid.', retry_after: 0 },
+    { error: 'invalid_client', error_description: 'not the fixed description', retry_after: 0 }
+  ];
+  for (const body of malformedBodies) {
+    const client = await makeClient(async () => new Response(JSON.stringify(body), {
+      status: 401,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    }));
+    await assert.rejects(
+      client.getStatus({ devicePublicId: VALID_DEVICE_PUBLIC_ID, accessToken: VALID_ACCESS_TOKEN }),
+      (error) => error instanceof DeviceAuthError && error.status === 401 && error.code === 'invalid_token'
+    );
+  }
+
+  const wrongContentType = await makeClient(async () => new Response(JSON.stringify({
+    error: 'proof_invalid',
+    error_description: DEVICE_AUTH_ERROR_DESCRIPTIONS.proof_invalid,
+    retry_after: 0
+  }), {
+    status: 401,
+    headers: { 'content-type': 'text/plain' }
+  }));
+  await assert.rejects(
+    wrongContentType.getStatus({ devicePublicId: VALID_DEVICE_PUBLIC_ID, accessToken: VALID_ACCESS_TOKEN }),
+    (error) => error instanceof DeviceAuthError && error.status === 401 && error.code === 'invalid_token'
+  );
 });
 
 test('M3.07 retry cancellation removes listeners immediately and does not wake a stale timer', async () => {

@@ -111,6 +111,15 @@ test('M3.09 rejects a lifecycle response for a different device', async () => {
 test('M3.09 logout leaves credentials when no refreshable in-memory token can be obtained', async () => {
   const ks = await keyStore();
   const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  const metadata = {
+    deviceId: DEVICE_ID,
+    verificationUri: 'https://skillmap.example.test/device',
+    displayName: 'Test device',
+    platform: 'macos',
+    connectorVersion: '1.0.0'
+  };
+  await metadataStore.save(metadata);
   await credentialStore.commitExchange({
     deviceId: DEVICE_ID,
     tokenFamilyId: FAMILY_ID,
@@ -134,12 +143,14 @@ test('M3.09 logout leaves credentials when no refreshable in-memory token can be
     client,
     keyStore: ks,
     credentialStore,
-    metadataStore: new InMemoryDeviceAuthMetadataStore()
+    metadataStore
   });
   const result = await useCase.logout();
   assert.deepEqual(result, { remoteRevoked: false, localDeleted: false, unconfirmed: true });
   assert.ok(calls >= 1);
   assert.ok(await credentialStore.load());
+  assert.equal(await ks.hasKey(), true);
+  assert.deepEqual(await metadataStore.load(), metadata);
   assert.doesNotMatch(JSON.stringify(result), /token-canary/);
 });
 
@@ -216,6 +227,151 @@ test('M3.09 revoke errors never authorize local cleanup', async () => {
   const result = await useCase.logout();
   assert.deepEqual(result, { remoteRevoked: false, localDeleted: false, unconfirmed: true });
   assert.ok(await credentialStore.load());
+});
+
+test('M3.09 confirmed remote logout retires the local key and device metadata', async () => {
+  const ks = await keyStore();
+  const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  await metadataStore.save({ deviceId: DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' });
+  await credentialStore.commitExchange({
+    deviceId: DEVICE_ID,
+    tokenFamilyId: FAMILY_ID,
+    refreshToken: REFRESH_TOKEN,
+    scopes: ['device.status'],
+    devicePublicId: DEVICE_PUBLIC_ID,
+    accountPublicId: ACCOUNT_PUBLIC_ID,
+    updatedAt: Math.floor(Date.now() / 1000)
+  });
+
+  const client = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore: ks,
+    deviceId: DEVICE_ID,
+    fetchFn: async (url) => {
+      if (url.endsWith('/tokens/refresh')) {
+        const issuedAt = Math.floor(Date.now() / 1000);
+        return new Response(JSON.stringify({
+          device_public_id: DEVICE_PUBLIC_ID,
+          account_public_id: ACCOUNT_PUBLIC_ID,
+          token_family_id: FAMILY_ID,
+          access_token: ACCESS_TOKEN,
+          refresh_token: REFRESH_TOKEN,
+          expires_in: 600,
+          refresh_idle_expires_in: 2_592_000,
+          refresh_absolute_expires_in: 7_776_000
+        }), { status: 200, headers: { 'content-type': 'application/json', 'X-SkillMap-Response-Issued-At': String(issuedAt) } });
+      }
+      return new Response(JSON.stringify({ status: 'revoked', device_public_id: DEVICE_PUBLIC_ID }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+  });
+  const useCase = new DeviceAuthUseCase({ client, keyStore: ks, credentialStore, metadataStore });
+
+  const result = await useCase.logout();
+
+  assert.deepEqual(result, { remoteRevoked: true, localDeleted: true, unconfirmed: false });
+  assert.equal(await credentialStore.load(), null);
+  assert.equal(await ks.hasKey(), false);
+  assert.equal(await metadataStore.load(), null);
+});
+
+test('M3.09 remote logout attempts every local cleanup and reports storage failure', async () => {
+  for (const failedStore of ['metadata', 'key', 'credential']) {
+    const ks = await keyStore();
+    const credentialStore = new InMemoryCredentialStore();
+    const metadataStore = new InMemoryDeviceAuthMetadataStore();
+    await metadataStore.save({ deviceId: DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' });
+    await credentialStore.commitExchange({
+      deviceId: DEVICE_ID,
+      tokenFamilyId: FAMILY_ID,
+      refreshToken: REFRESH_TOKEN,
+      scopes: ['device.status'],
+      devicePublicId: DEVICE_PUBLIC_ID,
+      accountPublicId: ACCOUNT_PUBLIC_ID,
+      updatedAt: 1_735_689_600
+    });
+
+    const calls = [];
+    const originalKeyDelete = ks.deleteKey.bind(ks);
+    const originalMetadataDelete = metadataStore.delete.bind(metadataStore);
+    const originalCredentialDelete = credentialStore.delete.bind(credentialStore);
+    ks.deleteKey = async () => {
+      calls.push('key');
+      if (failedStore === 'key') throw new Error('key delete failed');
+      await originalKeyDelete();
+    };
+    metadataStore.delete = async () => {
+      calls.push('metadata');
+      if (failedStore === 'metadata') throw new Error('metadata delete failed');
+      await originalMetadataDelete();
+    };
+    credentialStore.delete = async () => {
+      calls.push('credential');
+      if (failedStore === 'credential') throw new Error('credential delete failed');
+      await originalCredentialDelete();
+    };
+
+    const client = {
+      setMetadataStore() {},
+      async refreshToken() {
+        return {
+          device_public_id: DEVICE_PUBLIC_ID,
+          account_public_id: ACCOUNT_PUBLIC_ID,
+          token_family_id: FAMILY_ID,
+          access_token: ACCESS_TOKEN,
+          refresh_token: REFRESH_TOKEN,
+          expires_in: 600,
+          refresh_idle_expires_in: 2_592_000,
+          refresh_absolute_expires_in: 7_776_000,
+          responseIssuedAt: 1_735_689_600
+        };
+      },
+      async revokeDevice() {
+        return { status: 'revoked', device_public_id: DEVICE_PUBLIC_ID };
+      }
+    };
+    const useCase = new DeviceAuthUseCase({ client, keyStore: ks, credentialStore, metadataStore, clock: () => 1_735_689_600 });
+
+    await assert.rejects(
+      useCase.logout(),
+      (error) => error instanceof DeviceAuthError && error.code === 'secure_storage_unavailable'
+    );
+    assert.deepEqual(calls, ['metadata', 'key', 'credential']);
+  }
+});
+
+test('M3.09 local-only confirmed logout removes credentials but retains device identity', async () => {
+  const ks = await keyStore();
+  const credentialStore = new InMemoryCredentialStore();
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  const metadata = { deviceId: DEVICE_ID, verificationUri: 'https://skillmap.example.test/device' };
+  await metadataStore.save(metadata);
+  await credentialStore.commitExchange({
+    deviceId: DEVICE_ID,
+    tokenFamilyId: FAMILY_ID,
+    refreshToken: REFRESH_TOKEN,
+    scopes: ['device.status'],
+    devicePublicId: DEVICE_PUBLIC_ID,
+    accountPublicId: ACCOUNT_PUBLIC_ID,
+    updatedAt: Math.floor(Date.now() / 1000)
+  });
+  const client = new DeviceAuthClient({
+    origin: 'https://skillmap.example.test',
+    keyStore: ks,
+    deviceId: DEVICE_ID,
+    fetchFn: async () => { throw new Error('local-only logout must not call remote'); }
+  });
+  const useCase = new DeviceAuthUseCase({ client, keyStore: ks, credentialStore, metadataStore });
+
+  const result = await useCase.logout({ localOnly: true, confirm: true });
+
+  assert.deepEqual(result, { remoteRevoked: false, localDeleted: true });
+  assert.equal(await credentialStore.load(), null);
+  assert.equal(await ks.hasKey(), true);
+  assert.deepEqual(await metadataStore.load(), metadata);
 });
 
 test('M3.11 status only reports live server state and never infers authenticated from stored credentials', async () => {
