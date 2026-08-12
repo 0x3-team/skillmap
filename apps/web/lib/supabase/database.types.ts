@@ -1196,6 +1196,238 @@ export type Database = {
         }[]
       }
       delete_my_account: { Args: never; Returns: boolean }
+      device_auth_authenticate_v1: {
+        Args: {
+          p_access_token_digests: string[]
+          p_access_token_key_versions: number[]
+          p_audience: string
+          p_device_id: string
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      device_auth_cancel_v1: {
+        Args: {
+          p_audience: string
+          p_device_code_digest: string
+          p_device_id: string
+          p_idempotency_key: string
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_reason: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      device_auth_confirm_my_pairing_v1: {
+        Args: {
+          p_confirmation_handle: string
+          p_confirmation_revision: number
+          p_decision: string
+        }
+        Returns: Json
+      }
+      device_auth_exchange_v1: {
+        Args: {
+          p_access_token_digest: string
+          p_access_token_key_version: number
+          p_audience: string
+          p_device_id: string
+          p_exchange_code_digest: string
+          p_idempotency_key: string
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_refresh_token_digest: string
+          p_refresh_token_key_version: number
+          p_request_digest: string
+          p_requested_scopes: string[]
+        }
+        Returns: Json
+      }
+      device_auth_expire_v1: {
+        Args: { p_limit?: number; p_runtime_purge_after: number }
+        Returns: Json
+      }
+      device_auth_get_active_key_v1: {
+        Args: { p_device_id: string }
+        Returns: Json
+      }
+      device_auth_get_revoke_key_v1: {
+        Args: {
+          p_device_id: string
+          p_device_public_id: string
+          p_idempotency_key: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      device_auth_get_rotation_receipt_v1: {
+        Args: {
+          p_device_public_id: string
+          p_idempotency_key_digest: string
+          p_idempotency_key_version: number
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      device_auth_get_status_v1: {
+        Args: {
+          p_access_token_digests: string[]
+          p_access_token_key_versions: number[]
+          p_audience: string
+          p_device_id: string
+          p_device_public_id: string
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+        }
+        Returns: Json
+      }
+      device_auth_initiate_v1: {
+        Args: {
+          p_audience: string
+          p_connector_version: string
+          p_device_id: string
+          p_device_public_key: string
+          p_display_name?: string
+          p_expires_in?: number
+          p_idempotency_key: string
+          p_interval?: number
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_locale?: string
+          p_platform: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_rate_limit?: number
+          p_rate_window_seconds?: number
+          p_request_digest: string
+          p_requested_scopes: string[]
+          p_verification_uri_prefix: string
+        }
+        Returns: Json
+      }
+      device_auth_list_my_devices_v1: { Args: never; Returns: Json }
+      device_auth_poll_v1: {
+        Args: {
+          p_audience: string
+          p_device_code_digest: string
+          p_device_id: string
+          p_idempotency_key: string
+          p_issued_at: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      device_auth_refresh_context_v1: {
+        Args: { p_device_id: string; p_token_family_id: string }
+        Returns: Json
+      }
+      device_auth_refresh_fail_closed_v1: {
+        Args: { p_idempotency_key_digest: string; p_token_family_id: string }
+        Returns: Json
+      }
+      device_auth_refresh_v1: {
+        Args: {
+          p_access_token_digest: string
+          p_access_token_key_version: number
+          p_audience: string
+          p_device_id: string
+          p_idempotency_key_digest: string
+          p_idempotency_key_version: number
+          p_issued_at: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_refresh_token_digest: string
+          p_refresh_token_key_version: number
+          p_replay_body_digest: string
+          p_replay_body_length: number
+          p_replay_ciphertext: string
+          p_replay_key_version: number
+          p_replay_nonce: string
+          p_replay_until: number
+          p_request_digest: string
+          p_response_format_version: string
+          p_response_issued_at: number
+          p_runtime_purge_after: number
+          p_successor_refresh_token_digest: string
+          p_token_family_id: string
+        }
+        Returns: Json
+      }
+      device_auth_rename_my_device_v1: {
+        Args: {
+          p_display_name: string
+          p_expected_revision: number
+          p_public_id_suffix: string
+        }
+        Returns: Json
+      }
+      device_auth_review_my_pairing_v1: {
+        Args: { p_user_code: string }
+        Returns: Json
+      }
+      device_auth_revoke_my_device_v1: {
+        Args: { p_expected_revision: number; p_public_id_suffix: string }
+        Returns: Json
+      }
+      device_auth_revoke_v1: {
+        Args: {
+          p_access_token_digests: string[]
+          p_access_token_key_versions: number[]
+          p_audience: string
+          p_device_id: string
+          p_device_public_id: string
+          p_idempotency_key: string
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_reason: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
+      device_auth_rotate_key_v1: {
+        Args: {
+          p_audience: string
+          p_device_id: string
+          p_device_public_id: string
+          p_idempotency_key_digest: string
+          p_idempotency_key_version: number
+          p_new_issued_at: string
+          p_new_key_thumbprint: string
+          p_new_proof_nonce: string
+          p_new_proof_purpose: string
+          p_new_public_key: string
+          p_old_issued_at: string
+          p_old_key_thumbprint: string
+          p_old_proof_nonce: string
+          p_old_proof_purpose: string
+          p_proof_suite: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
       disposition_skill_report: {
         Args: {
           p_disposition_code: string
@@ -1577,6 +1809,649 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "operator_action_approvals"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_auth_access_tokens: {
+        Row: {
+          access_token_digest: string
+          expires_at: string
+          family_id: string
+          generation: number
+          issued_at: string
+          key_binding_revision: number
+          key_thumbprint: string | null
+          key_version: number
+          revoked_at: string | null
+        }
+        Insert: {
+          access_token_digest: string
+          expires_at: string
+          family_id: string
+          generation: number
+          issued_at: string
+          key_binding_revision?: number
+          key_thumbprint?: string | null
+          key_version: number
+          revoked_at?: string | null
+        }
+        Update: {
+          access_token_digest?: string
+          expires_at?: string
+          family_id?: string
+          generation?: number
+          issued_at?: string
+          key_binding_revision?: number
+          key_thumbprint?: string | null
+          key_version?: number
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_auth_access_tokens_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "device_auth_token_families"
+            referencedColumns: ["family_id"]
+          },
+        ]
+      }
+      device_auth_authority_control: {
+        Row: {
+          changed_at: string
+          control_key: string
+          legacy_device_authority_enabled: boolean
+          revision: number
+        }
+        Insert: {
+          changed_at: string
+          control_key: string
+          legacy_device_authority_enabled: boolean
+          revision: number
+        }
+        Update: {
+          changed_at?: string
+          control_key?: string
+          legacy_device_authority_enabled?: boolean
+          revision?: number
+        }
+        Relationships: []
+      }
+      device_auth_code_digests: {
+        Row: {
+          created_at: string
+          device_id: string
+          digest_hex: string
+          digest_kind: string
+          pairing_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          digest_hex: string
+          digest_kind: string
+          pairing_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          digest_hex?: string
+          digest_kind?: string
+          pairing_id?: string | null
+        }
+        Relationships: []
+      }
+      device_auth_confirmation_attempts: {
+        Row: {
+          attempt_count: number
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          attempt_count?: number
+          user_id: string
+          window_start?: string
+        }
+        Update: {
+          attempt_count?: number
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      device_auth_confirmation_handles: {
+        Row: {
+          confirmation_revision: number
+          created_at: string
+          expires_at: string
+          handle_digest: string
+          outcome_json: Json | null
+          pairing_id: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          confirmation_revision: number
+          created_at?: string
+          expires_at: string
+          handle_digest: string
+          outcome_json?: Json | null
+          pairing_id: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          confirmation_revision?: number
+          created_at?: string
+          expires_at?: string
+          handle_digest?: string
+          outcome_json?: Json | null
+          pairing_id?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_auth_confirmation_handles_pairing_id_fkey"
+            columns: ["pairing_id"]
+            isOneToOne: false
+            referencedRelation: "device_auth_pairings"
+            referencedColumns: ["pairing_id"]
+          },
+        ]
+      }
+      device_auth_cutover_provenance: {
+        Row: {
+          artifact_id: string
+          created_at: string
+          feature_ready: boolean
+          rollback_floor_artifact_id: string
+        }
+        Insert: {
+          artifact_id: string
+          created_at: string
+          feature_ready: boolean
+          rollback_floor_artifact_id: string
+        }
+        Update: {
+          artifact_id?: string
+          created_at?: string
+          feature_ready?: boolean
+          rollback_floor_artifact_id?: string
+        }
+        Relationships: []
+      }
+      device_auth_idempotency_receipts: {
+        Row: {
+          created_at: string
+          expired_at: string
+          idempotency_key: string
+          operation: string
+          outcome_json: Json
+          principal: string
+          principal_kind: string
+          request_digest: string
+        }
+        Insert: {
+          created_at?: string
+          expired_at: string
+          idempotency_key: string
+          operation: string
+          outcome_json: Json
+          principal: string
+          principal_kind: string
+          request_digest: string
+        }
+        Update: {
+          created_at?: string
+          expired_at?: string
+          idempotency_key?: string
+          operation?: string
+          outcome_json?: Json
+          principal?: string
+          principal_kind?: string
+          request_digest?: string
+        }
+        Relationships: []
+      }
+      device_auth_key_bindings: {
+        Row: {
+          binding_revision: number
+          created_at: string
+          device_id: string
+          is_active: boolean
+          key_thumbprint: string
+          proof_suite: string
+          public_key: string
+          retired_at: string | null
+          rotation_lineage_digest: string | null
+        }
+        Insert: {
+          binding_revision?: number
+          created_at?: string
+          device_id: string
+          is_active?: boolean
+          key_thumbprint: string
+          proof_suite: string
+          public_key: string
+          retired_at?: string | null
+          rotation_lineage_digest?: string | null
+        }
+        Update: {
+          binding_revision?: number
+          created_at?: string
+          device_id?: string
+          is_active?: boolean
+          key_thumbprint?: string
+          proof_suite?: string
+          public_key?: string
+          retired_at?: string | null
+          rotation_lineage_digest?: string | null
+        }
+        Relationships: []
+      }
+      device_auth_key_rotation_receipts: {
+        Row: {
+          binding_revision: number
+          created_at: string
+          device_id: string
+          device_public_id: string
+          effective_at: number
+          idempotency_key_digest: string
+          idempotency_key_version: number
+          new_key_thumbprint: string
+          old_key_thumbprint: string
+          proof_suite: string
+          request_digest: string
+          response_json: Json
+        }
+        Insert: {
+          binding_revision: number
+          created_at?: string
+          device_id: string
+          device_public_id: string
+          effective_at: number
+          idempotency_key_digest: string
+          idempotency_key_version: number
+          new_key_thumbprint: string
+          old_key_thumbprint: string
+          proof_suite: string
+          request_digest: string
+          response_json: Json
+        }
+        Update: {
+          binding_revision?: number
+          created_at?: string
+          device_id?: string
+          device_public_id?: string
+          effective_at?: number
+          idempotency_key_digest?: string
+          idempotency_key_version?: number
+          new_key_thumbprint?: string
+          old_key_thumbprint?: string
+          proof_suite?: string
+          request_digest?: string
+          response_json?: Json
+        }
+        Relationships: []
+      }
+      device_auth_pairings: {
+        Row: {
+          account_public_id: string | null
+          audience_literal: string
+          confirmation_attempts: number
+          confirmation_revision: number
+          confirmed_at: string | null
+          confirmed_user_id: string | null
+          connector_version: string
+          created_at: string
+          device_id: string
+          display_name: string | null
+          exchange_code_issued_at: string | null
+          exchanged_at: string | null
+          expires_at: string
+          key_thumbprint: string
+          last_polled_at: string | null
+          locale: string | null
+          pairing_id: string
+          platform: string
+          poll_attempts: number
+          poll_interval_seconds: number
+          requested_scopes: string[]
+          state: string
+          status_reason: string | null
+          verification_uri: string
+        }
+        Insert: {
+          account_public_id?: string | null
+          audience_literal: string
+          confirmation_attempts?: number
+          confirmation_revision?: number
+          confirmed_at?: string | null
+          confirmed_user_id?: string | null
+          connector_version: string
+          created_at?: string
+          device_id: string
+          display_name?: string | null
+          exchange_code_issued_at?: string | null
+          exchanged_at?: string | null
+          expires_at: string
+          key_thumbprint: string
+          last_polled_at?: string | null
+          locale?: string | null
+          pairing_id?: string
+          platform: string
+          poll_attempts?: number
+          poll_interval_seconds?: number
+          requested_scopes: string[]
+          state?: string
+          status_reason?: string | null
+          verification_uri: string
+        }
+        Update: {
+          account_public_id?: string | null
+          audience_literal?: string
+          confirmation_attempts?: number
+          confirmation_revision?: number
+          confirmed_at?: string | null
+          confirmed_user_id?: string | null
+          connector_version?: string
+          created_at?: string
+          device_id?: string
+          display_name?: string | null
+          exchange_code_issued_at?: string | null
+          exchanged_at?: string | null
+          expires_at?: string
+          key_thumbprint?: string
+          last_polled_at?: string | null
+          locale?: string | null
+          pairing_id?: string
+          platform?: string
+          poll_attempts?: number
+          poll_interval_seconds?: number
+          requested_scopes?: string[]
+          state?: string
+          status_reason?: string | null
+          verification_uri?: string
+        }
+        Relationships: []
+      }
+      device_auth_proof_nonces: {
+        Row: {
+          device_id: string
+          expires_at: string
+          issued_at: string
+          nonce: string
+          proof_purpose: string
+        }
+        Insert: {
+          device_id: string
+          expires_at: string
+          issued_at?: string
+          nonce: string
+          proof_purpose: string
+        }
+        Update: {
+          device_id?: string
+          expires_at?: string
+          issued_at?: string
+          nonce?: string
+          proof_purpose?: string
+        }
+        Relationships: []
+      }
+      device_auth_rate_buckets: {
+        Row: {
+          bucket_key: string
+          bucket_kind: string
+          count: number
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          bucket_kind: string
+          count?: number
+          window_start?: string
+        }
+        Update: {
+          bucket_key?: string
+          bucket_kind?: string
+          count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
+      device_auth_refresh_generations: {
+        Row: {
+          absolute_expires_at: string
+          family_id: string
+          generation: number
+          idle_expires_at: string
+          issued_at: string
+          key_version: number
+          refresh_token_digest: string
+          replaced_at: string | null
+          revoked_at: string | null
+        }
+        Insert: {
+          absolute_expires_at: string
+          family_id: string
+          generation: number
+          idle_expires_at: string
+          issued_at: string
+          key_version: number
+          refresh_token_digest: string
+          replaced_at?: string | null
+          revoked_at?: string | null
+        }
+        Update: {
+          absolute_expires_at?: string
+          family_id?: string
+          generation?: number
+          idle_expires_at?: string
+          issued_at?: string
+          key_version?: number
+          refresh_token_digest?: string
+          replaced_at?: string | null
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_auth_refresh_generations_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "device_auth_token_families"
+            referencedColumns: ["family_id"]
+          },
+        ]
+      }
+      device_auth_refresh_replay_payloads: {
+        Row: {
+          body_digest: string
+          body_length: number
+          ciphertext: string
+          created_at: string
+          family_id: string
+          idempotency_key_digest: string
+          nonce: string
+          replay_key_version: number
+          replay_until: number
+          response_format_version: string
+          response_issued_at: number
+          runtime_purge_after: number
+        }
+        Insert: {
+          body_digest: string
+          body_length: number
+          ciphertext: string
+          created_at?: string
+          family_id: string
+          idempotency_key_digest: string
+          nonce: string
+          replay_key_version: number
+          replay_until: number
+          response_format_version: string
+          response_issued_at: number
+          runtime_purge_after: number
+        }
+        Update: {
+          body_digest?: string
+          body_length?: number
+          ciphertext?: string
+          created_at?: string
+          family_id?: string
+          idempotency_key_digest?: string
+          nonce?: string
+          replay_key_version?: number
+          replay_until?: number
+          response_format_version?: string
+          response_issued_at?: number
+          runtime_purge_after?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_auth_refresh_replay_payloads_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "device_auth_token_families"
+            referencedColumns: ["family_id"]
+          },
+          {
+            foreignKeyName: "device_auth_refresh_replay_payloads_idempotency_key_digest_fkey"
+            columns: ["idempotency_key_digest"]
+            isOneToOne: true
+            referencedRelation: "device_auth_refresh_replay_receipts"
+            referencedColumns: ["idempotency_key_digest"]
+          },
+        ]
+      }
+      device_auth_refresh_replay_receipts: {
+        Row: {
+          created_at: string
+          db_committed_at: string
+          device_id: string
+          expired_at: string
+          family_id: string
+          idempotency_key_digest: string
+          idempotency_key_version: number
+          outcome: string
+          prior_generation: number
+          replay_until: number
+          request_digest: string
+          response_issued_at: number
+          runtime_purge_after: number
+          successor_generation: number
+        }
+        Insert: {
+          created_at?: string
+          db_committed_at: string
+          device_id: string
+          expired_at: string
+          family_id: string
+          idempotency_key_digest: string
+          idempotency_key_version: number
+          outcome?: string
+          prior_generation: number
+          replay_until: number
+          request_digest: string
+          response_issued_at: number
+          runtime_purge_after: number
+          successor_generation: number
+        }
+        Update: {
+          created_at?: string
+          db_committed_at?: string
+          device_id?: string
+          expired_at?: string
+          family_id?: string
+          idempotency_key_digest?: string
+          idempotency_key_version?: number
+          outcome?: string
+          prior_generation?: number
+          replay_until?: number
+          request_digest?: string
+          response_issued_at?: number
+          runtime_purge_after?: number
+          successor_generation?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_auth_refresh_replay_receipts_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "device_auth_token_families"
+            referencedColumns: ["family_id"]
+          },
+        ]
+      }
+      device_auth_token_families: {
+        Row: {
+          absolute_expires_at: string
+          account_id: string
+          account_public_id: string
+          audience_literal: string
+          current_generation: number
+          device_id: string
+          device_public_id: string
+          family_id: string
+          idle_expires_at: string
+          issued_at: string
+          key_binding_revision: number
+          key_thumbprint: string
+          pairing_id: string
+          proof_suite: string
+          revoked_at: string | null
+          scopes: string[]
+          state: string
+          token_family_id: string
+        }
+        Insert: {
+          absolute_expires_at: string
+          account_id: string
+          account_public_id: string
+          audience_literal: string
+          current_generation?: number
+          device_id: string
+          device_public_id: string
+          family_id?: string
+          idle_expires_at: string
+          issued_at?: string
+          key_binding_revision?: number
+          key_thumbprint: string
+          pairing_id: string
+          proof_suite: string
+          revoked_at?: string | null
+          scopes: string[]
+          state?: string
+          token_family_id?: string
+        }
+        Update: {
+          absolute_expires_at?: string
+          account_id?: string
+          account_public_id?: string
+          audience_literal?: string
+          current_generation?: number
+          device_id?: string
+          device_public_id?: string
+          family_id?: string
+          idle_expires_at?: string
+          issued_at?: string
+          key_binding_revision?: number
+          key_thumbprint?: string
+          pairing_id?: string
+          proof_suite?: string
+          revoked_at?: string | null
+          scopes?: string[]
+          state?: string
+          token_family_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_auth_token_families_pairing_id_fkey"
+            columns: ["pairing_id"]
+            isOneToOne: true
+            referencedRelation: "device_auth_pairings"
+            referencedColumns: ["pairing_id"]
           },
         ]
       }
@@ -3716,8 +4591,32 @@ export type Database = {
           public_id: string
         }[]
       }
+      current_device_auth_is_permanent_user: { Args: never; Returns: boolean }
+      current_device_auth_jwt_role: { Args: never; Returns: string }
       current_request_role: { Args: never; Returns: string }
       current_request_uid: { Args: never; Returns: string }
+      device_auth_assert_legacy_authority_enabled: {
+        Args: never
+        Returns: undefined
+      }
+      device_auth_confirmation_authz: { Args: never; Returns: boolean }
+      device_auth_error_json: {
+        Args: { p_code: string; p_description: string; p_retry?: number }
+        Returns: Json
+      }
+      device_auth_generate_pairing_secrets: {
+        Args: never
+        Returns: {
+          device_code: string
+          device_code_digest: string
+          user_code: string
+          user_code_digest: string
+        }[]
+      }
+      device_auth_owner_device_projection: {
+        Args: { p_device_id: string }
+        Returns: Json
+      }
       device_scopes_are_canonical: {
         Args: { value: string[] }
         Returns: boolean
@@ -4151,6 +5050,20 @@ export type Database = {
           state: string
         }[]
       }
+      register_my_device_legacy_pre_cutover: {
+        Args: {
+          p_connector_version: string
+          p_display_name: string
+          p_locale?: string
+          p_platform: string
+        }
+        Returns: {
+          issued_at: string
+          public_id: string
+          revision: number
+          state: string
+        }[]
+      }
       require_operator_principal: {
         Args: { required_role: string }
         Returns: {
@@ -4221,6 +5134,15 @@ export type Database = {
           state: string
         }[]
       }
+      revoke_my_device_legacy_pre_cutover: {
+        Args: { p_device_public_id: string; p_expected_revision: number }
+        Returns: {
+          public_id: string
+          revision: number
+          revoked_at: string
+          state: string
+        }[]
+      }
       rotate_device_token: {
         Args: {
           p_account_id: string
@@ -4233,6 +5155,14 @@ export type Database = {
         Returns: string
       }
       rotate_my_device: {
+        Args: { p_device_public_id: string; p_expected_revision: number }
+        Returns: {
+          public_id: string
+          revision: number
+          state: string
+        }[]
+      }
+      rotate_my_device_legacy_pre_cutover: {
         Args: { p_device_public_id: string; p_expected_revision: number }
         Returns: {
           public_id: string
