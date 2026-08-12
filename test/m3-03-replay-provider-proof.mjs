@@ -26,7 +26,7 @@ import {
 
 const root = resolve(import.meta.dirname, '..');
 const fixtureDir = join(root, 'test', 'fixtures', 'm3-03-replay-provider-proof');
-const wrangler = join(root, 'apps', 'web', 'node_modules', '.bin', 'wrangler');
+const wrangler = join(root, 'apps', 'web', 'node_modules', 'wrangler', 'bin', 'wrangler.js');
 
 const b64 = (value) => Buffer.from(value).toString('base64url');
 const key = (byte) => Buffer.alloc(32, byte);
@@ -212,7 +212,7 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
   const port = 18000 + Math.floor(Math.random() * 1000);
   const env = { ...process.env };
   for (const name of ['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_KEY', 'CLOUDFLARE_EMAIL', 'SUPABASE_ACCESS_TOKEN', 'SUPABASE_SERVICE_ROLE_KEY']) delete env[name];
-  const child = spawn(wrangler, ['dev', '--local', '--no-bundle', '--config', configPath, '--persist-to', join(temp, 'persist'), '--port', String(port)], {
+  const child = spawn(process.execPath, [wrangler, 'dev', '--local', '--no-bundle', '--config', configPath, '--persist-to', join(temp, 'persist'), '--port', String(port)], {
     cwd: tempFixtureDir, env, stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stdout = '';
@@ -253,7 +253,11 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     const getContentLength = rawCurl(port, '/proof/binding', { headers: ['content-length: 1', 'x-skillmap-replay-raw-target: /proof/binding'], body: 'x' });
     assert.equal(getContentLength.status, 400);
     assert.deepEqual(getContentLength.body, { error: 'invalid_request' });
-    const getChunked = rawCurl(port, '/proof/binding', { headers: ['transfer-encoding: chunked', 'x-skillmap-replay-raw-target: /proof/binding'] });
+    // Give curl an explicit empty upload so it writes the terminating zero-size
+    // chunk. A bare Transfer-Encoding header can leave Workerd waiting for a
+    // request body until the client-side timeout instead of exercising the
+    // intended fail-closed request validation.
+    const getChunked = rawCurl(port, '/proof/binding', { headers: ['transfer-encoding: chunked', 'x-skillmap-replay-raw-target: /proof/binding'], body: '' });
     assert.equal(getChunked.status, 400);
     assert.deepEqual(getChunked.body, { error: 'invalid_request' });
 
@@ -317,7 +321,7 @@ test('wrangler dry-run config remains local and does not contact a provider', ()
   copyFileSync(join(fixtureDir, 'worker.mjs'), join(tempFixtureDir, 'worker.mjs'));
   copyFileSync(join(fixtureDir, 'wrangler.jsonc'), configPath);
   try {
-    const result = spawnSync(wrangler, ['deploy', '--dry-run', '--config', configPath], { cwd: tempFixtureDir, env, encoding: 'utf8', timeout: 30000 });
+    const result = spawnSync(process.execPath, [wrangler, 'deploy', '--dry-run', '--config', configPath], { cwd: tempFixtureDir, env, encoding: 'utf8', timeout: 30000 });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /Uploading|Deployed|https:\/\/api\.cloudflare\.com/i);
   } finally {

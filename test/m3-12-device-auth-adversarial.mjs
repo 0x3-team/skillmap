@@ -4,6 +4,7 @@ import { readFileSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'n
 import { register } from 'node:module';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { buildProofPreimageV2, computeSha256, DEVICE_AUTH_AUDIENCE_V1, DEVICE_AUTH_SUITE_V2 } from '../dist/contracts/device-auth.js';
 import { DeviceAuthClient, DeviceAuthError } from '../dist/network/device-auth-client.js';
 import { InMemoryCredentialStore } from '../dist/platform/credential-store.js';
@@ -33,7 +34,7 @@ const NOW = Math.floor(Date.now() / 1000);
 const serverOnlyLoader = join(root, '.tmp/m3-12-device-auth/server-only-loader.mjs');
 mkdirSync(resolve(serverOnlyLoader, '..'), { recursive: true });
 writeFileSync(serverOnlyLoader, 'export { resolve, load } from "../../test/support/node-typescript-loader.mjs";\n', { mode: 0o600 });
-register(serverOnlyLoader, import.meta.url);
+register(pathToFileURL(serverOnlyLoader), import.meta.url);
 const { validateProofEnvelope } = await import('../apps/web/lib/device-auth/poll-exchange-service.server.ts');
 
 async function makeClient(fetchFn = async () => new Response('{}', { status: 500 }), options = {}) {

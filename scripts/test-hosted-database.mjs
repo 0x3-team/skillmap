@@ -161,14 +161,14 @@ function assertFloorFixtures() {
 function assertLegacyState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
   assertEqual(version, LEGACY_FLOOR, 'legacy migration floor');
-  assertEqual(query("select coalesce(to_regclass('private.device_auth_pairing_sessions')::text, 'absent')"), 'absent', 'legacy device-auth pairing table');
+  assertEqual(query("select coalesce(to_regclass('private.device_auth_pairings')::text, 'absent')"), 'absent', 'legacy device-auth pairing table');
   assertEqual(query("select coalesce(to_regclass('private.device_auth_authority_control')::text, 'absent')"), 'absent', 'legacy authority control');
 }
 
 function assertPreCutoverState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
   assertEqual(version, PRE_CUTOVER_FLOOR, 'pre-cutover migration floor');
-  assertEqual(query("select coalesce(to_regclass('private.device_auth_pairing_sessions')::text, 'absent')"), 'private.device_auth_pairing_sessions', 'pre-cutover device-auth pairing table');
+  assertEqual(query("select coalesce(to_regclass('private.device_auth_pairings')::text, 'absent')"), 'private.device_auth_pairings', 'pre-cutover device-auth pairing table');
   assertEqual(query("select coalesce(to_regclass('private.device_auth_authority_control')::text, 'absent')"), 'absent', 'pre-cutover authority control');
 }
 
