@@ -268,11 +268,16 @@ test('route safety avoids weak aliases and protected skills unless specific', ()
   assert.equal(explicitReverse.decision.recommendations[0].displayName, 'reverse-engineering');
 });
 
-test('graph build query and explain expose skill relationships', () => {
+test('graph build preserves an approved current route and accepts a prompt after --trace', () => {
   const cwd = tempProject();
   prepareCanonicalFixture(cwd);
   const built = JSON.parse(run(['graph', 'build', '--json'], cwd));
   assert.ok(built.graph.nodes.length > 0);
+  assert.equal(built.revision.lastKnownGoodUpdated, true);
+  const traced = JSON.parse(run(['route', '--trace', 'make this dashboard calmer and verify mobile', '--json'], cwd));
+  assert.equal(traced.result.decision.servingMode, 'current');
+  assert.equal(traced.result.decision.warningCodes.includes('serving-last-known-good'), false);
+  assert.match(traced.trace, /frontend-design/);
   const query = JSON.parse(run(['graph', 'query', 'frontend', '--json'], cwd));
   assert.ok(query.nodes.length > 0);
   const explain = run(['graph', 'explain', 'frontend'], cwd);

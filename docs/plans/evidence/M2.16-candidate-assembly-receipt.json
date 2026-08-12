@@ -1,0 +1,101 @@
+{
+  "$schema": "skillmap.m2.16.done-claim/v1",
+  "slice": "candidate-assembly",
+  "phase": "M2.16-A",
+  "status": "DONE_REPAIR_VERIFIED",
+  "base_commit": "cb062dd35de76cc3b40c1d004a13b50663cc1aa6",
+  "base_tree": "b3126f7ff4a5972aee2ff6bb29668e069a719c9c",
+  "binding_anchor": {
+    "kind": "external-non-circular",
+    "base_commit": "cb062dd35de76cc3b40c1d004a13b50663cc1aa6",
+    "base_tree": "b3126f7ff4a5972aee2ff6bb29668e069a719c9c",
+    "explanation": "Bound to the fixed parent commit + tree and the preserved source working-tree NUL-status digest. Candidate commit/tree hashes are deliberately omitted here: including them would make this receipt self-referential (the receipt is itself part of the candidate commit it would name), which Sol audit reason 3 rejected. They are recorded externally by Orca/the final checkpoint via git rev-parse HEAD after the amend — never fabricated inside this receipt."
+  },
+  "candidate_branch": "Masih-0x3/m2-16-candidate-exact",
+  "candidate_worktree": "/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate",
+  "source_status_sha256_before": "489c4be3881f0d0d6a1a0eae472d78d0a7c22fd13ecde33e6611771fcdab1276",
+  "source_status_sha256_after": "489c4be3881f0d0d6a1a0eae472d78d0a7c22fd13ecde33e6611771fcdab1276",
+  "source_unchanged": true,
+  "duplicate_suffix_files_unchanged": true,
+  "included_path_count": 71,
+  "excluded_dirty_path_count": 2,
+  "baseline_mapping_sha256": "364b6dc0dd206e764e594f00b7be626306baca0988188b0e66b8c32e859c0d16",
+  "manifest_sha256": "ed826e747c69a6daf81965d76f9a9de27d37979b54dad25e8f06a15b883632c9",
+  "manifest_sha256_method": "Non-circular manifest digest: SHA-256 of the accepted-path manifest serialized as canonical JSON (sort_keys=True, separators=(',' ,':'), ensure_ascii=False) with the manifest_sha256 key omitted. Omitting manifest_sha256 avoids self-reference: the digest is a pure function of the manifest content fields only. It is intentionally not a raw whole-file SHA-256, because a file cannot truthfully record its own full-file hash without a fixed point. This exact digest is recorded identically in the manifest itself.",
+  "migration_rerun": {
+    "method": "supabase CLI (v2.110.0) migration list + db push --dry-run run from candidate cwd against linked remote ref nciathykwjlrkikzyirv",
+    "local_baseline_count": 15,
+    "remote_matched_baseline_count": 15,
+    "local_only_pending_count": 12,
+    "pending_migrations": [
+      "20260727060200",
+      "20260727060300",
+      "20260727060400",
+      "20260727060500",
+      "20260727060600",
+      "20260727060700",
+      "20260727060800",
+      "20260727060900",
+      "20260727061000",
+      "20260727061100",
+      "20260727061200",
+      "20260727061300"
+    ],
+    "dry_run_exit_code": 0,
+    "dry_run_json": {
+      "upToDate": false,
+      "dryRun": true,
+      "migrations": 12,
+      "seeds": [],
+      "roles": []
+    },
+    "remote_mutation": false,
+    "command_guard": "db push --dry-run reports 'migrations will *not* be pushed'; no apply performed."
+  },
+  "gates_status": {
+    "root_typecheck": "PASS (exit 0)",
+    "web_typecheck": "PASS (exit 0) after installing source @opennextjs/cloudflare, supabase, wrangler web deps",
+    "worker_typecheck": "PASS (exit 0)",
+    "contracts": "PASS 37/37 (generate-contracts --check exit 0)",
+    "hosted_boundaries": "PASS 42/42",
+    "ui_truth": "PASS",
+    "release_truth_consistency": "PASS 7/7",
+    "worker_syntax": "PASS (node --check all src/*.mjs exit 0)",
+    "web_eslint": "scoped PASS: 0 errors across non-generated changed paths (warnings allowed); 2 generated bundle files excluded as accepted source artifacts (byte-identical to source); rate-limit.ts warnings-only; full-tree eslint is outside the accepted scoped gate and was not re-run",
+    "db_reset_local": "PASS (matching clean_db_reset_local PASS all 27 migrations applied in order)",
+    "db_lint": "PASS zero findings (exit 0)",
+    "full_pgtap": "PASS Files=23 Tests=1558 Result=PASS",
+    "clean_db_reset_local": "PASS all 27 migrations applied in order (exit 0)"
+  },
+  "diff_check": "normalized_M2.16_hard_breaks_and_sql_comment_spaces; full diff --check verified in candidate before amend",
+  "remote_writes": false,
+  "open_failures": [],
+  "next_safe_action": "SOL_INDEPENDENT_CANDIDATE_REVIEW",
+  "coordinator_authorized_prerequisite": {
+    "path": "supabase/config.toml",
+    "source_sha256": "90c2df78c394733e80e5a2d2c52e984ddadcda26f7b39f3c59ef88b28cc46baf",
+    "reason": "[storage] enabled=true required for M2.06 private-storage bucket migration to apply on clean reset"
+  },
+  "database_validation": {
+    "clean_db_reset_local": "PASS_all_27",
+    "database_lint_warning_level": "PASS_zero_findings",
+    "full_pgtap": "PASS_23_files_1558_tests"
+  },
+  "excluded_dirty_path_count_note": "2 M2.07 non-disk message artifacts (M2.07-luna-review-r1.md / r2.md) remain transfer=excluded; NOT missing files (ledger M2.07-INDEPENDENT-ACCEPTANCE correction: standalone_review_files_removed=true).",
+  "included_path_count_definition": "Accepted transfer paths copied into the candidate with transfer=copy: 71 = 67 accepted M0.01/M2.01-M2.15 artifacts (incl. supabase/config.toml coordinator prerequisite) + 4 predecessor package/lock files (package.json, package-lock.json, apps/web/package.json, apps/web/package-lock.json). This excludes the 15 baseline_remote_migrations (recorded under baseline_mapping) and the 2 excluded M2.07 non-disk message artifacts.",
+  "baseline_mapping_sha256_method": "Non-circular canonical digest of the 15-row baseline_mapping: SHA-256 of the object {_definition, rows:[15]} serialized as canonical JSON (json.dumps sort_keys=True, separators=(',',':'), ensure_ascii=False); no self-referential digest key, so it is a pure function of the mapping content. Recorded identically in the manifest and the assembly receipt.",
+  "coverage_summary": {
+    "_definition": "Exact machine-readable coverage of `git diff --name-only HEAD^ HEAD` (103 paths). Every changed path must be authorized by exactly one accepted bucket and no path may be unauthorized/extra. The 2 M2.07 non-disk message artifacts are transfer=excluded transfers and are NOT changed paths, so they are not counted as missing files.",
+    "diff_total_paths": 103,
+    "accepted_copy_paths": 67,
+    "package_file_paths": 4,
+    "predecessor_closure_paths": 15,
+    "baseline_remote_migrations": 15,
+    "m2_16_evidence_paths": 2,
+    "authorized_union": 103,
+    "unauthorized_extra_paths": 0,
+    "coverage_exact": true,
+    "excluded_nondisk_message_artifacts": 2,
+    "excluded_transfer_definition": "M2.07-luna-review-r1.md and M2.07-luna-review-r2.md are in-band message artifacts recorded in the M2.07 acceptance transfer list (ledger row M2.07-INDEPENDENT-ACCEPTANCE correction records standalone_review_files_removed=true); they are not on-disk candidate files, remain transfer=excluded, and are NOT treated as missing."
+  }
+}

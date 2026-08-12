@@ -1,0 +1,84 @@
+{
+  "$schema": "skillmap.m3.device-auth-emitted-runtime-fix-receipt/v1",
+  "status": "IMPLEMENTATION_CANDIDATE",
+  "scope": "Wire the M3 validation scripts and make strict DeviceAuth request failures return the same closed invalid_request response in source and the emitted OpenNext Worker",
+  "supersedes": {
+    "receipt": "docs/plans/evidence/M3-functional-cutover-implementation-receipt.json",
+    "old_receipt_sha256": "150f8cf5d4a226ae3b342a0f1f46c2c515cd4de2f1d0eca4efac6040184d242d",
+    "boundary": "Only package-script wiring and the emitted DeviceAuth request-error response path are superseded. Migration, schema, cutover, replay-provider, and live-acceptance claims remain unchanged."
+  },
+  "candidate": {
+    "worktree": "/Users/stevmq/orca/workspaces/skillmap/m3-alpha-integration",
+    "branch": "codex/m3-alpha-integration-20260812",
+    "base_head": "80c94d09d5494729a04555e12b3355b0401a1f84",
+    "dirty_main_touched": false
+  },
+  "artifacts": [
+    {
+      "path": ".gitignore",
+      "sha256": "431ecde61d3bb6f454999b76993f7d9bcc456453f9604c39513fd76e04597a8f"
+    },
+    {
+      "path": "package.json",
+      "sha256": "b5ea97070f8b7886870b41f32b1b76d33ed5840eb5adb94b8b5a5392ccad4e30"
+    },
+    {
+      "path": "apps/web/package.json",
+      "sha256": "7e25e685d36e015c48a63f7c74092b5fa08ba58a5fa782b1de40301f7f949217"
+    },
+    {
+      "path": "apps/web/lib/device-auth/response.server.ts",
+      "sha256": "40074259e45ff2fc00ea860ef1aa2af9551842202bd604109563bd153e1cca1f"
+    },
+    {
+      "path": "apps/web/app/api/device-auth/v1/devices/[devicePublicId]/rotate/route.ts",
+      "sha256": "e5c1750d3216010f072a6131a5349efc890161de2a61f69d43cba486f4c55d37"
+    },
+    {
+      "path": "apps/web/tests/device-auth.test.mjs",
+      "sha256": "f374273ab75da230945a79d1485471c08e9299efd9493daf5f99ecbe0ee070cc"
+    },
+    {
+      "path": "apps/web/scripts/device-auth-worker-smoke.mjs",
+      "sha256": "57fbca1590b865b45995528baa8cf04cf32dba16fefce93cfd9a121623210823"
+    },
+    {
+      "path": "apps/web/tests/register-device-auth-loader.mjs",
+      "sha256": "1aaa383dca91bb17a93103b586ca023a2eae01be3fd0e465f5a0532fa4f7762e"
+    },
+    {
+      "path": "scripts/m3-03-dp-keychain-no-profile-capability.mjs",
+      "sha256": "bc6adb9a6e48bb15edd09ba1ac81b5848b3b0be51ed2a6130669ad4a6946755c"
+    },
+    {
+      "path": "test/m3-03-dp-keychain-no-profile-capability.mjs",
+      "sha256": "b2863a546ad7aae02b0477c3eeca0e4ce1191d1a5893c3ab21c7863882760f73"
+    },
+    {
+      "path": "test/m3-cutover-provenance.mjs",
+      "sha256": "cf738683652d6a47a072b16b76f18d9b1035e3d11f6baf40bf30637950d55572"
+    }
+  ],
+  "validation": {
+    "npm run test:device-auth": "PASS 79/79",
+    "npm run test:device-auth:adversarial": "PASS matrix 3/3 and native hardening 5/5",
+    "npm --prefix apps/web run test:device-auth": "PASS 75/75",
+    "npm run test:m3-01": "PASS 6/6",
+    "npm run test:device-auth:macos": "PASS 8/8",
+    "npm run typecheck": "PASS",
+    "npm --prefix apps/web run lint": "PASS with zero errors and nine pre-existing warnings",
+    "npm test": "PASS 612/612 on the exact final source and test artifact bytes",
+    "emitted_open_next_workerd_smoke": "PASS 4/4 with zero provider requests and zero retained Wrangler or Workerd state",
+    "git diff --check": "PASS",
+    "independent_review": "ACCEPT — final read-only review found no implementation or provenance defect after the additive test-residue correction"
+  },
+  "claims": {
+    "validated_locally": true,
+    "live_verified": false,
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "provider_mutated": false,
+    "ledger_mutated": false
+  }
+}

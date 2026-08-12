@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   AuthApiError,
@@ -67,6 +67,7 @@ import {
   getPublicSupabaseConfig,
   getSiteUrl
 } from "../lib/supabase/config.ts";
+import { assertHostedReleaseConfiguration } from "../scripts/check-hosted-release-config.mts";
 import {
   SavedSkillsCursorError,
   canonicalizeUtcTimestamp,
@@ -101,15 +102,84 @@ import {
 } from "../lib/security/policy.ts";
 import { classifyPublicCatalogFailure } from "../lib/security/public-catalog-errors.ts";
 import {
+  applyRetryAfterHeader,
+  getDeviceAuthSourceIdentity,
   InMemoryFixedWindowRateLimiter,
   applyRateLimitHeaders,
+  getAnonymousClientIdentity,
   getAnonymousClientKey,
+  isValidIpAddress,
   isPublicCatalogApiPath,
-  isPublicCatalogReadRequest
+  isPublicCatalogReadRequest,
+  isPublicDeviceAuthInitiationRequest,
+  PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY
 } from "../lib/security/rate-limit.ts";
+import { gateDeviceAuthRequest } from "../cloudflare/device-auth-edge-gate.ts";
+import {
+  HOSTED_API_ERROR_SCHEMA_ID,
+  validateHostedApiErrorResponse
+} from "../lib/contracts/generated/hosted-api-response-validator.ts";
+import { createHostedApiErrorPayload } from "../lib/contracts/hosted-api-response.ts";
 
 const APP_ORIGIN = "https://skillmap.invalid";
 const SKILL_ID = `skl_${"0".repeat(31)}1`;
+
+test("Next 16 hosted request boundary has one Edge middleware surface and preserves API protection", async () => {
+  const proxyUrl = new URL("../proxy.ts", import.meta.url);
+  const middlewareUrl = new URL("../middleware.ts", import.meta.url);
+  await assert.rejects(() => access(proxyUrl), /ENOENT/);
+  const middleware = await readFile(middlewareUrl, "utf8");
+  assert.match(middleware, /export async function middleware\(request: NextRequest\)/);
+  assert.doesNotMatch(middleware, /export\s+(?:async\s+)?function\s+proxy\b/);
+  assert.match(
+    middleware,
+    /matcher:\s*\["\/\(\(\?!_next\/static\|_next\/image\|favicon\.ico\|\.\*\\\\\.\(\?:svg\|png\|jpg\|jpeg\|gif\|webp\)\$\)\.\*\)"\]/
+  );
+  assert.match(middleware, /catalogError\(\s*429,\s*"RATE_LIMITED",\s*"Too many catalog requests\. Try again shortly\.",\s*true\s*\)/s);
+  assert.doesNotMatch(middleware, /NextResponse\.json\(/);
+  assert.match(middleware, /applyRateLimitHeaders\(response, decision\)/);
+  assert.match(middleware, /applyRetryAfterHeader\(response, decision\)/);
+  assert.match(middleware, /Cache-Control.*private, no-store, max-age=0/);
+  assert.match(middleware, /createServerClient<Database>/);
+  assert.match(middleware, /supabase\.auth\.getClaims\(\)/);
+  assert.match(middleware, /buildContentSecurityPolicy/);
+  assert.match(middleware, /buildResponseSecurityHeaders/);
+  assert.match(middleware, /crypto\.subtle\.digest/);
+  assert.match(middleware, /rate-limit-core/);
+  assert.match(middleware, /isPublicDeviceAuthInitiationRequest/);
+  assert.match(middleware, /readDeviceAuthEdgeDecision/);
+  assert.doesNotMatch(middleware, /publicDeviceAuthInitiationLimiter/);
+  assert.ok(
+    middleware.indexOf("readDeviceAuthEdgeDecision(request.headers)")
+      < middleware.indexOf("let response = createPassthroughResponse(request, nonce, contentSecurityPolicy)"),
+    "the edge source decision must be read before the request reaches the downstream route"
+  );
+  assert.match(middleware, /createHostedApiErrorPayload/);
+  assert.doesNotMatch(middleware, /@\/lib\/registry\/api\.server/);
+  assert.doesNotMatch(middleware, /node:(?:crypto|net)|Ajv2020|new Function|\beval\s*\(/);
+  assert.doesNotMatch(middleware, /(?:writeFile|mkdir|rename|unlink|rmSync|execFile|spawn)\s*\(/);
+  const workerEntry = await readFile(new URL("../cloudflare-worker.ts", import.meta.url), "utf8");
+  assert.match(workerEntry, /gateDeviceAuthRequest/);
+  assert.match(workerEntry, /export \{ DeviceAuthIpRateLimiter \}/);
+  const wrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  assert.match(wrangler, /"main":\s*"cloudflare-worker\.ts"/);
+  assert.match(wrangler, /"DEVICE_AUTH_IP_RATE_LIMITER"/);
+  assert.match(wrangler, /"new_sqlite_classes":\s*\["DeviceAuthIpRateLimiter"\]/);
+});
+
+test("hosted runtime disables the unused Next image optimizer", async () => {
+  const config = await readFile(new URL("../next.config.mjs", import.meta.url), "utf8");
+  assert.match(config, /images:\s*\{\s*[\s\S]*?unoptimized:\s*true\s*[\s\S]*?\}/);
+
+  const sourceUrls = [
+    ...await collectTsxFiles(new URL("../app/", import.meta.url)),
+    ...await collectTsxFiles(new URL("../components/", import.meta.url))
+  ];
+  for (const sourceUrl of sourceUrls) {
+    const source = await readFile(sourceUrl, "utf8");
+    assert.doesNotMatch(source, /(?:from\s+|import\s*\()['"]next\/image['"]/, `${sourceUrl.pathname} re-enables the disabled optimizer boundary`);
+  }
+});
 
 test("streaming fallback announces without creating a second main landmark", async () => {
   const source = await readFile(new URL("../app/loading.tsx", import.meta.url), "utf8");
@@ -151,13 +221,15 @@ test("hosted home exposes a truthful account control below the sm breakpoint", a
   const unavailableOpening = source.match(/<span data-account-control="unavailable"[^>]*>/)?.[0];
   const accountOpening = source.match(/<Link data-account-control=\{accountState\}[^>]*>/)?.[0];
   assert.ok(unavailableOpening, "Hosted home omitted its unavailable account state.");
+  assert.match(unavailableOpening, /role="status"/);
+  assert.match(unavailableOpening, /aria-live="polite"/);
   assert.ok(accountOpening, "Hosted home omitted its direct account or sign-in action.");
   assert.match(unavailableOpening, /className="inline-flex/);
   assert.doesNotMatch(unavailableOpening, /className="[^"]*\bhidden\b/);
   assert.match(accountOpening, /className="inline-flex/);
   assert.doesNotMatch(accountOpening, /className="[^"]*\bhidden\b/);
   assert.match(source, /accountState === "authenticated" \? "Account" : "Sign in"/);
-  assert.match(source, /<span className="sm:hidden">Unavailable<\/span>/);
+  assert.match(source, />Account unavailable<\/span>/);
 });
 
 test("public catalog, privacy, and security pages publish route-specific metadata", async () => {
@@ -363,7 +435,9 @@ test("hosted product surfaces expose truthful trust, route, auth, and semantic e
   assert.match(evidence, /<details/);
   assert.match(evidence, /Show machine \{title\}/);
   assert.match(header, /resolveHostedAccountState/);
-  assert.match(header, /Account status unavailable/);
+  assert.match(header, /Account unavailable/);
+  assert.match(header, /role="status"/);
+  assert.match(header, /aria-live="polite"/);
   assert.match(landing, /accountState === "authenticated" \? "Account" : "Sign in"/);
   assert.match(landing, /Listings without current receipts remain visibly not run, not tested, and ungraded/);
   assert.doesNotMatch(landing, /Current seeds remain/i);
@@ -439,6 +513,106 @@ test("saved-skill and account-deletion flashes are exact same-browser receipts",
   assert.deepEqual(parseAccountDeletionFlash(serializedDeletion, token), deletionFlash);
   assert.equal(parseAccountDeletionFlash(serializedDeletion, "223e4567-e89b-42d3-a456-426614174000"), null);
   assert.equal(parseAccountDeletionFlash(JSON.stringify({ ...deletionFlash, forged: true }), token), null);
+});
+
+test("report and account deletion flash cookies depend on the shared siteOriginUsesHttps contract", async () => {
+  const [reportActionsSource, accountActionSource] = await Promise.all([
+    readFile(new URL("../app/skills/[publisher]/[slug]/report-actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/data-actions.ts", import.meta.url), "utf8")
+  ]);
+
+  const reportWriter = parseCookieBoundary(reportActionsSource, "REPORT_FLASH_COOKIE");
+  const deleteWriter = parseCookieBoundary(accountActionSource, "ACCOUNT_DELETION_FLASH_COOKIE");
+  const reportSecureIdentifier = extractSecureDecisionIdentifier(reportActionsSource, reportWriter.secure);
+  const accountSecureIdentifier = extractSecureDecisionIdentifier(accountActionSource, deleteWriter.secure);
+
+  assert.equal(reportWriter.httpOnly, true);
+  assert.equal(reportWriter.sameSite, "strict");
+  assert.equal(reportWriter.maxAge, 120);
+  assert.equal(reportWriter.path, "flash.returnPath");
+  assert.equal(reportWriter.secure, reportSecureIdentifier);
+
+  assert.equal(deleteWriter.httpOnly, true);
+  assert.equal(deleteWriter.sameSite, "strict");
+  assert.equal(deleteWriter.maxAge, 120);
+  assert.equal(deleteWriter.path, '"/sign-in"');
+  assert.equal(deleteWriter.secure, accountSecureIdentifier);
+
+  assert.match(reportActionsSource, /from ["']@\/lib\/supabase\/config["']/);
+  assert.match(accountActionSource, /from ["']@\/lib\/supabase\/config["']/);
+  assert.match(reportActionsSource, /siteOriginUsesHttps/);
+  assert.match(accountActionSource, /siteOriginUsesHttps/);
+  assert.match(reportActionsSource, new RegExp(`const\\s+${escapeRegExp(reportSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\s*\\(`));
+  assert.match(accountActionSource, new RegExp(`const\\s+${escapeRegExp(accountSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\s*\\(`));
+  assert.match(reportActionsSource, new RegExp(`secure:\\s*${escapeRegExp(reportSecureIdentifier)}\\b`));
+  assert.match(accountActionSource, new RegExp(`secure:\\s*${escapeRegExp(accountSecureIdentifier)}\\b`));
+  assert.equal(reportActionsSource.includes("function publicOriginUsesHttps"), false);
+  assert.equal(accountActionSource.includes("function publicOriginUsesHttps"), false);
+  assert.match(
+    reportActionsSource,
+    new RegExp(`const\\s+${escapeRegExp(reportSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\(\\)`)
+  );
+  assert.match(
+    accountActionSource,
+    new RegExp(`const\\s+${escapeRegExp(accountSecureIdentifier)}\\s*=\\s*siteOriginUsesHttps\\(\\)`)
+  );
+
+  const configModule = await import("../lib/supabase/config.ts");
+  const siteOriginUsesHttps = configModule.siteOriginUsesHttps;
+  if (typeof siteOriginUsesHttps !== "function") {
+    assert.fail("lib/supabase/config.ts must export siteOriginUsesHttps for hosted boundary enforcement");
+  }
+
+  const contractCases = [
+    {
+      description: "valid hosted HTTPS",
+      env: { NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "https://skillmap.invalid" },
+      expectation: true
+    },
+    {
+      description: "valid loopback local use",
+      env: { NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000" },
+      expectation: false
+    },
+    {
+      description: "missing production origin",
+      env: { NODE_ENV: "production" },
+      expectation: SupabaseConfigurationError
+    },
+    {
+      description: "malformed production origin",
+      env: { NODE_ENV: "production", NEXT_PUBLIC_SITE_URL: "https://skillmap.invalid/app" },
+      expectation: SupabaseConfigurationError
+    }
+  ];
+  for (const { description, env, expectation } of contractCases) {
+    if (expectation === SupabaseConfigurationError) {
+      assert.throws(() => siteOriginUsesHttps(env), expectation, description);
+    } else {
+      assert.equal(siteOriginUsesHttps(env), expectation, description);
+    }
+  }
+
+  const reportDecision = extractSecureDecisionDeclaration(reportActionsSource, reportSecureIdentifier);
+  const accountDecision = extractSecureDecisionDeclaration(accountActionSource, accountSecureIdentifier);
+  const reportProgressiveStart = reportActionsSource.indexOf("export async function reportSuspiciousListingProgressive");
+  const reportProgressiveMutation = reportActionsSource.indexOf(
+    "const result = await reportSuspiciousListing(formData)",
+    reportProgressiveStart
+  );
+  const hasExactConfirmationIndex = accountActionSource.indexOf("hasExactAccountDeletionConfirmation(formData)");
+  const deletionContextIndex = accountActionSource.indexOf("deletionActionContext()");
+  const deleteRpcIndex = accountActionSource.indexOf("delete_my_account");
+  const signOutIndex = accountActionSource.indexOf("context.supabase.auth.signOut");
+
+  assert.equal(reportProgressiveStart >= 0, true, "reportSuspiciousListingProgressive must exist");
+  assert.equal(reportProgressiveMutation >= 0, true, "reportSuspiciousListingProgressive must await reportSuspiciousListing");
+  assert.equal(reportDecision > reportProgressiveStart, true, "report secure decision must be inside reportSuspiciousListingProgressive");
+  assert.equal(reportDecision < reportProgressiveMutation, true, "report secure decision must be evaluated before report mutation");
+  assert.equal(hasExactConfirmationIndex < accountDecision, true, "account secure decision must be evaluated after exact confirmation");
+  assert.equal(accountDecision < deletionContextIndex, true, "account secure decision must be evaluated before creating the authenticated context");
+  assert.equal(accountDecision < deleteRpcIndex, true, "account secure decision must be evaluated before delete mutation");
+  assert.equal(accountDecision < signOutIndex, true, "account secure decision must be evaluated before sign-out");
 });
 
 test("account submission mutation and export stay owner-filtered and bounded", async () => {
@@ -767,6 +941,118 @@ test("production Supabase and site configuration accepts HTTPS origins only", ()
   });
 });
 
+test("hosted build configuration fails closed and local candidates retain an explicit metadata base", async () => {
+  assert.deepEqual(assertHostedReleaseConfiguration({ NODE_ENV: "production" }), {
+    releaseStage: "local-candidate",
+    hosted: false
+  });
+
+  const privateAlpha = {
+    NODE_ENV: "production",
+    SKILLMAP_RELEASE_STAGE: "private-alpha",
+    NEXT_PUBLIC_SITE_URL: "https://skillmap.example",
+    NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key"
+  };
+  assert.deepEqual(assertHostedReleaseConfiguration(privateAlpha), {
+    releaseStage: "private-alpha",
+    hosted: true
+  });
+
+  assert.throws(
+    () => assertHostedReleaseConfiguration({ ...privateAlpha, NEXT_PUBLIC_SITE_URL: undefined }),
+    SupabaseConfigurationError
+  );
+  assert.throws(
+    () => assertHostedReleaseConfiguration({
+      ...privateAlpha,
+      SKILLMAP_RELEASE_STAGE: "public-alpha",
+      SKILLMAP_SUPPORT_URL: "http://support.example/skillmap"
+    }),
+    /SKILLMAP_SUPPORT_URL/
+  );
+  assert.throws(
+    () => assertHostedReleaseConfiguration({ ...privateAlpha, SKILLMAP_RELEASE_STAGE: "private-alpha " }),
+    /SKILLMAP_RELEASE_STAGE/
+  );
+  assert.throws(
+    () => assertHostedReleaseConfiguration({
+      ...privateAlpha,
+      SKILLMAP_RELEASE_STAGE: "public-alpha",
+      SKILLMAP_SUPPORT_URL: "https://support.example/skillmap"
+    }),
+    /SKILLMAP_INDEXING_MODE=public/
+  );
+  assert.deepEqual(
+    assertHostedReleaseConfiguration({
+      ...privateAlpha,
+      SKILLMAP_RELEASE_STAGE: "public-alpha",
+      SKILLMAP_SUPPORT_URL: "https://support.example/skillmap",
+      SKILLMAP_INDEXING_MODE: "public"
+    }),
+    { releaseStage: "public-alpha", hosted: true }
+  );
+
+  const wrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  assert.doesNotMatch(wrangler, /["']SUPABASE_SERVICE_ROLE_KEY["']\s*:/);
+  assert.match(wrangler, /encrypted Worker secret/);
+
+  const [metadata, layout] = await Promise.all([
+    readFile(new URL("../lib/metadata.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8")
+  ]);
+  assert.match(metadata, /!isHostedReleaseStage\(getReleaseStage\(environment\)\)/);
+  assert.match(metadata, /LOCAL_CANDIDATE_METADATA_BASE/);
+  assert.match(metadata, /return getOptionalSiteUrl\(environment\) \?\? new URL\(LOCAL_CANDIDATE_METADATA_BASE\)/);
+  assert.match(layout, /metadataBase: getMetadataBase\(\)/);
+});
+
+test("hosted boundary scripts resolve to existing package-script callers and local helper imports", async () => {
+  const packageSource = await readFile(new URL("../package.json", import.meta.url), "utf8");
+  const packageJson = JSON.parse(packageSource);
+  const scripts = packageJson.scripts ?? {};
+
+  assert.equal(typeof scripts.build, "string");
+  assert.equal(typeof scripts["test:hosted-gates"], "string");
+  assert.equal(typeof scripts["test:hosted-api"], "string");
+  assert.equal(typeof scripts["test:hosted-auth"], "string");
+  assert.equal(typeof scripts["test:hosted-launch"], "string");
+  assert.equal(typeof scripts["test:hosted-frontend"], "string");
+
+  assert.match(scripts.build, /\bnode\s+--experimental-strip-types\s+scripts\/check-hosted-release-config\.mts\b/);
+  assert.match(scripts["test:hosted-gates"], /\bnode\s+scripts\/run-hosted-gates\.mjs\b/);
+  assert.match(scripts["test:hosted-api"], /\bnode\s+scripts\/hosted-api-smoke\.mjs\b/);
+  assert.match(scripts["test:hosted-auth"], /\bnode\s+scripts\/hosted-auth-browser-smoke\.mjs\b/);
+  assert.match(scripts["test:hosted-launch"], /\bnode\s+scripts\/launch-report-evidence-smoke\.mjs\b/);
+  assert.match(scripts["test:hosted-frontend"], /\bnode\s+scripts\/hosted-frontend-qa\.mjs\b/);
+
+  const [checkHostedReleaseConfig, localSupabase, runHostedGates, hostedApiSmoke, hostedAuthSmoke, hostedFrontendQa, launchReportSmoke] = await Promise.all([
+    readFile(new URL("../scripts/check-hosted-release-config.mts", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/local-supabase-psql.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/run-hosted-gates.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/hosted-api-smoke.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/hosted-auth-browser-smoke.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/hosted-frontend-qa.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/launch-report-evidence-smoke.mjs", import.meta.url), "utf8")
+  ]);
+
+  assert.match(checkHostedReleaseConfig, /\bassertHostedReleaseConfiguration\b/);
+  assert.match(localSupabase, /\bexecLocalPsql\b/);
+
+  for (const hostSmoke of [
+    "hosted-api-smoke.mjs",
+    "hosted-auth-browser-smoke.mjs",
+    "hosted-frontend-qa.mjs",
+    "launch-report-evidence-smoke.mjs"
+  ]) {
+    assert.match(runHostedGates, new RegExp(hostSmoke.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  for (const hostSmokeSource of [hostedApiSmoke, hostedAuthSmoke, hostedFrontendQa, launchReportSmoke]) {
+    assert.match(hostSmokeSource, /from ["']\.\/local-supabase-psql\.mjs["']/);
+  }
+});
+
 test("saved-skill cursors are exact, versioned, canonical, and account-free", () => {
   const cursor = encodeSavedSkillsCursor({
     savedAt: "2026-07-11T18:00:00.123456Z",
@@ -971,6 +1257,152 @@ test("catalog rate limiting covers API and server-rendered read paths only", () 
   assert.equal(isPublicCatalogApiPath("/skills"), false);
 });
 
+test("device-auth initiation source gate matches the public POST seam only", () => {
+  assert.equal(isPublicDeviceAuthInitiationRequest("/api/device-auth/v1/pairings", "POST"), true);
+  for (const [pathname, method] of [
+    ["/api/device-auth/v1/pairings", "GET"],
+    ["/api/device-auth/v1/pairings/", "POST"],
+    ["/api/device-auth/v1/pairings/poll", "POST"],
+    ["/api/v1/skills", "POST"]
+  ]) assert.equal(isPublicDeviceAuthInitiationRequest(pathname, method), false, `${method} ${pathname}`);
+});
+
+test("device-auth source identity trusts only CF-Connecting-IP", () => {
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({
+      "cf-connecting-ip": "203.0.113.10",
+      "x-forwarded-for": "198.51.100.20"
+    })),
+    "ip:203.0.113.10"
+  );
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({ "x-forwarded-for": "198.51.100.20" })),
+    "anonymous",
+    "a client-supplied forwarded header must not become the source identity"
+  );
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({
+      "cf-connecting-ip": "203.0.113.10, 198.51.100.20",
+      "x-forwarded-for": "198.51.100.20"
+    })),
+    "anonymous",
+    "a list-valued Cloudflare source header is not an authoritative address"
+  );
+  assert.equal(
+    getDeviceAuthSourceIdentity(new Headers({
+      "cf-connecting-ip": "not-an-ip",
+      "x-forwarded-for": "198.51.100.20"
+    })),
+    "anonymous"
+  );
+});
+
+test("device-auth source limiter has the frozen N/N+1 boundary", () => {
+  assert.deepEqual(PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY, {
+    limit: 5,
+    windowMs: 600_000,
+    maxEntries: 5_000
+  });
+  const limiter = new InMemoryFixedWindowRateLimiter(PUBLIC_DEVICE_AUTH_INITIATION_RATE_LIMIT_POLICY);
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const decision = limiter.consume("ip:203.0.113.10", 1000 + attempt);
+    assert.equal(decision.allowed, true, `attempt ${attempt} must pass`);
+    assert.equal(decision.remaining, 5 - attempt);
+  }
+  const denied = limiter.consume("ip:203.0.113.10", 2000);
+  assert.equal(denied.allowed, false);
+  assert.equal(denied.remaining, 0);
+  assert.equal(denied.retryAfterSeconds, 600);
+  assert.equal(limiter.consume("ip:198.51.100.20", 2000).allowed, true, "different source gets its own budget");
+  assert.equal(limiter.consume("ip:203.0.113.10", 601_002).allowed, true, "expired source window resets");
+});
+
+test("device-auth edge gate is fail-closed, strips caller headers, and passes only the DO decision", async () => {
+  const calls = [];
+  const binding = {
+    idFromName(name) {
+      calls.push(["id", name]);
+      return { id: name };
+    },
+    get(id) {
+      calls.push(["get", id.id]);
+      return {
+        async fetch(request) {
+          calls.push(["fetch", request]);
+          return new Response(JSON.stringify({
+            allowed: true,
+            limit: 5,
+            remaining: 4,
+            retryAfterSeconds: 0,
+            resetAfterSeconds: 600,
+            resetAt: 600_000
+          }), { status: 200 });
+        }
+      };
+    }
+  };
+  const result = await gateDeviceAuthRequest(
+    new Request("https://skillmap.invalid/api/device-auth/v1/pairings", {
+      method: "POST",
+      headers: {
+        "cf-connecting-ip": "203.0.113.10",
+        "x-forwarded-for": "198.51.100.20",
+        "x-skillmap-device-auth-edge-checked": "1"
+      }
+    }),
+    { DEVICE_AUTH_IP_RATE_LIMITER: binding, DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY: "test-ip-limit-secret-0123456789" },
+    { now: 0 }
+  );
+  assert.equal(result.response, undefined);
+  assert.equal(calls.length, 3);
+  assert.equal(result.request.headers.get("cf-connecting-ip"), null);
+  assert.equal(result.request.headers.get("x-forwarded-for"), null);
+  assert.equal(result.request.headers.get("x-skillmap-device-auth-edge-checked"), "1");
+  assert.equal(result.request.headers.get("x-skillmap-device-auth-remaining"), "4");
+});
+
+test("device-auth edge gate returns temporary unavailable without the shared binding", async () => {
+  const result = await gateDeviceAuthRequest(
+    new Request("https://skillmap.invalid/api/device-auth/v1/pairings", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.10" }
+    }),
+    { DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY: "test-ip-limit-secret-0123456789" }
+  );
+  assert.equal(result.response.status, 503);
+  assert.match(await result.response.text(), /temporarily_unavailable/);
+});
+
+test("device-auth edge gate returns the Durable Object denial as a public 429", async () => {
+  const result = await gateDeviceAuthRequest(
+    new Request("https://skillmap.invalid/api/device-auth/v1/pairings", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.10" }
+    }),
+    {
+      DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY: "test-ip-limit-secret-0123456789",
+      DEVICE_AUTH_IP_RATE_LIMITER: {
+        idFromName: () => ({ id: "test" }),
+        get: () => ({
+          fetch: async () => new Response(JSON.stringify({
+            allowed: false,
+            limit: 5,
+            remaining: 0,
+            retryAfterSeconds: 42,
+            resetAfterSeconds: 42,
+            resetAt: 42_000
+          }), { status: 200 })
+        })
+      }
+    }
+  );
+  assert.equal(result.request, undefined);
+  assert.equal(result.response.status, 429);
+  assert.equal(result.response.headers.get("retry-after"), "42");
+  assert.equal(result.response.headers.get("ratelimit-remaining"), "0");
+  assert.match(await result.response.text(), /rate_limited/);
+});
+
 test("anonymous rate limiting is bounded, resets deterministically, and emits bounded headers", () => {
   const limiter = new InMemoryFixedWindowRateLimiter({ limit: 2, windowMs: 1_000, maxEntries: 2 });
   assert.deepEqual(limiter.consume("client-a", 10), {
@@ -991,9 +1423,14 @@ test("anonymous rate limiting is bounded, resets deterministically, and emits bo
   assert.equal(limiter.consume("client-c", 1_041).allowed, true, "expired entries must be evicted");
 
   const response = applyRateLimitHeaders(new Response(null), limited);
+  applyRetryAfterHeader(response, limited);
   assert.equal(response.headers.get("ratelimit-limit"), "2");
   assert.equal(response.headers.get("ratelimit-remaining"), "0");
   assert.equal(response.headers.get("ratelimit-reset"), "1");
+  assert.equal(response.headers.get("retry-after"), "1");
+
+  limiter.reset();
+  assert.equal(limiter.consume("client-a", 60).remaining, 1, "reset must clear prior counts");
 
   for (const policy of [
     { limit: 0, windowMs: 1_000, maxEntries: 1 },
@@ -1025,6 +1462,55 @@ test("anonymous rate-limit identity prefers provider headers and never exposes r
   assert.equal(unknown, getAnonymousClientKey(new Headers()));
   assert.doesNotMatch(unknown, /203\.0\.113|PRIVATE-CANARY/);
   assert.match(unknown, /^[A-Za-z0-9_-]{43}$/);
+});
+
+test("Edge-safe rate-limit identity accepts canonical IPv4, IPv6, and mapped IPv6 while rejecting malformed values", () => {
+  for (const value of [
+    "203.0.113.10",
+    "2001:db8::1",
+    "::ffff:192.0.2.1",
+    "2001:db8:0:0:0:0:192.0.2.1"
+  ]) assert.equal(isValidIpAddress(value), true, value);
+  for (const value of [
+    "1:2:3:4:5:6:7:",
+    "1:2:3:4:5:6:7:8:",
+    "1:::2",
+    "1::2::3",
+    "1:2:3:4:5:6:7:8:9",
+    "::ffff:192.0.2.999",
+    "01.2.3.4",
+    "PRIVATE-CANARY"
+  ]) assert.equal(isValidIpAddress(value), false, value);
+
+  assert.equal(
+    getAnonymousClientIdentity(new Headers({
+      "x-vercel-forwarded-for": "2001:db8::1, 198.51.100.5",
+      "x-real-ip": "203.0.113.20",
+      "x-forwarded-for": "203.0.113.30"
+    })),
+    "ip:2001:db8::1"
+  );
+  assert.equal(
+    getAnonymousClientIdentity(new Headers({
+      "x-vercel-forwarded-for": "malformed:::",
+      "x-real-ip": "::ffff:192.0.2.1",
+      "x-forwarded-for": "203.0.113.30, 198.51.100.1"
+    })),
+    "ip:::ffff:192.0.2.1"
+  );
+  assert.equal(
+    getAnonymousClientIdentity(new Headers({ "x-forwarded-for": "malformed:::" })),
+    "anonymous"
+  );
+});
+
+test("Edge hosted API error validator executes the exact envelope and rejects malformed fields", () => {
+  assert.match(HOSTED_API_ERROR_SCHEMA_ID, /hosted-api-error\/v1\.schema\.json$/);
+  const payload = createHostedApiErrorPayload("RATE_LIMITED", "Too many catalog requests. Try again shortly.", true);
+  assert.equal(validateHostedApiErrorResponse(payload), true);
+  assert.equal(validateHostedApiErrorResponse({ ...payload, error: { ...payload.error, retryable: "yes" } }), false);
+  assert.equal(validateHostedApiErrorResponse({ ...payload, error: { ...payload.error, code: "bad-code" } }), false);
+  assert.equal(validateHostedApiErrorResponse({ ...payload, extra: true }), false);
 });
 
 test("public catalog fetch is no-store, aborts on timeout, and redacts target details", async () => {
@@ -1095,6 +1581,55 @@ async function collectTsxFiles(directoryUrl) {
     else if (entry.isFile() && entry.name.endsWith(".tsx")) files.push(childUrl);
   }
   return files;
+}
+
+function parseCookieBoundary(source, cookieName) {
+  const sourceCookieSet = source.match(
+    new RegExp(
+      `cookieStore\\.set\\(\\s*${escapeRegExp(cookieName)}\\s*,[\\s\\S]*?,\\s*\\{([\\s\\S]*?)\\}\\s*\\);`
+    )
+  );
+  if (!sourceCookieSet) throw new Error(`Unable to locate cookie boundary for ${cookieName}`);
+  const block = sourceCookieSet[1];
+  const maxAge = Number(block.match(/maxAge:\s*([0-9]+)/)?.[1]);
+  if (Number.isNaN(maxAge)) throw new Error(`Unable to parse maxAge for ${cookieName}`);
+  const sameSite = block.match(/sameSite:\s*["']([^"']+)["']/)?.[1];
+  if (!sameSite) throw new Error(`Unable to parse sameSite for ${cookieName}`);
+  const path = block.match(/path:\s*([^,\n}]+)/)?.[1]?.trim();
+  if (!path) throw new Error(`Unable to parse path for ${cookieName}`);
+  const secure = block.match(/secure:\s*([^,\n}]+)/)?.[1]?.trim();
+  if (!secure) throw new Error(`Unable to parse secure expression for ${cookieName}`);
+  return {
+    httpOnly: /httpOnly:\s*true/.test(block),
+    sameSite,
+    maxAge,
+    path,
+    secure
+  };
+}
+
+function extractSecureDecisionIdentifier(source, secureExpression) {
+  if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(secureExpression)) {
+    assert.fail(`Expected secure decision identifier for cookie options, found ${secureExpression}`);
+  }
+  const declaration = new RegExp(`const\\s+${escapeRegExp(secureExpression)}\\s*=\\s*siteOriginUsesHttps\\s*\\(`);
+  assert.match(source, declaration);
+  return secureExpression;
+}
+
+function extractSecureDecisionDeclaration(source, identifier) {
+  const declaration = new RegExp(
+    String.raw`const\s+${escapeRegExp(identifier)}\s*=\s*siteOriginUsesHttps\s*\(\s*\)\s*;`
+  );
+  const declarationMatch = source.match(declaration);
+  if (!declarationMatch) {
+    assert.fail(`Unable to locate precomputed shared site origin decision declaration for ${identifier}`);
+  }
+  return source.indexOf(declarationMatch[0]);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function validSubmissionForm() {

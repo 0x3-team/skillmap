@@ -426,8 +426,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  20::bigint,
-  'the exposed API contains exactly twenty reviewed security-definer RPCs'
+  43::bigint,
+  'the exposed API contains exactly forty-three reviewed security-definer RPCs'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -443,9 +443,21 @@ select is(
       'record_skill_submission_license_evidence',
       'get_skill_submission_queue_summary',
       'list_skill_submission_operator_queue',
-      'get_skill_submission_operator_detail'
+      'get_skill_submission_operator_detail',
+      'activate_managed_skill_release',
+      'export_my_managed_skill_vault',
+      'device_auth_initiate_v1', 'device_auth_review_my_pairing_v1',
+      'device_auth_confirm_my_pairing_v1', 'device_auth_get_active_key_v1',
+      'device_auth_poll_v1', 'device_auth_exchange_v1',
+      'device_auth_refresh_context_v1', 'device_auth_refresh_fail_closed_v1',
+      'device_auth_expire_v1', 'device_auth_refresh_v1',
+      'device_auth_get_rotation_receipt_v1', 'device_auth_rotate_key_v1',
+      'device_auth_list_my_devices_v1', 'device_auth_rename_my_device_v1',
+      'device_auth_revoke_my_device_v1', 'device_auth_get_revoke_key_v1',
+      'device_auth_cancel_v1', 'device_auth_authenticate_v1',
+      'device_auth_get_status_v1', 'device_auth_revoke_v1', 'device_auth_refresh_single_shot_v1'
     )),
-  20::bigint,
+  43::bigint,
   'the reviewed allowlist names every exposed security-definer RPC'
 );
 

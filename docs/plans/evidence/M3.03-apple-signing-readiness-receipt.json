@@ -1,0 +1,231 @@
+{
+  "schema": "skillmap.m3-03.apple-signing-readiness.v1",
+  "status": "BLOCKED_DISPOSABLE_RUNNER_MISSING",
+  "candidate": {
+    "name": "candidate"
+  },
+  "observed_at": "2026-08-10T12:00:00.000Z",
+  "checks": [
+    {
+      "check_id": "host.arch",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.output",
+      "outcome": "fail",
+      "status": "BLOCKED_IDENTITY_OUTPUT_MALFORMED",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.present",
+      "outcome": "fail",
+      "status": "BLOCKED_DEVELOPER_ID_APPLICATION_IDENTITY_MISSING",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.public-certificate",
+      "outcome": "fail",
+      "status": "BLOCKED_IDENTITY_PUBLIC_CERTIFICATE_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.revocation",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.team",
+      "outcome": "fail",
+      "status": "BLOCKED_TEAM_ID_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.time",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.type",
+      "outcome": "fail",
+      "status": "BLOCKED_IDENTITY_CLASS_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "identity.unique",
+      "outcome": "fail",
+      "status": "BLOCKED_IDENTITY_AMBIGUOUS",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "keychain.content-identity",
+      "outcome": "fail",
+      "status": "BLOCKED_KEYCHAIN_CONTENT_IDENTITY_UNVERIFIED",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "keychain.dedicated",
+      "outcome": "fail",
+      "status": "BLOCKED_DEDICATED_KEYCHAIN_MISSING",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "keychain.default",
+      "outcome": "fail",
+      "status": "BLOCKED_DEFAULT_KEYCHAIN_UNVERIFIED",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "keychain.descriptor-binding",
+      "outcome": "fail",
+      "status": "BLOCKED_KEYCHAIN_DESCRIPTOR_BINDING_UNVERIFIED",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "paths.task-root",
+      "outcome": "fail",
+      "status": "BLOCKED_TASK_ROOT_MISSING",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.app-id",
+      "outcome": "fail",
+      "status": "BLOCKED_PROFILE_APP_ID_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.certificate",
+      "outcome": "fail",
+      "status": "BLOCKED_PROFILE_CERTIFICATE_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.current",
+      "outcome": "fail",
+      "status": "BLOCKED_PROFILE_MALFORMED",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.decode",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.distribution",
+      "outcome": "fail",
+      "status": "BLOCKED_PROFILE_DISTRIBUTION_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.keychain-group",
+      "outcome": "fail",
+      "status": "BLOCKED_PROFILE_ACCESS_GROUP_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "profile.team",
+      "outcome": "fail",
+      "status": "BLOCKED_PROFILE_TEAM_MISMATCH",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "redaction.metadata",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "redaction.private-key",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "runner.disposable",
+      "outcome": "fail",
+      "status": "BLOCKED_DISPOSABLE_RUNNER_MISSING",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "runner.offline",
+      "outcome": "fail",
+      "status": "BLOCKED_NETWORK_ISOLATION_MISSING",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "tools.apple",
+      "outcome": "fail",
+      "status": "BLOCKED_TOOL_FINGERPRINT_MISSING",
+      "blocked_by": null,
+      "evidence": {}
+    },
+    {
+      "check_id": "tools.clt",
+      "outcome": "pass",
+      "status": null,
+      "blocked_by": null,
+      "evidence": {}
+    }
+  ],
+  "redacted_inventory": {
+    "architecture": "arm64",
+    "profile_count": 0,
+    "identity_count": 0,
+    "online_revocation_checked": false,
+    "notarization_checked": false,
+    "bundle_suffixes": [
+      "launcher",
+      "keychain-helper"
+    ],
+    "access_group_suffix": "dev.skillmap.connector.credentials",
+    "team_digest": "848c7464c1f254230fa016d250774c77c2aeeaa565b421a4d2f3ba390b73f276",
+    "tool_path_classes": {},
+    "tool_digests": {},
+    "tool_help_digests": {}
+  },
+  "worktree_integrity": {
+    "status": "not_checked"
+  },
+  "non_claims": [
+    "no signing or private-key operation was performed",
+    "no identity, certificate, profile, keychain, or Apple account was changed",
+    "no Secure Enclave or generic-password item was created/read/changed/deleted",
+    "no notarization, Gatekeeper, online revocation, portal, browser, provider, or network check was performed",
+    "no product, native helper, manifest, lockfile, migration, ledger, Git history, push, deploy, or live system was changed",
+    "held descriptors and pre/post identity checks fail closed on path replacement but are not an atomic kernel transaction",
+    "READY means ready to attempt the separately authorized proof, not M3.01/M3.03 acceptance"
+  ],
+  "route": {
+    "mode": "tool-only",
+    "evidence": "validated locally"
+  }
+}

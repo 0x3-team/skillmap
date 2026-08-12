@@ -283,6 +283,20 @@ test('every candidate, consumer, browser, and global npm install disables lifecy
   }
 });
 
+test('clean consumer install prefers cache while the dedicated lifecycle gate owns strict offline proof', () => {
+  const source = readFileSync(path.join(repo, 'scripts/test-consumer-install.mjs'), 'utf8');
+  assert.match(source, /'--prefer-offline'/u);
+  assert.doesNotMatch(
+    source,
+    /runNpm\(\['install',\s*'--ignore-scripts',\s*'--offline'/u,
+    'the normal clean-consumer lane must not require a pre-warmed registry metadata cache'
+  );
+
+  const lifecycle = readFileSync(path.join(repo, 'test/support/m3-13-package-lifecycle.mjs'), 'utf8');
+  assert.match(lifecycle, /npm_config_offline:\s*'true'/u);
+  assert.match(lifecycle, /'install',\s*'--global',[\s\S]*?'--offline'/u);
+});
+
 function createCandidate(scratch, options = {}) {
   const label = options.label ?? 'valid';
   const source = path.join(scratch, `source-${label}`);

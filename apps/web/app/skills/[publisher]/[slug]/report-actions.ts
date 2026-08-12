@@ -9,7 +9,7 @@ import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { parseSkillReportForm, ReportValidationError, type ReportField } from "@/lib/reports/input";
 import { createReportFlash, REPORT_FLASH_COOKIE, serializeReportFlash } from "@/lib/reports/flash";
 import { REPORT_PUBLIC_ID, reportStatusPath, type ReportSubmitStatus } from "@/lib/reports/status";
-import { SupabaseConfigurationError } from "@/lib/supabase/config";
+import { SupabaseConfigurationError, siteOriginUsesHttps } from "@/lib/supabase/config";
 import type { Database } from "@/lib/supabase/database.runtime.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -70,6 +70,7 @@ export async function reportSuspiciousListing(formData: FormData): Promise<Repor
 }
 
 export async function reportSuspiciousListingProgressive(formData: FormData): Promise<void> {
+  const reportFlashCookieSecure = siteOriginUsesHttps();
   const result = await reportSuspiciousListing(formData);
   const token = randomUUID();
   const flash = createReportFlash(formData, result, token);
@@ -80,7 +81,7 @@ export async function reportSuspiciousListingProgressive(formData: FormData): Pr
     maxAge: 120,
     path: flash.returnPath,
     sameSite: "strict",
-    secure: publicOriginUsesHttps()
+    secure: reportFlashCookieSecure
   });
   redirect(`${flash.returnPath}?reportFlash=${encodeURIComponent(token)}#report-listing`);
 }
@@ -142,14 +143,6 @@ async function findQueuedReportForTarget(
     .maybeSingle();
   if (error || !data || typeof data.report_id !== "string" || !REPORT_PUBLIC_ID.test(data.report_id)) return null;
   return data.report_id;
-}
-
-function publicOriginUsesHttps(): boolean {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1").protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 type ReportActionContext =

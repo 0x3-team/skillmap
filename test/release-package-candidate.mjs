@@ -12,10 +12,12 @@ import {
   symlinkSync,
   writeFileSync
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 import {
   expectedPublishApproval,
   parseReleaseArguments,
@@ -308,7 +310,7 @@ test('path, command-injection, source-commit, and CI identity mismatches fail cl
   assert.throws(() => runReleaseCandidate({ ...base, candidate: candidateLink, distTag: 'alpha' }, dependencies(fixture, calls)), /not a symbolic link/);
   assert.equal(calls.length, 0);
 
-  assert.throws(() => runReleaseCandidate({ ...base, distTag: 'alpha', sourceCommit: 'b'.repeat(40) }, dependencies(fixture, calls)), /must equal.*HEAD/);
+  assert.throws(() => runReleaseCandidate({ ...base, distTag: 'alpha', sourceCommit: 'b'.repeat(40) }, dependencies(fixture, calls)), /not an ancestor|not reachable|ancestry/i);
   assert.equal(calls.length, 0);
   assert.throws(() => runReleaseCandidate(releaseOptions(fixture, {
     publish: true,
@@ -316,6 +318,83 @@ test('path, command-injection, source-commit, and CI identity mismatches fail cl
     approval: 'irrelevant'
   }), dependencies(fixture, calls, { env: githubEnvironment({ GITHUB_RUN_ID: '999' }) })), /CI run identity/);
   assert.equal(calls.length, 0);
+});
+
+test('release provenance ancestry accepts a true ancestor and rejects unrelated, nonexistent, or shallow-history commit claims', t => {
+  const sourceRepository = mkdtempSync(path.join(tmpdir(), 'skillmap-release-ancestor-'));
+  t.after(() => rmSync(sourceRepository, { recursive: true, force: true }));
+  gitRun(sourceRepository, ['init']);
+  gitRun(sourceRepository, ['config', 'user.name', 'Release Ancestor Test']);
+  gitRun(sourceRepository, ['config', 'user.email', 'release-ancestor@test.invalid']);
+
+  writeFileSync(path.join(sourceRepository, 'base.txt'), 'base');
+  gitRun(sourceRepository, ['add', 'base.txt']);
+  gitCommit(sourceRepository, 'Release ancestry base commit', '2026-01-01T00:00:00Z');
+  gitRun(sourceRepository, ['branch', '-M', 'main']);
+  const baseCommit = gitRun(sourceRepository, ['rev-parse', 'HEAD']);
+
+  writeFileSync(path.join(sourceRepository, 'main.txt'), 'main');
+  gitRun(sourceRepository, ['add', 'main.txt']);
+  gitCommit(sourceRepository, 'Release ancestry main commit', '2026-01-01T00:01:00Z');
+  const mainCommit = gitRun(sourceRepository, ['rev-parse', 'HEAD']);
+
+  gitRun(sourceRepository, ['checkout', '-b', 'unrelated', baseCommit]);
+  writeFileSync(path.join(sourceRepository, 'unrelated.txt'), 'unrelated');
+  gitRun(sourceRepository, ['add', 'unrelated.txt']);
+  gitCommit(sourceRepository, 'Release ancestry unrelated commit', '2026-01-01T00:02:00Z');
+  const unrelatedCommit = gitRun(sourceRepository, ['rev-parse', 'HEAD']);
+
+  const fixture = releaseFixture(t, 'release-ancestor-graph');
+  const shallowRoot = mkdtempSync(path.join(tmpdir(), 'skillmap-release-shallow-'));
+  const shallowRepository = path.join(shallowRoot, 'checkout');
+  t.after(() => rmSync(shallowRoot, { recursive: true, force: true }));
+
+  assert.equal(gitExitStatus(sourceRepository, ['merge-base', '--is-ancestor', baseCommit, mainCommit]), 0,
+    'base commit should be true git ancestor of main commit');
+  assert.notEqual(gitExitStatus(sourceRepository, ['merge-base', '--is-ancestor', unrelatedCommit, mainCommit]), 0,
+    'unrelated commit must not be treated as an ancestor of main');
+
+  gitCloneDepthOne(sourceRepository, shallowRepository, 'main');
+  assert.equal(gitRun(shallowRepository, ['rev-parse', '--is-shallow-repository']), 'true',
+    'depth-one clone must remain genuinely shallow');
+  assert.equal(gitObjectExists(shallowRepository, mainCommit), true,
+    'depth-one clone must contain its checked-out commit');
+  assert.equal(gitObjectExists(shallowRepository, baseCommit), false,
+    'depth-one clone must not silently retain the parent commit');
+  assert.notEqual(gitExitStatus(shallowRepository, ['merge-base', '--is-ancestor', baseCommit, 'HEAD']), 0,
+    'shallow clone must expose the bounded ancestry gap');
+
+  const ancestorCalls = [];
+  const ancestorReceipt = runReleaseCandidate({
+    ...releaseOptions(fixture, { sourceCommit: baseCommit })
+  }, dependencies(fixture, ancestorCalls, { repositoryCommit: mainCommit, repositoryRoot: sourceRepository }));
+  assert.equal(ancestorReceipt.source.commit, baseCommit);
+  assert.equal(ancestorReceipt.status, 'validated');
+  assert.equal(ancestorCalls.length, 2);
+
+  const unrelatedCalls = [];
+  assert.throws(() => runReleaseCandidate({
+    ...releaseOptions(fixture, { sourceCommit: unrelatedCommit })
+  }, dependencies(fixture, unrelatedCalls, { repositoryCommit: mainCommit, repositoryRoot: sourceRepository })),
+  /not an ancestor|not reachable|unrelated|ancestry/i);
+  assert.equal(unrelatedCalls.length, 0);
+
+  const fakeCommit = 'd'.repeat(40);
+  assert.equal(gitObjectExists(sourceRepository, fakeCommit), false, 'fake source commit must not exist');
+  const fakeCalls = [];
+  assert.throws(() => runReleaseCandidate({
+    ...releaseOptions(fixture, { sourceCommit: fakeCommit })
+  }, dependencies(fixture, fakeCalls, { repositoryCommit: mainCommit, repositoryRoot: sourceRepository })),
+  /existing commit|git object|not found|unknown revision|not reachable/i);
+  assert.equal(fakeCalls.length, 0);
+
+  const shallowCalls = [];
+  assert.throws(() => runReleaseCandidate({
+    ...releaseOptions(fixture, { sourceCommit: baseCommit })
+  }, dependencies(fixture, shallowCalls, { repositoryCommit: mainCommit, repositoryRoot: shallowRepository })),
+  error => /shallow/i.test(String(error?.message)) && /history|ancestry|verify/i.test(String(error?.message)),
+  'a depth-one repository must produce a bounded shallow-history ancestry result');
+  assert.equal(shallowCalls.length, 0);
 });
 
 function releaseOptions(fixture, overrides = {}) {
@@ -336,8 +415,10 @@ function releaseOptions(fixture, overrides = {}) {
 function dependencies(fixture, calls, options = {}) {
   return {
     execFileSync: releaseExecutor(fixture, calls, options),
+    ...(options.repositoryRoot ? {} : { gitExecFileSync: releaseGitExecutor }),
     env: options.env ?? { npm_execpath: process.execPath },
-    repositoryCommit: SOURCE_COMMIT
+    repositoryCommit: options.repositoryCommit ?? SOURCE_COMMIT,
+    ...(options.repositoryRoot ? { repositoryRoot: options.repositoryRoot } : {})
   };
 }
 
@@ -426,6 +507,20 @@ function releaseExecutor(fixture, calls, options = {}) {
   };
 }
 
+function releaseGitExecutor(file, args, commandOptions) {
+  assert.equal(file, 'git');
+  assert.equal(commandOptions.shell, false);
+  assert.equal(commandOptions.encoding, 'utf8');
+  if (args[0] === 'cat-file' && args[1] === '-e') return '';
+  if (args[0] === 'merge-base' && args[1] === '--is-ancestor') {
+    if (args[2] === args[3]) return '';
+    throw Object.assign(new Error('not an ancestor'), { status: 1 });
+  }
+  if (args[0] === 'rev-parse' && args[1] === '--is-shallow-repository') return 'false\n';
+  if (args[0] === 'rev-parse' && args[1] === '--verify') return `${SOURCE_COMMIT}\n`;
+  assert.fail(`unexpected Git command: ${args.join(' ')}`);
+}
+
 function digestFile(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex');
 }
@@ -436,4 +531,48 @@ function readEvidenceRecords(directory) {
     .split(/\r?\n/)
     .filter(Boolean)
     .map(line => JSON.parse(line));
+}
+
+function gitRun(repository, args, options = {}) {
+  const result = spawnSync('git', args, {
+    ...options,
+    cwd: repository,
+    encoding: 'utf8',
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  assert.equal(result.error, undefined, `git command launch failed for ${args.join(' ')}`);
+  assert.equal(result.status, 0, `git command ${args.join(' ')} failed with status ${result.status}: ${(result.stderr ?? '').trim()}`);
+  return (result.stdout ?? '').trim();
+}
+
+function gitCommit(repository, message, timestamp) {
+  return gitRun(repository, ['commit', '-m', message], {
+    env: { ...process.env, GIT_AUTHOR_DATE: timestamp, GIT_COMMITTER_DATE: timestamp }
+  });
+}
+
+function gitExitStatus(repository, args) {
+  const result = spawnSync('git', args, {
+    cwd: repository,
+    encoding: 'utf8',
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  return result.status ?? 1;
+}
+
+function gitCloneDepthOne(repository, destination, branch) {
+  const result = spawnSync('git', ['clone', '--no-local', '--depth', '1', '--branch', branch, pathToFileURL(repository).href, destination], {
+    cwd: undefined,
+    encoding: 'utf8',
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  assert.equal(result.error, undefined, 'depth-one clone command did not launch');
+  assert.equal(result.status, 0, `depth-one clone failed: ${(result.stderr ?? '').trim()}`);
+}
+
+function gitObjectExists(repository, value) {
+  return gitExitStatus(repository, ['cat-file', '-e', `${value}^{commit}`]) === 0;
 }

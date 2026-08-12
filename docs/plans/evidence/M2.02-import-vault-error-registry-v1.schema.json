@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skillmap.import-vault-error-registry/v1",
+  "title": "SkillMap import and vault error registry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "$id", "version", "status", "metadata", "public_tuples", "entries", "fixtures", "versioning"],
+  "properties": {
+    "$schema": { "const": "https://json-schema.org/draft/2020-12/schema" },
+    "$id": { "const": "skillmap.import-vault-error-registry/v1" },
+    "version": { "const": 1 },
+    "status": { "enum": ["pending_independent_luna_review", "approved"] },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "default_disclosure", "raw_details_public", "sqlstate_public", "duplicate_digest_is_error"],
+      "properties": {
+        "owner": { "const": "M2.02" },
+        "default_disclosure": { "const": "non_enumerating" },
+        "raw_details_public": { "const": false },
+        "sqlstate_public": { "const": false },
+        "duplicate_digest_is_error": { "const": false }
+      }
+    },
+    "public_tuples": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/publicTuple" }
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/publicMapping" },
+          { "$ref": "#/$defs/delegate" },
+          { "$ref": "#/$defs/internalDisposition" }
+        ]
+      }
+    },
+    "fixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid_public_codes", "invalid_one_field_mutations"],
+      "properties": {
+        "valid_public_codes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "invalid_one_field_mutations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fields", "cases_per_public_tuple", "expected_rejections"],
+          "properties": {
+            "fields": {
+              "const": ["disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"]
+            },
+            "cases_per_public_tuple": { "const": 8 },
+            "expected_rejections": { "type": "integer", "minimum": 8 }
+          }
+        }
+      }
+    },
+    "versioning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["closed_world", "unknown_source", "new_code_rule", "alias_rule", "breaking_change_rule"],
+      "properties": {
+        "closed_world": { "const": true },
+        "unknown_source": { "const": "internal_unexpected_failure" },
+        "new_code_rule": { "const": "requires_new_registry_version_and_independent_acceptance" },
+        "alias_rule": { "const": "forbidden" },
+        "breaking_change_rule": { "const": "new_major_id" }
+      }
+    }
+  },
+  "$defs": {
+    "publicTuple": {
+      "oneOf": [
+        { "$ref": "#/$defs/vaultResourceUnavailableTuple" },
+        { "$ref": "#/$defs/vaultStaleRevisionTuple" },
+        { "$ref": "#/$defs/importSessionExpiredTuple" },
+        { "$ref": "#/$defs/importReplayConflictTuple" },
+        { "$ref": "#/$defs/importInfrastructureRetryableTuple" }
+      ]
+    },
+    "vaultResourceUnavailableTuple": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"],
+      "properties": {
+        "code": { "const": "VAULT_RESOURCE_UNAVAILABLE" }, "disclosure": { "const": "non_enumerating" }, "phase": { "const": "preflight" }, "terminal_state": { "const": "rejected" }, "retryable": { "const": false }, "mutation": { "const": "none" }, "fresh_authorization_required": { "const": true }, "next_action": { "const": "reauthorize_and_restart" }, "message": { "const": "The requested vault resource is unavailable." }
+      }
+    },
+    "vaultStaleRevisionTuple": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"],
+      "properties": {
+        "code": { "const": "VAULT_STALE_REVISION" }, "disclosure": { "const": "account_safe" }, "phase": { "const": "commit" }, "terminal_state": { "const": "rejected" }, "retryable": { "const": true }, "mutation": { "const": "none" }, "fresh_authorization_required": { "const": false }, "next_action": { "const": "refresh_and_retry" }, "message": { "const": "The vault state changed. Refresh and retry." }
+      }
+    },
+    "importSessionExpiredTuple": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"],
+      "properties": {
+        "code": { "const": "IMPORT_SESSION_EXPIRED" }, "disclosure": { "const": "session_safe" }, "phase": { "const": "session" }, "terminal_state": { "const": "expired" }, "retryable": { "const": false }, "mutation": { "const": "none" }, "fresh_authorization_required": { "const": false }, "next_action": { "const": "start_new_import" }, "message": { "const": "The import session expired. Start a new import." }
+      }
+    },
+    "importReplayConflictTuple": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"],
+      "properties": {
+        "code": { "const": "IMPORT_REPLAY_CONFLICT" }, "disclosure": { "const": "session_safe" }, "phase": { "const": "commit" }, "terminal_state": { "const": "rejected" }, "retryable": { "const": false }, "mutation": { "const": "prior_committed_result_only" }, "fresh_authorization_required": { "const": false }, "next_action": { "const": "reuse_original_request" }, "message": { "const": "The request conflicts with an earlier committed import." }
+      }
+    },
+    "importInfrastructureRetryableTuple": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"],
+      "properties": {
+        "code": { "const": "IMPORT_INFRASTRUCTURE_RETRYABLE" }, "disclosure": { "const": "session_safe" }, "phase": { "const": "session" }, "terminal_state": { "const": "retryable" }, "retryable": { "const": true }, "mutation": { "const": "none" }, "fresh_authorization_required": { "const": false }, "next_action": { "const": "retry_with_backoff" }, "message": { "const": "The import could not continue. Retry with backoff." }
+      }
+    },
+    "entryBase": {
+      "type": "object",
+      "required": ["source_diagnostic", "source_owner", "notes"],
+      "properties": {
+        "source_diagnostic": { "type": "string", "minLength": 1 },
+        "source_owner": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "publicMapping": {
+      "allOf": [
+        { "$ref": "#/$defs/entryBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source_diagnostic", "source_owner", "public_code", "notes"],
+          "properties": {
+            "kind": { "const": "public_tuple" },
+            "source_diagnostic": { "type": "string" },
+            "source_owner": { "type": "string" },
+            "public_code": { "enum": ["VAULT_RESOURCE_UNAVAILABLE", "VAULT_STALE_REVISION", "IMPORT_SESSION_EXPIRED", "IMPORT_REPLAY_CONFLICT", "IMPORT_INFRASTRUCTURE_RETRYABLE"] },
+            "notes": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "delegate": {
+      "allOf": [
+        { "$ref": "#/$defs/entryBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source_diagnostic", "source_owner", "delegate_owner", "delegate_outcome", "notes"],
+          "properties": {
+            "kind": { "const": "delegate" },
+            "source_diagnostic": { "type": "string" },
+            "source_owner": { "type": "string" },
+            "delegate_owner": { "enum": ["M1.03", "M1.04", "M1.05", "M1.06", "M1.07", "M1.08", "M1.09", "M1.10", "M1.11"] },
+            "delegate_outcome": { "type": "string", "minLength": 1 },
+            "notes": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "internalDisposition": {
+      "allOf": [
+        { "$ref": "#/$defs/entryBase" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source_diagnostic", "source_owner", "internal_action", "public_surface", "notes"],
+          "properties": {
+            "kind": { "const": "internal_disposition" },
+            "source_diagnostic": { "type": "string" },
+            "source_owner": { "type": "string" },
+            "internal_action": { "enum": ["reuse_existing_version", "classify_by_constraint_context", "generic_unexpected_failure", "log_redacted_and_retry_worker", "terminal_binding_failure"] },
+            "public_surface": { "enum": ["none", "privacy_safe_generic_only"] },
+            "notes": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}

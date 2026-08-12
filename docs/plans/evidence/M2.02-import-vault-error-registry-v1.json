@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skillmap.import-vault-error-registry/v1",
+  "version": 1,
+  "status": "pending_independent_luna_review",
+  "metadata": {
+    "owner": "M2.02",
+    "default_disclosure": "non_enumerating",
+    "raw_details_public": false,
+    "sqlstate_public": false,
+    "duplicate_digest_is_error": false
+  },
+  "public_tuples": [
+    { "code": "VAULT_RESOURCE_UNAVAILABLE", "disclosure": "non_enumerating", "phase": "preflight", "terminal_state": "rejected", "retryable": false, "mutation": "none", "fresh_authorization_required": true, "next_action": "reauthorize_and_restart", "message": "The requested vault resource is unavailable." },
+    { "code": "VAULT_STALE_REVISION", "disclosure": "account_safe", "phase": "commit", "terminal_state": "rejected", "retryable": true, "mutation": "none", "fresh_authorization_required": false, "next_action": "refresh_and_retry", "message": "The vault state changed. Refresh and retry." },
+    { "code": "IMPORT_SESSION_EXPIRED", "disclosure": "session_safe", "phase": "session", "terminal_state": "expired", "retryable": false, "mutation": "none", "fresh_authorization_required": false, "next_action": "start_new_import", "message": "The import session expired. Start a new import." },
+    { "code": "IMPORT_REPLAY_CONFLICT", "disclosure": "session_safe", "phase": "commit", "terminal_state": "rejected", "retryable": false, "mutation": "prior_committed_result_only", "fresh_authorization_required": false, "next_action": "reuse_original_request", "message": "The request conflicts with an earlier committed import." },
+    { "code": "IMPORT_INFRASTRUCTURE_RETRYABLE", "disclosure": "session_safe", "phase": "session", "terminal_state": "retryable", "retryable": true, "mutation": "none", "fresh_authorization_required": false, "next_action": "retry_with_backoff", "message": "The import could not continue. Retry with backoff." }
+  ],
+  "entries": [
+    { "kind": "public_tuple", "source_diagnostic": "ACCOUNT_SCOPE_MISMATCH", "source_owner": "M1.02", "public_code": "VAULT_RESOURCE_UNAVAILABLE", "notes": "Never disclose whether the foreign resource exists." },
+    { "kind": "public_tuple", "source_diagnostic": "NOT_FOUND", "source_owner": "M1.02", "public_code": "VAULT_RESOURCE_UNAVAILABLE", "notes": "Missing, foreign, and inaccessible collapse to one tuple." },
+    { "kind": "public_tuple", "source_diagnostic": "STALE_REVISION", "source_owner": "M1.02", "public_code": "VAULT_STALE_REVISION", "notes": "No mutation occurs on a failed CAS." },
+    { "kind": "delegate", "source_diagnostic": "INVALID_LIFECYCLE", "source_owner": "M1.02", "delegate_owner": "M1.06", "delegate_outcome": "lifecycle_transition_rejection", "notes": "M1.06 remains the sole lifecycle owner." },
+    { "kind": "delegate", "source_diagnostic": "BOUNDS_EXCEEDED", "source_owner": "M1.02", "delegate_owner": "M1.04", "delegate_outcome": "IMPORT_REJECTED", "notes": "Public import-file denial remains M1.04-owned." },
+    { "kind": "public_tuple", "source_diagnostic": "IMPORT_REPLAY_CONFLICT", "source_owner": "M1.02", "public_code": "IMPORT_REPLAY_CONFLICT", "notes": "A prior committed result may be returned but never rewritten." },
+    { "kind": "public_tuple", "source_diagnostic": "IMPORT_EXPIRED", "source_owner": "M1.02", "public_code": "IMPORT_SESSION_EXPIRED", "notes": "Expired sessions are terminal and replaced, not resumed." },
+    { "kind": "delegate", "source_diagnostic": "DIGEST_MISMATCH", "source_owner": "M1.02", "delegate_owner": "M1.04", "delegate_outcome": "IMPORT_REJECTED", "notes": "Integrity denial is not a storage implementation error." },
+    { "kind": "delegate", "source_diagnostic": "COUNT_MISMATCH", "source_owner": "M1.02", "delegate_owner": "M1.04", "delegate_outcome": "IMPORT_REJECTED", "notes": "Count mismatch rejects before activation." },
+    { "kind": "delegate", "source_diagnostic": "DEVICE_REVOKED", "source_owner": "M1.02", "delegate_owner": "M1.08", "delegate_outcome": "device_auth_rejection", "notes": "M1.08 remains the sole DeviceAuth owner." },
+    { "kind": "delegate", "source_diagnostic": "MANIFEST_SCHEMA_OR_CANONICALIZATION_FAILURE", "source_owner": "M2.02", "delegate_owner": "M1.03", "delegate_outcome": "frozen_manifest_diagnostic", "notes": "All sixteen M1.03 manifest diagnostics retain their exact owner codes." },
+    { "kind": "delegate", "source_diagnostic": "IMPORT_FILE_ALLOW_DENY_RESULT", "source_owner": "M2.02", "delegate_owner": "M1.04", "delegate_outcome": "IMPORT_REJECTED|IMPORT_BLOCKED_FOR_REVIEW|IMPORT_PARTIAL_RETRYABLE|IMPORT_ALREADY_ACCEPTED", "notes": "No aliases are introduced." },
+    { "kind": "internal_disposition", "source_diagnostic": "DUPLICATE_DIGEST_SAME_SKILL", "source_owner": "M1.05", "internal_action": "reuse_existing_version", "public_surface": "none", "notes": "Duplicate digest is successful immutable-version reuse, not an error." },
+    { "kind": "delegate", "source_diagnostic": "IMMUTABLE_VERSION_OR_DIGEST_CONFLICT", "source_owner": "M2.02", "delegate_owner": "M1.05", "delegate_outcome": "immutable_version_resolution", "notes": "Cross-skill equal content remains a separate identity." },
+    { "kind": "delegate", "source_diagnostic": "QUARANTINE_OR_RESTORE_FAILURE", "source_owner": "M2.02", "delegate_owner": "M1.07", "delegate_outcome": "closed_six_code_registry", "notes": "Private destination_commit signals map through M1.07/M1.02 only." },
+    { "kind": "delegate", "source_diagnostic": "DEVICE_AUTH_TOKEN_NONCE_REPLAY_EXPIRY", "source_owner": "M2.02", "delegate_owner": "M1.08", "delegate_outcome": "device_auth_registry", "notes": "No import-vault alias for DeviceAuth outcomes." },
+    { "kind": "delegate", "source_diagnostic": "ROUTING_REQUEST_DECISION_FAILURE", "source_owner": "M2.02", "delegate_owner": "M1.09", "delegate_outcome": "routing_error_registry", "notes": "Routing order and privacy remain M1.09-owned." },
+    { "kind": "delegate", "source_diagnostic": "RUNTIME_BUNDLE_RETRIEVAL_FAILURE", "source_owner": "M2.02", "delegate_owner": "M1.10", "delegate_outcome": "bundle_error_registry", "notes": "No alternate route or bundle code." },
+    { "kind": "delegate", "source_diagnostic": "EXPORT_RETENTION_DELETION_SUPPORT_STATE", "source_owner": "M2.02", "delegate_owner": "M1.11", "delegate_outcome": "privacy_retention_deletion_support_contract", "notes": "M1.11 remains the sole owner." },
+    { "kind": "public_tuple", "source_diagnostic": "RLS_42501_OR_FOREIGN_BINDING", "source_owner": "PostgreSQL", "public_code": "VAULT_RESOURCE_UNAVAILABLE", "notes": "Role, policy, table, and binding details are never public." },
+    { "kind": "internal_disposition", "source_diagnostic": "SQLSTATE_23505", "source_owner": "PostgreSQL", "internal_action": "classify_by_constraint_context", "public_surface": "privacy_safe_generic_only", "notes": "May mean version reuse, idempotent replay conflict, or internal identity collision." },
+    { "kind": "public_tuple", "source_diagnostic": "SQLSTATE_23503_FOREIGN_BINDING", "source_owner": "PostgreSQL", "public_code": "VAULT_RESOURCE_UNAVAILABLE", "notes": "Foreign and missing bindings do not enumerate." },
+    { "kind": "delegate", "source_diagnostic": "SQLSTATE_23514_OR_22P02_INPUT_INVARIANT", "source_owner": "PostgreSQL", "delegate_owner": "M1.04", "delegate_outcome": "IMPORT_REJECTED", "notes": "Constraint names and raw values remain internal." },
+    { "kind": "public_tuple", "source_diagnostic": "SQLSTATE_40001_40P01_55P03_57014_08XXX", "source_owner": "PostgreSQL", "public_code": "IMPORT_INFRASTRUCTURE_RETRYABLE", "notes": "Only before durable binding or visibility and with bounded retry." },
+    { "kind": "public_tuple", "source_diagnostic": "STORAGE_TRANSIENT_BEFORE_DURABLE_BINDING", "source_owner": "Storage", "public_code": "IMPORT_INFRASTRUCTURE_RETRYABLE", "notes": "No object key, bucket, provider, or path detail is disclosed." },
+    { "kind": "internal_disposition", "source_diagnostic": "STORAGE_BINDING_DIGEST_ACCOUNT_VERSION_MISMATCH", "source_owner": "Storage", "internal_action": "terminal_binding_failure", "public_surface": "privacy_safe_generic_only", "notes": "Terminal, no mutation, security telemetry only." },
+    { "kind": "internal_disposition", "source_diagnostic": "P0001_UNREGISTERED_OR_UNKNOWN", "source_owner": "PostgreSQL", "internal_action": "generic_unexpected_failure", "public_surface": "privacy_safe_generic_only", "notes": "Unknown errors never mint new public codes at runtime." },
+    { "kind": "internal_disposition", "source_diagnostic": "PROVIDER_TABLE_CONSTRAINT_BUCKET_OBJECT_PATH_DETAIL", "source_owner": "Infrastructure", "internal_action": "log_redacted_and_retry_worker", "public_surface": "none", "notes": "Raw implementation details are internal only." }
+  ],
+  "fixtures": {
+    "valid_public_codes": ["VAULT_RESOURCE_UNAVAILABLE", "VAULT_STALE_REVISION", "IMPORT_SESSION_EXPIRED", "IMPORT_REPLAY_CONFLICT", "IMPORT_INFRASTRUCTURE_RETRYABLE"],
+    "invalid_one_field_mutations": {
+      "fields": ["disclosure", "phase", "terminal_state", "retryable", "mutation", "fresh_authorization_required", "next_action", "message"],
+      "cases_per_public_tuple": 8,
+      "expected_rejections": 40
+    }
+  },
+  "versioning": {
+    "closed_world": true,
+    "unknown_source": "internal_unexpected_failure",
+    "new_code_rule": "requires_new_registry_version_and_independent_acceptance",
+    "alias_rule": "forbidden",
+    "breaking_change_rule": "new_major_id"
+  }
+}

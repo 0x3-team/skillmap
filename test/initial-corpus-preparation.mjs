@@ -212,7 +212,7 @@ test('CLI writes an owner-only artifact, refuses overwrite, and documents the no
   assert.equal(prepared.status, 0, prepared.stderr);
   assert.match(prepared.stdout, /Prepared 20 entries across 5 groups/);
   assert.match(prepared.stdout, /No network, production, audit, grade, or publication action/);
-  assert.equal((await stat(output)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal((await stat(output)).mode & 0o777, 0o600);
   assert.equal(JSON.parse(await readFile(output, 'utf8')).submissions.length, 20);
 
   const overwrite = spawnSync(process.execPath, [SCRIPT, '--input', input, '--output', output], {

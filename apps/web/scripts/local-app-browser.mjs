@@ -73,7 +73,11 @@ try {
   assert.equal(dashboard.startup.kind, "skillmap.dashboard-started");
   assert.equal(dashboard.startup.mode, "foreground");
   assert.equal(dashboard.startup.promptRetention, false);
-  assert.equal(dashboard.startup.workspace, workspace);
+  assert.equal(
+    await realpath(dashboard.startup.workspace),
+    await realpath(workspace),
+    "dashboard started a different workspace"
+  );
   assert.match(dashboard.startup.origin, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.equal(new URL(dashboard.startup.bootstrapUrl).origin, dashboard.startup.origin);
 
@@ -799,7 +803,11 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   const retryChangeResponses = revisionRetryResponses.filter(event => event.errorCode === "REVISION_CHANGED_RETRY");
   const allExpected409Responses = diagnostics.expected.filter(event => event.kind === "response" && event.status === 409);
   const expected409Console = diagnostics.expected.filter(event => event.kind === "console" && /status of 409|conflict/i.test(event.message));
-  assert.ok(retryChangeResponses.length >= 3 + revisionSettleConflicts && retryChangeResponses.length <= 5 + revisionSettleConflicts, `expected 3-${5} controlled retry-change bootstrap responses plus ${revisionSettleConflicts} during job settle, got ${retryChangeResponses.length}`);
+  const explicitRevisionRetryConflicts = 3;
+  const revisionPublishingWorkflowCount = 5;
+  const minRetryChangeResponses = explicitRevisionRetryConflicts + revisionSettleConflicts;
+  const maxRetryChangeResponses = explicitRevisionRetryConflicts + revisionPublishingWorkflowCount + revisionSettleConflicts;
+  assert.ok(retryChangeResponses.length >= minRetryChangeResponses && retryChangeResponses.length <= maxRetryChangeResponses, `expected ${minRetryChangeResponses}-${maxRetryChangeResponses} controlled retry-change bootstrap responses (${explicitRevisionRetryConflicts} explicit, at most ${revisionPublishingWorkflowCount} workflow races, and ${revisionSettleConflicts} during job settle), got ${retryChangeResponses.length}`);
   assert.equal(revisionRetryResponses.length, retryChangeResponses.length + 1, `bootstrap conflict responses did not contain exactly one non-retryable conflict: ${revisionRetryResponses.length}`);
   assert.equal(revisionRetryResponses.filter(event => event.errorCode === "REVISION_CONFLICT").length, 1, "non-retryable conflict coverage did not observe its controlled response");
   assert.ok(offlineFailures.length >= 1, "expected offline failures were not captured");
@@ -832,7 +840,6 @@ async function exerciseLocalApp({ browser, dashboard, workspace, setup, alternat
   assert.equal(workspaceUnknownOutcomes.length, 1, `expected one controlled outcome-unknown workspace response, got ${workspaceUnknownOutcomes.length}`);
   // Policy hold, reviewed policy apply, doctor publication, eval import, and
   // source adoption can each race one workspace + dashboard refresh pair.
-  const revisionPublishingWorkflowCount = 5;
   assert.ok(workflowRevisionConflicts.length <= revisionPublishingWorkflowCount * 2, `too many controlled post-workflow revision conflicts: ${workflowRevisionConflicts.length}`);
   assert.equal(workflowRevisionConflicts.every(event => event.errorCode === "REVISION_CHANGED_RETRY"), true, "post-workflow conflict did not use the exact retryable revision-change code");
   for (const pathname of ["/api/v1/workspace", "/api/v1/dashboard"]) {
@@ -2169,7 +2176,10 @@ function isActivityReadPath(pathname) {
 
 function isNavigationAbort(event) {
   return event?.kind === "requestfailed"
-    && ["net::ERR_ABORTED", "NS_BINDING_ABORTED", "Load request cancelled"].includes(event.message);
+    // WebKit reports the same client-side navigation cancellation simply as
+    // "cancelled", while Chromium and Firefox provide their engine-specific
+    // abort codes.
+    && ["net::ERR_ABORTED", "NS_BINDING_ABORTED", "Load request cancelled", "cancelled"].includes(event.message);
 }
 
 function formatDiagnostics(events) {

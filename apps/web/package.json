@@ -5,12 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "node --experimental-strip-types scripts/check-hosted-release-config.mts && next build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "node scripts/check-worker-secret.mjs && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:fixtures": "node scripts/check-fixtures.mjs && node scripts/test-snapshot-integrity.mjs && node scripts/check-ui-truth.mjs && npm run test:hosted-boundaries",
     "test:hosted-boundaries": "node --experimental-strip-types --test tests/hosted-boundaries.test.mjs",
+    "test:worker-secret-preflight": "node --test tests/worker-secret-preflight.test.mjs",
+    "test:device-auth": "node --experimental-strip-types --import ./tests/register-device-auth-loader.mjs --test --test-concurrency=1 tests/device-auth.seams.test.mjs tests/device-auth.test.mjs tests/device-auth.route.test.mjs tests/device-auth-confirmation.test.mjs tests/device-auth-poll-exchange.test.mjs tests/device-auth-refresh-replay.test.mjs tests/device-auth-key-rotation.test.mjs tests/device-auth-lifecycle.test.mjs tests/device-auth-owner-devices.test.mjs",
+    "test:device-auth:worker": "opennextjs-cloudflare build && node scripts/device-auth-worker-smoke.mjs",
     "test:ui-contracts": "node scripts/check-ui-truth.mjs",
     "test:integrity": "node scripts/test-snapshot-integrity.mjs",
     "test:browser": "node scripts/run-browser-smoke.mjs",
@@ -32,28 +37,31 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "motion": "^11.18.2",
-    "next": "^16.2.10",
+    "next": "^16.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@fontsource/inter": "5.2.8",
+    "@opennextjs/cloudflare": "^1.20.2",
     "@types/node": "^24.0.7",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.39.1",
-    "eslint-config-next": "^16.2.10",
+    "eslint-config-next": "^16.3.0",
     "pixelmatch": "7.2.0",
     "playwright": "1.61.1",
     "pngjs": "7.0.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.23",
+    "supabase": "^2.110.0",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "wrangler": "4.121.0"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "fast-uri": "^3.1.4"
   },
   "engines": {
     "node": ">=22"

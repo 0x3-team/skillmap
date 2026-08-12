@@ -60,4 +60,4 @@ Public identity is separate from a private Supabase Auth account. Publisher auth
 - RLS composes publisher, repository, skill, and version visibility; child visibility never outlives a hidden parent.
 - Fixtures include published, draft, restricted, quarantined, and revoked cases with hidden/nonexistent parity.
 
-Current enforcement lives in `contracts/hosted-skill/v1.schema.json`, `contracts/hosted-skill-list/v1.schema.json`, `supabase/migrations/20260711192500_hosted_catalog_foundation.sql`, and `test/hosted-seed-integrity.mjs`.
+Current enforcement lives in `contracts/hosted-skill/v1.schema.json`, `contracts/hosted-skill-list/v1.schema.json`, `supabase/migrations/20260727050142_hosted_catalog_foundation.sql`, and `test/hosted-seed-integrity.mjs`.

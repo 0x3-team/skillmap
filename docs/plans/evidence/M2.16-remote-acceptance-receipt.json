@@ -1,0 +1,95 @@
+{
+  "milestone": "M2.16",
+  "verdict": "APPROVED",
+  "evidence_tier": "HIGH",
+  "accepted_at_utc": "2026-08-05T15:54:50Z",
+  "scope": "remote Skill Vault foundation apply, verification, rollback-safe security matrix, and cleanup",
+  "project": {
+    "name": "skillmap",
+    "ref": "nciathykwjlrkikzyirv"
+  },
+  "candidate": {
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "code_head": "83c124f81e0ecce6fc1f7acb131d861d82fa6d4e",
+    "code_tree": "b5b503b922795c39e96ab0bcfde9be03adf6ceb7",
+    "database_types_sha256": "6b69d8276416e67195c8e32249e2c5c32596524a8fddc00a95871c0f2a8f2d1a"
+  },
+  "backup_restore": {
+    "backup_directory": "/Users/stevmq/Library/Application Support/SkillMap/Backups/M2.16/20260805T140909Z",
+    "encrypted_at_rest": true,
+    "keychain_key_present": true,
+    "restore_proof": "PASS",
+    "conductor_acceptance_sha256": "5a91a8fb634397eb1f85df366f15898249a6e74e192a02d3cea5105f2e53bd81",
+    "worker_restore_receipt_sha256": "b7943e50981d4d90d08528d86d664d55160363e9edefffe848eb4ad279a36cdc"
+  },
+  "remote_apply": {
+    "supabase_cli_version": "2.110.0",
+    "final_dry_run": "PASS_EXACT_12",
+    "db_push_linked_invocations": 1,
+    "applied_versions_first": "20260727060200",
+    "applied_versions_last": "20260727061300",
+    "applied_versions_count": 12,
+    "remote_migration_count": 27,
+    "local_remote_migration_parity": "PASS_27_OF_27",
+    "schema_cache_reload": "PASS"
+  },
+  "type_parity": {
+    "generator": "supabase gen types --linked --schema api,private",
+    "raw_remote_parity": "PASS_BYTE_EXACT",
+    "postgrest_version": "14.5"
+  },
+  "remote_security_matrix": {
+    "sql_sha256": "eca93b8884e60f282bcfb60a4c56db1cd8e0071ce1e9e694965274c3bd8e7fbb",
+    "preflight_sha256": "83f31565bc52cff51a569cf0c33bfcfad4db7253cf29b97948ee4aa15ad90ac2",
+    "transaction_shape": "ONE_BEGIN_ZERO_COMMIT_ONE_ROLLBACK",
+    "local_conductor_runs": 2,
+    "local_conductor_runs_result": "PASS",
+    "remote_attempts": 2,
+    "remote_attempt_1": "ROLLED_BACK_FAIL_BRITTLE_UNORDERED_EXPORT_ASSERTION",
+    "remote_attempt_1_residue": "ZERO",
+    "remote_attempt_2": "PASS",
+    "identities": 2,
+    "roles": [
+      "anon",
+      "authenticated",
+      "service_role"
+    ],
+    "coverage": [
+      "owner isolation",
+      "FORCE RLS and grant boundaries",
+      "private storage metadata binding and prepare functions",
+      "incomplete-upload cleanup queue",
+      "device token and import authority",
+      "route decision and correction authority",
+      "exclusive account export",
+      "account deletion, storage-job fail-closed behavior, and canonical 13-owner completion"
+    ]
+  },
+  "remote_residue_after": {
+    "existing_auth_users": 1,
+    "existing_profiles": 1,
+    "storage_buckets": 1,
+    "storage_objects": 0,
+    "fixture_auth_users": 0,
+    "fixture_profiles": 0,
+    "all_skill_vault_rows_jobs_and_receipts": 0
+  },
+  "advisors": {
+    "security_error_or_fatal": 0,
+    "security_info": "intentional deny-by-default private tables report rls_enabled_no_policy",
+    "security_warn": "leaked password protection disabled at provider configuration",
+    "performance": "informational unindexed-foreign-key and unused-index notices retained for later capacity work"
+  },
+  "limitations": {
+    "physical_blob_api_tested": false,
+    "physical_blob_created": false,
+    "physical_blob_residue": 0,
+    "storage_evidence": "remote storage metadata binding, RLS, prepare-read/delete, cleanup queue, deletion-job absence gate, and rollback residue",
+    "provider_auth_configuration_changed": false
+  },
+  "release_state": {
+    "pushed": false,
+    "deployed": false,
+    "app_released": false
+  }
+}

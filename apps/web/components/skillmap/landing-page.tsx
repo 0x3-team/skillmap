@@ -355,7 +355,7 @@ function SiteHeader({ accountState, onOpenPalette }: { accountState: HostedAccou
             <Search className="h-4 w-4" />
           </Button>
           {accountState === "unavailable" ? (
-            <span data-account-control="unavailable" aria-label="Account status unavailable" className="inline-flex h-10 items-center rounded-lg border border-warning/35 bg-warning/10 px-2 text-xs font-semibold text-muted-foreground sm:px-3 sm:text-sm"><span className="sm:hidden">Unavailable</span><span className="hidden sm:inline">Account unavailable</span></span>
+            <span data-account-control="unavailable" role="status" aria-live="polite" className="inline-flex h-10 items-center rounded-lg border border-warning/35 bg-warning/10 px-2 text-xs font-semibold text-muted-foreground sm:px-3 sm:text-sm">Account unavailable</span>
           ) : (
             <Link data-account-control={accountState} href={accountState === "authenticated" ? "/account" : "/sign-in"} prefetch={false} className="inline-flex h-10 items-center justify-center rounded-full border border-primary bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-lift transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:px-4">
               {accountState === "authenticated" ? "Account" : "Sign in"}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/error.schema.json",
+  "title": "SkillMap DeviceAuth v1 Error Response",
+  "description": "Closed error envelope for all DeviceAuth v1 failures. error_description is a fixed safe literal containing no identifiers; retry_after is present and positive only for rate_limited and slow_down.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error", "error_description", "retry_after"],
+  "properties": {
+    "error": {
+      "enum": [
+        "invalid_request",
+        "invalid_scope",
+        "invalid_grant",
+        "authorization_pending",
+        "slow_down",
+        "access_denied",
+        "expired_token",
+        "invalid_client",
+        "invalid_token",
+        "proof_required",
+        "proof_invalid",
+        "insufficient_scope",
+        "already_consumed",
+        "idempotency_conflict",
+        "rate_limited",
+        "secure_storage_unavailable",
+        "temporarily_unavailable"
+      ]
+    },
+    "error_description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "retry_after": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

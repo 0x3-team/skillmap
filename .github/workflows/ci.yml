@@ -39,8 +39,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
       - run: npm ci
+      - name: Install web dependencies for the Node 22 cross-stack DeviceAuth test
+        if: matrix.node == 22
+        run: npm --prefix apps/web ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
       - name: Download the retained package candidate
@@ -382,9 +387,7 @@ jobs:
       - name: Start disposable hosted stack and validate database authority
         run: |
           supabase start
-          supabase db reset --local
-          supabase db lint --local --schema api,private,public --level warning --fail-on warning
-          supabase test db --local
+          node scripts/test-hosted-database.mjs
       - name: Build the hosted application against the disposable public configuration
         shell: bash
         run: |

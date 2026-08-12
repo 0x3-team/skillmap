@@ -1,6 +1,6 @@
 # Free public alpha deployment, worker, and recovery runbook
 
-Status: local launch-candidate runbook. It does not authorize provider creation, spending, DNS, OAuth, indexing, public announcements, or invitations. Those actions require the owner decisions in the canonical launch plan.
+Status: local launch-candidate runbook. It does not authorize provider creation, spending, DNS, OAuth, indexing, public announcements, or invitations. Those actions require the owner decisions in the canonical launch plan. A private owner-only mechanics pilot may use two separately provisioned operator credentials to prove database and CLI separation, but this is only technical rehearsal and cannot authorize, moderate, publish, or promote any real participant or third-party listing.
 
 ## Production decision record
 
@@ -51,14 +51,15 @@ supabase db lint --local --schema api,private,public --level warning --fail-on w
 supabase test db --local
 
 tmp_types=$(mktemp)
-supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
+supabase gen types typescript --local --schema api,private | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 
-# The raw file above must stay generator-exact. The application imports
-# database.runtime.types.ts, whose narrow override restores nullable return
-# fields for the three operator RETURNS TABLE RPCs. Compile-time assertions and
-# the web truth contract guard both nullable and required fields.
+# The raw file above must stay generator-exact for both api and private. The
+# application imports database.runtime.types.ts, which excludes private from
+# clients and restores nullable return fields for the three reviewed operator
+# RETURNS TABLE RPCs. Compile-time assertions and the web truth contract guard
+# the schema boundary plus nullable and required fields.
 npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 
@@ -82,40 +83,40 @@ Record each gate separately. A skipped browser, auth, database, backup, or live 
 
 ### Hard worker migration gate
 
-Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260713060000_operator_submission_read_plane.sql`, `20260714010000_atomic_report_enforcement.sql`, `20260714030000_github_provider_rate_limit_deferral.sql`, `20260714050000_report_authorization_enforcement.sql`, `20260714060000_operator_dual_control.sql`, `20260715010000_hosted_evidence_version_authority.sql`, and `20260715020000_hosted_report_idempotency_recovery.sql`, plus every preceding migration, are applied to the target. The worker uses `api.peek_skill_submission_candidate` before its GitHub budget check, claims only that exact ID, unconditionally calls `api.renew_skill_submission_claim` after source phases, and uses `api.defer_skill_submission_provider_limit` for raced provider exhaustion. Claim, completion, retained evidence, and publication require the exact migration-owned worker/audit/grade tuple. Publication also relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck; queue inspection relies on the read-plane RPCs; report intake independently requires current publisher authorization; owner-safe report recovery distinguishes an exact request-UUID retry from the current queued target; and report moderation relies on the final atomic enforcement and paired-cursor contracts. Consequential authorization, collision, publication, lifecycle, and report-disposition mutations require an exact short-lived approval and a distinct executor. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise consume attempts during provider backpressure, fail during source processing, make a deterministic receipt retry unrecoverable, retain or publish evidence under an unsupported evaluator, bypass reviewed authority, accept reports for a listing whose authorization has expired, misidentify a report conflict, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
+Do not start `hosted:queue:process-once`, a scheduler, any queue consumer, or a service-role operator command until migrations `20260727050300_operator_submission_read_plane.sql`, `20260727050305_atomic_report_enforcement.sql`, `20260727050312_github_provider_rate_limit_deferral.sql`, `20260727050316_report_authorization_enforcement.sql`, `20260727050320_operator_dual_control.sql`, `20260727050324_hosted_evidence_version_authority.sql`, and `20260727050328_hosted_report_idempotency_recovery.sql`, plus every preceding migration, are applied to the target. The worker uses `api.peek_skill_submission_candidate` before its GitHub budget check, claims only that exact ID, unconditionally calls `api.renew_skill_submission_claim` after source phases, and uses `api.defer_skill_submission_provider_limit` for raced provider exhaustion. Claim, completion, retained evidence, and publication require the exact migration-owned worker/audit/grade tuple. Publication also relies on claim-scoped exact license evidence, a current unexpired publisher authorization, target-bound collision disposition, and exact publication recheck; queue inspection relies on the read-plane RPCs; report intake independently requires current publisher authorization; owner-safe report recovery distinguishes an exact request-UUID retry from the current queued target; and report moderation relies on the final atomic enforcement and paired-cursor contracts. Consequential authorization, collision, publication, lifecycle, and report-disposition mutations require an exact short-lived approval and a distinct executor. Operator-before-migration is a hard `NO_GO` because a claimed row could otherwise consume attempts during provider backpressure, fail during source processing, make a deterministic receipt retry unrecoverable, retain or publish evidence under an unsupported evaluator, bypass reviewed authority, accept reports for a listing whose authorization has expired, misidentify a report conflict, resolve a confirmed report without hiding its target, or leave the operator without the supported redacted read boundary.
 
-Migration `20260713060000` creates its queue index inside the migration transaction. Apply it before accepting submissions. If the target is already populated, use a maintenance window and record the pre-migration row count plus index-build duration because the non-concurrent build can block writes. A second index for the default multi-state listing is deferred until target `EXPLAIN` output, queue growth, or measured latency justifies its write and storage cost.
+Migration `20260727050300` creates its queue index inside the migration transaction. Apply it before accepting submissions. If the target is already populated, use a maintenance window and record the pre-migration row count plus index-build duration because the non-concurrent build can block writes. A second index for the default multi-state listing is deferred until target `EXPLAIN` output, queue growth, or measured latency justifies its write and storage cost.
 
-Migration `20260714010000` deliberately refuses a target containing any report already resolved by the legacy non-atomic RPC. Before applying it to such a target, pause report mutations and create a reviewed forward reconciliation migration that verifies every exact report target, enforces quarantine or revocation for confirmed reports, and retains the resulting evidence. Do not delete or rewrite the append-only audit history, and do not bypass this guard manually. A new or currently empty hosted alpha satisfies the guard directly.
+Migration `20260727050305` deliberately refuses a target containing any report already resolved by the legacy non-atomic RPC. Before applying it to such a target, pause report mutations and create a reviewed forward reconciliation migration that verifies every exact report target, enforces quarantine or revocation for confirmed reports, and retains the resulting evidence. Do not delete or rewrite the append-only audit history, and do not bypass this guard manually. A new or currently empty hosted alpha satisfies the guard directly.
 
-Migration `20260714030000` adds provider retry timing, a separate deferral counter, an exact read-only candidate peek, and an exact-claim deferral RPC. Normal insufficient GitHub core budget returns `provider-deferred` with `mutation: false`; a post-claim 403/429 or bounded secondary-limit response returns `mutation: true` only after the row is safely back in `queued`. Both paths preserve unauthenticated public/private verification and consume no audit attempt. Treat a requirement above the provider's total limit as an operator configuration error, not a retry loop.
+Migration `20260727050312` adds provider retry timing, a separate deferral counter, an exact read-only candidate peek, and an exact-claim deferral RPC. Normal insufficient GitHub core budget returns `provider-deferred` with `mutation: false`; a post-claim 403/429 or bounded secondary-limit response returns `mutation: true` only after the row is safely back in `queued`. Both paths preserve unauthenticated public/private verification and consume no audit attempt. Treat a requirement above the provider's total limit as an operator configuration error, not a retry loop.
 
-Migration `20260714050000` composes `private.version_has_current_publisher_authorization` into authenticated report insertion. A version hidden only because its latest authorization expired cannot accept a new report even if its catalog lifecycle fields otherwise remain published.
+Migration `20260727050316` composes `private.version_has_current_publisher_authorization` into authenticated report insertion. A version hidden only because its latest authorization expired cannot accept a new report even if its catalog lifecycle fields otherwise remain published.
 
-Migration `20260714060000` requires two independently provisioned operator principals for every consequential authorization, collision-review, publication, catalog-lifecycle, and report-disposition action. The approver records one exact payload/digest/operation envelope; a distinct executor must present its unexpired `opa_...` approval. Raw `smo_v1_...` credentials are sent only in the server-to-server request header and are never arguments, output, or retained rows.
+Migration `20260727050320` requires two independently provisioned operator principals for every consequential authorization, collision-review, publication, catalog-lifecycle, and report-disposition action. For owner-only mechanics rehearsal, one human may use two separate test credentials to verify technical control flow, but this run cannot approve, authorize, moderate, publish, or promote any real participant or third-party listing. For real participant publication, a distinct approver and executor must be separate accountable humans. The approver records one exact payload/digest/operation envelope; a distinct executor must present its unexpired `opa_...` approval. Raw `smo_v1_...` credentials are sent only in the server-to-server request header and are never arguments, output, or retained rows.
 
-Migration `20260715010000` pins the supported worker, audit policy/host/worker, rubric/host/evaluator, and retained worker-run tuple. Unsupported claims and completions fail before mutation, and accepted or published stale evidence must be explicitly re-audited rather than grandfathered. Migration `20260715020000` adds the opaque request UUID to the existing owner-RLS report projection so the web action can distinguish an exact retry from a separate queued-target conflict; it does not expose another account's request IDs or add the UUID to the versioned account export.
+Migration `20260727050324` pins the supported worker, audit policy/host/worker, rubric/host/evaluator, and retained worker-run tuple. Unsupported claims and completions fail before mutation, and accepted or published stale evidence must be explicitly re-audited rather than grandfathered. Migration `20260727050328` adds the opaque request UUID to the existing owner-RLS report projection so the web action can distinguish an exact retry from a separate queued-target conflict; it does not expose another account's request IDs or add the UUID to the versioned account export.
 
 Before the first worker start and after every database deploy:
 
 ```bash
 supabase migration list --linked
-# Verify 20260713060000, 20260714010000, 20260714030000, 20260714050000, 20260714060000, 20260715010000, and 20260715020000 are present in both the local and remote columns.
+# Verify 20260727050300, 20260727050305, 20260727050312, 20260727050316, 20260727050320, 20260727050324, and 20260727050328 are present in both the local and remote columns.
 supabase db push --linked --dry-run
 
 # Against the exact candidate locally:
 supabase db reset --local
 supabase db lint --local --schema api,private,public --level warning --fail-on warning
-supabase test db $(rg --files supabase/tests -g '*.test.sql' | sort)
+find supabase/tests -type f -name '*.test.sql' -print0 | tr '\0' '\n' | LC_ALL=C sort | tr '\n' '\0' | xargs -0 supabase test db
 tmp_types=$(mktemp)
-supabase gen types typescript --local --schema api | sed -e '${/^$/d;}' > "$tmp_types"
+supabase gen types typescript --local --schema api,private | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 npm --prefix apps/web run typecheck
 npm --prefix apps/web run test:fixtures
 ```
 
-On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260713060000`, `20260714010000`, `20260714030000`, `20260714050000`, `20260714060000`, `20260715010000`, and `20260715020000`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization for report intake, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, distinct-operator dual control, exact evidence-version authority, owner-safe request-ID recovery, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
+On the deployed target, repeat the migration list and linked generated-type parity check after `supabase db push --linked`. Keep `apps/web/lib/supabase/database.types.ts` as the byte-exact `api,private` generator artifact; application code imports `apps/web/lib/supabase/database.runtime.types.ts`, which excludes `private` from application clients and narrows only the three operator RPC return shapes where PostgreSQL expressions can be null. Both the application typecheck and fixture truth contract must pass. Record migrations `20260727050300`, `20260727050305`, `20260727050312`, `20260727050316`, `20260727050320`, `20260727050324`, and `20260727050328`, the pgTAP verdict, and the type digest in the deployment receipt, and verify the receipt explicitly names claim-scoped license evidence, current publisher authorization for report intake, target-bound collision authority, atomic confirmed-report enforcement, paired report pagination, GitHub provider deferral, distinct-operator dual control, exact evidence-version authority, owner-safe request-ID recovery, and the redacted operator read plane. An unverified migration list, skipped pgTAP, type mismatch, failed application type assertion, or incomplete authority receipt blocks worker start.
 
 ## Environment boundaries
 
@@ -130,6 +131,8 @@ The web deployment receives only:
 
 The web guard is fixed at its reviewed private-alpha values; there are no web rate-limit tuning variables in this release. Worker admission uses the reviewed unauthenticated GitHub core-budget gate and exact-claim provider deferral; neither setting is browser-configurable. A provider-global limiter remains mandatory before public alpha because worker backpressure does not replace public-ingress abuse control.
 
+`npm --prefix apps/web run build` first validates the release configuration. A hosted build fails before compilation without a valid site origin and public Supabase configuration; a `public-alpha` build additionally fails without the approved support URL and the exact public-indexing pair. This is source-level artifact protection, not deployment or live-environment proof.
+
 The operator worker receives, from a root-only runtime secret source:
 
 - `SKILLMAP_SUPABASE_URL`
@@ -138,7 +141,7 @@ The operator worker receives, from a root-only runtime secret source:
 
 The service-role value must never enter the web deployment, client bundle, shell history, screenshots, logs, CI artifacts, or GitHub source requests. GitHub ingestion remains unauthenticated and public-only.
 
-Release copy and indexing are independently fail-closed. A private pilot uses `SKILLMAP_RELEASE_STAGE=private-alpha` with `SKILLMAP_INDEXING_MODE=private-alpha`. After every live gate, initial-corpus gate, policy approval, and external-pilot gate passes, change both values together to `public-alpha` and `public`. Setting indexing to `public` alone leaves robots private; setting the release stage alone changes truthful product copy but does not enable indexing.
+Release copy and indexing are independently fail-closed. A private owner pilot uses `SKILLMAP_RELEASE_STAGE=private-alpha` with `SKILLMAP_INDEXING_MODE=private-alpha` and proves technical readiness only; it is not external-pilot evidence. After every live gate, initial-corpus gate, policy approval, and external-pilot gate passes, change both values together to `public-alpha` and `public`. Setting indexing to `public` alone leaves robots private; setting the release stage alone changes truthful product copy but does not enable indexing.
 
 ## Migration and deployment
 
@@ -149,7 +152,7 @@ supabase db push --linked --dry-run
 supabase db push --linked
 
 tmp_types=$(mktemp)
-supabase gen types typescript --linked --schema api | sed -e '${/^$/d;}' > "$tmp_types"
+supabase gen types typescript --linked --schema api,private | sed -e '${/^$/d;}' > "$tmp_types"
 cmp "$tmp_types" apps/web/lib/supabase/database.types.ts
 rm -f "$tmp_types"
 
@@ -208,7 +211,7 @@ The operator queue read plane is service-role-only, bounded, redacted, and non-m
    npm run hosted:collisions:list -- --execute --submission-id sub_...
    ```
 
-8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop. For this and every later consequential command, the approver loads only their root-held `SKILLMAP_OPERATOR_CREDENTIAL` and runs `--approve`; a distinct executor then loads their own credential and repeats the exact arguments and operation UUID with `--execute --approval-id opa_...` before the 30-minute expiry. Never put either credential on the command line or in a receipt:
+8. If `collisionFound` is true, compare the exact matched skill/version IDs and match types, then record one immutable disposition. Use `approved-update` only when the reviewed publisher/slug is the existing skill identity, `approved-distinct` only when the source is independently legitimate, and `blocked-duplicate` when publication must stop. For this and every later consequential command, the approver loads only their root-held `SKILLMAP_OPERATOR_CREDENTIAL` and runs `--approve`; a distinct executor then loads their own credential and repeats the exact arguments and operation UUID with `--execute --approval-id opa_...` before the 30-minute expiry. The approver and executor must be two accountable humans with separate credentials for real participant publication, while a one-human owner rehearsal may only use test credentials for technical split validation. Never put either credential on the command line or in a receipt:
 
    ```bash
    npm run hosted:collisions:review -- \

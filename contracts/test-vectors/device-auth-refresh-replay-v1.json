@@ -1,0 +1,29 @@
+{
+  "$schema": "skillmap.device-auth-refresh-replay-v1/v1",
+  "fixture_status": "public_test_material_only",
+  "replay_key_version": 11,
+  "rejected_key_versions": [0, 12, "11"],
+  "key_hex_test_only": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "nonce_hex": "1a2b3c4d5e6f778899aabbcc",
+  "aad_utf8": "SKILLMAP-REFRESH-REPLAY-AAD-V1\nskillmap.connector.v1\nskillmap.ecdsa-p256-sha256.v2\ndevice-public-01\nfamily-public-01\nidempotency-hmac-01\nrequest-digest-01\n7\n8\n1735689600\n1735690200\nv1\nsha256:fixture-response\n67\n",
+  "aad_base64url": "U0tJTExNQVAtUkVGUkVTSC1SRVBMQVktQUFELVYxCnNraWxsbWFwLmNvbm5lY3Rvci52MQpza2lsbG1hcC5lY2RzYS1wMjU2LXNoYTI1Ni52MgpkZXZpY2UtcHVibGljLTAxCmZhbWlseS1wdWJsaWMtMDEKaWRlbXBvdGVuY3ktaG1hYy0wMQpyZXF1ZXN0LWRpZ2VzdC0wMQo3CjgKMTczNTY4OTYwMAoxNzM1NjkwMjAwCnYxCnNoYTI1NjpmaXh0dXJlLXJlc3BvbnNlCjY3Cg",
+  "plaintext_utf8": "{\"access_token\":\"fixture-access\",\"refresh_token\":\"fixture-refresh\"}",
+  "plaintext_bytes": 67,
+  "plaintext_sha256": "sha256:2171afa7905f758b3156f5b40e2ea78fd95d5e2e65356cfcacb82bdcd70af6ac",
+  "ciphertext_and_tag_base64url": "HWAME54TIF7XZ-T0W0_gHtVSBskINi6SATzLVlfv08fu4CXbyzmPEq-6U4DzadQTc-5qRrIwU1yFhFb40lAhnI07qo3LbhxzO4Fb4v5R-ooBgYA",
+  "ciphertext_and_tag_bytes": 83,
+  "tamper_cases": [
+    "ciphertext_byte",
+    "tag_byte",
+    "aad_field",
+    "nonce_byte",
+    "response_issued_at",
+    "body_digest_or_length"
+  ],
+  "time_cases": {
+    "response_issued_at": 1735689600,
+    "replay_until_exclusive": 1735690200,
+    "runtime_purge_after": 1735690500,
+    "maximum_key_destruction_deadline": 1735690530
+  }
+}

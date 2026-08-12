@@ -184,8 +184,8 @@ test('checkpoint truth binds the accepted product merge without freezing moving 
       `${file}: superseded local-only checkpoint claim remains current`);
   }
 
-  assert.match(threatModel, /20260715010000_hosted_evidence_version_authority[.]sql/);
-  assert.match(threatModel, /20260715020000_hosted_report_idempotency_recovery[.]sql/);
+  assert.match(threatModel, /20260727050324_hosted_evidence_version_authority[.]sql/);
+  assert.match(threatModel, /20260727050328_hosted_report_idempotency_recovery[.]sql/);
   assert.match(threatModel, /pgTAP `621\/621` across ten files/i);
   assert.match(plan, /Thirteen ordered migrations[^|]+`621\/621` pgTAP assertions across ten files/i);
   assert.match(handoff, /latest accepted product-code merge/i);
@@ -260,15 +260,30 @@ test('go-to-market checklist records source integration without claiming externa
 });
 
 test('operator documentation, commands, and application types bind the final read plane', () => {
+  const legacyRenamedMigrationIds = [
+    '20260711192500',
+    '20260712170000',
+    '20260712233000',
+    '20260713003000',
+    '20260713020000',
+    '20260713050000',
+    '20260713060000',
+    '20260714010000',
+    '20260714030000',
+    '20260714050000',
+    '20260714060000',
+    '20260715010000',
+    '20260715020000'
+  ];
   for (const file of ['apps/worker/README.md', 'docs/operations/free-public-alpha-runbook.md']) {
     const source = sources[file];
-    assert.match(source, /20260713060000_operator_submission_read_plane[.]sql/, file);
-    assert.match(source, /20260714010000_atomic_report_enforcement[.]sql/, file);
-    assert.match(source, /20260714030000_github_provider_rate_limit_deferral[.]sql/, file);
-    assert.match(source, /20260714050000_report_authorization_enforcement[.]sql/, file);
-    assert.match(source, /20260714060000_operator_dual_control[.]sql/, file);
-    assert.match(source, /20260715010000_hosted_evidence_version_authority[.]sql/, file);
-    assert.match(source, /20260715020000_hosted_report_idempotency_recovery[.]sql/, file);
+    assert.match(source, /20260727050300_operator_submission_read_plane[.]sql/, file);
+    assert.match(source, /20260727050305_atomic_report_enforcement[.]sql/, file);
+    assert.match(source, /20260727050312_github_provider_rate_limit_deferral[.]sql/, file);
+    assert.match(source, /20260727050316_report_authorization_enforcement[.]sql/, file);
+    assert.match(source, /20260727050320_operator_dual_control[.]sql/, file);
+    assert.match(source, /20260727050324_hosted_evidence_version_authority[.]sql/, file);
+    assert.match(source, /20260727050328_hosted_report_idempotency_recovery[.]sql/, file);
     assert.match(source, /hosted:queue:list/, file);
     assert.match(source, /hosted:queue:inspect/, file);
     assert.match(source, /best-effort[^.]+live/i, file);
@@ -277,6 +292,9 @@ test('operator documentation, commands, and application types bind the final rea
     assert.match(source, /after-updated-at/, file);
     assert.match(source, /licref_[0-9a-f]{32}/, file);
     assert.match(source, /sha256:[0-9a-f]{64}/, file);
+    for (const legacyId of legacyRenamedMigrationIds) {
+      assert.doesNotMatch(source, new RegExp(legacyId), `${file}: stale pre-baseline migration id ${legacyId}`);
+    }
     const digestTokens = [...source.matchAll(/sha256:[^\s`"'<>]*/gi)].map(match => match[0]);
     assert.ok(digestTokens.length > 0, `${file}: no SHA-256 token found`);
     for (const token of digestTokens) assert.match(token, /^sha256:[0-9a-f]{64}$/i, file);
@@ -291,8 +309,15 @@ test('operator documentation, commands, and application types bind the final rea
   assert.match(workerScripts['queue:list'], /submission-queue[.]mjs/);
   assert.match(workerScripts['queue:inspect'], /submission-detail[.]mjs/);
   assert.match(workerScripts['operations:check'], /operations-check[.]mjs/);
+  assert.match(workerScripts['typecheck'], /tsc -p tsconfig[.]json/);
   const runtimeTypes = sources['apps/web/lib/supabase/database.runtime.types.ts'];
   assert.match(runtimeTypes, /Database as GeneratedDatabase.*database[.]types/);
+  assert.match(runtimeTypes, /Omit<GeneratedDatabase, "__InternalSupabase" \| "api" \| "private">/);
+  assert.match(
+    runtimeTypes,
+    /export type RuntimeDatabaseSchemaAssertion = AssertTrue<\s*IsExact<keyof Database, "api">\s*>/
+  );
+  assert.match(runtimeTypes, /api: Omit<ApiSchema, "Functions"> & \{ Functions: RuntimeFunctions \};/);
   assert.match(runtimeTypes, /type NullableFields/);
   for (const rpc of [
     'get_skill_submission_operator_detail',

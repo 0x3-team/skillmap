@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/cancel-response.schema.json",
+  "title": "SkillMap DeviceAuth v1 Pairing Cancellation Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": { "status": { "const": "cancelled" } }
+}

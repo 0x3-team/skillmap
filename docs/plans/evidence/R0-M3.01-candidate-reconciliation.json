@@ -1,0 +1,181 @@
+{
+  "$schema": "skillmap.r0-m3.01-candidate-reconciliation/v1",
+  "phase": "R0",
+  "slice": "R0+M3.01",
+  "status": "BLOCKED_CANDIDATE",
+  "generated_from": {
+    "plan": "docs/plans/2026-08-10-skillmap-m3-device-connector-implementation-plan.md",
+    "plan_sha256": "752f6d33ca2438b903ecac017eba82111a24d661ad1ad290ab283bd3942d6060",
+    "accepted_base_commit": "0bc3c7e2e7b6523c018980714eef4d26ae8dc80e",
+    "accepted_base_tree": "eabadbeb69513607e382a92dd4107358005ea6e0"
+  },
+  "candidate": {
+    "worktree": "/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate",
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "head": "0bc3c7e2e7b6523c018980714eef4d26ae8dc80e",
+    "tree": "eabadbeb69513607e382a92dd4107358005ea6e0",
+    "initial_status": "clean",
+    "initial_status_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "dirty_main": {
+    "worktree": "/Users/stevmq/Documents/skillmap",
+    "branch": "main",
+    "head": "cb062dd35de76cc3b40c1d004a13b50663cc1aa6",
+    "tree": "b3126f7ff4a5972aee2ff6bb29668e069a719c9c",
+    "status_sha256_before": "b01d3c47988ab9ca32ff1efc51c4f4b4c676f2f3bb6daf633acf24afb072f276",
+    "status_sha256_after": "b01d3c47988ab9ca32ff1efc51c4f4b4c676f2f3bb6daf633acf24afb072f276",
+    "unchanged": true
+  },
+  "accepted_migrations": {
+    "remote_baseline_last": "20260727061300",
+    "count": 27,
+    "rows": [
+      ["20260727050142_hosted_catalog_foundation.sql", "73834cc04f4ddfa6e28035b1cfe593144be457d8603eab0b93520ab42834d0e9"],
+      ["20260727050148_hosted_submission_queue_foundation.sql", "3a49a63677f591a44ab0b5ed1e084145e6514fd619afa3379ce62d4a37a2f509"],
+      ["20260727050200_hosted_operator_publication_authority.sql", "6590d93718033c91a0f130eb3493d519129cd3e946fdcac7a29ab47269bdc51d"],
+      ["20260727050206_launch_safety_reports_lifecycle.sql", "004bded9aa1ea9ceeb204eb0150c3aec4e6d7553af0fb619cc7a0d84801202e6"],
+      ["20260727050214_backend_completion_hardening.sql", "9d9e3883d4a545142c73ca6abdba9bf7b3437ceee0fbb24088143b8ffeebde12"],
+      ["20260727050220_submission_authority_completion.sql", "6862834247875b83950469bcca6628ae965afae9c55d6724c4429831a70ab9bf"],
+      ["20260727050300_operator_submission_read_plane.sql", "703f695d031140624a271692ea59ee11cd30ea1c0b21d89c1ebb1a70fa38baf4"],
+      ["20260727050305_atomic_report_enforcement.sql", "bc2c5c12cf7de1ec797504237ee007b7ed43dc4ed76dcc54e55d696161e9aed2"],
+      ["20260727050312_github_provider_rate_limit_deferral.sql", "b53e47f01cf93504c138a3d0c16aa3d8c6c5fbdff8b4ce435a2ecb34606a7623"],
+      ["20260727050316_report_authorization_enforcement.sql", "c59574d46f73718a2478c9490134ab46945655fe78b45f56a04c4ffa6c274229"],
+      ["20260727050320_operator_dual_control.sql", "8d842091a52b03787c21682f08f67060d994eb37a52301068721c32ee9963d6c"],
+      ["20260727050324_hosted_evidence_version_authority.sql", "1de4a606d8d90077b67ac9b0fe7f33411a19d0667fce753beea702356a3bf1a8"],
+      ["20260727050328_hosted_report_idempotency_recovery.sql", "522acb09860003eb9018e4c0c85a91e1ac4955a2fc440b9342945551157742b8"],
+      ["20260727055057_expose_api_schema.sql", "8bd1806a3f6a35902314f72c764e9a8218a7bfb3df31ecb55a44800ad81db3f8"],
+      ["20260727055126_reload_postgrest_schema_cache.sql", "52383c4990ece2e14a1cc658fd8e28408ea39cf46ff3b3b7736c910169340de6"],
+      ["20260727060200_skill_vault_managed_skills.sql", "c1395998b977c446a9eb23243ec4cacf10cda21b74d43eb1cb7b0989a4738dd6"],
+      ["20260727060300_skill_vault_versions_releases_activation.sql", "371121348a041df275662ab7c2e13379c84c6c1e4da626570a70a82edc657d5d"],
+      ["20260727060400_skill_vault_files.sql", "1d9fa26064809903447c01010666b65931cba64f429c6b1f41930a78f65a8c64"],
+      ["20260727060500_skill_vault_private_storage.sql", "60530f993603e61a4da011b4bc59c2ab7e04142fc93d7e232a3fcee67dec5dc8"],
+      ["20260727060600_skill_vault_devices.sql", "6a38f1ee5f36d83f9784b8df11cc5e544c38a0c4f0d9cad093cf82c091c7766d"],
+      ["20260727060700_skill_vault_import_sessions.sql", "22955d0aae7fec6a67e6e5fe0645b00fd92808602f40ee51d6574eabce51c8d1"],
+      ["20260727060800_skill_vault_route_records.sql", "80ead77346db494667e2f6badd541fb8f0150b573d39a8db174e83c36ddf685c"],
+      ["20260727060900_skill_vault_managed_rls.sql", "6b066ba943e443475104c80853c341832cee719bd78ef7d73da8898a20e28712"],
+      ["20260727061000_skill_vault_device_import_rls.sql", "0a1b2978277c2c2d74b79abef882a6ed12e60cda0a298525b3faf900bb10f0dd"],
+      ["20260727061100_skill_vault_route_rls.sql", "b8d510088561858c3c312833fbace55fb156258a1eac2cd1fab5f9264119a86e"],
+      ["20260727061200_skill_vault_account_export.sql", "ca84e22df4a03c42dc2b716816770cbd68338e6cd11516713044d646f9e55086"],
+      ["20260727061300_skill_vault_account_deletion.sql", "7766fa7f4dc7e442c3f9c617a5206491347a8e4ededc0de9f511fb675ead814d"]
+    ]
+  },
+  "later_main_migrations": [
+    {
+      "path": "supabase/migrations/20260727061400_skill_vault_route_decision_authority_current.sql",
+      "sha256": "4cbf1ca9377f09f7bd453f36709355472615dbd9693e6aefb0d8df2983f892b2",
+      "disposition": "exclude",
+      "reason": "M2 route-authority repair; outside R0/M3.01 and not accepted remote baseline. Re-review only if a later M3 route seam needs it."
+    },
+    {
+      "path": "supabase/migrations/20260727061500_skill_vault_deletion_authority_current.sql",
+      "sha256": "ae0f830d19a543d45f43eae20568ca25a31296e152fd21c013621e86eafc3c9f",
+      "disposition": "exclude",
+      "reason": "M2 deletion-authority repair; no connector platform dependency and not accepted remote baseline."
+    },
+    {
+      "path": "supabase/migrations/20260727061600_skill_vault_storage_cleanup_adapter.sql",
+      "sha256": "c375e32052620a8841bb114837c14a38138e428394d672c4250a1ce45080923a",
+      "disposition": "exclude",
+      "reason": "M2 storage cleanup adapter; no connector platform dependency and not accepted remote baseline."
+    },
+    {
+      "path": "supabase/migrations/20260727061700_skill_vault_import_expiry_authority.sql",
+      "sha256": "b430897b66c2a628d3efe908414097e303b92338a7275bb3bff4a756cd39c961",
+      "disposition": "exclude",
+      "reason": "M2 import expiry authority; M3.01 has no product/API/database behavior."
+    },
+    {
+      "path": "supabase/migrations/20260727061800_skill_vault_device_revision_authority.sql",
+      "sha256": "cdc095bc21886d096acbe99e79a12efaa91a4016bcb631e25a79ed537cf1bc0b",
+      "disposition": "defer",
+      "reason": "Device revision semantics may intersect later owner controls, but this is not accepted M2.16 state and must be reviewed in M3.02 ownership/schema reconciliation."
+    },
+    {
+      "path": "supabase/migrations/20260727061900_skill_vault_rotation_idempotency.sql",
+      "sha256": "b874a3ab0fafc7c22121c05f92802ab556e45d1521c80b1cd7c0207c0be3c209",
+      "disposition": "reimplement",
+      "reason": "M3-relevant rotation/idempotency concept, but dirty receipt cannot reproduce a committed secret refresh response; reimplement only after M3.02 freezes a reviewed replay mechanism."
+    },
+    {
+      "path": "supabase/migrations/20260806084911_skill_vault_account_snapshot.sql",
+      "sha256": "6498bedd0fd560972b8ab929ae440536112209acdefc98372b7400f1ca3e7dda",
+      "disposition": "exclude",
+      "reason": "Later M2 account snapshot candidate; outside R0/M3.01 and not accepted remote baseline."
+    }
+  ],
+  "m3_relevant_dirty_source": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "64ac86774909f9b6d9cd917d0093a6275249b4b275b43aa47223072822580df9",
+      "disposition": "reimplement",
+      "reason": "Current dirty CI edits are M2/build-oriented. M3.01 needs a new explicit macOS Node 22/24 lane; carry requirements forward after the matrix is accepted, not this dirty file wholesale."
+    },
+    {
+      "path": ".gitea/workflows/ci.yml",
+      "sha256": "146708650cec31c464e8a1fb44410a3a5d33ba8cc53f64a6142344c37e6e6ab9",
+      "disposition": "reimplement",
+      "reason": "Mirror the reviewed M3 platform lane later; do not adopt unrelated current-main CI deltas."
+    },
+    {
+      "path": "package.json",
+      "sha256": "2da637f706d7ebe4508db7a2decff9ed4c1668903724c8dd92477316ba041cde",
+      "disposition": "exclude",
+      "reason": "Dirty M2 scripts/dependency changes are not the M3.01 contract or spike; the existing CLI/package surface remains the accepted baseline."
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "648a486be14d8a7aaf651d567e05ae766c8234a03d6fc70a2e6a4bb8cb3fee15",
+      "disposition": "exclude",
+      "reason": "Lockfile drift is unrelated to the bounded platform research and must not be imported into the clean candidate."
+    },
+    {
+      "path": "apps/web/package.json",
+      "sha256": "6701af59005141d921a77d8c192ec22a2fef228b5adfbfcea09689e2c65e2131",
+      "disposition": "exclude",
+      "reason": "Dirty web dependency/runtime changes are outside M3.01 and may not define the later emitted Worker proof path."
+    },
+    {
+      "path": "apps/web/package-lock.json",
+      "sha256": "540569f1fd6bbbc8b4d700770e8bdf2d8a8b1b7db003b861889c4804cdb3edad",
+      "disposition": "exclude",
+      "reason": "Large dirty web lockfile drift is not accepted M2.16 lineage and is outside the bounded spike."
+    },
+    {
+      "path": "docs/plans/evidence/M1.08-device-auth-token-contract.md",
+      "sha256": "66b890a20e28b6e9fb2fd5e0d5881eff103bd2ab316873c6835b4f372473197b",
+      "disposition": "reference_only",
+      "reason": "Authoritative predecessor contract; its Ed25519/non-exportable requirement is cited, not copied into product source."
+    },
+    {
+      "path": "docs/plans/evidence/M1.08-luna-review-r11.md",
+      "sha256": "524e37eb175bb494c2bebb6ee4a8935dbcb103796252e516769c422dcdfbed82",
+      "disposition": "reference_only",
+      "reason": "Authoritative PASS review for M1.08; its key-custody decision remains binding until an additive amendment is independently accepted."
+    }
+  ],
+  "protected_duplicates": [
+    ["apps/web/lib/security/rate-limit 2.ts", "02b97294ddc447883b148ab3c712fa244fae1a0f5d2a02fcfbbf7b2734e5e389", "candidate_absent_unchanged"],
+    ["docs/graphs/README 2.md", "98587b2eee7af3c9c86a6ec9d3fdb77a9bbf49dcebab9d249cb444c8c7bd98aa", "candidate_absent_unchanged"],
+    ["docs/plans/evidence/M0.01-opennext-artifact-proof-r3 2.md", "ebe65217d2377e72487cfa32ab113eeaad596e9a53c1b628dd9281a85e152eee", "candidate_absent_unchanged"],
+    ["docs/project-map 2.md", "bac73644864aeb1402235c30696af399cf4915908cf4dd9ecc7bb19ba3be4413", "candidate_absent_unchanged"]
+  ],
+  "protected_duplicates_before": {
+    "apps/web/lib/security/rate-limit 2.ts": "02b97294ddc447883b148ab3c712fa244fae1a0f5d2a02fcfbbf7b2734e5e389",
+    "docs/graphs/README 2.md": "98587b2eee7af3c9c86a6ec9d3fdb77a9bbf49dcebab9d249cb444c8c7bd98aa",
+    "docs/plans/evidence/M0.01-opennext-artifact-proof-r3 2.md": "ebe65217d2377e72487cfa32ab113eeaad596e9a53c1b628dd9281a85e152eee",
+    "docs/project-map 2.md": "bac73644864aeb1402235c30696af399cf4915908cf4dd9ecc7bb19ba3be4413"
+  },
+  "protected_duplicates_after": {
+    "apps/web/lib/security/rate-limit 2.ts": "02b97294ddc447883b148ab3c712fa244fae1a0f5d2a02fcfbbf7b2734e5e389",
+    "docs/graphs/README 2.md": "98587b2eee7af3c9c86a6ec9d3fdb77a9bbf49dcebab9d249cb444c8c7bd98aa",
+    "docs/plans/evidence/M0.01-opennext-artifact-proof-r3 2.md": "ebe65217d2377e72487cfa32ab113eeaad596e9a53c1b628dd9281a85e152eee",
+    "docs/project-map 2.md": "bac73644864aeb1402235c30696af399cf4915908cf4dd9ecc7bb19ba3be4413"
+  },
+  "non_claims": [
+    "No dirty-main path was copied or adopted.",
+    "No migration was applied, pushed, or linked remotely.",
+    "No package, provider, browser, live, CI, deployment, signing, notarization, or ledger action occurred.",
+    "The native spike does not prove a distributable signed helper; it was blocked by missing entitlement in the unsigned CLI process."
+  ],
+  "canonical_digest_method": "For audit, compute SHA-256 over canonical JSON (sorted keys, compact separators, UTF-8) after removing this field if added by a later receipt; this file intentionally has no self-referential digest."
+}

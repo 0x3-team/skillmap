@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/authenticate-response.schema.json",
+  "title": "SkillMap DeviceAuth v1 Access Authentication Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["active", "device_public_id", "account_public_id", "scopes", "audience", "expires_at"],
+  "properties": {
+    "active": { "const": true },
+    "device_public_id": { "type": "string", "pattern": "^dev_[0-9a-f]{32}$" },
+    "account_public_id": { "type": "string", "pattern": "^acct_[0-9a-f]{32}$" },
+    "scopes": { "type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true, "items": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Scope" } },
+    "audience": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/Audience" },
+    "expires_at": { "$ref": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json#/$defs/UnixSeconds" }
+  }
+}

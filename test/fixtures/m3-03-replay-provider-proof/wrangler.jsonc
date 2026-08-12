@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "skillmap-m303-replay-provider-proof",
+  "main": "./worker.mjs",
+  "compatibility_date": "2026-07-29",
+  "vars": {
+    "REPLAY_BINDING_SUMMARY": "{\"schema\":\"skillmap.device-auth.replay-ring.v1\",\"primary\":5,\"epochs\":[5]}"
+  },
+  "workers_dev": false,
+  "observability": { "enabled": false }
+}

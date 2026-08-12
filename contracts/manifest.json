@@ -31,7 +31,18 @@
     { "name": "hosted-audit-summary-v1", "path": "hosted-audit-summary/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-audit-summary/v1.schema.json" },
     { "name": "hosted-audit-receipt-v1", "path": "hosted-audit-receipt/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-audit-receipt/v1.schema.json" },
     { "name": "hosted-grade-receipt-v1", "path": "hosted-grade-receipt/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-grade-receipt/v1.schema.json" },
-    { "name": "hosted-submission-v1", "path": "hosted-submission/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-submission/v1.schema.json" }
+    { "name": "hosted-submission-v1", "path": "hosted-submission/v1.schema.json", "id": "https://skillmap.dev/contracts/hosted-submission/v1.schema.json" },
+    { "name": "device-auth-common-v1", "path": "device-auth/v1/common.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json" },
+    { "name": "device-auth-error-v1", "path": "device-auth/v1/error.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/error.schema.json" },
+    { "name": "device-auth-initiate-request-v1", "path": "device-auth/v1/initiate-request.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/initiate-request.schema.json" },
+    { "name": "device-auth-initiate-response-v1", "path": "device-auth/v1/initiate-response.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/initiate-response.schema.json" },
+    { "name": "device-auth-cancel-request-v1", "path": "device-auth/v1/cancel-request.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/cancel-request.schema.json" },
+    { "name": "device-auth-cancel-response-v1", "path": "device-auth/v1/cancel-response.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/cancel-response.schema.json" },
+    { "name": "device-auth-authenticate-request-v1", "path": "device-auth/v1/authenticate-request.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/authenticate-request.schema.json" },
+    { "name": "device-auth-authenticate-response-v1", "path": "device-auth/v1/authenticate-response.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/authenticate-response.schema.json" },
+    { "name": "device-auth-status-response-v1", "path": "device-auth/v1/status-response.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/status-response.schema.json" },
+    { "name": "device-auth-revoke-request-v1", "path": "device-auth/v1/revoke-request.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/revoke-request.schema.json" },
+    { "name": "device-auth-revoke-response-v1", "path": "device-auth/v1/revoke-response.schema.json", "id": "https://skillmap.dev/contracts/device-auth/v1/revoke-response.schema.json" }
   ],
   "testVectors": ["test-vectors/canonicalization-v1.json"]
 }

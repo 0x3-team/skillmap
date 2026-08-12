@@ -17,10 +17,11 @@ const SECRET_CANARIES = Object.freeze([
   ['SkillMap operator credential', /smo_v1_[0-9a-f]{64}/]
 ]);
 
-// This file contains intentionally concrete, generated credential fixtures to
-// prove that the npm-candidate verifier fails closed. No other path is exempt.
+// These files contain intentionally concrete credential canaries used to prove
+// that release and Apple-readiness checks fail closed. No other path is exempt.
 const REVIEWED_FIXTURE_EXEMPTIONS = new Map([
-  ['test/package-candidate-verifier.mjs', new Set(['PEM private key'])]
+  ['test/package-candidate-verifier.mjs', new Set(['PEM private key'])],
+  ['test/fixtures/m3-03-apple-signing-readiness/cases.json', new Set(['PEM private key'])]
 ]);
 
 export function scanRepositorySecretCanaries(entries) {

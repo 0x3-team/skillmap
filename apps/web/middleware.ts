@@ -1,24 +1,29 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
-import { catalogError } from "@/lib/registry/api.server";
 import {
   buildContentSecurityPolicy,
   buildResponseSecurityHeaders,
   createRequestNonce,
   isPublicIndexingEnabled
 } from "@/lib/security/policy";
+import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from "@/lib/supabase/config";
 import {
   applyRateLimitHeaders,
-  consumePublicSkillRequest,
+  applyRetryAfterHeader,
+  getAnonymousClientIdentity,
+  InMemoryFixedWindowRateLimiter,
   isPublicCatalogApiPath,
   isPublicCatalogReadRequest,
+  isPublicDeviceAuthInitiationRequest,
+  readDeviceAuthEdgeDecision,
+  PUBLIC_SKILL_RATE_LIMIT_POLICY,
   type RateLimitDecision
-} from "@/lib/security/rate-limit";
-import { SupabaseConfigurationError, getPublicSupabaseConfig, getSiteUrl } from "@/lib/supabase/config";
+} from "@/lib/security/rate-limit-core";
+import { createHostedApiErrorPayload } from "@/lib/contracts/hosted-api-response";
 import type { Database } from "@/lib/supabase/database.runtime.types";
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const isAccountPath = /^\/account(?:\/|$)/.test(request.nextUrl.pathname);
   const nonce = createRequestNonce();
   const contentSecurityPolicy = buildContentSecurityPolicy({
@@ -32,8 +37,21 @@ export async function proxy(request: NextRequest) {
     https: request.nextUrl.protocol === "https:",
     publicIndexing: isPublicIndexingEnabled()
   });
+  const isDeviceAuthInitiation = isPublicDeviceAuthInitiationRequest(
+    request.nextUrl.pathname,
+    request.method
+  );
+  // The source-IP quota is authoritative in the Cloudflare Durable Object
+  // edge gate. A request that reaches Next without its private decision marker
+  // is not allowed to fall back to a per-isolate map.
+  const deviceAuthRateLimit = isDeviceAuthInitiation
+    ? readDeviceAuthEdgeDecision(request.headers)
+    : null;
+  if (isDeviceAuthInitiation && !deviceAuthRateLimit) {
+    return createDeviceAuthUnavailableResponse(responseSecurityHeaders);
+  }
   const rateLimit = isPublicCatalogReadRequest(request.nextUrl.pathname, request.method)
-    ? consumePublicSkillRequest(request)
+    ? await consumePublicSkillRequest(request)
     : null;
   if (rateLimit && !rateLimit.allowed) {
     return createRateLimitedResponse(request, rateLimit, responseSecurityHeaders);
@@ -79,8 +97,27 @@ export async function proxy(request: NextRequest) {
   }
 
   if (/^\/(?:account|sign-in|auth|submit)(?:\/|$)/.test(request.nextUrl.pathname)) setPrivateNoStore(response);
+  if (deviceAuthRateLimit) applyRateLimitHeaders(response, deviceAuthRateLimit);
   if (rateLimit) applyRateLimitHeaders(response, rateLimit);
   return applySecurityHeaders(response, responseSecurityHeaders);
+}
+
+function createDeviceAuthUnavailableResponse(
+  securityHeaders: Readonly<Record<string, string>>
+): NextResponse {
+  const response = new NextResponse(JSON.stringify({
+    error: "temporarily_unavailable",
+    error_description: "The device authorization service is temporarily unavailable."
+  }), {
+    status: 503,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Retry-After": "1",
+      "Referrer-Policy": "no-referrer"
+    }
+  });
+  return applySecurityHeaders(response, securityHeaders);
 }
 
 function createRateLimitedResponse(
@@ -100,7 +137,7 @@ function createRateLimitedResponse(
         headers: { "Content-Type": "text/plain; charset=utf-8" }
       });
   applyRateLimitHeaders(response, decision);
-  response.headers.set("Retry-After", String(decision.retryAfterSeconds));
+  applyRetryAfterHeader(response, decision);
   setPrivateNoStore(response);
   return applySecurityHeaders(response, securityHeaders);
 }
@@ -127,6 +164,31 @@ function applySecurityHeaders(
 function setPrivateNoStore(response: NextResponse) {
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("Pragma", "no-cache");
+}
+
+const publicSkillLimiter = new InMemoryFixedWindowRateLimiter(PUBLIC_SKILL_RATE_LIMIT_POLICY);
+
+async function consumePublicSkillRequest(
+  request: Pick<Request, "headers">,
+  now = Date.now()
+): Promise<RateLimitDecision> {
+  const identity = getAnonymousClientIdentity(request.headers);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  let binary = "";
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return publicSkillLimiter.consume(btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""), now);
+}
+
+function catalogError(status: number, code: string, message: string, retryable = false): NextResponse {
+  const payload = createHostedApiErrorPayload(code, message, retryable);
+  return new NextResponse(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Cache-Control": "private, no-store, max-age=0",
+      "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff"
+    }
+  });
 }
 
 export const config = {

@@ -1,13 +1,31 @@
 import type { Metadata } from "next";
+import { getReleaseStage, isHostedReleaseStage } from "@/lib/security/policy";
 import { getSiteUrl, SupabaseConfigurationError } from "@/lib/supabase/config";
 
-export function getOptionalSiteUrl(): URL | null {
+const LOCAL_CANDIDATE_METADATA_BASE = "http://127.0.0.1:3000";
+
+export function getOptionalSiteUrl(
+  environment: Record<string, string | undefined> = process.env
+): URL | null {
   try {
-    return new URL(getSiteUrl());
+    return new URL(getSiteUrl(environment));
   } catch (error) {
-    if (error instanceof SupabaseConfigurationError) return null;
+    if (error instanceof SupabaseConfigurationError && !isHostedReleaseStage(getReleaseStage(environment))) {
+      return null;
+    }
     throw error;
   }
+}
+
+/**
+ * Next requires a metadata base whenever a production build can emit relative
+ * metadata URLs. Local candidates may use a loopback placeholder because they
+ * are fail-closed noindex builds; hosted stages must provide their real origin.
+ */
+export function getMetadataBase(
+  environment: Record<string, string | undefined> = process.env
+): URL {
+  return getOptionalSiteUrl(environment) ?? new URL(LOCAL_CANDIDATE_METADATA_BASE);
 }
 
 export function buildPublicPageMetadata(input: {

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/device-auth/v1/common.schema.json",
+  "title": "SkillMap DeviceAuth v1 Common Definitions",
+  "description": "Shared bounded primitives for the DeviceAuth v1 wire contract (M1.08 + P-256 amendment v2). All identifiers use exact ASCII grammars; bytes are measured after UTF-8 encoding.",
+  "$defs": {
+    "Sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "DeviceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22}$",
+      "maxLength": 22,
+      "minLength": 22,
+      "description": "128-bit random identifier encoded base64url without padding; immutable for a device lineage."
+    },
+    "IdempotencyKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22}$",
+      "maxLength": 22,
+      "minLength": 22,
+      "description": "128-bit random idempotency key (required header, never a body field)."
+    },
+    "DevicePublicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{122}$",
+      "minLength": 122,
+      "maxLength": 122,
+      "description": "Base64url (no padding) canonical 91-byte DER SubjectPublicKeyInfo for an uncompressed P-256 point (proof suite skillmap.ecdsa-p256-sha256.v2)."
+    },
+    "KeyThumbprint": {
+      "$ref": "#/$defs/Sha256Digest",
+      "description": "sha256:<hex> over the exact 91 DER SPKI bytes."
+    },
+    "ProofSuite": {
+      "enum": ["skillmap.ecdsa-p256-sha256.v2"]
+    },
+    "Audience": {
+      "const": "skillmap.connector.v1"
+    },
+    "Platform": {
+      "enum": ["macos", "windows", "linux"]
+    },
+    "SemVer": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Strict SemVer 2.0.0, total ASCII length 1-32."
+    },
+    "Scope": {
+      "enum": ["device.route", "device.feedback", "device.import", "device.bundle", "device.status"],
+      "description": "v1 exact scope allowlist. Canonicalized by bytewise sort/deduplicate; M3.03 stores and re-echoes the canonical set."
+    },
+    "Locale": {
+      "type": "string",
+      "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$",
+      "minLength": 2,
+      "maxLength": 35,
+      "description": "BCP-47 canonical presentation tag (ASCII letters/digits/hyphens). Presentation-only."
+    },
+    "DisplayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Trimmed, NFC-normalized, single-line UTF-8, 1-64 bytes; controls and line separators rejected. Must already be normalized before wire."
+    },
+    "UnixSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807,
+      "description": "Unsigned decimal Unix seconds, no leading zeroes."
+    },
+    "Base64Url256Bit": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "minLength": 43,
+      "maxLength": 43,
+      "description": "256-bit opaque secret base64url (no padding)."
+    }
+  }
+}

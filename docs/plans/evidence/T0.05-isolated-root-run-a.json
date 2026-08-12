@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "plan_key": "T0.05",
+  "task_id": "task_4fb2e59d7240",
+  "dispatch_id": "ctx_b495c3d91b3c",
+  "run_label": "T0.05",
+  "temp_label": "skillmap-t0.05.0pCTsd",
+  "source_snapshot": {
+    "head": "00131b01aa44be935bd5cdbf85c43f129d3415e4",
+    "status_sha256": "d8fbbba0bd1bab1ffb7c72ffe1917e8406f6980f817a396d329c83bdf2d0d7b8",
+    "path_count": 578,
+    "content_and_mode_sha256": "da6d5ca1e6f26e66518b73e46b6e1b883d08ad2bdab144b836e64caff86ce0f2",
+    "destination_match_verified": true,
+    "source_stability_verified": true
+  },
+  "toolchain": {
+    "node_reference": "<home>/.local/bin/node",
+    "node_version": "v22.23.1",
+    "npm_reference": "<home>/.local/bin/npm",
+    "npm_version": "10.9.8"
+  },
+  "commands": {
+    "install": "npm ci",
+    "test": "npm test"
+  },
+  "environment": {
+    "ci": "unset",
+    "node_env": "unset",
+    "skillmap_test_concurrency": "unset",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "command_scoped_path": "approved-node-first;system-bins-only"
+  },
+  "install": {
+    "ran": true,
+    "exit_code": 0,
+    "started_at_ms": 1784839492807,
+    "ended_at_ms": 1784839493980,
+    "duration_ms": 1173
+  },
+  "test": {
+    "ran": true,
+    "exit_code": 0,
+    "started_at_ms": 1784839507145,
+    "ended_at_ms": 1784839648201,
+    "duration_ms": 141056
+  },
+  "tap_summary": {
+    "test_ran": true,
+    "parser_status": "complete",
+    "totals": {
+      "tests": 483,
+      "suites": 0,
+      "pass": 483,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 136538.660875
+    }
+  },
+  "first_causal_error": null,
+  "logs_retained": false
+}

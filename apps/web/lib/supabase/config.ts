@@ -46,6 +46,12 @@ export function getSiteUrl(
   throw new SupabaseConfigurationError("NEXT_PUBLIC_SITE_URL is required in production.");
 }
 
+export function siteOriginUsesHttps(
+  environment?: Record<string, string | undefined>
+): boolean {
+  return new URL(getSiteUrl(environment)).protocol === "https:";
+}
+
 function parseConfiguredOrigin(raw: string, variable: string, nodeEnvironment?: string): string {
   let url: URL;
   try {

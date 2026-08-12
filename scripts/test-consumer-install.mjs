@@ -57,7 +57,11 @@ try {
   const consumer = path.join(scratch, 'consumer');
   mkdirSync(consumer, { recursive: true });
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify({ name: 'skillmap-clean-consumer', version: '1.0.0', private: true }, null, 2)}\n`);
-  runNpm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: consumer, stdio: 'inherit' });
+  // A normal clean consumer does not have registry metadata in its npm cache.
+  // Prefer already cached packages, but allow npm to fetch missing dependency
+  // metadata. The M3.13 lifecycle gate still forces npm_config_offline=true and
+  // proves the fully offline two-version path separately.
+  runNpm(['install', '--ignore-scripts', '--prefer-offline', '--no-audit', '--no-fund', tarball], { cwd: consumer, stdio: 'inherit' });
 
   const packageRoot = path.join(consumer, 'node_modules', 'skillmap');
   const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
@@ -150,10 +154,59 @@ try {
   await dashboard.stop();
   dashboard = undefined;
   exerciseGlobalLifecycle(tarball, manifest.version);
+  const canaries = consumerCanaryState();
+  assert.equal(canaries.lifecycleMarkerExists, false, 'consumer install executed an automatic lifecycle canary');
+  assert.equal(canaries.networkMarkerExists, false, 'consumer install triggered the network canary');
+  assert.equal(canaries.compileMarkerExists, false, 'consumer install triggered the consumer compilation canary');
+  writeConsumerReceipt({
+    tarball: realpathSync(tarball),
+    version: manifest.version,
+    packageScripts: Object.keys(manifest.scripts ?? {}).sort(),
+    canaries,
+    install: {
+      ignoreScripts: true,
+      offline: process.env.npm_config_offline === 'true',
+      preferOffline: true,
+      audit: false,
+      fund: false
+    },
+    installedPackage: { files: countInstalledPackageFiles(packageRoot), symlinks: false }
+  });
   process.stdout.write(`Clean consumer install and packaged dashboard smoke passed for ${manifest.name}@${manifest.version} on ${process.platform} ${process.version}${suppliedTarball ? ' using the supplied candidate tarball' : ''}.\n`);
 } finally {
   await dashboard?.stop().catch(() => undefined);
   rmSync(scratch, { recursive: true, force: true });
+}
+
+function consumerCanaryState() {
+  return {
+    lifecycleMarkerExists: markerExists(process.env.SKILLMAP_LIFECYCLE_CANARY),
+    networkMarkerExists: markerExists(process.env.SKILLMAP_NETWORK_CANARY),
+    compileMarkerExists: markerExists(process.env.SKILLMAP_CONSUMER_COMPILE_CANARY)
+  };
+}
+
+function markerExists(file) {
+  return Boolean(file && existsSync(file));
+}
+
+function writeConsumerReceipt(receipt) {
+  const target = process.env.SKILLMAP_CONSUMER_RECEIPT;
+  if (!target) return;
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, `${JSON.stringify(receipt, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+}
+
+function countInstalledPackageFiles(root) {
+  let files = 0;
+  visit(root);
+  return files;
+  function visit(target) {
+    const stats = lstatSync(target);
+    if (stats.isDirectory()) {
+      for (const name of readdirSync(target)) visit(path.join(target, name));
+    } else if (stats.isFile()) files += 1;
+  }
 }
 
 function assertPackageFileList(files) {

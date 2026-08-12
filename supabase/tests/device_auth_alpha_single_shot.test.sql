@@ -1,0 +1,20 @@
+begin;
+select plan(14);
+
+select has_function('api', 'device_auth_refresh_single_shot_v1', array['text','integer','text','text','text','text','text','text','text','text','text','text','integer','bigint','text','text','integer'], 'alpha single-shot transition exists');
+select function_owner_is('api', 'device_auth_refresh_single_shot_v1', array['text','integer','text','text','text','text','text','text','text','text','text','text','integer','bigint','text','text','integer'], 'skillmap_device_auth_definer', 'single-shot transition has dedicated owner');
+select ok(not has_function_privilege('public', 'api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)', 'execute'), 'PUBLIC cannot execute alpha transition');
+select ok(not has_function_privilege('anon', 'api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)', 'execute'), 'anon cannot execute alpha transition');
+select ok(not has_function_privilege('authenticated', 'api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)', 'execute'), 'authenticated cannot execute alpha transition');
+select ok(has_function_privilege('service_role', 'api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)', 'execute'), 'service_role can execute alpha transition at final head');
+select has_column('private', 'device_auth_refresh_replay_receipts', 'refresh_mode', 'receipt records explicit refresh mode');
+select ok((select count(*) = 1 from pg_catalog.pg_constraint c join pg_catalog.pg_class r on r.oid = c.conrelid join pg_catalog.pg_namespace n on n.oid = r.relnamespace where n.nspname = 'private' and r.relname = 'device_auth_refresh_replay_receipts' and c.conname = 'device_auth_refresh_replay_receipts_mode_check'), 'receipt mode is closed');
+select ok((select count(*) = 0 from pg_catalog.pg_attribute a join pg_catalog.pg_class c on c.oid = a.attrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'private' and c.relname = 'device_auth_refresh_replay_receipts' and a.attname ~ '(token|secret|plaintext|access|refresh)' and a.attname <> 'refresh_mode' and a.attnum > 0), 'alpha receipt has no token or plaintext columns');
+select ok(pg_get_functiondef('api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)'::regprocedure) like '%refresh_mode%' and pg_get_functiondef('api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)'::regprocedure) like '%alpha-single-shot%', 'single-shot writes explicit mode');
+select ok(pg_get_functiondef('api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)'::regprocedure) not like '%device_auth_refresh_replay_payloads%', 'single-shot never writes replay payloads');
+select ok(pg_get_functiondef('api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)'::regprocedure) like '%already_consumed%', 'lost response returns a strict terminal reauthentication outcome');
+select ok(pg_get_functiondef('api.device_auth_refresh_single_shot_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,text,text,integer)'::regprocedure) like '%idempotency_conflict%', 'changed digest remains a conflict');
+select ok(pg_get_functiondef('api.device_auth_refresh_v1(text,integer,text,text,text,text,text,text,text,text,text,text,integer,bigint,integer,text,text,text,integer,bigint,bigint,text,text,integer)'::regprocedure) like '%device_auth_refresh_replay_payloads%', 'exact replay path remains payload-backed');
+
+select * from finish();
+rollback;

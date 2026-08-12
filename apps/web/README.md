@@ -45,13 +45,24 @@ Copy `.env.example` to `.env.local` and set the local API URL and publishable ke
 
 `SKILLMAP_SUPPORT_URL` must be the approved public HTTPS page for support, appeal, and confidential security-intake instructions before public alpha. It is rendered only after strict URL validation; malformed, credential-bearing, query-bearing, fragment-bearing, or non-loopback HTTP values fail closed. A private pilot may instead use its separately recorded participant contact.
 
-The browser bundle uses only the Supabase publishable key. A service-role or secret key must never be added to this application.
+`npm run build` runs a release-configuration preflight. Any hosted stage requires a valid production site origin plus the public Supabase URL and publishable key; `public-alpha` additionally requires the approved support URL and the exact `SKILLMAP_INDEXING_MODE=public` opt-in. A local candidate remains buildable without hosted configuration and is explicitly noindex.
+
+The browser bundle uses only the Supabase publishable key. A service-role or
+secret key must never be added to client code, `NEXT_PUBLIC_*`, checked-in
+Wrangler vars, logs, or build artifacts. Hosted DeviceAuth routes do need
+`SUPABASE_SERVICE_ROLE_KEY` at server runtime. For Cloudflare, provision that
+name with `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`; it is an encrypted
+Worker secret, not a `wrangler.jsonc` variable. The hosted build preflight
+does not receive the value. `npm run deploy` first runs a read-only Wrangler
+secret-name preflight, then builds and deploys. See the [hosted deployment
+runbook](../../docs/operations/hosted-alpha-deploy.md) for the protected
+provisioning and deployment sequence.
 
 Remote provisioning, deployment, backup, rollback, OAuth, and live-acceptance steps are controlled by [`docs/operations/hosted-alpha-deploy.md`](../../docs/operations/hosted-alpha-deploy.md). Do not push the local-only `supabase/config.toml` to a hosted project.
 
 The required Gitea hosted-database lane starts an isolated database service, runs reset/lint/pgTAP, and checks generated API types. The full public API and authenticated browser smokes remain manually run local acceptance gates because the rootless Gitea job intentionally excludes Auth, PostgREST, and the other optional Supabase services. With a full disposable local stack and production Next.js server running, `npm run test:hosted-api` proves the public boundary and `npm run test:hosted-auth` creates and deletes a synthetic account while proving account access, concurrent-safe save, saved projection, unsave, mobile navigation naming, and 390px containment. Only the auth-smoke process receives the local service-role key; the Next.js process never does.
 
-After an optimized build and a clean `supabase db reset --local`, run `npm run test:hosted-gates` from the repository root to compose the API, authenticated account, non-destructive submission, report, real receipt-row rendering, export, deletion, and cleanup checks behind one production server. The GitHub hosted-browser CI job runs this same command against a disposable full Supabase stack; the server process receives only public configuration.
+After an optimized build and a clean `supabase db reset --local`, run `npm run test:hosted-gates` from the repository root to compose the API, authenticated account, non-destructive submission, report, real receipt-row rendering, export, deletion, and cleanup checks behind one production server. The composed local gate uses a host `psql` client when available and otherwise streams its test SQL through the already-running disposable Supabase database container, so Docker plus the Supabase CLI is sufficient for the canonical local path. Exact hosted screenshot comparison remains Linux-pinned; run that visual portion in the reviewed Linux CI/runner rather than accepting a macOS raster result. The GitHub hosted-browser CI job runs this same command against a disposable full Supabase stack; the server process receives only public configuration.
 
 ## Local Snapshot Mode
 

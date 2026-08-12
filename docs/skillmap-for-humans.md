@@ -100,7 +100,7 @@ After `apply-policy`, SkillMap has an approved “working map.” This is called
 Now you give SkillMap a normal request:
 
 ```bash
-skillmap route --trace "make this dashboard calmer and verify mobile"
+skillmap route "make this dashboard calmer and verify mobile" --trace
 ```
 
 It compares the request with the approved registry and returns something like:

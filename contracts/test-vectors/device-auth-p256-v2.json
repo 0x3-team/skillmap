@@ -1,0 +1,38 @@
+{
+  "$schema": "skillmap.device-auth-p256-v2/v1",
+  "fixture_status": "public_test_material_only",
+  "suite": "skillmap.ecdsa-p256-sha256.v2",
+  "proof": {
+    "preimage_utf8": "SKILLMAP-DEVICE-PROOF-V2\nskillmap.ecdsa-p256-sha256.v2\nPOST\nhttps://connector.example.test\n/api/device-auth/v1/exchange\nskillmap.connector.v1\nexchange\ndevice-000000000000001\nsha256:fixture-key\nsha256:fixture-body\nidemp-0000000000000001\nnonce-0000000000000001\n1735689600\nNONE\n",
+    "preimage_base64url": "U0tJTExNQVAtREVWSUNFLVBST09GLVYyCnNraWxsbWFwLmVjZHNhLXAyNTYtc2hhMjU2LnYyClBPU1QKaHR0cHM6Ly9jb25uZWN0b3IuZXhhbXBsZS50ZXN0Ci9hcGkvZGV2aWNlLWF1dGgvdjEvZXhjaGFuZ2UKc2tpbGxtYXAuY29ubmVjdG9yLnYxCmV4Y2hhbmdlCmRldmljZS0wMDAwMDAwMDAwMDAwMDEKc2hhMjU2OmZpeHR1cmUta2V5CnNoYTI1NjpmaXh0dXJlLWJvZHkKaWRlbXAtMDAwMDAwMDAwMDAwMDAwMQpub25jZS0wMDAwMDAwMDAwMDAwMDAxCjE3MzU2ODk2MDAKTk9ORQo",
+    "sha256": "sha256:cabf5ce08e10d612b83e1c0e984c5a992d8d92e417150c5c9003cdba4b3455b5"
+  },
+  "idempotency": {
+    "preimage_utf8": "SKILLMAP-DEVICE-IDEMPOTENCY-V2\nskillmap.ecdsa-p256-sha256.v2\nPOST\nhttps://connector.example.test\n/api/device-auth/v1/exchange\nskillmap.connector.v1\nexchange\nsha256:fixture-body\nidemp-0000000000000001\n",
+    "preimage_base64url": "U0tJTExNQVAtREVWSUNFLUlERU1QT1RFTkNZLVYyCnNraWxsbWFwLmVjZHNhLXAyNTYtc2hhMjU2LnYyClBPU1QKaHR0cHM6Ly9jb25uZWN0b3IuZXhhbXBsZS50ZXN0Ci9hcGkvZGV2aWNlLWF1dGgvdjEvZXhjaGFuZ2UKc2tpbGxtYXAuY29ubmVjdG9yLnYxCmV4Y2hhbmdlCnNoYTI1NjpmaXh0dXJlLWJvZHkKaWRlbXAtMDAwMDAwMDAwMDAwMDAwMQo",
+    "sha256": "sha256:1200bb7ec052ae692ab6ad35a67371c2ec2b5ecbd27da9efb2f335b2c1f1d591"
+  },
+  "public_key": {
+    "der_spki_base64url": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAExyod7yzeQhsmzsX5cuKVQ-E2zIG5VSIuNxrVEfMwKJi9FTx62h_5X6qdymK0S_OCgDVQyQ8_4sfL_dq80ocr4Q",
+    "der_spki_bytes": 91,
+    "thumbprint": "sha256:9d356dd83df97c2dde0136384cbe2207ea619c046251d044de9a82b36493aeb1"
+  },
+  "signature": {
+    "p1363_base64url": "hE4hmGYdXQKIGOkjjS204tuUiEA33rN-dSl-Eq3BngSrcSZ8fQ41XWL1_24LwgqQrkYu4Zpidm1QWKbEQnXE7w",
+    "p1363_bytes": 64,
+    "der_conversion_only_base64url": "MEYCIQCETiGYZh1dAogY6SONLbTi25SIQDfes351KX4SrcGeBAIhAKtxJnx9DjVdYvX_bgvCCpCuRi7hmmJ2bVBYpsRCdcTv",
+    "der_is_wire_forbidden": true
+  },
+  "negative_cases": [
+    "suite_header_body_record_mismatch",
+    "v1_preimage_with_v2_label",
+    "v2_preimage_with_v1_label",
+    "raw_65_byte_point",
+    "compressed_point",
+    "wrong_curve_or_oid",
+    "der_signature_on_wire",
+    "p1363_wrong_length",
+    "zero_or_out_of_range_r_or_s",
+    "mutated_origin_path_purpose_body_or_nonce"
+  ]
+}

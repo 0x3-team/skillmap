@@ -445,6 +445,9 @@ export class WorkspaceStateStore {
 
   private async publishLegacySnapshotHeld(held: HeldPublicationContext, options: PublishOptions): Promise<PublicationResult> {
     if (held.published) throw new WorkspaceStateConflictError('One writer lock/fencing token may publish only one revision.');
+    if (options.approveForRouting && options.carryForwardRoutingApproval) {
+      throw new WorkspaceStateError('STATE_LEGACY_SNAPSHOT_INVALID', 'Legacy snapshot publication must choose either explicit routing approval or exact approval carry-forward.');
+    }
     const marker = await this.readMarker();
     const current = await this.readPointerOnce(this.paths.currentPointer, 'skillmap.workspace-current');
     this.assertFenceAdvances(held.lock, current);
@@ -453,6 +456,13 @@ export class WorkspaceStateStore {
       throw new WorkspaceStateConflictError(`Expected revision ${options.expectedRevisionId}, found ${current.revisionId}.`);
     }
     await validateRevision(this.paths, current.revisionId, current);
+    if (options.carryForwardRoutingApproval) {
+      const approved = await this.readPointerOnce(this.paths.lastKnownGoodPointer, 'skillmap.workspace-last-known-good');
+      if (approved.workspaceId !== current.workspaceId || approved.revisionId !== current.revisionId) {
+        throw new WorkspaceStateError('STATE_ROUTING_APPROVAL_REQUIRED', 'Routing approval can be carried forward only from the exact approved current revision.');
+      }
+      await validateRevision(this.paths, approved.revisionId, approved);
+    }
     const snapshot = await collectLegacySnapshot(this.paths);
     if (snapshot.workspaceId !== marker.workspaceId) throw new WorkspaceStateError('STATE_WORKSPACE_ID_DIVERGED', 'Legacy snapshot workspaceId differs from the state marker.');
     if (options.approveForRouting) assertRoutingApprovalEligible(snapshot.artifacts);
@@ -462,9 +472,14 @@ export class WorkspaceStateStore {
       ...(options.reason ? { reason: options.reason } : {}),
       sourceRevisionId: current.revisionId
     }, snapshot.artifacts));
+    if (options.carryForwardRoutingApproval && revision.manifest.routingSafetyDigest !== current.routingSafetyDigest) {
+      throw new WorkspaceStateError('STATE_ROUTING_APPROVAL_CHANGED', 'Legacy snapshot changed routing safety and cannot inherit approval.');
+    }
+    const approveForRouting = options.approveForRouting === true || options.carryForwardRoutingApproval === true;
+    if (approveForRouting) assertRoutingApprovalEligible(snapshot.artifacts);
     await verifyLegacySnapshotStillCurrent(this.paths, snapshot.artifacts);
     held.published = true;
-    const result = await this.publishBuiltRevision(held.lock, revision, options.approveForRouting ?? false);
+    const result = await this.publishBuiltRevision(held.lock, revision, approveForRouting);
     await this.bestEffortProjectionIndex(revision, result);
     return result;
   }

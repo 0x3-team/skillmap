@@ -1,6 +1,6 @@
 # Hosted Alpha Deployment and Recovery Runbook
 
-Status: pre-deployment. This is the canonical provider, deployment, recovery, and live-acceptance handoff for the free hosted trust alpha. It permits reviewed third-party metadata-only submissions, inert static audit, provisional numeric grading, operator review, and receipt-backed publication after the gates below pass. It never authorizes submitted-code execution, package mirroring/loading, billing, checkout, paid placement, or Stripe. Private pilot comes first; public alpha and indexing require the later promotion gate.
+Status: pre-deployment. This is the canonical provider, deployment, recovery, and live-acceptance handoff for the free hosted trust alpha. It permits reviewed third-party metadata-only submissions, inert static audit, provisional numeric grading, operator review, and receipt-backed publication after the gates below pass. It never authorizes submitted-code execution, package mirroring/loading, billing, checkout, paid placement, or Stripe. Private pilot comes first; public alpha and indexing require the later promotion gate. A private owner-only mechanics pilot may use two separate test operator credentials to prove CLI and database separation, but it is technical evidence only and cannot authorize publication, moderation, or third-party participant launch.
 
 Use this runbook together with `docs/operations/free-public-alpha-runbook.md`, which is authoritative for worker migration compatibility, submission review, publication, reports, lifecycle actions, monitoring, and daily operations.
 
@@ -19,17 +19,68 @@ Preview deployments must remain unconfigured until a separate preview Supabase p
 
 ### Policy-version promotion gate
 
-`public-alpha-draft/v1` is an implementation-only consent identifier, not launch-approved legal authority. Before inviting any external submitter, the product owner must approve the support identity, governing jurisdiction, age/geography boundary, retention/deletion/legal-hold periods, terms, acceptable-use rules, privacy text, takedown/appeal process, and effective date. Publish reachable versioned terms and acceptable-use pages, update the submission consent surface to link that exact version, introduce a reviewed migration and application change that replace the draft identifier consistently, and rerun the database, contract, browser, export, and deletion gates. Record the approved policy ID, URLs, content digests, effective date, and owner in the production decision receipt. Until that receipt exists, deployment may be exercised only as private operator evidence and public invitations remain `NO-GO`.
+`public-alpha-draft/v1` is an implementation-only consent identifier, not launch-approved legal authority. Before inviting any external submitter, the product owner must approve the support identity, governing jurisdiction, age/geography boundary, retention/deletion/legal-hold periods, terms, acceptable-use rules, privacy text, takedown/appeal process, and effective date. Publish reachable versioned terms and acceptable-use pages, update the submission consent surface to link that exact version, introduce a reviewed migration and application change that replace the draft identifier consistently, and rerun the database, contract, browser, export, and deletion gates. Record the approved policy ID, URLs, content digests, effective date, and owner in the production decision receipt. Until that receipt exists, deployment may be exercised only as private operator evidence and public invitations remain `NO-GO`. Private-owner pilot evidence does not satisfy external-pilot evidence.
 
 ## Secret boundary
 
-Never commit, print into CI logs, or add to the web host:
+Never commit, print into CI logs, put in a public Worker variable, or expose to
+the browser:
 
-- Supabase access tokens, database passwords, secret/service-role keys, or JWT secrets
+- Supabase access tokens, database passwords, or JWT secrets
 - GitHub OAuth client secrets
 - backup encryption keys
 
-The web deployment receives only:
+The Cloudflare Worker receives the Supabase service-role key, DeviceAuth lookup
+key, and primary DeviceAuth IP-rate-limit key only as encrypted Worker secrets
+named `SUPABASE_SERVICE_ROLE_KEY`, `DEVICE_AUTH_LOOKUP_KEY`, and
+`DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY`. During key rotation, the optional
+`DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS` secret may also be present. It is not
+mandatory. These secrets are not
+`wrangler.vars` entries, Next `NEXT_PUBLIC_*` variables, client bundle values,
+or a checked-in file. OpenNext copies Worker secret bindings into the server
+runtime only; the server-only DeviceAuth module reads the value there and does
+not return it in configuration errors or logs. `next build` does not need the
+secret and must never receive it.
+
+From the `apps/web` directory, provision the secret separately after
+authenticating the intended Worker. Use a password-manager pipe or a hidden
+prompt; do not paste the key into a shell command or commit it:
+
+```bash
+# Example only. Do not run this during source validation.
+cd /path/to/skillmap/apps/web
+read -r -s SUPABASE_SERVICE_ROLE_KEY
+printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" \
+  | ./node_modules/.bin/wrangler secret put SUPABASE_SERVICE_ROLE_KEY \
+      --config ./wrangler.jsonc --name skillmap
+unset SUPABASE_SERVICE_ROLE_KEY
+read -r -s DEVICE_AUTH_LOOKUP_KEY
+printf '%s' "$DEVICE_AUTH_LOOKUP_KEY" \
+  | ./node_modules/.bin/wrangler secret put DEVICE_AUTH_LOOKUP_KEY \
+      --config ./wrangler.jsonc --name skillmap
+unset DEVICE_AUTH_LOOKUP_KEY
+read -r -s DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY
+printf '%s' "$DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY" \
+  | ./node_modules/.bin/wrangler secret put DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY \
+      --config ./wrangler.jsonc --name skillmap
+unset DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY
+# Optional: provision only during a primary-key rotation.
+read -r -s DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS
+printf '%s' "$DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS" \
+  | ./node_modules/.bin/wrangler secret put DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS \
+      --config ./wrangler.jsonc --name skillmap
+unset DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS
+```
+
+Do not use the secret value as a `wrangler.jsonc` variable. `npm run deploy`
+runs a read-only preflight with the pinned local Wrangler executable from this
+directory. It calls `secret list --format json --config ./wrangler.jsonc
+--name skillmap`, checks for the three mandatory exact secret names, and then
+runs the OpenNext build and deploy. The previous IP-rate-limit key is optional
+and is used only during rotation. The preflight does not print secret values,
+and the secrets are not passed to `next build`.
+
+The public Worker configuration receives only:
 
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -39,6 +90,8 @@ The web deployment receives only:
 - `SKILLMAP_SUPPORT_URL` only after the owner approves a reachable public HTTPS page containing support, formal-appeal, and confidential security-report instructions
 
 The web process uses the reviewed fixed private-alpha per-instance catalog-read guard (60 requests per 60 seconds and at most 5,000 live keys). It has no environment tuning surface in this release and does not replace the required provider-global public-alpha limiter.
+
+The `apps/web` build performs a release-configuration preflight before Next.js compiles. It rejects an incomplete hosted stage before an artifact is created: every hosted stage needs a valid site origin and public Supabase configuration; `public-alpha` additionally needs the approved support URL and exact public-indexing opt-in. It does not prove a deployment, provider configuration, or live acceptance.
 
 The GitHub OAuth client secret belongs only in Supabase Auth. Store database and backup credentials in the operator password manager and a root-only runtime secret file when automation is approved.
 
@@ -79,8 +132,8 @@ The GitHub-to-Supabase callback above is distinct from the application callback 
 ### Web project
 
 1. Select and record the zero-cost-compatible provider, project owner, plan/limits, deployment command, rollback command, and log/health surface. Selection is an owner decision; this runbook does not default to a paid provider.
-2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, a reviewed Next.js runtime, and Node 24.x.
-3. Leave preview variables unset until a separate preview database exists. Add the production variables from the secret boundary using stdin or the provider dashboard so values do not enter shell history.
+2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, keep the project floor of Node 22 or newer, and use Node 24.x as the reviewed hosted deployment runtime.
+3. Leave preview variables unset until a separate preview database exists. Add the production public variables from the secret boundary using the checked-in `wrangler.jsonc`; provision `SUPABASE_SERVICE_ROLE_KEY`, `DEVICE_AUTH_LOOKUP_KEY`, and `DEVICE_AUTH_IP_RATE_LIMIT_KEY_PRIMARY` separately with the exact `apps/web` Wrangler command above. Provision `DEVICE_AUTH_IP_RATE_LIMIT_KEY_PREVIOUS` only during rotation. Do not add them to `vars`, a dashboard plaintext variable, shell history, logs, or artifacts.
 4. Keep `SKILLMAP_RELEASE_STAGE=private-alpha` and `SKILLMAP_INDEXING_MODE=private-alpha` until the public gate explicitly changes both. Indexing requires the exact pair `public-alpha` and `public`.
 5. Before public alpha, configure `SKILLMAP_SUPPORT_URL` to the approved reachable intake page, open it from the deployed `/support` page while signed out, and verify that its public and confidential reporting instructions match the approved policy. A private repository issue URL is not a public support route.
 
@@ -92,10 +145,22 @@ From a clean worktree at the reviewed `main` commit:
 supabase migration list --linked
 supabase db push --linked --dry-run
 supabase db push --linked
-supabase gen types typescript --linked --schema api \
+supabase gen types typescript --linked --schema api,private \
   | sed -e '${/^$/d;}' > /tmp/skillmap-alpha-database.types.ts
 cmp /tmp/skillmap-alpha-database.types.ts apps/web/lib/supabase/database.types.ts
 ```
+
+For the Cloudflare Worker, run the deploy script from `apps/web` after the
+secret has been provisioned. The script checks the configured Worker secret
+name, then builds and deploys. It does not inject the secret into the build:
+
+```bash
+cd /path/to/skillmap/apps/web
+npm run deploy
+```
+
+If the encrypted secret is absent, deployment stops before OpenNext builds or
+uploads the Worker.
 
 Then run the exact production deployment command recorded in the provider decision record from `apps/web`. The checked-in `supabase/seed.sql` is local development and test data only and must never be applied to a hosted project. Its example repository is not an anonymously readable production source, so it cannot satisfy the public-source contract. Production corpus entries must instead move through authenticated account submission, the current worker and evidence gates, license and collision review, publisher authorization, and distinct approver/executor dual-control publication. Public launch remains blocked until 20 owner-authorized listings resolve to their exact anonymous public sources and pass the corpus acceptance receipt below. Record the database project ref, migration versions, deployed Git commit, web deployment ID/URL, provider/plan, and operator in the implementation ledger without recording secrets.
 
@@ -140,7 +205,7 @@ Run the composed local browser contract with `npm run test:hosted-gates`; its la
 
 ## Promotion from private pilot to public alpha
 
-Do not change either indexing variable until all live acceptance items pass, the encrypted off-host restore and web rollback are proven, the reviewed initial corpus is public, the policy/retention version and owners are approved, `SKILLMAP_SUPPORT_URL` is reachable, and the hosted pilot satisfies its mandatory workflow matrix. Record that decision against the exact deployment commit and IDs. Then set the exact pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`, redeploy, and verify page-level robots metadata, the absence of `X-Robots-Tag: noindex`, and `robots.txt` allowing `/`. Any mismatch returns the decision to `NO_GO` and the private pair.
+Do not change either indexing variable until all live acceptance items pass, the encrypted off-host restore and web rollback are proven, the reviewed initial corpus is public, the policy/retention version and owners are approved, `SKILLMAP_SUPPORT_URL` is reachable, and the hosted pilot, not a private owner-only rehearsal, satisfies its mandatory workflow matrix. Record that decision against the exact deployment commit and IDs. Then set the exact pair `SKILLMAP_RELEASE_STAGE=public-alpha` and `SKILLMAP_INDEXING_MODE=public`, redeploy, and verify page-level robots metadata, the absence of `X-Robots-Tag: noindex`, and `robots.txt` allowing `/`. Any mismatch returns the decision to `NO_GO` and the private pair.
 
 ## Rollback and incident response
 

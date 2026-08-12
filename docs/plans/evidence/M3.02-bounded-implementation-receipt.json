@@ -1,0 +1,79 @@
+{
+  "$schema": "skillmap.m3.02-bounded-implementation-receipt/v1",
+  "status": "AMENDMENT_CANDIDATE",
+  "scope": "M3.02 bounded additive amendments and non-product validation only",
+  "candidate": {
+    "worktree": "/Users/stevmq/orca/workspaces/skillmap/m2-16-candidate",
+    "branch": "Masih-0x3/m2-16-candidate-exact",
+    "base_commit": "0bc3c7e2e7b6523c018980714eef4d26ae8dc80e",
+    "dirty_main_touched": false
+  },
+  "receipt_path": "docs/plans/evidence/M3.02-bounded-implementation-receipt.json",
+  "allowed_paths": [
+    "package.json",
+    "contracts/test-vectors/device-auth-p256-v2.json",
+    "contracts/test-vectors/device-auth-refresh-replay-v1.json",
+    "docs/plans/evidence/M1.08-device-auth-p256-amendment-v2.md",
+    "docs/plans/evidence/M1.08-device-auth-refresh-replay-amendment-v1.md",
+    "docs/plans/evidence/M3.01-signed-launcher-keychain-amendment-v1.md",
+    "test/m3-02-amendments.mjs",
+    "docs/plans/evidence/M3.01-connector-platform-support-matrix.md",
+    "docs/plans/evidence/R0-M3.01-candidate-reconciliation.json",
+    "scripts/m3-01-macos-secure-enclave-spike.swift",
+    "test/m3-01-platform-support.mjs",
+    "docs/plans/evidence/M3.02-device-auth-seams-security-decisions.md",
+    "docs/plans/evidence/M3.02-bounded-implementation-receipt.json"
+  ],
+  "artifacts": [
+    { "path": "package.json", "sha256": "f8d490175183dca05dac0fde84c05dadee36cc712955d8742298b7458aa30166" },
+    { "path": "docs/plans/evidence/M1.08-device-auth-p256-amendment-v2.md", "sha256": "72e209e86213ac9caee6c0220f19aa76091892f379ed38c21f6d1128a1b4ecd5" },
+    { "path": "docs/plans/evidence/M1.08-device-auth-refresh-replay-amendment-v1.md", "sha256": "7fc012a6af18ff16806b442c547ef2adc5da3444678c2ebb95eebaebef9d01d2" },
+    { "path": "docs/plans/evidence/M3.01-signed-launcher-keychain-amendment-v1.md", "sha256": "8fbd9a0279f122d91e3acf0febd225addc441dc543688e758810cfc953d86a98" },
+    { "path": "contracts/test-vectors/device-auth-p256-v2.json", "sha256": "7b6f53c50384f538646d0ad40f4cf01a827694df531c00f097be964aecbe6325" },
+    { "path": "contracts/test-vectors/device-auth-refresh-replay-v1.json", "sha256": "23df6d5d3ce9ea491d9ca13eb24857f000fe3e21bdc7e502259e2bbd40727f83" },
+    { "path": "test/m3-02-amendments.mjs", "sha256": "73034d4553a1579ca57c28bf8d312ee2054fae45a438f3bcb0a0fee743d24a3d" },
+    { "path": "docs/plans/evidence/M3.01-connector-platform-support-matrix.md", "sha256": "26691a86816b5b59ff2cb77087b7ccbb3f6d3632436d732cd1c73a8ae2aaae61" },
+    { "path": "docs/plans/evidence/R0-M3.01-candidate-reconciliation.json", "sha256": "b5a55ed8e3ad2d350f115736e5be8a0a2eeb5ef1ce8295b7a8f316ac8b2dfde3" },
+    { "path": "scripts/m3-01-macos-secure-enclave-spike.swift", "sha256": "d2063c10fcb4530bdfa3c9a7675616581bf6279c754f0008ae0ba1c84fa3d454" },
+    { "path": "test/m3-01-platform-support.mjs", "sha256": "bc97709945e595cd0988c973448dec04dcf15af8dd53e52623531484ca3c8b66" },
+    { "path": "docs/plans/evidence/M3.02-device-auth-seams-security-decisions.md", "sha256": "21d84b00460d38fea48a8ac568cfb7771188e7d5c16c0c90f90d7349534e016c" }
+  ],
+  "validation": {
+    "commands": [
+      "npm run test:m3-02",
+      "npm run test:m3-01",
+      "npm run typecheck",
+      "node scripts/generate-contracts.mjs --check",
+      "git diff --check"
+    ],
+    "local_results": {
+      "npm run test:m3-02": "PASS — 8/8",
+      "npm run test:m3-01": "PASS — 6/6; macOS spike returned its expected bounded local receipt",
+      "npm run typecheck": "PASS",
+      "node scripts/generate-contracts.mjs --check": "PASS",
+      "git diff --check": "PASS"
+    },
+    "non_claims": "No live, provider, signed-helper, Node24, Next, OpenNext, Workerd, pushed, or deployed proof",
+    "generated_contract_chain_touched": false
+  },
+  "limitations": [
+    "These tests use public fixtures and in-memory parsers/state only; they do not prove Security.framework behavior, signing, entitlements, lock/headless behavior, or caller identity.",
+    "No provider/escrow key-destruction, backup restore, Node 24, Next, OpenNext, Workerd, live, pushed, or deployed proof is present.",
+    "M3.03 and later milestones remain stopped pending independent acceptance."
+  ],
+  "route": {
+    "requested": "gpt-5.6-luna/high",
+    "confirmed": false,
+    "receipt_note": "Worker runtime exposed no model/effort identity receipt; route is not claimed as confirmed."
+  },
+  "external_mutation": false,
+  "ledger_mutation": false,
+  "production_code_or_migration": false,
+  "remaining_blockers": [
+    "independent acceptance of both M1.08 amendments",
+    "independent reacceptance and signed Apple-silicon proof of the M3.01 launcher/helper boundary",
+    "provider/escrow replay epoch-key destruction and backup restore receipt",
+    "Node 22/24, Next, OpenNext/Workerd emitted-runtime vector proof",
+    "M3.03+ remains stopped"
+  ]
+}
