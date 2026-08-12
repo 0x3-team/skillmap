@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "DEPLOYED_ALPHA",
+  "supersedes": {
+    "receipt": "docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json",
+    "old_receipt_sha256": "0001aedba21380147f6922845d7d4c1e58ac2a7126020ac0de78dc7efbc0b063"
+  },
+  "artifacts": [
+    {
+      "path": "apps/web/README.md",
+      "sha256": "c9b715286e657a4e23aa8d3248dcef53d0e112dd581ad22da9d7bdd8b9cb2163"
+    },
+    {
+      "path": "apps/web/cloudflare-worker.ts",
+      "sha256": "0b371b1e7c3206627ed73ad399dfda3b931e4762cc8274dc79826933072bfaa8"
+    },
+    {
+      "path": "apps/web/cloudflare/device-auth-ip-rate-limiter.ts",
+      "sha256": "96e7aa854a9a8ea5570d2fc3f62e0549eb7d265a783534ec00312426da8b897b"
+    },
+    {
+      "path": "apps/web/package-lock.json",
+      "sha256": "c9f8e275565eed49198d344a5093a6c5fd3f5a63e12dc79bcc6256e210bbd7a0"
+    },
+    {
+      "path": "apps/web/package.json",
+      "sha256": "4cc78b78e684b36d192bb97bc7b9d1f157f7787107876d4f8e9c132ffa506f18"
+    },
+    {
+      "path": "apps/web/tests/device-auth-ip-rate-limiter.test.mjs",
+      "sha256": "28cb65f4b3b63be4b7564de8ea48db3e90a2edae28504767d61ad13cd8a89bc5"
+    },
+    {
+      "path": "apps/web/tests/hosted-boundaries.test.mjs",
+      "sha256": "c56b533b4d261106f3ba32d1a2f882e18e9f29a6dd2d6e55dab88e316bd5b2a8"
+    },
+    {
+      "path": "apps/web/tests/worker-secret-preflight.test.mjs",
+      "sha256": "fc6febb5ab93e4d2c82a2a8472debe4c339ade47b474b53470f706abbde4f54b"
+    }
+  ],
+  "cloudflare": {
+    "worker": "skillmap",
+    "version_id": "c352d0de-227f-40fd-8638-4630b0fd9e5f",
+    "deployed_at": "2026-08-12T23:49:49.35302Z",
+    "device_auth_access_application_id": "eb9be6ad-fde3-431d-ab3a-c9b6f511d85b",
+    "device_auth_access_policy_id": "cceddc78-0998-4128-bcf8-dbcac1c268d9",
+    "live_rate_limit": {
+      "allowed_route_attempts": 5,
+      "denied_attempt": 6,
+      "denied_status": 429
+    }
+  },
+  "claims": {
+    "validated_locally": true,
+    "verified_live": true,
+    "committed": true,
+    "pushed": true,
+    "deployed": true,
+    "production_replay_keys_created": false
+  }
+}

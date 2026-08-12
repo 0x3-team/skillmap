@@ -7,6 +7,7 @@ import { test } from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const receiptPath = join(root, 'docs/plans/evidence/M3-functional-cutover-implementation-receipt.json');
 const runtimeReceiptPath = join(root, 'docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json');
+const cloudflareRuntimeReceiptPath = join(root, 'docs/plans/evidence/M3-device-auth-cloudflare-runtime-fix-receipt.json');
 const historicalReceiptPath = join(root, 'docs/plans/evidence/M3.02-bounded-implementation-receipt.json');
 const sha256 = (path) => createHash('sha256').update(readFileSync(join(root, path))).digest('hex');
 
@@ -14,6 +15,7 @@ test('historical M3.02 receipt is immutable and superseding receipt binds curren
   const historical = JSON.parse(readFileSync(historicalReceiptPath, 'utf8'));
   const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
   const runtimeReceipt = JSON.parse(readFileSync(runtimeReceiptPath, 'utf8'));
+  const cloudflareRuntimeReceipt = JSON.parse(readFileSync(cloudflareRuntimeReceiptPath, 'utf8'));
   assert.equal(historical.status, 'AMENDMENT_CANDIDATE');
   assert.equal(receipt.status, 'IMPLEMENTATION_CANDIDATE');
   assert.equal(receipt.supersedes.receipt, 'docs/plans/evidence/M3.02-bounded-implementation-receipt.json');
@@ -51,7 +53,10 @@ test('historical M3.02 receipt is immutable and superseding receipt binds curren
     'test/m3-03-dp-keychain-no-profile-capability.mjs',
     'test/m3-cutover-provenance.mjs'
   ]);
+  const supersededRuntimePaths = new Set(cloudflareRuntimeReceipt.artifacts.map(({ path }) => path));
+  supersededRuntimePaths.add('test/m3-cutover-provenance.mjs');
   for (const artifact of runtimeReceipt.artifacts) {
+    if (supersededRuntimePaths.has(artifact.path)) continue;
     assert.equal(sha256(artifact.path), artifact.sha256, `${artifact.path} current hash drift`);
   }
   assert.equal(runtimeReceipt.claims.validated_locally, true);
@@ -61,6 +66,18 @@ test('historical M3.02 receipt is immutable and superseding receipt binds curren
   assert.equal(runtimeReceipt.claims.deployed, false);
   assert.equal(runtimeReceipt.claims.provider_mutated, false);
   assert.equal(runtimeReceipt.claims.ledger_mutated, false);
+  assert.equal(cloudflareRuntimeReceipt.status, 'DEPLOYED_ALPHA');
+  assert.equal(cloudflareRuntimeReceipt.supersedes.receipt, 'docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json');
+  assert.equal(cloudflareRuntimeReceipt.supersedes.old_receipt_sha256, '0001aedba21380147f6922845d7d4c1e58ac2a7126020ac0de78dc7efbc0b063');
+  assert.equal(sha256('docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json'), cloudflareRuntimeReceipt.supersedes.old_receipt_sha256);
+  for (const artifact of cloudflareRuntimeReceipt.artifacts) {
+    assert.equal(sha256(artifact.path), artifact.sha256, `${artifact.path} Cloudflare runtime hash drift`);
+  }
+  assert.equal(cloudflareRuntimeReceipt.cloudflare.worker, 'skillmap');
+  assert.equal(cloudflareRuntimeReceipt.cloudflare.live_rate_limit.denied_status, 429);
+  assert.equal(cloudflareRuntimeReceipt.claims.validated_locally, true);
+  assert.equal(cloudflareRuntimeReceipt.claims.verified_live, true);
+  assert.equal(cloudflareRuntimeReceipt.claims.production_replay_keys_created, false);
 });
 
 test('cutover source binds the frozen lock, forward-only flip, exact six legacy surfaces, and no secrets', () => {
