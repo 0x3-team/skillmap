@@ -57,7 +57,11 @@ try {
   const consumer = path.join(scratch, 'consumer');
   mkdirSync(consumer, { recursive: true });
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify({ name: 'skillmap-clean-consumer', version: '1.0.0', private: true }, null, 2)}\n`);
-  runNpm(['install', '--ignore-scripts', '--offline', '--no-audit', '--no-fund', tarball], { cwd: consumer, stdio: 'inherit' });
+  // A normal clean consumer does not have registry metadata in its npm cache.
+  // Prefer already cached packages, but allow npm to fetch missing dependency
+  // metadata. The M3.13 lifecycle gate still forces npm_config_offline=true and
+  // proves the fully offline two-version path separately.
+  runNpm(['install', '--ignore-scripts', '--prefer-offline', '--no-audit', '--no-fund', tarball], { cwd: consumer, stdio: 'inherit' });
 
   const packageRoot = path.join(consumer, 'node_modules', 'skillmap');
   const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
@@ -159,7 +163,13 @@ try {
     version: manifest.version,
     packageScripts: Object.keys(manifest.scripts ?? {}).sort(),
     canaries,
-    install: { ignoreScripts: true, offline: true, audit: false, fund: false },
+    install: {
+      ignoreScripts: true,
+      offline: process.env.npm_config_offline === 'true',
+      preferOffline: true,
+      audit: false,
+      fund: false
+    },
     installedPackage: { files: countInstalledPackageFiles(packageRoot), symlinks: false }
   });
   process.stdout.write(`Clean consumer install and packaged dashboard smoke passed for ${manifest.name}@${manifest.version} on ${process.platform} ${process.version}${suppliedTarball ? ' using the supplied candidate tarball' : ''}.\n`);
