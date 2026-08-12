@@ -23,6 +23,16 @@ const PREDECESSOR_ONLY = new Set([
   'skill_vault_devices.test.sql',
 ]);
 
+const HARNESS_PHASE_ORDER = Object.freeze([
+  'predecessor-reset',
+  'predecessor-state',
+  'predecessor-pgtap',
+  'head-reset',
+  'post-cutover-state',
+  'post-cutover-lint',
+  'post-cutover-pgtap',
+]);
+
 const tests = readdirSync(TEST_ROOT)
   .filter((name) => name.endsWith('.sql'))
   .sort()
@@ -97,6 +107,41 @@ function assertDbUrlParserFixtures() {
   assertEqual(parseDbUrlFromEnv(`DB_URL=${expected}`), expected, 'unquoted env DB_URL parser');
 }
 
+function createPhaseTracker() {
+  let nextPhase = 0;
+  return {
+    run(name, action) {
+      const expected = HARNESS_PHASE_ORDER[nextPhase];
+      if (name !== expected) {
+        throw new Error(`Hosted database phase order: expected ${expected}, got ${name}`);
+      }
+      action();
+      nextPhase += 1;
+    },
+    assertComplete() {
+      assertEqual(String(nextPhase), String(HARNESS_PHASE_ORDER.length), 'hosted database phase count');
+    },
+  };
+}
+
+function assertHarnessOrderingFixtures() {
+  const valid = createPhaseTracker();
+  for (const phase of HARNESS_PHASE_ORDER) valid.run(phase, () => {});
+  valid.assertComplete();
+
+  const invalid = createPhaseTracker();
+  invalid.run('predecessor-reset', () => {});
+  invalid.run('predecessor-state', () => {});
+  invalid.run('predecessor-pgtap', () => {});
+  let rejected = false;
+  try {
+    invalid.run('post-cutover-lint', () => {});
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) throw new Error('hosted database ordering fixture accepted lint before full-head reset');
+}
+
 function assertPredecessorState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
   assertEqual(version, PREDECESSOR_FLOOR, 'predecessor migration floor');
@@ -116,18 +161,19 @@ function runTests(label, paths) {
 }
 
 assertDbUrlParserFixtures();
+assertHarnessOrderingFixtures();
 if (process.argv.includes('--parser-self-test')) {
-  process.stdout.write('Hosted database DB_URL parser fixtures passed.\n');
+  process.stdout.write('Hosted database parser and ordering fixtures passed.\n');
 } else {
-  run('supabase', ['db', 'reset', '--local', '--version', PREDECESSOR_FLOOR]);
-  assertPredecessorState();
-  run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']);
-  runTests(`predecessor floor ${PREDECESSOR_FLOOR}`, predecessorTests);
-
-  run('supabase', ['db', 'reset', '--local']);
-  assertPostCutoverState();
-  run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']);
-  runTests('post-cutover head 20260812010000 (after 20260810090000 atomic cutover)', postCutoverTests);
+  const phase = createPhaseTracker();
+  phase.run('predecessor-reset', () => run('supabase', ['db', 'reset', '--local', '--version', PREDECESSOR_FLOOR]));
+  phase.run('predecessor-state', assertPredecessorState);
+  phase.run('predecessor-pgtap', () => runTests(`predecessor floor ${PREDECESSOR_FLOOR}`, predecessorTests));
+  phase.run('head-reset', () => run('supabase', ['db', 'reset', '--local']));
+  phase.run('post-cutover-state', assertPostCutoverState);
+  phase.run('post-cutover-lint', () => run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']));
+  phase.run('post-cutover-pgtap', () => runTests('post-cutover head 20260812010000 (after 20260810090000 atomic cutover)', postCutoverTests));
+  phase.assertComplete();
 
   process.stdout.write('\nHosted database two-floor harness passed.\n');
 }
