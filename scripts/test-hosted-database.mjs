@@ -40,11 +40,43 @@ function capture(command, args) {
   return execFileSync(command, args, { cwd: REPO, encoding: 'utf8' }).trim();
 }
 
+function parseDbUrlFromJson(status) {
+  const parsed = JSON.parse(status);
+  if (typeof parsed.DB_URL !== 'string' || parsed.DB_URL.length === 0) {
+    throw new Error('Supabase JSON status did not expose a local DB_URL');
+  }
+  return parsed.DB_URL;
+}
+
+function parseDbUrlFromEnv(status) {
+  const line = status.split(/\r?\n/).find((entry) => entry.startsWith('DB_URL='));
+  if (!line) throw new Error('Supabase env status did not expose a local DB_URL');
+
+  const rawValue = line.slice('DB_URL='.length).trim();
+  if (rawValue.startsWith('"')) {
+    if (!rawValue.endsWith('"')) throw new Error('Supabase env DB_URL has an unterminated quote');
+    try {
+      return JSON.parse(rawValue);
+    } catch {
+      throw new Error('Supabase env DB_URL has invalid quoting');
+    }
+  }
+  if (rawValue.length === 0 || /\s/.test(rawValue)) {
+    throw new Error('Supabase env DB_URL has an invalid value');
+  }
+  return rawValue;
+}
+
 function dbUrl() {
-  const status = capture('supabase', ['status', '-o', 'env']);
-  const match = status.match(/^DB_URL=(.+)$/m);
-  if (!match) throw new Error('Supabase status did not expose a local DB_URL');
-  return match[1].trim();
+  try {
+    return parseDbUrlFromJson(capture('supabase', ['status', '-o', 'json']));
+  } catch (jsonError) {
+    try {
+      return parseDbUrlFromEnv(capture('supabase', ['status', '-o', 'env']));
+    } catch (envError) {
+      throw new Error(`Supabase status did not expose a local DB_URL (${jsonError.message}; ${envError.message})`);
+    }
+  }
 }
 
 function query(sql) {
@@ -56,6 +88,13 @@ function query(sql) {
 
 function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, got ${actual || '<empty>'}`);
+}
+
+function assertDbUrlParserFixtures() {
+  const expected = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  assertEqual(parseDbUrlFromJson(JSON.stringify({ DB_URL: expected })), expected, 'JSON DB_URL parser');
+  assertEqual(parseDbUrlFromEnv(`API_URL="http://127.0.0.1:54321"\nDB_URL="${expected}"`), expected, 'quoted env DB_URL parser');
+  assertEqual(parseDbUrlFromEnv(`DB_URL=${expected}`), expected, 'unquoted env DB_URL parser');
 }
 
 function assertPredecessorState() {
@@ -76,14 +115,19 @@ function runTests(label, paths) {
   run('supabase', ['test', 'db', '--local', ...paths]);
 }
 
-run('supabase', ['db', 'reset', '--local', '--version', PREDECESSOR_FLOOR]);
-assertPredecessorState();
-run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']);
-runTests(`predecessor floor ${PREDECESSOR_FLOOR}`, predecessorTests);
+assertDbUrlParserFixtures();
+if (process.argv.includes('--parser-self-test')) {
+  process.stdout.write('Hosted database DB_URL parser fixtures passed.\n');
+} else {
+  run('supabase', ['db', 'reset', '--local', '--version', PREDECESSOR_FLOOR]);
+  assertPredecessorState();
+  run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']);
+  runTests(`predecessor floor ${PREDECESSOR_FLOOR}`, predecessorTests);
 
-run('supabase', ['db', 'reset', '--local']);
-assertPostCutoverState();
-run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']);
-runTests('post-cutover head 20260812010000 (after 20260810090000 atomic cutover)', postCutoverTests);
+  run('supabase', ['db', 'reset', '--local']);
+  assertPostCutoverState();
+  run('supabase', ['db', 'lint', '--local', '--schema', 'api,private,public', '--level', 'warning', '--fail-on', 'warning']);
+  runTests('post-cutover head 20260812010000 (after 20260810090000 atomic cutover)', postCutoverTests);
 
-process.stdout.write('\nHosted database two-floor harness passed.\n');
+  process.stdout.write('\nHosted database two-floor harness passed.\n');
+}
