@@ -7,6 +7,8 @@ import {
   type DeviceAuthCommandDeps
 } from '../core/cli-exit.js';
 
+const AUTH_STATUS_FLAGS = new Set(['check', 'json']);
+
 export async function authCommand(
   _cwd: string,
   positionals: string[],
@@ -20,6 +22,16 @@ export async function authCommand(
       'Usage: skillmap auth status [--check] [--json]',
       'usage_error'
     );
+  }
+
+  for (const [name, value] of Object.entries(flags)) {
+    if (!AUTH_STATUS_FLAGS.has(name) || value !== true) {
+      throw new CliExitError(
+        CLI_EXIT_CODES.USAGE,
+        'Usage: skillmap auth status [--check] [--json]',
+        'usage_error'
+      );
+    }
   }
 
   const useCase = resolveDeviceAuthUseCase(deps);

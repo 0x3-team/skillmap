@@ -570,6 +570,56 @@ test('auth status command returns observational status (exit code 0) for signed_
   assert.ok(!jsonString.includes('fam_test'));
 });
 
+test('auth status rejects unknown, valued, repeated, and positional arguments before auth calls', async () => {
+  const calls = [];
+  const useCase = {
+    async getAuthStatus() {
+      calls.push('getAuthStatus');
+      return { state: 'authenticated', authenticated: true };
+    }
+  };
+
+  const invalidArgv = [
+    ['--chek'],
+    ['--check=false'],
+    ['--check', '--check'],
+    ['--json=false'],
+    ['--json', '--json'],
+    ['unexpected']
+  ];
+
+  for (const argv of invalidArgv) {
+    const parsed = parseArgs(['auth', 'status', ...argv]);
+    await assert.rejects(
+      async () => authCommand('/test/cwd', parsed.positionals, parsed.flags, { useCase }),
+      (err) => {
+        assert.ok(err instanceof CliExitError);
+        assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
+        assert.equal(err.code, 'usage_error');
+        return true;
+      }
+    );
+  }
+
+  assert.deepEqual(calls, []);
+});
+
+test('auth status accepts the bare json output flag', async () => {
+  let calls = 0;
+  const result = await authCommand('/test/cwd', ['status'], { json: true }, {
+    useCase: {
+      async getAuthStatus() {
+        calls += 1;
+        return { state: 'signed_out', authenticated: false };
+      }
+    }
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.state, 'signed_out');
+  assert.equal(result.authenticated, false);
+});
+
 test('auth status --check enforces strict exit codes: 0 authenticated, 2 unauthenticated, 3 unreachable', async () => {
   const deps = await createTestDeps();
 
