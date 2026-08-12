@@ -93,7 +93,7 @@ async function main() {
 function handleLegacyCliError(error: unknown, isJson: boolean): void {
   const message = error instanceof Error ? error.message : String(error);
   if (isJson) {
-    console.log(JSON.stringify({ error: 'error', message }, null, 2));
+    console.error(JSON.stringify({ error: 'error', message }, null, 2));
   } else {
     console.error(`skillmap error: ${message}`);
   }
