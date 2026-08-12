@@ -114,8 +114,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  22::bigint,
-  'the API security-definer boundary contains exactly twenty-two reviewed functions'
+  42::bigint,
+  'the API security-definer boundary contains exactly forty-two reviewed functions'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -133,8 +133,18 @@ select is(
       'list_skill_submission_operator_queue',
       'get_skill_submission_operator_detail',
       'activate_managed_skill_release',
-      'export_my_managed_skill_vault')),
-  22::bigint,
+      'export_my_managed_skill_vault',
+      'device_auth_initiate_v1', 'device_auth_review_my_pairing_v1',
+      'device_auth_confirm_my_pairing_v1', 'device_auth_get_active_key_v1',
+      'device_auth_poll_v1', 'device_auth_exchange_v1',
+      'device_auth_refresh_context_v1', 'device_auth_refresh_fail_closed_v1',
+      'device_auth_expire_v1', 'device_auth_refresh_v1',
+      'device_auth_get_rotation_receipt_v1', 'device_auth_rotate_key_v1',
+      'device_auth_list_my_devices_v1', 'device_auth_rename_my_device_v1',
+      'device_auth_revoke_my_device_v1', 'device_auth_get_revoke_key_v1',
+      'device_auth_cancel_v1', 'device_auth_authenticate_v1',
+      'device_auth_get_status_v1', 'device_auth_revoke_v1')),
+  42::bigint,
   'all API security-definer functions are on the reviewed allowlist'
 );
 

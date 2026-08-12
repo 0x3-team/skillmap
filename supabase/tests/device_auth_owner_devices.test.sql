@@ -7,18 +7,18 @@ select plan(81);
 select has_function('api', 'device_auth_list_my_devices_v1', array[]::text[], 'owner list RPC exists');
 select has_function('api', 'device_auth_rename_my_device_v1', array['text','text','bigint'], 'owner rename RPC exists');
 select has_function('api', 'device_auth_revoke_my_device_v1', array['text','bigint'], 'owner revoke RPC exists');
-select ok(not has_function_privilege('public','api.device_auth_list_my_devices_v1()','execute')
+select ok(has_function_privilege('authenticated','api.device_auth_list_my_devices_v1()','execute')
+  and not has_function_privilege('public','api.device_auth_list_my_devices_v1()','execute')
   and not has_function_privilege('anon','api.device_auth_list_my_devices_v1()','execute')
-  and not has_function_privilege('authenticated','api.device_auth_list_my_devices_v1()','execute')
-  and not has_function_privilege('service_role','api.device_auth_list_my_devices_v1()','execute'), 'owner list remains feature-off');
-select ok(not has_function_privilege('public','api.device_auth_rename_my_device_v1(text,text,bigint)','execute')
+  and not has_function_privilege('service_role','api.device_auth_list_my_devices_v1()','execute'), 'owner list is authenticated-only after cutover');
+select ok(has_function_privilege('authenticated','api.device_auth_rename_my_device_v1(text,text,bigint)','execute')
+  and not has_function_privilege('public','api.device_auth_rename_my_device_v1(text,text,bigint)','execute')
   and not has_function_privilege('anon','api.device_auth_rename_my_device_v1(text,text,bigint)','execute')
-  and not has_function_privilege('authenticated','api.device_auth_rename_my_device_v1(text,text,bigint)','execute')
-  and not has_function_privilege('service_role','api.device_auth_rename_my_device_v1(text,text,bigint)','execute'), 'owner rename remains feature-off');
-select ok(not has_function_privilege('public','api.device_auth_revoke_my_device_v1(text,bigint)','execute')
+  and not has_function_privilege('service_role','api.device_auth_rename_my_device_v1(text,text,bigint)','execute'), 'owner rename is authenticated-only after cutover');
+select ok(has_function_privilege('authenticated','api.device_auth_revoke_my_device_v1(text,bigint)','execute')
+  and not has_function_privilege('public','api.device_auth_revoke_my_device_v1(text,bigint)','execute')
   and not has_function_privilege('anon','api.device_auth_revoke_my_device_v1(text,bigint)','execute')
-  and not has_function_privilege('authenticated','api.device_auth_revoke_my_device_v1(text,bigint)','execute')
-  and not has_function_privilege('service_role','api.device_auth_revoke_my_device_v1(text,bigint)','execute'), 'owner revoke remains feature-off');
+  and not has_function_privilege('service_role','api.device_auth_revoke_my_device_v1(text,bigint)','execute'), 'owner revoke is authenticated-only after cutover');
 select function_owner_is('api','device_auth_list_my_devices_v1',array[]::text[],'skillmap_device_auth_definer','list is definer-owned');
 select function_owner_is('api','device_auth_rename_my_device_v1',array['text','text','bigint'],'skillmap_device_auth_definer','rename is definer-owned');
 select function_owner_is('api','device_auth_revoke_my_device_v1',array['text','bigint'],'skillmap_device_auth_definer','revoke is definer-owned');
@@ -90,6 +90,12 @@ values ('hmac-sha256:'||repeat('c',64),1,'a3100000-0000-4310-8310-000000000102',
 insert into private.device_auth_refresh_generations(refresh_token_digest,key_version,family_id,generation,issued_at,idle_expires_at,absolute_expires_at)
 values ('hmac-sha256:'||repeat('d',64),1,'a3100000-0000-4310-8310-000000000102',1,now(),now()+interval '1 day',now()+interval '30 days');
 
+-- The role is intentionally not granted pgTAP access by production SQL. Grant
+-- only this assertion helper inside the rolled-back test transaction so the
+-- following calls exercise the real NOLOGIN definer role without losing pgTAP
+-- result recording when the role changes.
+grant usage on schema extensions to skillmap_device_auth_definer;
+grant execute on function extensions.ok(boolean, text) to skillmap_device_auth_definer;
 set role skillmap_device_auth_definer;
 set local search_path = extensions, public, private, api;
 select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a3100000-0000-4310-8310-000000000001","is_anonymous":false}', true);

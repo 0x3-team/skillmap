@@ -382,9 +382,7 @@ jobs:
       - name: Start disposable hosted stack and validate database authority
         run: |
           supabase start
-          supabase db reset --local
-          supabase db lint --local --schema api,private,public --level warning --fail-on warning
-          supabase test db --local
+          node scripts/test-hosted-database.mjs
       - name: Build the hosted application against the disposable public configuration
         shell: bash
         run: |
