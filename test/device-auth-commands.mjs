@@ -451,6 +451,7 @@ test('login command handles AbortSignal interrupt with exit code 130', async () 
   const deps = await createTestDeps();
   const controller = new AbortController();
   controller.abort();
+  const listenersBefore = new Set(process.listeners('SIGINT'));
 
   await assert.rejects(
     async () => {
@@ -463,6 +464,51 @@ test('login command handles AbortSignal interrupt with exit code 130', async () 
       return true;
     }
   );
+  assert.deepEqual(process.listeners('SIGINT'), [...listenersBefore], 'injected signals must not install a process listener');
+});
+
+test('production-style login owns SIGINT cancellation and removes its listener', async () => {
+  let receivedSignal;
+  let operationCancelled = false;
+  const useCase = {
+    initiateAndPoll: ({ signal }) => {
+      receivedSignal = signal;
+      return new Promise((_resolve, reject) => {
+        const onAbort = () => {
+          operationCancelled = true;
+          signal.removeEventListener('abort', onAbort);
+          reject(new Error('Operation aborted'));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        if (signal.aborted) onAbort();
+      });
+    }
+  };
+  const listenersBefore = new Set(process.listeners('SIGINT'));
+  const pending = loginCommand('/test/cwd', { 'no-browser': true }, { useCase });
+
+  // Let loginCommand reach the injected operation before simulating the
+  // process-level interrupt used by the production CLI.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(receivedSignal instanceof AbortSignal);
+  const cliSigintListener = process.listeners('SIGINT').find((listener) => !listenersBefore.has(listener));
+  assert.ok(cliSigintListener, 'login must install a CLI-owned SIGINT listener');
+
+  // Invoke only the newly installed listener. Emitting SIGINT on the test
+  // runner itself would ask the runner to stop the remaining test file.
+  cliSigintListener();
+
+  await assert.rejects(
+    pending,
+    (err) => {
+      assert.ok(err instanceof CliExitError);
+      assert.equal(err.exitCode, CLI_EXIT_CODES.INTERRUPT);
+      assert.equal(err.code, 'user_cancelled');
+      return true;
+    }
+  );
+  assert.equal(operationCancelled, true);
+  assert.deepEqual(process.listeners('SIGINT'), [...listenersBefore]);
 });
 
 test('auth status command returns observational status (exit code 0) for signed_out, authenticated, and unreachable', async () => {

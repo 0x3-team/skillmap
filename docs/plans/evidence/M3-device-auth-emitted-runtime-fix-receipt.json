@@ -36,7 +36,7 @@
     },
     {
       "path": "apps/web/tests/device-auth.test.mjs",
-      "sha256": "fedd04312ff7a6a8c38bf4467b76e0ce0e1fd2017d9ae99e7fa2a3468d25c4e4"
+      "sha256": "0760d05133d2eb06e9496868f1c9cc2c4092255527167d49c2609af9bb49816b"
     },
     {
       "path": "apps/web/scripts/device-auth-worker-smoke.mjs",

@@ -31,6 +31,14 @@ async function deps({ fetchFn, clock = () => 1_000 } = {}) {
   const keyStore = new InMemoryDeviceKeyStore();
   await keyStore.createKey();
   const credentialStore = new InMemoryCredentialStore(clock);
+  const metadataStore = new InMemoryDeviceAuthMetadataStore();
+  await metadataStore.save({
+    deviceId: DEVICE_ID,
+    verificationUri: 'https://skillmap.example.test/device',
+    displayName: 'Refresh test device',
+    platform: 'macos',
+    connectorVersion: '1.0.0'
+  });
   await credentialStore.commitExchange({
     deviceId: DEVICE_ID,
     tokenFamilyId: FAMILY,
@@ -41,8 +49,8 @@ async function deps({ fetchFn, clock = () => 1_000 } = {}) {
     familyAbsoluteExpiresAt: 1_000 + 7_776_000
   });
   const client = new DeviceAuthClient({ origin: 'https://skillmap.example.test', keyStore, deviceId: DEVICE_ID, fetchFn, clock });
-  const useCase = new DeviceAuthUseCase({ client, keyStore, credentialStore, metadataStore: new InMemoryDeviceAuthMetadataStore(), clock });
-  return { client, useCase, credentialStore, keyStore };
+  const useCase = new DeviceAuthUseCase({ client, keyStore, credentialStore, metadataStore, clock });
+  return { client, useCase, credentialStore, keyStore, metadataStore };
 }
 
 class FaultyCredentialStore {
@@ -193,22 +201,28 @@ test('M3.08 deterministic crash points preserve or clear exactly one durable tup
   assert.equal(committedResponses, 2);
 });
 
-test('M3.08 terminal errors delete credentials while transient errors retain exact pending', async () => {
-  for (const code of ['invalid_grant', 'access_denied', 'invalid_token']) {
+test('M3.08 terminal refresh errors retire the complete local identity while transient errors retain exact pending', async () => {
+  for (const code of ['invalid_grant', 'access_denied', 'expired_token', 'invalid_token']) {
     const descriptions = {
       invalid_grant: 'The authorization grant is invalid.',
       access_denied: 'Authorization was not granted.',
+      expired_token: 'The authorization grant has expired.',
       invalid_token: 'The access token is invalid.'
     };
-    const { useCase, credentialStore } = await deps({
+    const { useCase, credentialStore, keyStore, metadataStore } = await deps({
       fetchFn: async () => new Response(JSON.stringify({
         error: code,
         error_description: descriptions[code],
         retry_after: 0
       }), { status: code === 'invalid_token' ? 401 : 400, headers: { 'content-type': 'application/json; charset=utf-8' } })
     });
-    await assert.rejects(useCase.getAccessToken({ forceRefresh: true }));
+    await assert.rejects(
+      useCase.getAccessToken({ forceRefresh: true }),
+      (error) => error.code === code
+    );
     assert.equal(await credentialStore.load(), null);
+    assert.equal(await keyStore.hasKey(), false);
+    assert.equal(await metadataStore.load(), null);
   }
   let calls = 0;
   const transient = await deps({ fetchFn: async () => { calls += 1; throw new TypeError('offline'); } });
@@ -307,6 +321,8 @@ test('M3.08 bounded second near-expiry response fails closed once already unusab
   await assert.rejects(base.useCase.getAccessToken({ forceRefresh: true }), (error) => error.status === 401 && error.code === 'expired_token');
   assert.equal(calls, 2);
   const state = await base.credentialStore.loadState();
-  assert.equal(state.record.generation, 9);
+  assert.equal(state.record, null);
   assert.equal(state.pending, null);
+  assert.equal(await base.keyStore.hasKey(), false);
+  assert.equal(await base.metadataStore.load(), null);
 });

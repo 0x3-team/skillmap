@@ -380,11 +380,9 @@ export class DeviceAuthUseCase {
         }
         return this.inMemoryAccessToken;
       } catch (err) {
-        if (err instanceof DeviceAuthError && (err.code === 'invalid_grant' || err.code === 'invalid_token' || err.code === 'access_denied')) {
+        if (err instanceof DeviceAuthError && isTerminalAuthFailure(err.code)) {
           if (!options?.preserveOnAuthFailure) {
-            await this.credentialStore.delete();
-            this.inMemoryAccessToken = null;
-            this.inMemoryAccessTokenExpiresAt = null;
+            await this.retireLocalAuthState();
           }
         }
         throw err;
