@@ -745,7 +745,7 @@ test('logout command --local-only requires --confirm (exit code 64)', async () =
   assert.equal(credsAfter, null);
 });
 
-test('logout rejects unknown, valued, duplicate, and global flags before auth or mutation', async () => {
+test('logout rejects positionals and invalid, valued, duplicate, and global flags before auth or mutation', async () => {
   const calls = [];
   const useCase = {
     async getAuthStatus() {
@@ -759,6 +759,7 @@ test('logout rejects unknown, valued, duplicate, and global flags before auth or
   };
 
   const invalidArgv = [
+    ['dev_deadbeef'],
     ['--local-onli', '--confirm'],
     ['--local-only=unexpected', '--confirm'],
     ['--confirm', '--confirm'],
@@ -768,7 +769,7 @@ test('logout rejects unknown, valued, duplicate, and global flags before auth or
   for (const argv of invalidArgv) {
     const parsed = parseArgs(['logout', ...argv]);
     await assert.rejects(
-      async () => logoutCommand('/test/cwd', parsed.flags, { useCase }),
+      async () => logoutCommand('/test/cwd', parsed.positionals, parsed.flags, { useCase }),
       (err) => {
         assert.ok(err instanceof CliExitError);
         assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
@@ -779,6 +780,16 @@ test('logout rejects unknown, valued, duplicate, and global flags before auth or
   }
 
   assert.deepEqual(calls, []);
+
+  await assert.rejects(
+    async () => dispatchCommand('/test/cwd', 'logout', ['dev_deadbeef'], {}),
+    (err) => {
+      assert.ok(err instanceof CliExitError);
+      assert.equal(err.exitCode, CLI_EXIT_CODES.USAGE);
+      assert.equal(err.code, 'usage_error');
+      return true;
+    }
+  );
 });
 
 test('logout accepts the global json output flag without changing its safety checks', async () => {

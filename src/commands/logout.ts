@@ -8,34 +8,64 @@ import {
 } from '../core/cli-exit.js';
 
 const LOGOUT_FLAGS = new Set(['confirm', 'local-only', 'json']);
+type LogoutFlags = Record<string, string | boolean | string[]>;
 
-function validateLogoutFlags(flags: Record<string, string | boolean | string[]>): void {
+function validateLogoutInput(positionals: string[], flags: LogoutFlags): void {
+  if (positionals.length > 0) {
+    throwLogoutUsageError();
+  }
+
   for (const [name, value] of Object.entries(flags)) {
     // The parser represents bare boolean flags as true. Reject inline values
     // and repeated flags instead of silently choosing one interpretation for a
     // safety-sensitive command. `json` is an output-only global convention and
     // is accepted here even though the command does not otherwise consume it.
     if (!LOGOUT_FLAGS.has(name) || value !== true) {
-      throw new CliExitError(
-        CLI_EXIT_CODES.USAGE,
-        'Usage: skillmap logout [--confirm] [--local-only] [--json]',
-        'usage_error',
-        {
-          success: false,
-          error: 'usage_error',
-          message: 'Usage: skillmap logout [--confirm] [--local-only] [--json]'
-        }
-      );
+      throwLogoutUsageError();
     }
   }
 }
 
+function throwLogoutUsageError(): never {
+  throw new CliExitError(
+    CLI_EXIT_CODES.USAGE,
+    'Usage: skillmap logout [--confirm] [--local-only] [--json]',
+    'usage_error',
+    {
+      success: false,
+      error: 'usage_error',
+      message: 'Usage: skillmap logout [--confirm] [--local-only] [--json]'
+    }
+  );
+}
+
+export function logoutCommand(
+  cwd: string,
+  flags: LogoutFlags,
+  deps?: DeviceAuthCommandDeps
+): Promise<unknown>;
+export function logoutCommand(
+  cwd: string,
+  positionals: string[],
+  flags: LogoutFlags,
+  deps?: DeviceAuthCommandDeps
+): Promise<unknown>;
 export async function logoutCommand(
   _cwd: string,
-  flags: Record<string, string | boolean | string[]>,
-  deps?: DeviceAuthCommandDeps
+  positionalsOrFlags: string[] | LogoutFlags,
+  flagsOrDeps?: LogoutFlags | DeviceAuthCommandDeps,
+  injectedDeps?: DeviceAuthCommandDeps
 ): Promise<unknown> {
-  validateLogoutFlags(flags);
+  const hasPositionalsArgument = Array.isArray(positionalsOrFlags);
+  const positionals = hasPositionalsArgument ? positionalsOrFlags : [];
+  const flags = hasPositionalsArgument
+    ? (flagsOrDeps as LogoutFlags | undefined) ?? {}
+    : positionalsOrFlags;
+  const deps = hasPositionalsArgument
+    ? injectedDeps
+    : flagsOrDeps as DeviceAuthCommandDeps | undefined;
+
+  validateLogoutInput(positionals, flags);
 
   const localOnly = hasFlag(flags, 'local-only');
   const confirm = hasFlag(flags, 'confirm');
