@@ -74,9 +74,9 @@ test("Worker secret preflight uses the exact pinned local Wrangler command and n
   }
 });
 
-test("ordinary builds stay provider-free while deploy runs the secret preflight first", async () => {
+test("ordinary builds stay provider-free while deploy uses the custom Worker entrypoint", async () => {
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(packageJson.scripts.deploy, /^node scripts\/check-worker-secret\.mjs && opennextjs-cloudflare build && opennextjs-cloudflare deploy$/);
+  assert.match(packageJson.scripts.deploy, /^node scripts\/check-worker-secret\.mjs && opennextjs-cloudflare build && wrangler deploy --config \.\/wrangler\.jsonc$/);
   assert.match(packageJson.scripts.build, /^node --experimental-strip-types scripts\/check-hosted-release-config\.mts && next build$/);
   assert.doesNotMatch(packageJson.scripts.build, /check-worker-secret|wrangler/);
 });

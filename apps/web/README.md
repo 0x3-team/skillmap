@@ -54,9 +54,11 @@ Wrangler vars, logs, or build artifacts. Hosted DeviceAuth routes do need
 name with `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`; it is an encrypted
 Worker secret, not a `wrangler.jsonc` variable. The hosted build preflight
 does not receive the value. `npm run deploy` first runs a read-only Wrangler
-secret-name preflight, then builds and deploys. See the [hosted deployment
-runbook](../../docs/operations/hosted-alpha-deploy.md) for the protected
-provisioning and deployment sequence.
+secret-name preflight, builds the OpenNext output, and deploys through Wrangler
+so `wrangler.jsonc` keeps `cloudflare-worker.ts` as the custom entrypoint. That
+entrypoint owns the DeviceAuth edge gate and Durable Object export. See the
+[hosted deployment runbook](../../docs/operations/hosted-alpha-deploy.md) for
+the protected provisioning and deployment sequence.
 
 Remote provisioning, deployment, backup, rollback, OAuth, and live-acceptance steps are controlled by [`docs/operations/hosted-alpha-deploy.md`](../../docs/operations/hosted-alpha-deploy.md). Do not push the local-only `supabase/config.toml` to a hosted project.
 

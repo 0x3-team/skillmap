@@ -160,7 +160,8 @@ test("Next 16 hosted request boundary has one Edge middleware surface and preser
   assert.doesNotMatch(middleware, /(?:writeFile|mkdir|rename|unlink|rmSync|execFile|spawn)\s*\(/);
   const workerEntry = await readFile(new URL("../cloudflare-worker.ts", import.meta.url), "utf8");
   assert.match(workerEntry, /gateDeviceAuthRequest/);
-  assert.match(workerEntry, /export \{ DeviceAuthIpRateLimiter \}/);
+  assert.match(workerEntry, /import \{ DurableObject \} from "cloudflare:workers"/);
+  assert.match(workerEntry, /export class DeviceAuthIpRateLimiter extends DurableObject/);
   const wrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   assert.match(wrangler, /"main":\s*"cloudflare-worker\.ts"/);
   assert.match(wrangler, /"DEVICE_AUTH_IP_RATE_LIMITER"/);
