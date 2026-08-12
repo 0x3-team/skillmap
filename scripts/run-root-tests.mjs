@@ -10,12 +10,11 @@ const excludedTests = new Set([
   // These are historical/native readiness gates. They require the private
   // macOS plan/evidence workspace and are not part of the portable CLI gate.
   'm3-03-dp-keychain-failure-recovery.mjs',
-  'm3-03-apple-signing-readiness.mjs',
-  'macos-device-auth-custody.mjs'
+  'm3-03-apple-signing-readiness.mjs'
 ]);
 const tests = readdirSync(testRoot)
   .filter(name => name.endsWith('.mjs') && name !== 'phase3-local-app-browser-fixture.mjs')
-  .filter(name => !excludedTests.has(name))
+  .filter(name => !excludedTests.has(name) && (name !== 'macos-device-auth-custody.mjs' || process.platform === 'darwin'))
   .sort()
   .map(name => path.join('test', name));
 
