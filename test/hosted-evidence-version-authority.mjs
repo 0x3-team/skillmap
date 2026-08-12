@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(new URL(
-  '../supabase/migrations/20260715010000_hosted_evidence_version_authority.sql',
+  '../supabase/migrations/20260727050324_hosted_evidence_version_authority.sql',
   import.meta.url
 ), 'utf8');
 const auditRuntime = readFileSync(new URL('../src/hosted/audit-grade.ts', import.meta.url), 'utf8');

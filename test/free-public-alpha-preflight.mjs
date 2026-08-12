@@ -39,16 +39,16 @@ test('local and public launch verdicts cannot be collapsed', () => {
 
 test('static preflight binds worker lease, completion, receipt validation, and exact-source authority to the required migrations', () => {
   const source = readFileSync(new URL('../scripts/free-public-alpha-preflight.mjs', import.meta.url), 'utf8');
-  assert.match(source, /20260713003000_launch_safety_reports_lifecycle\.sql/);
-  assert.match(source, /20260713020000_backend_completion_hardening\.sql/);
-  assert.match(source, /20260713050000_submission_authority_completion\.sql/);
-  assert.match(source, /20260713060000_operator_submission_read_plane\.sql/);
-  assert.match(source, /20260714010000_atomic_report_enforcement\.sql/);
-  assert.match(source, /20260714030000_github_provider_rate_limit_deferral\.sql/);
-  assert.match(source, /20260714050000_report_authorization_enforcement\.sql/);
-  assert.match(source, /20260714060000_operator_dual_control\.sql/);
-  assert.match(source, /20260715010000_hosted_evidence_version_authority\.sql/);
-  assert.match(source, /20260715020000_hosted_report_idempotency_recovery\.sql/);
+  assert.match(source, /20260727050206_launch_safety_reports_lifecycle\.sql/);
+  assert.match(source, /20260727050214_backend_completion_hardening\.sql/);
+  assert.match(source, /20260727050220_submission_authority_completion\.sql/);
+  assert.match(source, /20260727050300_operator_submission_read_plane\.sql/);
+  assert.match(source, /20260727050305_atomic_report_enforcement\.sql/);
+  assert.match(source, /20260727050312_github_provider_rate_limit_deferral\.sql/);
+  assert.match(source, /20260727050316_report_authorization_enforcement\.sql/);
+  assert.match(source, /20260727050320_operator_dual_control\.sql/);
+  assert.match(source, /20260727050324_hosted_evidence_version_authority\.sql/);
+  assert.match(source, /20260727050328_hosted_report_idempotency_recovery\.sql/);
   assert.match(source, /renew_skill_submission_claim/);
   assert.match(source, /dead_letter_expired_skill_submission/);
   assert.match(source, /list_skill_submission_collisions/);
@@ -120,6 +120,10 @@ test('repository secret canary scan catches credentials and limits the fixture e
   ]);
   assert.deepEqual(scanRepositorySecretCanaries([{
     path: 'test/package-candidate-verifier.mjs',
+    bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
+  }]), []);
+  assert.deepEqual(scanRepositorySecretCanaries([{
+    path: 'test/fixtures/m3-03-apple-signing-readiness/cases.json',
     bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
   }]), []);
   assert.deepEqual(scanRepositorySecretCanaries([{

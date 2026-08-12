@@ -83,9 +83,9 @@ and account-owned submission workflows. It still does not execute submitted
 content, mirror third-party packages, publish TUF metadata, or issue a current
 letter grade from static evidence alone.
 
-Migration `20260714050000_report_authorization_enforcement.sql` requires a new
+Migration `20260727050316_report_authorization_enforcement.sql` requires a new
 report target to remain the exact current public version and to retain current
-publisher authorization. Migration `20260714060000_operator_dual_control.sql`
+publisher authorization. Migration `20260727050320_operator_dual_control.sql`
 keeps the service role as transport but requires immutable 30-minute
 exact-envelope approval and distinct execution for five consequential RPCs.
 Opaque binary/non-UTF-8 admitted files are critical audit findings and block the
@@ -100,10 +100,10 @@ results belong to candidate `413d8759e244005406280cd8d7c2fe2ec01b84bf`, tree
 through `73` (UI `53` through `56`) and GitHub named job `87033792983`.
 
 The accepted 2026-07-15 product checkpoint adds migration
-`20260715010000_hosted_evidence_version_authority.sql` to bind worker, audit,
+`20260727050324_hosted_evidence_version_authority.sql` to bind worker, audit,
 grade, host profile, rubric, and publication success to one exact current
 evidence-authority tuple. Migration
-`20260715020000_hosted_report_idempotency_recovery.sql` makes owner-scoped
+`20260727050328_hosted_report_idempotency_recovery.sql` makes owner-scoped
 request identity distinguish a true report replay from a reused request ID and
 from a different queued payload. The checkpoint also closes the recorded skip
 navigation, mobile account route, privacy hierarchy, production-seed,

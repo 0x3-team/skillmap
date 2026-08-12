@@ -110,17 +110,17 @@ function staticGates(requireClean) {
     detail: findings.length ? findings : `No high-confidence credential canary found in ${candidatePaths.length} candidate files.`
   });
 
-  const leaseMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713003000_launch_safety_reports_lifecycle.sql'), 'utf8');
-  const completionHardeningMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713020000_backend_completion_hardening.sql'), 'utf8');
-  const operatorAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260712233000_hosted_operator_publication_authority.sql'), 'utf8');
-  const authorityCompletionMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713050000_submission_authority_completion.sql'), 'utf8');
-  const operatorReadMigration = readFileSync(path.join(repo, 'supabase/migrations/20260713060000_operator_submission_read_plane.sql'), 'utf8');
-  const launchReadinessMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714010000_atomic_report_enforcement.sql'), 'utf8');
-  const providerDeferralMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714030000_github_provider_rate_limit_deferral.sql'), 'utf8');
-  const reportAuthorizationMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714050000_report_authorization_enforcement.sql'), 'utf8');
-  const operatorDualControlMigration = readFileSync(path.join(repo, 'supabase/migrations/20260714060000_operator_dual_control.sql'), 'utf8');
-  const evidenceAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260715010000_hosted_evidence_version_authority.sql'), 'utf8');
-  const reportIdempotencyMigration = readFileSync(path.join(repo, 'supabase/migrations/20260715020000_hosted_report_idempotency_recovery.sql'), 'utf8');
+  const leaseMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050206_launch_safety_reports_lifecycle.sql'), 'utf8');
+  const completionHardeningMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050214_backend_completion_hardening.sql'), 'utf8');
+  const operatorAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050200_hosted_operator_publication_authority.sql'), 'utf8');
+  const authorityCompletionMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050220_submission_authority_completion.sql'), 'utf8');
+  const operatorReadMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050300_operator_submission_read_plane.sql'), 'utf8');
+  const launchReadinessMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050305_atomic_report_enforcement.sql'), 'utf8');
+  const providerDeferralMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050312_github_provider_rate_limit_deferral.sql'), 'utf8');
+  const reportAuthorizationMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050316_report_authorization_enforcement.sql'), 'utf8');
+  const operatorDualControlMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050320_operator_dual_control.sql'), 'utf8');
+  const evidenceAuthorityMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050324_hosted_evidence_version_authority.sql'), 'utf8');
+  const reportIdempotencyMigration = readFileSync(path.join(repo, 'supabase/migrations/20260727050328_hosted_report_idempotency_recovery.sql'), 'utf8');
   const workerSource = readFileSync(path.join(repo, 'apps/worker/src/process-once.mjs'), 'utf8');
   const providerGateSource = readFileSync(path.join(repo, 'apps/worker/src/github-provider-gate.mjs'), 'utf8');
   const githubFetcherSource = readFileSync(path.join(repo, 'src/network/github-source-fetcher.ts'), 'utf8');
@@ -272,7 +272,7 @@ function staticGates(requireClean) {
     id: 'worker-migration-compatibility',
     status: workerMigrationBound ? 'passed' : 'failed',
     detail: workerMigrationBound
-      ? 'Worker mutation authority, atomic report enforcement, current-authorization report intake, consequential-action dual control, cursor-safe operator queues, provider backpressure deferral, exact evidence-version authority, owner-safe report request recovery, and the redacted operations plane are source-bound through migration 20260715020000; applying and verifying every migration remains a database gate before worker start.'
+      ? 'Worker mutation authority, atomic report enforcement, current-authorization report intake, consequential-action dual control, cursor-safe operator queues, provider backpressure deferral, exact evidence-version authority, owner-safe report request recovery, and the redacted operations plane are source-bound through migration 20260727050328; applying and verifying every migration remains a database gate before worker start.'
       : 'Worker mutation authority or the redacted operator read plane is not bound to every required migration, RPC, service-role grant, and privacy exclusion.'
   });
 

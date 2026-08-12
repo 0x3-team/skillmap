@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "skillmap",
+  "compatibility_date": "2026-07-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://skillmap.hi-430.workers.dev",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://nciathykwjlrkikzyirv.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_igJuFXWpUGxwnR9r3ZL3DQ_7nCCwSzE",
+    "SKILLMAP_RELEASE_STAGE": "private-alpha",
+    "SKILLMAP_INDEXING_MODE": "private-alpha",
+    "SKILLMAP_CONTRACT_VALIDATION_MODE": "cloudflare-static",
+    "NEXT_PUBLIC_SKILLMAP_CONTRACT_VALIDATION_MODE": "cloudflare-static",
+    "DEVICE_AUTH_LOOKUP_KEY_VERSION": "1",
+    "DEVICE_AUTH_VERIFICATION_URL": "https://skillmap.hi-430.workers.dev/device"
+  }
+}

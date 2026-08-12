@@ -16,8 +16,8 @@ const COMMIT = 'a'.repeat(40);
 const SECRET = `service-role-${'x'.repeat(48)}`;
 
 test('append-only submission authority migration binds publication and reclaim evidence', () => {
-  const source = readFileSync('supabase/migrations/20260713050000_submission_authority_completion.sql', 'utf8');
-  const operatorSource = readFileSync('supabase/migrations/20260712233000_hosted_operator_publication_authority.sql', 'utf8');
+  const source = readFileSync('supabase/migrations/20260727050220_submission_authority_completion.sql', 'utf8');
+  const operatorSource = readFileSync('supabase/migrations/20260727050200_hosted_operator_publication_authority.sql', 'utf8');
   for (const pattern of [
     /submission_publisher_authorization_receipts/,
     /publisher_authorization_revocation_tombstones/,
@@ -73,8 +73,8 @@ test('publisher authorization CLI is exposed through both operator package surfa
     'npm run build && node apps/worker/src/authorization.mjs');
   assert.equal(workerPackage.scripts['publisher:authorization'], 'node src/authorization.mjs');
   const readme = readFileSync('apps/worker/README.md', 'utf8');
-  assert.match(readme, /20260713060000_operator_submission_read_plane\.sql/);
-  assert.match(readme, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(readme, /20260727050300_operator_submission_read_plane\.sql/);
+  assert.match(readme, /20260727050305_atomic_report_enforcement\.sql/);
   assert.match(readme, /hosted:operations:check/);
   assert.match(readme, /npm run hosted:publisher:authorization/);
   assert.match(readme, /renews an expired[\s\S]+exact still-published source version/i);
@@ -82,8 +82,8 @@ test('publisher authorization CLI is exposed through both operator package surfa
   assert.match(readme, /terminal for the exact repository, commit,[\s\S]+across accounts and publisher handles/i);
   assert.match(readme, /--license-evidence-path LICENSE/);
   const runbook = readFileSync('docs/operations/free-public-alpha-runbook.md', 'utf8');
-  assert.match(runbook, /20260713060000_operator_submission_read_plane\.sql/);
-  assert.match(runbook, /20260714010000_atomic_report_enforcement\.sql/);
+  assert.match(runbook, /20260727050300_operator_submission_read_plane\.sql/);
+  assert.match(runbook, /20260727050305_atomic_report_enforcement\.sql/);
   assert.match(runbook, /confirmed disposition atomically quarantines or revokes/i);
   assert.match(runbook, /skillmap-hosted-operations-check\/v1/);
   assert.match(runbook, /claim-scoped exact license evidence/);
@@ -98,7 +98,7 @@ test('publisher authorization CLI is exposed through both operator package surfa
 
 test('atomic report enforcement fails closed before upgrading legacy resolved reports', () => {
   const source = readFileSync(
-    'supabase/migrations/20260714010000_atomic_report_enforcement.sql',
+    'supabase/migrations/20260727050305_atomic_report_enforcement.sql',
     'utf8'
   );
   assert.match(source, /where report\.state = 'resolved'/);
