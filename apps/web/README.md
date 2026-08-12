@@ -47,7 +47,16 @@ Copy `.env.example` to `.env.local` and set the local API URL and publishable ke
 
 `npm run build` runs a release-configuration preflight. Any hosted stage requires a valid production site origin plus the public Supabase URL and publishable key; `public-alpha` additionally requires the approved support URL and the exact `SKILLMAP_INDEXING_MODE=public` opt-in. A local candidate remains buildable without hosted configuration and is explicitly noindex.
 
-The browser bundle uses only the Supabase publishable key. A service-role or secret key must never be added to this application.
+The browser bundle uses only the Supabase publishable key. A service-role or
+secret key must never be added to client code, `NEXT_PUBLIC_*`, checked-in
+Wrangler vars, logs, or build artifacts. Hosted DeviceAuth routes do need
+`SUPABASE_SERVICE_ROLE_KEY` at server runtime. For Cloudflare, provision that
+name with `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`; it is an encrypted
+Worker secret, not a `wrangler.jsonc` variable. The hosted build preflight
+does not receive the value. `npm run deploy` first runs a read-only Wrangler
+secret-name preflight, then builds and deploys. See the [hosted deployment
+runbook](../../docs/operations/hosted-alpha-deploy.md) for the protected
+provisioning and deployment sequence.
 
 Remote provisioning, deployment, backup, rollback, OAuth, and live-acceptance steps are controlled by [`docs/operations/hosted-alpha-deploy.md`](../../docs/operations/hosted-alpha-deploy.md). Do not push the local-only `supabase/config.toml` to a hosted project.
 

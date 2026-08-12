@@ -985,6 +985,10 @@ test("hosted build configuration fails closed and local candidates retain an exp
     { releaseStage: "public-alpha", hosted: true }
   );
 
+  const wrangler = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+  assert.doesNotMatch(wrangler, /["']SUPABASE_SERVICE_ROLE_KEY["']\s*:/);
+  assert.match(wrangler, /encrypted Worker secret/);
+
   const [metadata, layout] = await Promise.all([
     readFile(new URL("../lib/metadata.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8")

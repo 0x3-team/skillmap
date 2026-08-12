@@ -991,7 +991,10 @@ function errorCodeForStatus(status: number, payload: unknown): DeviceAuthErrorCo
   // terminal invalid_token behavior.
   if (status === 401) return validatedTypedErrorCode(status, payload) ?? 'invalid_token';
   if (status === 403) return 'insufficient_scope';
-  if (status === 409) return 'idempotency_conflict';
+  // Preserve the two closed, status-compatible 409 outcomes. Any malformed,
+  // status-incompatible, or otherwise unknown 409 body still falls back to
+  // the safe idempotency-conflict result.
+  if (status === 409) return validatedTypedErrorCode(status, payload) ?? 'idempotency_conflict';
   if (status === 429) return 'rate_limited';
   if (status >= 500 && status <= 599) return 'temporarily_unavailable';
   if (isPlainObject(payload)

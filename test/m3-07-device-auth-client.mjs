@@ -245,6 +245,61 @@ test('M3.07 preserves valid status-compatible typed 401 errors', async () => {
   }
 });
 
+test('M3.07 preserves valid closed typed 409 errors and safely falls back for malformed bodies', async () => {
+  const validBodies = [
+    {
+      error: 'already_consumed',
+      error_description: 'The authorization grant is no longer available.',
+      retry_after: 0
+    },
+    {
+      error: 'idempotency_conflict',
+      error_description: 'The request conflicts with a prior operation.',
+      retry_after: 0
+    }
+  ];
+  for (const body of validBodies) {
+    const client = await makeClient(async () => new Response(JSON.stringify(body), {
+      status: 409,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    }));
+    await assert.rejects(
+      client.getStatus({ devicePublicId: VALID_DEVICE_PUBLIC_ID, accessToken: VALID_ACCESS_TOKEN }),
+      (error) => error instanceof DeviceAuthError && error.status === 409 && error.code === body.error
+    );
+  }
+
+  const malformedBodies = [
+    { error: 'already_consumed' },
+    {
+      error: 'already_consumed',
+      error_description: 'The authorization grant is no longer available.',
+      retry_after: 0,
+      extra: true
+    },
+    {
+      error: 'already_consumed',
+      error_description: 'The request conflicts with a prior operation.',
+      retry_after: 0
+    },
+    {
+      error: 'invalid_grant',
+      error_description: 'The authorization grant is invalid.',
+      retry_after: 0
+    }
+  ];
+  for (const body of malformedBodies) {
+    const client = await makeClient(async () => new Response(JSON.stringify(body), {
+      status: 409,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    }));
+    await assert.rejects(
+      client.getStatus({ devicePublicId: VALID_DEVICE_PUBLIC_ID, accessToken: VALID_ACCESS_TOKEN }),
+      (error) => error instanceof DeviceAuthError && error.status === 409 && error.code === 'idempotency_conflict'
+    );
+  }
+});
+
 test('M3.07 falls back safely for malformed or status-incompatible typed error bodies', async () => {
   const malformedBodies = [
     { error: 'proof_invalid' },

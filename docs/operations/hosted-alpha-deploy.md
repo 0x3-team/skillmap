@@ -23,13 +23,43 @@ Preview deployments must remain unconfigured until a separate preview Supabase p
 
 ## Secret boundary
 
-Never commit, print into CI logs, or add to the web host:
+Never commit, print into CI logs, put in a public Worker variable, or expose to
+the browser:
 
-- Supabase access tokens, database passwords, secret/service-role keys, or JWT secrets
+- Supabase access tokens, database passwords, or JWT secrets
 - GitHub OAuth client secrets
 - backup encryption keys
 
-The web deployment receives only:
+The Cloudflare Worker receives the Supabase service-role key only as an
+encrypted Worker secret named `SUPABASE_SERVICE_ROLE_KEY`. It is not a
+`wrangler.vars` entry, a Next `NEXT_PUBLIC_*` variable, a client bundle value,
+or a checked-in file. OpenNext copies Worker secret bindings into the server
+runtime only; the server-only DeviceAuth module reads the value there and does
+not return it in configuration errors or logs. `next build` does not need the
+secret and must never receive it.
+
+From the `apps/web` directory, provision the secret separately after
+authenticating the intended Worker. Use a password-manager pipe or a hidden
+prompt; do not paste the key into a shell command or commit it:
+
+```bash
+# Example only. Do not run this during source validation.
+cd /path/to/skillmap/apps/web
+read -r -s SUPABASE_SERVICE_ROLE_KEY
+printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" \
+  | ./node_modules/.bin/wrangler secret put SUPABASE_SERVICE_ROLE_KEY \
+      --config ./wrangler.jsonc --name skillmap
+unset SUPABASE_SERVICE_ROLE_KEY
+```
+
+Do not use the secret value as a `wrangler.jsonc` variable. `npm run deploy`
+runs a read-only preflight with the pinned local Wrangler executable from this
+directory. It calls `secret list --format json --config ./wrangler.jsonc
+--name skillmap`, checks only for the exact secret name, and then runs the
+OpenNext build and deploy. The preflight does not print secret values, and the
+secret is not passed to `next build`.
+
+The public Worker configuration receives only:
 
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
@@ -82,7 +112,7 @@ The GitHub-to-Supabase callback above is distinct from the application callback 
 
 1. Select and record the zero-cost-compatible provider, project owner, plan/limits, deployment command, rollback command, and log/health surface. Selection is an owner decision; this runbook does not default to a paid provider.
 2. Connect only `0x3-team/skillmap`. Configure Root Directory `apps/web`, keep the project floor of Node 22 or newer, and use Node 24.x as the reviewed hosted deployment runtime.
-3. Leave preview variables unset until a separate preview database exists. Add the production variables from the secret boundary using stdin or the provider dashboard so values do not enter shell history.
+3. Leave preview variables unset until a separate preview database exists. Add the production public variables from the secret boundary using the checked-in `wrangler.jsonc`; provision `SUPABASE_SERVICE_ROLE_KEY` separately with the exact `apps/web` Wrangler command above. Do not add it to `vars`, a dashboard plaintext variable, shell history, logs, or artifacts.
 4. Keep `SKILLMAP_RELEASE_STAGE=private-alpha` and `SKILLMAP_INDEXING_MODE=private-alpha` until the public gate explicitly changes both. Indexing requires the exact pair `public-alpha` and `public`.
 5. Before public alpha, configure `SKILLMAP_SUPPORT_URL` to the approved reachable intake page, open it from the deployed `/support` page while signed out, and verify that its public and confidential reporting instructions match the approved policy. A private repository issue URL is not a public support route.
 
@@ -98,6 +128,18 @@ supabase gen types typescript --linked --schema api,private \
   | sed -e '${/^$/d;}' > /tmp/skillmap-alpha-database.types.ts
 cmp /tmp/skillmap-alpha-database.types.ts apps/web/lib/supabase/database.types.ts
 ```
+
+For the Cloudflare Worker, run the deploy script from `apps/web` after the
+secret has been provisioned. The script checks the configured Worker secret
+name, then builds and deploys. It does not inject the secret into the build:
+
+```bash
+cd /path/to/skillmap/apps/web
+npm run deploy
+```
+
+If the encrypted secret is absent, deployment stops before OpenNext builds or
+uploads the Worker.
 
 Then run the exact production deployment command recorded in the provider decision record from `apps/web`. The checked-in `supabase/seed.sql` is local development and test data only and must never be applied to a hosted project. Its example repository is not an anonymously readable production source, so it cannot satisfy the public-source contract. Production corpus entries must instead move through authenticated account submission, the current worker and evidence gates, license and collision review, publisher authorization, and distinct approver/executor dual-control publication. Public launch remains blocked until 20 owner-authorized listings resolve to their exact anonymous public sources and pass the corpus acceptance receipt below. Record the database project ref, migration versions, deployed Git commit, web deployment ID/URL, provider/plan, and operator in the implementation ledger without recording secrets.
 

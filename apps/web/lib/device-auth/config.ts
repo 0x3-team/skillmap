@@ -12,6 +12,14 @@ export class DeviceAuthConfigurationError extends Error {
   }
 }
 
+/**
+ * The name of the Cloudflare Worker secret consumed by DeviceAuth's
+ * server-only Supabase client. Keep this out of `wrangler.vars`: vars are
+ * part of the public Worker configuration, while `wrangler secret put`
+ * stores an encrypted runtime binding.
+ */
+export const DEVICE_AUTH_SERVICE_ROLE_SECRET_NAME = "SUPABASE_SERVICE_ROLE_KEY" as const;
+
 export interface DeviceAuthServerConfig {
   /** Fixed hosted verification origin (no trailing slash, no path/query). */
   verificationUrl: string;
@@ -36,6 +44,21 @@ export function parseDeviceAuthRefreshMode(value: string | undefined): DeviceAut
 function env(name: string, environment?: Record<string, string | undefined>): string {
   const value = environment ? environment[name] : process.env[name];
   return (value ?? "").trim();
+}
+
+/**
+ * Require the server credential without returning, logging, hashing, or
+ * otherwise exposing its value. Cloudflare injects Worker secrets into the
+ * request runtime environment; local tests may provide the same named value.
+ */
+export function assertDeviceAuthServerSecret(
+  environment?: Record<string, string | undefined>
+): void {
+  if (!env(DEVICE_AUTH_SERVICE_ROLE_SECRET_NAME, environment)) {
+    throw new DeviceAuthConfigurationError(
+      `${DEVICE_AUTH_SERVICE_ROLE_SECRET_NAME} must be provisioned as an encrypted Worker secret for hosted DeviceAuth routes.`
+    );
+  }
 }
 
 /** Parse a bare HTTPS/HTTP origin; reject credentials, path, query, and fragments. */
@@ -78,10 +101,8 @@ export function getDeviceAuthServerConfig(
   const verificationRaw = env("DEVICE_AUTH_VERIFICATION_URL", environment)
     || env("NEXT_PUBLIC_SITE_URL", environment);
   const verificationUrl = parseOrigin(verificationRaw, "DEVICE_AUTH_VERIFICATION_URL", nodeEnvironment);
-  const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY", environment);
-  if (!serviceRoleKey) {
-    throw new DeviceAuthConfigurationError("SUPABASE_SERVICE_ROLE_KEY must be configured for the server-only DeviceAuth RPC.");
-  }
+  const serviceRoleKey = env(DEVICE_AUTH_SERVICE_ROLE_SECRET_NAME, environment);
+  assertDeviceAuthServerSecret(environment);
   return {
     verificationUrl,
     supabaseUrl,

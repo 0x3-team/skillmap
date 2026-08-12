@@ -24,7 +24,7 @@
     },
     {
       "path": "apps/web/package.json",
-      "sha256": "cb2a65e53f5fe0feb26bbccae6a12699fba8c8c45bb282c96fe7a66cf143982d"
+      "sha256": "7e25e685d36e015c48a63f7c74092b5fa08ba58a5fa782b1de40301f7f949217"
     },
     {
       "path": "apps/web/lib/device-auth/response.server.ts",
@@ -36,7 +36,7 @@
     },
     {
       "path": "apps/web/tests/device-auth.test.mjs",
-      "sha256": "0760d05133d2eb06e9496868f1c9cc2c4092255527167d49c2609af9bb49816b"
+      "sha256": "f374273ab75da230945a79d1485471c08e9299efd9493daf5f99ecbe0ee070cc"
     },
     {
       "path": "apps/web/scripts/device-auth-worker-smoke.mjs",

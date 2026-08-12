@@ -212,9 +212,13 @@ test('M3.09 revoke errors never authorize local cleanup', async () => {
           refresh_absolute_expires_in: 7_776_000
         }), { status: 200, headers: { 'content-type': 'application/json', 'X-SkillMap-Response-Issued-At': String(issuedAt) } });
       }
-      return new Response(JSON.stringify({ error: 'already_consumed' }), {
+      return new Response(JSON.stringify({
+        error: 'already_consumed',
+        error_description: 'The authorization grant is no longer available.',
+        retry_after: 0
+      }), {
         status: 409,
-        headers: { 'content-type': 'application/json' }
+        headers: { 'content-type': 'application/json; charset=utf-8' }
       });
     }
   });

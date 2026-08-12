@@ -22,7 +22,13 @@ import {
   DEVICE_AUTH_MAX_BODY_BYTES
 } from "../lib/device-auth/raw-json.server.ts";
 import { deviceAuthErrorResponse } from "../lib/device-auth/response.server.ts";
-import { getDeviceAuthServerConfig, parseDeviceAuthRefreshMode, DeviceAuthConfigurationError } from "../lib/device-auth/config.ts";
+import {
+  assertDeviceAuthServerSecret,
+  getDeviceAuthServerConfig,
+  parseDeviceAuthRefreshMode,
+  DeviceAuthConfigurationError,
+  DEVICE_AUTH_SERVICE_ROLE_SECRET_NAME
+} from "../lib/device-auth/config.ts";
 
 // ============================================================================
 // M3.03 focused web tests — DeviceAuth pairing seams.
@@ -324,4 +330,15 @@ test("hosted alpha configuration uses a bare verification origin and explicit si
     SUPABASE_SERVICE_ROLE_KEY: "service-role-test-only",
     DEVICE_AUTH_REFRESH_MODE: "alpha-single-shot"
   }), DeviceAuthConfigurationError);
+});
+
+test("hosted DeviceAuth preflight requires the encrypted Worker secret without exposing it", () => {
+  assert.equal(DEVICE_AUTH_SERVICE_ROLE_SECRET_NAME, "SUPABASE_SERVICE_ROLE_KEY");
+  assert.throws(
+    () => assertDeviceAuthServerSecret({ SUPABASE_SERVICE_ROLE_KEY: "   " }),
+    (error) => error instanceof DeviceAuthConfigurationError
+      && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")
+      && !error.message.includes("service-role-test-only")
+  );
+  assert.doesNotThrow(() => assertDeviceAuthServerSecret({ SUPABASE_SERVICE_ROLE_KEY: "worker-secret-test-only" }));
 });

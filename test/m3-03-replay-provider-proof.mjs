@@ -45,7 +45,7 @@ function assertCode(fn, code) {
   assert.throws(fn, (error) => error instanceof ReplayRingError && error.code === code);
 }
 
-function rawCurl(port, path, { method = 'GET', headers = [], body } = {}) {
+function rawCurlRaw(port, path, { method = 'GET', headers = [], body } = {}) {
   const args = ['--path-as-is', '--silent', '--show-error', '--request', method];
   for (const header of headers) args.push('--header', header);
   if (body !== undefined) args.push('--data-binary', body);
@@ -53,7 +53,11 @@ function rawCurl(port, path, { method = 'GET', headers = [], body } = {}) {
   const output = execFileSync('curl', args, { encoding: 'utf8', timeout: 10000 });
   const lines = output.trimEnd().split('\n');
   const status = Number(lines.pop());
-  return { status, body: JSON.parse(lines.join('\n')) };
+  return { status, rawBody: lines.join('\n') };
+}
+
+function parseCurlResponse({ status, rawBody }) {
+  return { status, body: JSON.parse(rawBody) };
 }
 
 function rawHttpRequest(port, path, { method = 'GET', headers = [], body } = {}) {
@@ -82,6 +86,58 @@ function rawHttpRequest(port, path, { method = 'GET', headers = [], body } = {})
     if (body !== undefined) request.write(body);
     request.end();
   });
+}
+
+function isRetryableLocalTransportError(error) {
+  return ['ECONNRESET', 'ECONNREFUSED', 'EPIPE', 'ETIMEDOUT', 'UND_ERR_SOCKET'].includes(error?.code ?? error?.cause?.code);
+}
+
+function isRetryableCurlError(error) {
+  return isRetryableLocalTransportError(error) || [7, 28, 52, 56].includes(error?.status);
+}
+
+function isKnownMiniflareTransportResponse(response) {
+  if (response.status !== 500) return false;
+  try {
+    assertMiniflareTransportError(response.rawBody);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function rawCurlWithRetry(port, path, options, { attempts = 3, backoffMs = 50, isProcessAlive } = {}) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (isProcessAlive && !isProcessAlive()) {
+      throw new Error(`local Workerd exited before curl ${options?.method ?? 'GET'} ${path}`);
+    }
+    try {
+      const response = rawCurlRaw(port, path, options);
+      if (!isKnownMiniflareTransportResponse(response) || attempt === attempts - 1) return parseCurlResponse(response);
+      await delay(backoffMs * (attempt + 1));
+    } catch (error) {
+      if (!isRetryableCurlError(error) || attempt === attempts - 1) throw error;
+      await delay(backoffMs * (attempt + 1));
+    }
+  }
+  throw new Error(`curl request did not complete: ${path}`);
+}
+
+async function rawHttpRequestWithRetry(port, path, options, { attempts = 3, backoffMs = 50, isProcessAlive } = {}) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (isProcessAlive && !isProcessAlive()) {
+      throw new Error(`local Workerd exited before ${options?.method ?? 'GET'} ${path}`);
+    }
+    try {
+      const response = await rawHttpRequest(port, path, options);
+      if (!isKnownMiniflareTransportResponse(response) || attempt === attempts - 1) return response;
+      await delay(backoffMs * (attempt + 1));
+    } catch (error) {
+      if (!isRetryableLocalTransportError(error) || attempt === attempts - 1) throw error;
+      await delay(backoffMs * (attempt + 1));
+    }
+  }
+  throw new Error(`HTTP request did not complete: ${path}`);
 }
 
 function assertMiniflareTransportError(rawBody) {
@@ -297,11 +353,19 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   try {
     let response;
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      try { response = await fetch(`http://127.0.0.1:${port}/proof/binding`, { headers: { 'x-skillmap-replay-raw-target': '/proof/binding' } }); if (response.ok) break; } catch {}
+    let readinessError;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      try {
+        response = await fetch(`http://127.0.0.1:${port}/proof/binding`, { headers: { 'x-skillmap-replay-raw-target': '/proof/binding' } });
+        if (response.ok) break;
+      } catch (error) {
+        readinessError = error;
+        if (!isRetryableLocalTransportError(error)) throw error;
+        if (hasExited(child)) break;
+      }
       await delay(250);
     }
-    assert.ok(response?.ok, `local Workerd did not become ready: ${stderr.slice(-500)}`);
+    assert.ok(response?.ok, `local Workerd did not become ready (exit=${child.exitCode ?? 'running'}, signal=${child.signalCode ?? 'none'}, last=${readinessError?.message ?? 'non-OK response'}): ${stderr.slice(-500)}`);
     const binding = await fetch(`http://127.0.0.1:${port}/proof/binding`, { headers: { 'x-skillmap-replay-raw-target': '/proof/binding' } });
     assert.equal(binding.status, 200);
     const bindingBody = await binding.json();
@@ -331,11 +395,11 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     assert.deepEqual(await directGetWithContentLength.json(), { error: 'invalid_request' });
 
     for (const alias of ['/proof/./binding', '/proof/../proof/binding', '/x/../proof/binding', '/proof/%2e/binding', '/proof/%2E%2E/proof/binding', '/x/%2e%2e/proof/binding']) {
-      const rejected = rawCurl(port, alias, { headers: [`x-skillmap-replay-raw-target: ${alias}`] });
+      const rejected = await rawCurlWithRetry(port, alias, { headers: [`x-skillmap-replay-raw-target: ${alias}`] }, { isProcessAlive: () => !hasExited(child) });
       assert.equal(rejected.status, 404, alias);
       assert.deepEqual(rejected.body, { error: 'not_found' });
     }
-    const getBody = rawCurl(port, '/proof/binding', { headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/binding'], body: rawRing });
+    const getBody = await rawCurlWithRetry(port, '/proof/binding', { headers: ['content-type: application/json', 'x-skillmap-replay-raw-target: /proof/binding'], body: rawRing }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(getBody.status, 400);
     assert.deepEqual(getBody.body, { error: 'invalid_request' });
     const getContentLength = await rawHttpRequest(port, '/proof/binding', { headers: ['content-length: 1', 'x-skillmap-replay-raw-target: /proof/binding'], body: 'x' });
@@ -351,7 +415,7 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     // chunk. A bare Transfer-Encoding header can leave Workerd waiting for a
     // request body until the client-side timeout instead of exercising the
     // intended fail-closed request validation.
-    const getChunked = rawCurl(port, '/proof/binding', { headers: ['transfer-encoding: chunked', 'x-skillmap-replay-raw-target: /proof/binding'], body: '' });
+    const getChunked = await rawCurlWithRetry(port, '/proof/binding', { headers: ['transfer-encoding: chunked', 'x-skillmap-replay-raw-target: /proof/binding'], body: '' }, { isProcessAlive: () => !hasExited(child) });
     assert.equal(getChunked.status, 400);
     assert.deepEqual(getChunked.body, { error: 'invalid_request' });
 
@@ -388,9 +452,13 @@ test('workerd fixture serves only redacted ring proof and rejects provider/secre
     for (const [method, path] of [
       ['GET', '/'], ['POST', '/proof/binding'], ['GET', '/proof/parse'], ['DELETE', '/proof/binding'], ['GET', '/proof/other'], ['POST', '/proof/other'],
     ]) {
-      const rejected = await fetch(`http://127.0.0.1:${port}${path}`, { method, headers: method === 'POST' ? { 'content-type': 'application/json' } : undefined, body: method === 'POST' ? rawRing : undefined });
+      const rejected = await rawHttpRequestWithRetry(port, path, {
+        method,
+        headers: method === 'POST' ? ['content-type: application/json'] : [],
+        body: method === 'POST' ? rawRing : undefined,
+      }, { isProcessAlive: () => !hasExited(child) });
       assert.equal(rejected.status, 404, `${method} ${path}`);
-      assert.deepEqual(await rejected.json(), { error: 'not_found' });
+      assert.deepEqual(JSON.parse(rejected.rawBody), { error: 'not_found' });
     }
     assert.doesNotMatch(`${stdout}\n${stderr}`, /sk-[A-Za-z0-9]|CLOUDFLARE_API_TOKEN|key_b64url|AwMDA/);
   } finally {

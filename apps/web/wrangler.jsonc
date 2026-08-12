@@ -9,6 +9,8 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // DeviceAuth's SUPABASE_SERVICE_ROLE_KEY is intentionally absent from vars.
+  // Provision it as an encrypted Worker secret with `wrangler secret put`.
   "vars": {
     "NEXT_PUBLIC_SITE_URL": "https://skillmap.hi-430.workers.dev",
     "NEXT_PUBLIC_SUPABASE_URL": "https://nciathykwjlrkikzyirv.supabase.co",
