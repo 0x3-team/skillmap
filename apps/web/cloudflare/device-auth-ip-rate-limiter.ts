@@ -26,7 +26,7 @@ const LIMIT = 5;
 const WINDOW_MS = 600_000;
 const MAX_BODY_BYTES = 4_096;
 
-export class DeviceAuthIpRateLimiter {
+export class DeviceAuthIpRateLimiterCore {
   readonly #state: DurableObjectStateLike;
 
   constructor(state: DurableObjectStateLike) {

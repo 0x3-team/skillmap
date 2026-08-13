@@ -7,7 +7,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "node --experimental-strip-types scripts/check-hosted-release-config.mts && next build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "node scripts/check-worker-secret.mjs && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "deploy": "node scripts/check-worker-secret.mjs && opennextjs-cloudflare build && wrangler deploy --config ./wrangler.jsonc",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -43,6 +43,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260812.1",
     "@fontsource/inter": "5.2.8",
     "@opennextjs/cloudflare": "^1.20.2",
     "@types/node": "^24.0.7",

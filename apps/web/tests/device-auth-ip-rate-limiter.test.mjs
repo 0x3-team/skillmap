@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DeviceAuthIpRateLimiter } from "../cloudflare/device-auth-ip-rate-limiter.ts";
+import { DeviceAuthIpRateLimiterCore } from "../cloudflare/device-auth-ip-rate-limiter.ts";
 
 const BUCKET_KEY = "A".repeat(43);
 
@@ -35,7 +35,7 @@ function createSqlMock(initialRows = []) {
 
 function createLimiter(initialRows = []) {
   const sql = createSqlMock(initialRows);
-  return { limiter: new DeviceAuthIpRateLimiter({ storage: { sql } }), sql };
+  return { limiter: new DeviceAuthIpRateLimiterCore({ storage: { sql } }), sql };
 }
 
 function request(now, body = {
