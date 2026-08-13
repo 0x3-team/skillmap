@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED_LIVE_PRIVATE_ALPHA",
+  "recorded_at": "2026-08-13T04:06:25.213Z",
+  "source": {
+    "branch": "codex/m3-cloudflare-do-runtime-fix",
+    "head_before_receipt": "8fb639e7ccbe82141c1c8d0de3edcf36e1d773ca",
+    "tree_before_receipt": "8afd2a76811f9aa268536e52ec35456f05057883"
+  },
+  "root_cause_and_fix": {
+    "review_failure": "The DeviceAuth definer could execute extensions.gen_random_bytes(integer) but lacked USAGE on schema extensions.",
+    "exchange_failure": "The encrypted DEVICE_AUTH_LOOKUP_KEY binding existed but its value did not satisfy the exact 32-byte base64url runtime contract.",
+    "migration": {
+      "path": "supabase/migrations/20260813035308_skillmap_device_auth_randomness_privileges.sql",
+      "sha256": "dc7b7efe5b57794f0af20ef5d357690a9a40a25297879256fdb5155b6672d33a",
+      "hosted_project": "nciathykwjlrkikzyirv",
+      "hosted_version": "20260813035308",
+      "applied": true
+    },
+    "test": {
+      "path": "supabase/tests/device_auth_randomness_privileges.test.sql",
+      "sha256": "ace15a765642054d3ef7beff64fad52ed90a64ac0a0c6efb5b8fb2ca50f15228",
+      "focused_assertions": 6,
+      "passed": true
+    },
+    "lookup_secret": {
+      "binding": "DEVICE_AUTH_LOOKUP_KEY",
+      "value_exposed": false,
+      "replaced_with_valid_random_32_byte_base64url_value": true,
+      "production_replay_key": false
+    }
+  },
+  "cloudflare": {
+    "worker": "skillmap",
+    "origin": "https://skillmap.hi-430.workers.dev",
+    "version_after_secret_rotation": "d85f64ab-cc8b-4188-b40d-a7c0741e2609",
+    "required_secret_names_present": true
+  },
+  "live_acceptance": {
+    "browser": {
+      "route": "/device",
+      "authenticated": true,
+      "review_fields_matched": true,
+      "approval_clicked_exactly_once": true,
+      "terminal_state": "Device approved"
+    },
+    "connector": {
+      "pairing_exchanged": true,
+      "status_authenticated": true,
+      "alpha_refresh_requests": 1,
+      "credential_rotated": true,
+      "status_after_refresh_authenticated": true,
+      "remote_revoke": true,
+      "local_credentials_deleted": true,
+      "terminal_signed_out": true,
+      "second_pairing_used_fresh_identity": true,
+      "second_pairing_cancelled": true,
+      "complete": true
+    }
+  },
+  "cleanup": {
+    "active_pairings": 0,
+    "active_token_families": 0,
+    "valid_access_tokens": 0,
+    "valid_refresh_tokens": 0,
+    "active_devices": 0,
+    "active_key_bindings": 0,
+    "residual_test_pairings": 0,
+    "residual_test_key_bindings": 0,
+    "exact_test_database_rows_removed": true,
+    "handoff_file_removed": true,
+    "temporary_harness_removed": true,
+    "temporary_wrangler_output_removed": true,
+    "ego_task_space_closed": true,
+    "local_supabase_stopped": true
+  },
+  "validation": {
+    "local_database_reset": "passed",
+    "local_schema_lint": "passed",
+    "focused_pgtap": "6/6 passed",
+    "web_device_auth_tests": "85/85 passed",
+    "git_diff_check": "passed"
+  },
+  "claims": {
+    "validated_locally": true,
+    "verified_live": true,
+    "committed": false,
+    "pushed": false,
+    "deployed": true,
+    "production_replay_keys_created": false,
+    "signing_or_notarization_performed": false
+  }
+}
