@@ -55,6 +55,314 @@ alter table private.import_target_preparations force row level security;
 revoke all privileges on table private.import_target_preparations
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 
+create function private.canonical_managed_import_json(
+  p_value jsonb,
+  p_sort_files boolean default false
+)
+returns text
+language plpgsql
+stable
+strict
+parallel safe
+set search_path = ''
+as $function$
+declare
+  v_type text;
+  v_result text;
+begin
+  v_type := pg_catalog.jsonb_typeof(p_value);
+
+  if v_type = 'object' then
+    select coalesce(
+      '{' || pg_catalog.string_agg(
+        pg_catalog.to_jsonb(item.key)::text || ':' ||
+          private.canonical_managed_import_json(item.value, item.key = 'files'),
+        ',' order by pg_catalog.convert_to(item.key, 'UTF8')
+      ) || '}',
+      '{}'
+    )
+    into v_result
+    from pg_catalog.jsonb_each(p_value) as item(key, value);
+    return v_result;
+  end if;
+
+  if v_type = 'array' then
+    select coalesce(
+      '[' || pg_catalog.string_agg(
+        private.canonical_managed_import_json(item.value, false),
+        ',' order by
+          case when p_sort_files then pg_catalog.convert_to(item.value ->> 'path', 'UTF8') end,
+          case when not p_sort_files then item.ordinality end
+      ) || ']',
+      '[]'
+    )
+    into v_result
+    from pg_catalog.jsonb_array_elements(p_value) with ordinality as item(value, ordinality);
+    return v_result;
+  end if;
+
+  if v_type in ('string', 'number', 'boolean') then
+    return p_value::text;
+  end if;
+
+  raise exception 'invalid canonical import manifest' using errcode = '22023';
+end
+$function$;
+
+create function private.canonical_managed_import_manifest(p_manifest jsonb)
+returns text
+language plpgsql
+stable
+parallel safe
+set search_path = ''
+as $function$
+declare
+  v_identity jsonb;
+  v_display jsonb;
+  v_source jsonb;
+  v_provenance jsonb;
+  v_compatibility jsonb;
+  v_file jsonb;
+  v_files jsonb := '[]'::jsonb;
+  v_manifest jsonb;
+  v_file_path text;
+  v_media_type text;
+  v_digest text;
+  v_created_at text;
+  v_timestamp timestamp without time zone;
+  v_numeric numeric;
+  v_total_bytes numeric := 0;
+  v_seen_paths text[] := '{}'::text[];
+  v_seen_casefold_paths text[] := '{}'::text[];
+  v_canonical text;
+begin
+  if pg_catalog.jsonb_typeof(p_manifest) is distinct from 'object'
+    or (p_manifest - array[
+      'schema_version','identity','display','source','files','provenance','compatibility'
+    ]) <> '{}'::jsonb
+    or not (p_manifest ?& array[
+      'schema_version','identity','display','source','files','provenance','compatibility'
+    ])
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  if pg_catalog.jsonb_typeof(p_manifest -> 'schema_version') is distinct from 'string'
+    or (p_manifest ->> 'schema_version') !~ '^1\.[0-9]+$'
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_identity := p_manifest -> 'identity';
+  if pg_catalog.jsonb_typeof(v_identity) is distinct from 'object'
+    or (v_identity - array['logical_id','public_id']) <> '{}'::jsonb
+    or not (v_identity ?& array['logical_id','public_id'])
+    or pg_catalog.jsonb_typeof(v_identity -> 'logical_id') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_identity -> 'public_id') is distinct from 'string'
+    or pg_catalog.octet_length(normalize(v_identity ->> 'logical_id', NFC)) not between 1 and 128
+    or pg_catalog.octet_length(normalize(v_identity ->> 'public_id', NFC)) not between 1 and 128
+    or v_identity ->> 'public_id' !~ '^[A-Za-z0-9_.:-]+$'
+    or v_identity ->> 'logical_id' ~ '[[:cntrl:]]'
+    or v_identity ->> 'public_id' ~ '[[:cntrl:]]'
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_display := p_manifest -> 'display';
+  if pg_catalog.jsonb_typeof(v_display) is distinct from 'object'
+    or (v_display - array['name','description']) <> '{}'::jsonb
+    or not (v_display ?& array['name','description'])
+    or pg_catalog.jsonb_typeof(v_display -> 'name') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_display -> 'description') is distinct from 'string'
+    or pg_catalog.char_length(normalize(v_display ->> 'name', NFC)) not between 1 and 200
+    or pg_catalog.octet_length(normalize(v_display ->> 'name', NFC)) > 800
+    or pg_catalog.octet_length(normalize(v_display ->> 'description', NFC)) > 2048
+    or v_display ->> 'name' ~ '[[:cntrl:]]'
+    or v_display ->> 'name' like '%' || U&'\2028' || '%'
+    or v_display ->> 'name' like '%' || U&'\2029' || '%'
+    or v_display ->> 'description' ~ '[[:cntrl:]]'
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_source := p_manifest -> 'source';
+  if pg_catalog.jsonb_typeof(v_source) is distinct from 'object'
+    or (v_source - array['authority','kind','namespace','source_id','revision']) <> '{}'::jsonb
+    or not (v_source ?& array['authority','kind','namespace','source_id','revision'])
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+  if exists (
+    select 1
+    from pg_catalog.jsonb_each_text(v_source) as item(key, value)
+    where pg_catalog.jsonb_typeof(v_source -> item.key) is distinct from 'string'
+      or pg_catalog.octet_length(normalize(item.value, NFC)) not between 1 and 512
+      or item.value ~ '[[:cntrl:]]'
+  ) then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_provenance := p_manifest -> 'provenance';
+  if pg_catalog.jsonb_typeof(v_provenance) is distinct from 'object'
+    or (v_provenance - array['publisher_id','ingest_id','created_at']) <> '{}'::jsonb
+    or not (v_provenance ?& array['publisher_id','ingest_id','created_at'])
+    or pg_catalog.jsonb_typeof(v_provenance -> 'publisher_id') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_provenance -> 'ingest_id') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_provenance -> 'created_at') is distinct from 'string'
+    or pg_catalog.octet_length(normalize(v_provenance ->> 'publisher_id', NFC)) not between 1 and 512
+    or pg_catalog.octet_length(normalize(v_provenance ->> 'ingest_id', NFC)) not between 1 and 512
+    or v_provenance ->> 'publisher_id' ~ '[[:cntrl:]]'
+    or v_provenance ->> 'ingest_id' ~ '[[:cntrl:]]'
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+  v_created_at := v_provenance ->> 'created_at';
+  if pg_catalog.octet_length(v_created_at) > 32
+    or v_created_at !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$'
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+  v_timestamp := pg_catalog.substr(v_created_at, 1, 19)::timestamp without time zone;
+  if pg_catalog.to_char(v_timestamp, 'YYYY-MM-DD"T"HH24:MI:SS') <> pg_catalog.substr(v_created_at, 1, 19) then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_compatibility := p_manifest -> 'compatibility';
+  if pg_catalog.jsonb_typeof(v_compatibility) is distinct from 'object'
+    or (v_compatibility - array['manifest_major','minimum_consumer_major']) <> '{}'::jsonb
+    or not (v_compatibility ?& array['manifest_major','minimum_consumer_major'])
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+  for v_numeric in
+    select (v_compatibility ->> item.key)::numeric
+    from pg_catalog.unnest(array['manifest_major','minimum_consumer_major']) as item(key)
+  loop
+    if pg_catalog.jsonb_typeof(v_compatibility -> 'manifest_major') is distinct from 'number'
+      or pg_catalog.jsonb_typeof(v_compatibility -> 'minimum_consumer_major') is distinct from 'number'
+      or v_numeric % 1 <> 0
+      or v_numeric not between 1 and 1000
+    then
+      raise exception 'invalid canonical import manifest' using errcode = '22023';
+    end if;
+  end loop;
+
+  if pg_catalog.jsonb_typeof(p_manifest -> 'files') is distinct from 'array'
+    or pg_catalog.jsonb_array_length(p_manifest -> 'files') not between 1 and 2048
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  for v_file in
+    select item.value
+    from pg_catalog.jsonb_array_elements(p_manifest -> 'files') as item(value)
+  loop
+    if pg_catalog.jsonb_typeof(v_file) is distinct from 'object'
+      or (v_file - array['path','media_type','utf8_bytes','digest','executable']) <> '{}'::jsonb
+      or not (v_file ?& array['path','media_type','utf8_bytes','digest','executable'])
+      or pg_catalog.jsonb_typeof(v_file -> 'path') is distinct from 'string'
+      or pg_catalog.jsonb_typeof(v_file -> 'media_type') is distinct from 'string'
+      or pg_catalog.jsonb_typeof(v_file -> 'utf8_bytes') is distinct from 'number'
+      or pg_catalog.jsonb_typeof(v_file -> 'digest') is distinct from 'string'
+      or pg_catalog.jsonb_typeof(v_file -> 'executable') is distinct from 'boolean'
+    then
+      raise exception 'invalid canonical import manifest' using errcode = '22023';
+    end if;
+
+    v_file_path := v_file ->> 'path';
+    v_media_type := normalize(v_file ->> 'media_type', NFC);
+    v_digest := v_file ->> 'digest';
+    v_numeric := (v_file ->> 'utf8_bytes')::numeric;
+    if v_file_path = ''
+      or v_file_path <> normalize(v_file_path, NFC)
+      or pg_catalog.octet_length(v_file_path) > 512
+      or pg_catalog.array_length(pg_catalog.string_to_array(v_file_path, '/'), 1) > 32
+      or v_file_path like '/%'
+      or v_file_path like '%/'
+      or pg_catalog.strpos(v_file_path, pg_catalog.chr(92)) > 0
+      or v_file_path ~ '^[A-Za-z]:'
+      or v_file_path ~ '^[A-Za-z][A-Za-z0-9+.-]*:'
+      or v_file_path ~* '%(2e|2f|5c)'
+      or v_file_path ~ '[[:cntrl:]]'
+      or v_file_path = 'manifest_digest'
+      or exists (
+        select 1
+        from pg_catalog.unnest(pg_catalog.string_to_array(v_file_path, '/')) as segment(value)
+        where segment.value = ''
+          or segment.value in ('.', '..')
+          or segment.value like '.%'
+      )
+      or pg_catalog.octet_length(v_media_type) not between 1 and 128
+      or v_media_type ~ '[[:cntrl:]]'
+      or v_digest !~ '^sha256:[0-9a-f]{64}$'
+      or pg_catalog.octet_length(v_digest) <> 71
+      or v_numeric % 1 <> 0
+      or v_numeric not between 0 and 16777216
+      or v_file_path = any(v_seen_paths)
+      or lower(upper(v_file_path)) = any(v_seen_casefold_paths)
+    then
+      raise exception 'invalid canonical import manifest' using errcode = '22023';
+    end if;
+    v_seen_paths := pg_catalog.array_append(v_seen_paths, v_file_path);
+    v_seen_casefold_paths := pg_catalog.array_append(v_seen_casefold_paths, lower(upper(v_file_path)));
+    v_total_bytes := v_total_bytes + v_numeric;
+    v_files := v_files || pg_catalog.jsonb_build_array(
+      pg_catalog.jsonb_build_object(
+        'path', v_file_path,
+        'media_type', v_media_type,
+        'utf8_bytes', v_numeric::bigint,
+        'digest', v_digest,
+        'executable', (v_file ->> 'executable')::boolean
+      )
+    );
+  end loop;
+
+  if v_total_bytes > 67108864 then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_manifest := pg_catalog.jsonb_build_object(
+    'schema_version', normalize(p_manifest ->> 'schema_version', NFC),
+    'identity', pg_catalog.jsonb_build_object(
+      'logical_id', normalize(v_identity ->> 'logical_id', NFC),
+      'public_id', normalize(v_identity ->> 'public_id', NFC)
+    ),
+    'display', pg_catalog.jsonb_build_object(
+      'name', normalize(v_display ->> 'name', NFC),
+      'description', normalize(v_display ->> 'description', NFC)
+    ),
+    'source', pg_catalog.jsonb_build_object(
+      'authority', normalize(v_source ->> 'authority', NFC),
+      'kind', normalize(v_source ->> 'kind', NFC),
+      'namespace', normalize(v_source ->> 'namespace', NFC),
+      'source_id', normalize(v_source ->> 'source_id', NFC),
+      'revision', normalize(v_source ->> 'revision', NFC)
+    ),
+    'files', v_files,
+    'provenance', pg_catalog.jsonb_build_object(
+      'publisher_id', normalize(v_provenance ->> 'publisher_id', NFC),
+      'ingest_id', normalize(v_provenance ->> 'ingest_id', NFC),
+      'created_at', v_created_at
+    ),
+    'compatibility', pg_catalog.jsonb_build_object(
+      'manifest_major', (v_compatibility ->> 'manifest_major')::numeric::bigint,
+      'minimum_consumer_major', (v_compatibility ->> 'minimum_consumer_major')::numeric::bigint
+    )
+  );
+  v_canonical := private.canonical_managed_import_json(v_manifest, false);
+  if pg_catalog.octet_length(v_canonical) > 262144 then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+  return v_canonical;
+exception
+  when others then
+    if sqlstate = '22023' and sqlerrm = 'invalid canonical import manifest' then
+      raise;
+    end if;
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+end
+$function$;
+
 create function private.resolve_import_owner_context(
   p_account_public_id text,
   p_device_public_id text
@@ -152,6 +460,7 @@ declare
   v_total numeric;
   v_reused boolean := false;
   v_manifest jsonb;
+  v_canonical_manifest text;
   v_manifest_files jsonb;
   v_expected_metadata jsonb;
 begin
@@ -188,6 +497,11 @@ begin
     when character_not_in_repertoire or untranslatable_character or invalid_text_representation then
       raise exception 'invalid canonical import manifest' using errcode = '22023';
   end;
+
+  v_canonical_manifest := private.canonical_managed_import_manifest(v_manifest);
+  if pg_catalog.convert_to(v_canonical_manifest, 'UTF8') <> p_manifest_projection then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
 
   if pg_catalog.jsonb_typeof(v_manifest) is distinct from 'object'
     or pg_catalog.jsonb_typeof(v_manifest -> 'schema_version') is distinct from 'string'
@@ -477,6 +791,10 @@ begin
 end
 $function$;
 
+revoke all privileges on function private.canonical_managed_import_json(jsonb,boolean)
+  from public, anon, authenticated, service_role, skillmap_vault_definer;
+revoke all privileges on function private.canonical_managed_import_manifest(jsonb)
+  from public, anon, authenticated, service_role, skillmap_vault_definer;
 revoke all privileges on function private.resolve_import_owner_context(text,text)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 revoke all privileges on function private.compute_import_content_digest(text,jsonb)

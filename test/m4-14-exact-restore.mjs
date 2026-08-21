@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import { createMacOSAtomicNoReplaceMover, executeQuarantine } from '../dist/core/quarantine-execution.js';
@@ -15,6 +16,49 @@ import { bindQuarantineAuthorization } from '../dist/core/quarantine-authorizati
 const SOURCE_ROOT_ID = '00000000-0000-4000-8000-000000000030';
 const QUARANTINE_ROOT_ID = '00000000-0000-4000-8000-000000000040';
 const SKILL_CONTENT = '---\nname: Skill A\ndescription: Restore fixture.\n---\n# Skill A\n';
+
+function digest(value) {
+  return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
+}
+
+function hostedRestoreAuthority(authorization, overrides = {}) {
+  const base = {
+    kind: 'skillmap.hosted-restore-authority',
+    schemaVersion: 1,
+    state: 'RESTORE_AUTHORIZED',
+    authorizationId: authorization.currentHostedLifecycleAuthorizationId,
+    operationId: authorization.operationId,
+    accountId: authorization.accountId,
+    deviceId: authorization.deviceId,
+    immutableVersionId: authorization.immutableVersionId,
+    contentDigest: authorization.contentDigest,
+    previewDigest: authorization.previewDigest,
+    ownerConsentId: authorization.ownerConsentId,
+    consentDigest: authorization.consentDigest,
+    parityReceiptId: authorization.parityReceiptId,
+    cutoverAuthorityId: authorization.cutoverAuthorityId,
+    quarantineReceiptId: authorization.quarantineReceiptId,
+    principalId: authorization.principalId,
+    replayNonce: authorization.replayNonce,
+    issuedAt: '2026-08-21T11:59:00.000Z',
+    expiresAt: '2026-08-21T12:05:00.000Z',
+    ...overrides
+  };
+  return { ...base, receiptDigest: digest(base) };
+}
+
+function authorityProviderFor(authorization, overrides = {}) {
+  return {
+    async loadCurrentRestoreAuthority(request) {
+      assert.deepEqual(request, {
+        authorizationId: authorization.currentHostedLifecycleAuthorizationId,
+        operationId: authorization.operationId,
+        quarantineReceiptId: authorization.quarantineReceiptId
+      });
+      return hostedRestoreAuthority(authorization, overrides);
+    }
+  };
+}
 
 async function run(command, args) {
   await new Promise((resolve, reject) => {
@@ -94,7 +138,10 @@ async function setup(t) {
     quarantinedAt: quarantineReceipt.quarantinedAt, restoreExpiresAt: quarantineReceipt.restoreExpiresAt,
     principalId: 'principal-1', policyRevision: 'm4-test-v1', replayNonce: 'restore-replay-1'
   };
-  return { source, receipts, sourceRoot, quarantineRoot, preflight, mover, quarantineReceipt, restoreAuthorization };
+  return {
+    source, receipts, sourceRoot, quarantineRoot, preflight, mover, quarantineReceipt, restoreAuthorization,
+    authorityProvider: authorityProviderFor(restoreAuthorization)
+  };
 }
 
 test('restore returns the exact quarantined object to its original destination', { skip: process.platform !== 'darwin' }, async (t) => {
@@ -108,6 +155,7 @@ test('restore returns the exact quarantined object to its original destination',
     originalCandidates: ['skill-a'],
     receiptDirectory: state.receipts,
     mover: state.mover,
+    authorityProvider: state.authorityProvider,
     now: () => new Date('2026-08-21T12:00:00.000Z')
   });
   assert.equal(receipt.status, 'RESTORE_OBSERVED');
@@ -122,7 +170,7 @@ test('occupied exact original destination preserves both objects', { skip: proce
     quarantineReceipt: state.quarantineReceipt, authorization: state.restoreAuthorization,
     quarantineRoot: state.quarantineRoot, quarantinePath: state.preflight.destinationPath,
     originalRoot: state.sourceRoot, originalCandidates: ['skill-a'], receiptDirectory: state.receipts,
-    mover: state.mover, now: () => new Date('2026-08-21T12:00:00.000Z')
+    mover: state.mover, authorityProvider: state.authorityProvider, now: () => new Date('2026-08-21T12:00:00.000Z')
   });
   assert.equal(outcome.code, 'RESTORE_DESTINATION_OCCUPIED');
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'occupant.txt'), 'utf8'), 'occupant');
@@ -135,7 +183,7 @@ test('restore at expiry is denied without mutation or deletion', { skip: process
     quarantineReceipt: state.quarantineReceipt, authorization: state.restoreAuthorization,
     quarantineRoot: state.quarantineRoot, quarantinePath: state.preflight.destinationPath,
     originalRoot: state.sourceRoot, originalCandidates: ['skill-a'], receiptDirectory: state.receipts,
-    mover: state.mover, now: () => new Date(state.quarantineReceipt.restoreExpiresAt)
+    mover: state.mover, authorityProvider: state.authorityProvider, now: () => new Date(state.quarantineReceipt.restoreExpiresAt)
   });
   assert.equal(outcome.code, 'OWNER_PILOT_RESTORE_WINDOW_EXPIRED');
   assert.equal(await readFile(path.join(state.preflight.destinationPath, 'SKILL.md'), 'utf8'), SKILL_CONTENT);
@@ -152,6 +200,7 @@ test('completed restore replay returns the prior receipt without a second move',
     originalCandidates: ['skill-a'],
     receiptDirectory: state.receipts,
     mover: state.mover,
+    authorityProvider: state.authorityProvider,
     now: () => new Date('2026-08-21T12:00:00.000Z')
   };
   const receipt = await executeRestore(input);
@@ -176,6 +225,7 @@ test('same idempotency key with changed restore authorization is rejected', { sk
     originalCandidates: ['skill-a'],
     receiptDirectory: state.receipts,
     mover: state.mover,
+    authorityProvider: state.authorityProvider,
     now: () => new Date('2026-08-21T12:00:00.000Z')
   };
   await executeRestore(input);
@@ -204,12 +254,32 @@ test('restore rejects a replacement at the quarantine path before mutation', { s
       originalCandidates: ['skill-a'],
       receiptDirectory: state.receipts,
       mover: state.mover,
+      authorityProvider: state.authorityProvider,
       now: () => new Date('2026-08-21T12:00:00.000Z')
     }),
     (error) => error instanceof Error
       && error.message === 'QUARANTINE_IDENTITY_MISMATCH'
       && !error.message.includes(state.preflight.destinationPath)
   );
+});
+
+test('restore rejects caller labels that do not match current hosted lifecycle authority', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  let moveCalls = 0;
+  await assert.rejects(executeRestore({
+    quarantineReceipt: state.quarantineReceipt,
+    authorization: state.restoreAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: { async move() { moveCalls += 1; } },
+    authorityProvider: authorityProviderFor(state.restoreAuthorization, { accountId: `acct_${'9'.repeat(32)}` }),
+    now: () => new Date('2026-08-21T12:00:00.000Z')
+  }), /HOSTED_RESTORE_AUTHORITY_INVALID/);
+  assert.equal(moveCalls, 0);
+  assert.equal(await readFile(path.join(state.preflight.destinationPath, 'SKILL.md'), 'utf8'), SKILL_CONTENT);
 });
 
 test('restore binds the escaped quarantine path and exact one-candidate cardinality', { skip: process.platform !== 'darwin' }, async (t) => {
@@ -222,6 +292,7 @@ test('restore binds the escaped quarantine path and exact one-candidate cardinal
     originalRoot: state.sourceRoot,
     receiptDirectory: state.receipts,
     mover: state.mover,
+    authorityProvider: state.authorityProvider,
     now: () => new Date('2026-08-21T12:00:00.000Z')
   };
   const cardinality = await executeRestore({ ...base, originalCandidates: [] });

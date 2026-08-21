@@ -9,6 +9,8 @@ import { assertSameVolume } from './quarantine-preflight.js';
 import { assertRestoreWindowOpen } from './quarantine-retention.js';
 import type {
   AtomicNoReplaceMover,
+  HostedRestoreAuthorityProvider,
+  HostedRestoreAuthorityReceipt,
   QuarantineMutationReceipt,
   RestoreAuthorization,
   RestoreMutationReceipt,
@@ -18,6 +20,28 @@ import type {
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_RECORD_BYTES = 128 * 1024;
+const HOSTED_AUTHORITY_KEYS = [
+  'kind',
+  'schemaVersion',
+  'state',
+  'authorizationId',
+  'operationId',
+  'accountId',
+  'deviceId',
+  'immutableVersionId',
+  'contentDigest',
+  'previewDigest',
+  'ownerConsentId',
+  'consentDigest',
+  'parityReceiptId',
+  'cutoverAuthorityId',
+  'quarantineReceiptId',
+  'principalId',
+  'replayNonce',
+  'issuedAt',
+  'expiresAt',
+  'receiptDigest'
+] as const;
 
 function digest(value: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
@@ -25,6 +49,86 @@ function digest(value: unknown): string {
 
 function errno(error: unknown, code: string): boolean {
   return (error as NodeJS.ErrnoException).code === code;
+}
+
+function assertTimestamp(value: string, label: string): Date {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) throw new Error(`${label} is invalid.`);
+  return date;
+}
+
+export function validateHostedRestoreAuthorityReceipt(value: unknown): HostedRestoreAuthorityReceipt {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('HOSTED_RESTORE_AUTHORITY_INVALID');
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== HOSTED_AUTHORITY_KEYS.length
+    || !HOSTED_AUTHORITY_KEYS.every((key) => keys.includes(key))) {
+    throw new Error('HOSTED_RESTORE_AUTHORITY_INVALID');
+  }
+  const digestFields = [
+    record.contentDigest,
+    record.previewDigest,
+    record.consentDigest,
+    record.receiptDigest
+  ];
+  const labelFields = [
+    record.authorizationId,
+    record.operationId,
+    record.accountId,
+    record.deviceId,
+    record.immutableVersionId,
+    record.ownerConsentId,
+    record.parityReceiptId,
+    record.cutoverAuthorityId,
+    record.quarantineReceiptId,
+    record.principalId,
+    record.replayNonce
+  ];
+  if (record.kind !== 'skillmap.hosted-restore-authority'
+    || record.schemaVersion !== 1
+    || record.state !== 'RESTORE_AUTHORIZED'
+    || labelFields.some((field) => typeof field !== 'string' || (!SAFE_ID.test(field) && !DIGEST.test(field)))
+    || digestFields.some((field) => typeof field !== 'string' || !DIGEST.test(field))) {
+    throw new Error('HOSTED_RESTORE_AUTHORITY_INVALID');
+  }
+  const issuedAt = assertTimestamp(String(record.issuedAt), 'issuedAt');
+  const expiresAt = assertTimestamp(String(record.expiresAt), 'expiresAt');
+  const { receiptDigest, ...base } = record;
+  if (issuedAt.getTime() >= expiresAt.getTime()
+    || receiptDigest !== digest(base)) {
+    throw new Error('HOSTED_RESTORE_AUTHORITY_INVALID');
+  }
+  return record as unknown as HostedRestoreAuthorityReceipt;
+}
+
+function assertHostedRestoreAuthority(
+  authority: unknown,
+  authorization: RestoreAuthorization,
+  now: Date
+): HostedRestoreAuthorityReceipt {
+  const receipt = validateHostedRestoreAuthorityReceipt(authority);
+  const issuedAt = assertTimestamp(receipt.issuedAt, 'issuedAt');
+  const expiresAt = assertTimestamp(receipt.expiresAt, 'expiresAt');
+  if (now.getTime() < issuedAt.getTime() || now.getTime() >= expiresAt.getTime()
+    || receipt.authorizationId !== authorization.currentHostedLifecycleAuthorizationId
+    || receipt.operationId !== authorization.operationId
+    || receipt.accountId !== authorization.accountId
+    || receipt.deviceId !== authorization.deviceId
+    || receipt.immutableVersionId !== authorization.immutableVersionId
+    || receipt.contentDigest !== authorization.contentDigest
+    || receipt.previewDigest !== authorization.previewDigest
+    || receipt.ownerConsentId !== authorization.ownerConsentId
+    || receipt.consentDigest !== authorization.consentDigest
+    || receipt.parityReceiptId !== authorization.parityReceiptId
+    || receipt.cutoverAuthorityId !== authorization.cutoverAuthorityId
+    || receipt.quarantineReceiptId !== authorization.quarantineReceiptId
+    || receipt.principalId !== authorization.principalId
+    || receipt.replayNonce !== authorization.replayNonce) {
+    throw new Error('HOSTED_RESTORE_AUTHORITY_INVALID');
+  }
+  return receipt;
 }
 
 function assertRelativePath(value: string): string[] {
@@ -268,6 +372,7 @@ export async function executeRestore(input: {
   originalCandidates: readonly string[];
   receiptDirectory: string;
   mover: AtomicNoReplaceMover;
+  authorityProvider: HostedRestoreAuthorityProvider;
   now?: () => Date;
 }): Promise<RestoreMutationReceipt | LocalQuarantineOutcomeV1> {
   if (input.originalCandidates.length !== 1) return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_CARDINALITY_DENIED;
@@ -349,6 +454,18 @@ export async function executeRestore(input: {
     createdAt: now.toISOString()
   } as const;
   if (!existingIntent) await writeExclusiveRecord(intentFile, { ...intent, intentDigest: digest(intent) });
+  // Fetch and validate the hosted authority at the final move boundary. The
+  // caller-supplied labels are not sufficient because lifecycle authority may
+  // be revoked or replaced after local preparation.
+  const hostedAuthority = await input.authorityProvider.loadCurrentRestoreAuthority({
+    authorizationId: input.authorization.currentHostedLifecycleAuthorizationId,
+    operationId: input.authorization.operationId,
+    quarantineReceiptId: input.authorization.quarantineReceiptId
+  });
+  const moveNow = input.now?.() ?? new Date();
+  const moveExpiryFailure = assertRestoreWindowOpen(input.quarantineReceipt, moveNow);
+  if (moveExpiryFailure) return moveExpiryFailure;
+  assertHostedRestoreAuthority(hostedAuthority, input.authorization, moveNow);
   try {
     await input.mover.move(quarantineEntry.absolutePath, originalPath, {
       sourceRootPath: input.quarantineRoot.canonicalRootPath,

@@ -243,6 +243,154 @@ begin
 end
 $function$;
 
+-- Finalization and owner-consent enforcement must share one transaction. The
+-- idempotency receipt is checked first so a safe replay returns the exact
+-- stored result even after the short-lived consent has expired or been
+-- revoked. A new finalization locks the matching active consent before the
+-- session can transition to verified.
+create or replace function device_adapter.adapter_finalize_import_session_v2(
+  p_account_public_id text,
+  p_device_public_id text,
+  p_session_public_id text,
+  p_expected_session_revision bigint,
+  p_idempotency_key uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_context record;
+  v_session private.import_sessions%rowtype;
+  v_existing private.import_finalization_receipts%rowtype;
+  v_consent private.import_cutover_consents%rowtype;
+  v_request_digest text;
+  v_version_public_id text;
+  v_release_public_id text;
+  v_response jsonb;
+begin
+  select * into v_context
+  from private.resolve_import_owner_context(p_account_public_id, p_device_public_id);
+  if not found then
+    raise exception 'import authority unavailable' using errcode = '42501';
+  end if;
+  if p_idempotency_key is null or p_expected_session_revision is null or p_expected_session_revision < 1 then
+    raise exception 'invalid import finalization request' using errcode = '22023';
+  end if;
+
+  v_request_digest := 'sha256:' || pg_catalog.encode(
+    extensions.digest(
+      pg_catalog.convert_to(
+        pg_catalog.jsonb_build_object(
+          'session_id', p_session_public_id,
+          'expected_session_revision', p_expected_session_revision
+        )::text,
+        'UTF8'
+      ),
+      'sha256'
+    ),
+    'hex'
+  );
+
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_context.account_id::text, 4));
+
+  select receipts.* into v_existing
+  from private.import_finalization_receipts as receipts
+  where receipts.account_id = v_context.account_id
+    and receipts.device_id = v_context.device_id
+    and receipts.idempotency_key = p_idempotency_key
+  for update;
+  if found then
+    if v_existing.request_digest <> v_request_digest then
+      raise exception 'conflicting import finalization idempotency reuse' using errcode = '22023';
+    end if;
+    return v_existing.response;
+  end if;
+
+  select sessions.* into v_session
+  from private.import_sessions as sessions
+  where sessions.account_id = v_context.account_id
+    and sessions.device_id = v_context.device_id
+    and sessions.imp_ = p_session_public_id
+  for update;
+
+  if not found or v_session.state <> 'in_progress' or v_session.revision <> p_expected_session_revision then
+    raise exception 'import authority unavailable' using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1 from private.import_finalization_receipts as receipts
+    where receipts.account_id = v_context.account_id
+      and receipts.device_id = v_context.device_id
+      and receipts.session_id = v_session.id
+  ) then
+    raise exception 'conflicting import finalization idempotency reuse' using errcode = '22023';
+  end if;
+
+  select consents.* into v_consent
+  from private.import_cutover_consents as consents
+  where consents.account_id = v_context.account_id
+    and consents.device_id = v_context.device_id
+    and consents.session_id = v_session.id
+    and consents.session_revision = p_expected_session_revision
+    and consents.manifest_digest = v_session.manifest_digest
+    and consents.revoked_at is null
+    and consents.consent_expires_at > pg_catalog.clock_timestamp()
+  order by consents.explicit_consent_at desc
+  limit 1
+  for update;
+  if not found then
+    raise exception 'import cutover consent required' using errcode = '42501';
+  end if;
+
+  if v_consent.revoked_at is not null
+    or v_consent.consent_expires_at <= pg_catalog.clock_timestamp()
+  then
+    raise exception 'import cutover consent required' using errcode = '42501';
+  end if;
+
+  perform private.finalize_import_session(v_context.account_id, v_context.device_id, v_session.id);
+
+  select sessions.* into v_session
+  from private.import_sessions as sessions
+  where sessions.account_id = v_context.account_id and sessions.id = v_session.id;
+
+  select versions.public_id, releases.public_id
+  into strict v_version_public_id, v_release_public_id
+  from private.import_sessions as sessions
+  join private.managed_skill_versions as versions
+    on versions.account_id = sessions.account_id and versions.id = sessions.version_id
+  join private.managed_skill_releases as releases
+    on releases.account_id = versions.account_id
+   and releases.managed_skill_id = versions.managed_skill_id
+   and releases.version_id = versions.id
+  where sessions.account_id = v_context.account_id and sessions.id = v_session.id;
+
+  v_response := pg_catalog.jsonb_build_object(
+    'session_id', v_session.imp_,
+    'state', v_session.state,
+    'revision', v_session.revision,
+    'verification_digest', v_session.verification_digest,
+    'version_public_id', v_version_public_id,
+    'release_public_id', v_release_public_id,
+    'analysis_state', 'pending',
+    'owner_consent_id', v_consent.public_id,
+    'consent_digest', v_consent.consent_digest,
+    'explicit_consent_at', v_consent.explicit_consent_at,
+    'consent_expires_at', v_consent.consent_expires_at
+  );
+
+  insert into private.import_finalization_receipts (
+    account_id, device_id, session_id, idempotency_key, expected_session_revision, request_digest, response
+  ) values (
+    v_context.account_id, v_context.device_id, v_session.id, p_idempotency_key,
+    p_expected_session_revision, v_request_digest, v_response
+  );
+  return v_response;
+end
+$function$;
+
 revoke all privileges on function private.authorize_my_import_cutover(text,bigint,text)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 grant execute on function private.authorize_my_import_cutover(text,bigint,text) to authenticated;

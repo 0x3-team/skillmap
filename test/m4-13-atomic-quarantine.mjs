@@ -33,15 +33,15 @@ async function resultHelper(t, stdout, exitCode) {
   return helper;
 }
 
-function helperBinding() {
+function helperBinding(root = path.resolve(tmpdir(), 'skillmap-m4-helper-paths')) {
   return {
-    sourceRootPath: '/tmp/skillmap-source',
+    sourceRootPath: path.join(root, 'source'),
     sourceRelativePath: 'skill-a',
     sourceRootVolumeId: 1,
     sourceRootFileId: 2,
     sourceObjectVolumeId: 1,
     sourceObjectFileId: 3,
-    destinationRootPath: '/tmp/skillmap-quarantine',
+    destinationRootPath: path.join(root, 'quarantine'),
     destinationRelativePath: 'operation/skill-a',
     destinationRootVolumeId: 1,
     destinationRootFileId: 4
@@ -56,8 +56,13 @@ test('native mover preserves unsafe-path and durability helper failures', async 
   for (const expected of cases) {
     const helper = await resultHelper(t, expected.stdout, expected.exitCode);
     const mover = createMacOSAtomicNoReplaceMover(helper);
+    const binding = helperBinding(path.resolve(tmpdir(), `skillmap-m4-helper-paths-${expected.stdout.toLowerCase()}`));
     await assert.rejects(
-      mover.move('/tmp/skillmap-source/skill-a', '/tmp/skillmap-quarantine/operation/skill-a', helperBinding()),
+      mover.move(
+        path.join(binding.sourceRootPath, 'skill-a'),
+        path.join(binding.destinationRootPath, 'operation', 'skill-a'),
+        binding
+      ),
       (error) => error?.code === expected.code && error?.message === expected.message
     );
   }
@@ -236,6 +241,27 @@ test('tampered or expired parity authority is rejected before mutation', { skip:
     now: () => new Date(state.parityReceipt.expiresAt)
   }), /expired/i);
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
+});
+
+test('authority that expires during preparation is rechecked before the atomic move', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  let clockReads = 0;
+  let moveCalls = 0;
+
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: { async move() { moveCalls += 1; } },
+    now: () => new Date(clockReads++ === 0
+      ? '2026-08-20T12:00:00.000Z'
+      : state.parityReceipt.consentExpiresAt)
+  }), /expired/i);
+
+  assert.equal(moveCalls, 0);
+  assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
+  await assert.rejects(access(state.preflight.destinationPath), { code: 'ENOENT' });
 });
 
 test('a replaced quarantine root is rejected before destination creation or move', { skip: process.platform !== 'darwin' }, async (t) => {

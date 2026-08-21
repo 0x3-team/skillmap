@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(26);
+select plan(31);
 
 select is(
   private.compute_import_content_digest(
@@ -119,7 +119,7 @@ begin
       'minimum_consumer_major', 1
     )
   );
-  v_manifest_bytes := pg_catalog.convert_to(v_manifest::text, 'UTF8');
+  v_manifest_bytes := pg_catalog.convert_to(private.canonical_managed_import_manifest(v_manifest), 'UTF8');
   v_manifest_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_manifest_bytes, 'sha256'), 'hex');
   v_metadata := pg_catalog.jsonb_build_object(
     'logical_id', p_logical_id,
@@ -146,6 +146,78 @@ grant execute on function pg_temp.m4_prepare_target(
   text,text,text,text,text,text,jsonb,text,jsonb,uuid
 ) to service_role;
 
+create function pg_temp.m4_valid_manifest()
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $function$
+  select pg_catalog.jsonb_build_object(
+    'schema_version', '1.0',
+    'identity', pg_catalog.jsonb_build_object('logical_id','contract-case','public_id','fixture.contract_case'),
+    'display', pg_catalog.jsonb_build_object('name','Contract Case','description','Contract fixture'),
+    'source', pg_catalog.jsonb_build_object(
+      'authority','local-owner','kind','skill-directory','namespace','skillmap','source_id','contract-case','revision','r1'
+    ),
+    'files', pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+      'path','SKILL.md','media_type','text/markdown','utf8_bytes',3,
+      'digest','sha256:'||repeat('6',64),'executable',false
+    )),
+    'provenance', pg_catalog.jsonb_build_object(
+      'publisher_id','local-owner','ingest_id','m4-pgtap','created_at','2026-08-20T00:00:00.000Z'
+    ),
+    'compatibility', pg_catalog.jsonb_build_object('manifest_major',1,'minimum_consumer_major',1)
+  );
+$function$;
+
+create function pg_temp.m4_prepare_manifest(p_manifest jsonb, p_raw_prefix text, p_idempotency_key uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_bytes bytea;
+  v_digest text;
+  v_files jsonb;
+  v_metadata jsonb;
+begin
+  select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+    'relative_path', item.value ->> 'path',
+    'media_type', item.value ->> 'media_type',
+    'byte_size', item.value -> 'utf8_bytes',
+    'file_digest', item.value ->> 'digest',
+    'executable', item.value -> 'executable',
+    'ordinal', item.ordinality - 1
+  ) order by item.ordinality)
+  into v_files
+  from pg_catalog.jsonb_array_elements(coalesce(p_manifest -> 'files', '[]'::jsonb))
+    with ordinality as item(value, ordinality);
+
+  v_bytes := pg_catalog.convert_to(
+    coalesce(p_raw_prefix, '') || private.canonical_managed_import_manifest(p_manifest), 'UTF8'
+  );
+  v_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_bytes, 'sha256'), 'hex');
+  v_metadata := pg_catalog.jsonb_build_object(
+    'logical_id', p_manifest #>> '{identity,logical_id}',
+    'display_name', p_manifest #>> '{display,name}',
+    'description', p_manifest #>> '{display,description}'
+  );
+
+  return device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    p_manifest #>> '{display,name}',p_manifest #>> '{display,description}',p_manifest ->> 'schema_version',
+    v_bytes,v_digest,private.compute_import_content_digest(v_digest,v_files),
+    v_metadata,p_manifest -> 'source','verified',v_files,p_idempotency_key
+  );
+end
+$function$;
+
+revoke all privileges on function pg_temp.m4_valid_manifest() from public;
+revoke all privileges on function pg_temp.m4_prepare_manifest(jsonb,text,uuid) from public;
+grant execute on function pg_temp.m4_valid_manifest() to service_role;
+grant execute on function pg_temp.m4_prepare_manifest(jsonb,text,uuid) to service_role;
+
 create temporary table m4_target_receipt(response jsonb not null) on commit drop;
 create temporary table m4_target_revision(response jsonb not null) on commit drop;
 grant select, insert on m4_target_receipt, m4_target_revision to service_role;
@@ -161,6 +233,30 @@ select lives_ok($$insert into m4_target_receipt(response)
     '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000301'
   )$$, 'valid target preparation succeeds');
+reset role;
+
+set local role service_role;
+select throws_ok($$select pg_temp.m4_prepare_manifest(
+  pg_temp.m4_valid_manifest() - 'provenance','',
+  'a4000000-0000-4400-8400-000000000311'
+)$$, 22023, 'invalid canonical import manifest', 'a manifest missing provenance is rejected');
+select throws_ok($$select pg_temp.m4_prepare_manifest(
+  pg_catalog.jsonb_set(pg_temp.m4_valid_manifest(),'{identity}',
+    (pg_temp.m4_valid_manifest()->'identity') - 'public_id'),'',
+  'a4000000-0000-4400-8400-000000000312'
+)$$, 22023, 'invalid canonical import manifest', 'a manifest missing identity.public_id is rejected');
+select throws_ok($$select pg_temp.m4_prepare_manifest(
+  pg_catalog.jsonb_set(pg_temp.m4_valid_manifest(),'{schema_version}','"2.0"'::jsonb),'',
+  'a4000000-0000-4400-8400-000000000313'
+)$$, 22023, 'invalid canonical import manifest', 'an unsupported manifest major is rejected');
+select throws_ok($$select pg_temp.m4_prepare_manifest(
+  pg_temp.m4_valid_manifest() || '{"unexpected":true}'::jsonb,'',
+  'a4000000-0000-4400-8400-000000000314'
+)$$, 22023, 'invalid canonical import manifest', 'an unknown top-level manifest property is rejected');
+select throws_ok($$select pg_temp.m4_prepare_manifest(
+  pg_temp.m4_valid_manifest(),' ',
+  'a4000000-0000-4400-8400-000000000315'
+)$$, 22023, 'invalid canonical import manifest', 'noncanonical manifest bytes are rejected even when their digest matches');
 reset role;
 
 select throws_ok($$select device_adapter.adapter_prepare_import_target(
@@ -270,7 +366,7 @@ select throws_ok($$select pg_temp.m4_prepare_target(
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"name-bound-oversize","revision":"r1"}',
     'verified','[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000306')$$,
-  22023, 'invalid import target preparation', 'a 201-character display name is rejected');
+  22023, 'invalid canonical import manifest', 'a 201-character display name is rejected');
 select throws_ok($$
   with inputs as (
     select
@@ -305,20 +401,24 @@ select throws_ok($$
     manifest -> 'source','verified',files,'a4000000-0000-4400-8400-000000000309'
   )
   from hashed
-$$, 22023, 'import target projection does not match canonical manifest',
+$$, 22023, 'invalid canonical import manifest',
   'an empty canonical file list cannot accept a non-empty caller projection');
-select throws_ok($$select pg_temp.m4_prepare_target(
+select throws_ok($$select device_adapter.adapter_prepare_import_target(
     'acct_b4000000000044008400000000000002','dev_'||repeat('4',32),
-    'Foreign','x','1.0','foreign','{}','verified','[]','b4000000-0000-4400-8400-000000000301')$$,
+    'Foreign','x','1.0',pg_catalog.convert_to('{}','UTF8'),
+    'sha256:'||repeat('0',64),'sha256:'||repeat('0',64),
+    '{}','{}','verified','[]','b4000000-0000-4400-8400-000000000301')$$,
   '42501', 'import authority unavailable', 'foreign account cannot use another account device context');
 reset role;
 update private.devices
 set state='revoked', revoked_at=pg_catalog.statement_timestamp(), revision=revision+1
 where id='a4000000-0000-4400-8400-000000000101';
 set local role service_role;
-select throws_ok($$select pg_temp.m4_prepare_target(
+select throws_ok($$select device_adapter.adapter_prepare_import_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    'Inactive','x','1.0','inactive','{}','verified','[]','a4000000-0000-4400-8400-000000000303')$$,
+    'Inactive','x','1.0',pg_catalog.convert_to('{}','UTF8'),
+    'sha256:'||repeat('0',64),'sha256:'||repeat('0',64),
+    '{}','{}','verified','[]','a4000000-0000-4400-8400-000000000303')$$,
   '42501', 'import authority unavailable', 'revoked device cannot prepare an import target');
 select throws_ok($$select * from private.import_target_preparations$$, '42501', null, 'service role cannot list private target receipts');
 reset role;

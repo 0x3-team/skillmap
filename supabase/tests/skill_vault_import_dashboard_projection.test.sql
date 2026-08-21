@@ -57,7 +57,7 @@ begin
     'provenance', pg_catalog.jsonb_build_object('publisher_id','local-owner','ingest_id','m4-pgtap','created_at','2026-08-20T00:00:00.000Z'),
     'compatibility', pg_catalog.jsonb_build_object('manifest_major',1,'minimum_consumer_major',1)
   );
-  v_manifest_bytes := pg_catalog.convert_to(v_manifest::text, 'UTF8');
+  v_manifest_bytes := pg_catalog.convert_to(private.canonical_managed_import_manifest(v_manifest), 'UTF8');
   v_manifest_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_manifest_bytes, 'sha256'), 'hex');
   v_metadata := pg_catalog.jsonb_build_object('logical_id',p_logical_id,'display_name',pg_catalog.btrim(p_display_name));
   if nullif(pg_catalog.btrim(coalesce(p_description, '')), '') is not null then
@@ -76,6 +76,7 @@ grant execute on function pg_temp.m4_prepare_target(text,text,text,text,text,tex
 create temporary table m4_dashboard_target(response jsonb not null) on commit drop;
 create temporary table m4_dashboard_session(response jsonb not null) on commit drop;
 grant select, insert on m4_dashboard_target, m4_dashboard_session to service_role;
+grant select on m4_dashboard_target, m4_dashboard_session to authenticated;
 
 set local role service_role;
 insert into m4_dashboard_target(response)
@@ -135,6 +136,15 @@ select device_adapter.adapter_accept_import_file_v2(
   (select response->'files'->0->>'file_public_id' from m4_dashboard_target),
   'sha256:'||repeat('6',64),3
 );
+reset role;
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a4000000-0000-4400-8400-000000000011","is_anonymous":false}', true);
+set local role authenticated;
+select api.authorize_my_import_cutover(
+  (select response->>'session_id' from m4_dashboard_session),2,
+  (select response->>'manifest_digest' from m4_dashboard_target)
+);
+reset role;
+set local role service_role;
 select device_adapter.adapter_finalize_import_session_v2(
   'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
   (select response->>'session_id' from m4_dashboard_session),2,

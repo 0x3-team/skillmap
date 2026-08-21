@@ -90,7 +90,7 @@ begin
     ),
     'compatibility', pg_catalog.jsonb_build_object('manifest_major', 1, 'minimum_consumer_major', 1)
   );
-  v_manifest_bytes := pg_catalog.convert_to(v_manifest::text, 'UTF8');
+  v_manifest_bytes := pg_catalog.convert_to(private.canonical_managed_import_manifest(v_manifest), 'UTF8');
   v_manifest_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_manifest_bytes, 'sha256'), 'hex');
   v_metadata := pg_catalog.jsonb_build_object('logical_id', p_logical_id, 'display_name', pg_catalog.btrim(p_display_name));
   if nullif(pg_catalog.btrim(coalesce(p_description, '')), '') is not null then
@@ -116,6 +116,7 @@ create temporary table m4_upload_target(response jsonb not null) on commit drop;
 create temporary table m4_upload_session(public_id text not null) on commit drop;
 create temporary table m4_upload_final(response jsonb not null) on commit drop;
 grant select, insert on m4_upload_target, m4_upload_session, m4_upload_final to service_role;
+grant select on m4_upload_target, m4_upload_session to authenticated;
 
 set local role service_role;
 select lives_ok($$insert into m4_upload_target(response)
@@ -284,6 +285,15 @@ select throws_ok($$select device_adapter.adapter_finalize_import_session_v2(
     (select public_id from m4_upload_session),1,'a4100000-0000-4410-8410-000000000303'
   )$$, '42501', 'import authority unavailable', 'stale session revision cannot finalize');
 
+reset role;
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a4100000-0000-4410-8410-000000000001","is_anonymous":false}', true);
+set local role authenticated;
+select api.authorize_my_import_cutover(
+  (select public_id from m4_upload_session),2,
+  (select response->>'manifest_digest' from m4_upload_target)
+);
+reset role;
+set local role service_role;
 select lives_ok($$insert into m4_upload_final(response)
   select device_adapter.adapter_finalize_import_session_v2(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),

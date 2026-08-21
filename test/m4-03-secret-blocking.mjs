@@ -54,6 +54,7 @@ test('M4.03 blocks high-confidence synthetic credential formats and private-key 
     ['docs/supabase.txt', `sbp_${'a'.repeat(40)}`, 'credential_pattern'],
     ['docs/stripe.txt', `sk_live_${'a'.repeat(24)}`, 'credential_pattern'],
     ['docs/private.txt', '-----BEGIN PRIVATE KEY-----\nsynthetic\n-----END PRIVATE KEY-----', 'private_key'],
+    ['docs/rsa.txt', '-----BEGIN RSA PRIVATE KEY-----\nsynthetic\n-----END RSA PRIVATE KEY-----', 'private_key'],
     ['docs/openssh.txt', '-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic\n-----END OPENSSH PRIVATE KEY-----', 'private_key'],
     ['docs/pgp.txt', '-----BEGIN PGP PRIVATE KEY BLOCK-----\nsynthetic', 'private_key'],
     ['docs/assignment.txt', `api_key=${'s3cr3t'.repeat(6)}`, 'credential_assignment']
@@ -100,17 +101,37 @@ test('M4.03 rejects oversized scan input before pattern matching and returns bou
   assert.ok(JSON.stringify(result).length < 160);
 });
 
-test('M4.03 does not decode or scan allowlisted inert image bytes as text credentials', () => {
-  const fakePng = Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    Buffer.from(`ghp_${'A'.repeat(36)}`)
-  ]);
+test('M4.03 accepts a complete inert image and rejects image polyglots containing credentials', () => {
+  const validPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64'
+  );
   assert.deepEqual(inspectImportFileForSecrets({
     relativePath: 'assets/example.png',
-    content: fakePng,
+    content: validPng,
     mediaType: 'image/png'
   }), {
     decision: 'allowed'
+  });
+
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/polyglot.png',
+    content: Buffer.concat([validPng, Buffer.from(`ghp_${'A'.repeat(36)}`)]),
+    mediaType: 'image/png'
+  }), {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_UNSAFE',
+    reason: 'invalid_image'
+  });
+
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/truncated.png',
+    content: validPng.subarray(0, 16),
+    mediaType: 'image/png'
+  }), {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_UNSAFE',
+    reason: 'invalid_image'
   });
 });
 

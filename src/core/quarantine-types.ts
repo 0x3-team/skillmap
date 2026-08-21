@@ -158,6 +158,37 @@ export interface RestoreAuthorization {
   replayNonce: string;
 }
 
+export interface HostedRestoreAuthorityReceipt {
+  kind: 'skillmap.hosted-restore-authority';
+  schemaVersion: 1;
+  state: 'RESTORE_AUTHORIZED';
+  authorizationId: string;
+  operationId: string;
+  accountId: string;
+  deviceId: string;
+  immutableVersionId: string;
+  contentDigest: string;
+  previewDigest: string;
+  ownerConsentId: string;
+  consentDigest: string;
+  parityReceiptId: string;
+  cutoverAuthorityId: string;
+  quarantineReceiptId: string;
+  principalId: string;
+  replayNonce: string;
+  issuedAt: string;
+  expiresAt: string;
+  receiptDigest: string;
+}
+
+export interface HostedRestoreAuthorityProvider {
+  loadCurrentRestoreAuthority(input: {
+    authorizationId: string;
+    operationId: string;
+    quarantineReceiptId: string;
+  }): Promise<HostedRestoreAuthorityReceipt>;
+}
+
 export interface RestoreMutationReceipt {
   kind: 'skillmap.local-restore-receipt';
   schemaVersion: 1;

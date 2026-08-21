@@ -72,12 +72,11 @@ test('static fixture: active markup files are rejected', async () => {
   assert.ok(result.nonImportable.some((n) => n.reason === 'IMPORT_ACTIVE_CONTENT_DENIED'), result.nonImportable.map((n) => `${n.reason}:${n.path}`).join(', '));
 });
 
-test('static fixture: unknown binary is rejected; image with matching magic is allowed', async () => {
+test('static fixture: unknown binary and malformed image prefixes are rejected', async () => {
   const result = await scanFixture('binary-skill');
   assert.equal(result.importable, false);
   assert.ok(result.nonImportable.some((n) => n.reason === 'IMPORT_FILE_TYPE_DENIED' && n.path === 'data.bin'), result.nonImportable.map((n) => `${n.reason}:${n.path}`).join(', '));
-  // The logo.png file should have been accepted, but the whole skill is non-importable because data.bin is denied.
-  assert.ok(result.files.some((f) => f.path === 'logo.png'));
+  assert.ok(result.nonImportable.some((n) => n.reason === 'IMPORT_SECRET_SCAN_UNSAFE' && n.path === 'logo.png'), result.nonImportable.map((n) => `${n.reason}:${n.path}`).join(', '));
 });
 
 test('static fixture: nested skill roots are rejected', async () => {
@@ -185,7 +184,7 @@ test('changed-during-scan is reported as a failed fixture when it cannot be repr
   console.log('# skipped changed-during-scan: not reproduced in disposable fixtures');
 });
 
-test('WebP RIFF/WEBP magic is recognized by content even without image extension', async (t) => {
+test('WebP RIFF/WEBP prefixes are rejected until the container has image structure', async (t) => {
   const dir = await mkdtemp(path.join(tmpdir(), 'skillmap-webp-magic-'));
   t.after(async () => rm(dir, { recursive: true, force: true }));
 
@@ -200,6 +199,6 @@ test('WebP RIFF/WEBP magic is recognized by content even without image extension
 
   const skillDir = await makeTempSkill(dir, 'webp-magic-skill', { 'image.bin': webpMagic });
   const result = await buildImportManifest(skillDir, buildOptions({ rootRecord: rootRecord(dir) }));
-  assert.equal(result.importable, true, `expected importable, got: ${result.nonImportable.map((n) => `${n.reason}:${n.path}`).join(', ')}`);
-  assert.ok(result.files.some((f) => f.path === 'image.bin' && f.media_type === 'image/webp'));
+  assert.equal(result.importable, false, `expected rejection, got: ${result.files.map((f) => f.path).join(', ')}`);
+  assert.ok(result.nonImportable.some((n) => n.reason === 'IMPORT_SECRET_SCAN_UNSAFE' && n.path === 'image.bin'), result.nonImportable.map((n) => `${n.reason}:${n.path}`).join(', '));
 });

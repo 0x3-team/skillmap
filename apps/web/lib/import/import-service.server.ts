@@ -346,10 +346,6 @@ export async function executeImportOperation(input: {
       throw new ImportRouteError("invalid_request");
     }
     const expectedRevision = integer(body.expected_revision, 1);
-    const consent = await repository.requireCutoverConsent({
-      ...base,
-      p_expected_session_revision: expectedRevision
-    });
     const row = await repository.finalizeSession({
       ...base,
       p_expected_session_revision: expectedRevision,
@@ -361,10 +357,10 @@ export async function executeImportOperation(input: {
       verification_digest: text(row.verification_digest, DIGEST),
       version_public_id: text(row.version_public_id, VERSION_ID),
       finalized_revision: integer(row.revision, 1),
-      owner_consent_id: text(consent.owner_consent_id, /^icn_[0-9a-f]{32}$/),
-      consent_digest: text(consent.consent_digest, DIGEST),
-      explicit_consent_at: isoDate(consent.explicit_consent_at),
-      consent_expires_at: isoDate(consent.consent_expires_at),
+      owner_consent_id: text(row.owner_consent_id, /^icn_[0-9a-f]{32}$/),
+      consent_digest: text(row.consent_digest, DIGEST),
+      explicit_consent_at: isoDate(row.explicit_consent_at),
+      consent_expires_at: isoDate(row.consent_expires_at),
       cutover_authority_id: `cut_${importIdempotencyUuid("finalize", input.idempotencyKey).replaceAll("-", "")}`
     };
   }

@@ -26,6 +26,10 @@ const VERSION_ID = `msv_${'e'.repeat(32)}`;
 const SESSION_ID = `imp_${'1'.repeat(32)}`;
 const SKILL_A = '---\nname: Alpha\ndescription: Disposable recovery fixture.\n---\n# Alpha\n';
 
+function digest(value) {
+  return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
+}
+
 async function run(command, args) {
   await new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -170,6 +174,32 @@ function createDisposableCloud() {
   };
 }
 
+function hostedRestoreAuthority(authorization, overrides = {}) {
+  const base = {
+    kind: 'skillmap.hosted-restore-authority',
+    schemaVersion: 1,
+    state: 'RESTORE_AUTHORIZED',
+    authorizationId: authorization.currentHostedLifecycleAuthorizationId,
+    operationId: authorization.operationId,
+    accountId: authorization.accountId,
+    deviceId: authorization.deviceId,
+    immutableVersionId: authorization.immutableVersionId,
+    contentDigest: authorization.contentDigest,
+    previewDigest: authorization.previewDigest,
+    ownerConsentId: authorization.ownerConsentId,
+    consentDigest: authorization.consentDigest,
+    parityReceiptId: authorization.parityReceiptId,
+    cutoverAuthorityId: authorization.cutoverAuthorityId,
+    quarantineReceiptId: authorization.quarantineReceiptId,
+    principalId: authorization.principalId,
+    replayNonce: authorization.replayNonce,
+    issuedAt: '2026-08-20T12:01:00.000Z',
+    expiresAt: '2026-08-20T12:10:00.000Z',
+    ...overrides
+  };
+  return { ...base, receiptDigest: digest(base) };
+}
+
 test('M4.16 disposable flow imports, quarantines, restores, and cleans exact state', { skip: process.platform !== 'darwin' }, async () => {
   const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'skillmap-m4-disposable-'));
   const source = path.join(fixtureRoot, 'source');
@@ -302,6 +332,11 @@ test('M4.16 disposable flow imports, quarantines, restores, and cleans exact sta
       originalCandidates: ['alpha'],
       receiptDirectory,
       mover,
+      authorityProvider: {
+        async loadCurrentRestoreAuthority() {
+          return hostedRestoreAuthority(restoreAuthorization);
+        }
+      },
       now: () => new Date('2026-08-20T12:02:00.000Z')
     });
     assert.equal(restoreReceipt.status, 'RESTORE_OBSERVED');

@@ -391,6 +391,10 @@ export async function executeQuarantine(input: {
     if (destinationImmediatelyBeforeMove) {
       return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
     }
+    // The parity authority can expire while the filesystem checks and intent
+    // write are in progress. Take a fresh sample at the final move boundary.
+    const moveNow = input.now?.() ?? new Date();
+    assertAuthorization(input.authorization, input.preflight, input.parityReceipt, moveNow);
     await input.mover.move(input.preflight.sourcePath, input.preflight.destinationPath, {
       sourceRootPath: input.preflight.sourceRootRealPath,
       sourceRootVolumeId: input.preflight.sourceRootVolumeId,

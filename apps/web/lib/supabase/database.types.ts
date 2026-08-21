@@ -4753,6 +4753,14 @@ export type Database = {
         }
         Returns: string
       }
+      canonical_managed_import_json: {
+        Args: { p_sort_files?: boolean; p_value: Json }
+        Returns: string
+      }
+      canonical_managed_import_manifest: {
+        Args: { p_manifest: Json }
+        Returns: string
+      }
       claim_skill_submission_provider_aware_unchecked: {
         Args: {
           p_lease_seconds?: number

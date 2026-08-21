@@ -259,18 +259,9 @@ test("M4 expire forwards the exact expected revision to the adapter", async () =
   assert.equal(result.revision, 8);
 });
 
-test("M4 finalize requires exact owner consent and returns the cutover binding", async () => {
+test("M4 finalize uses one RPC and returns the stored cutover binding", async () => {
   const calls = [];
   const repository = {
-    async requireCutoverConsent(params) {
-      calls.push(["consent", params]);
-      return {
-        owner_consent_id: `icn_${"7".repeat(32)}`,
-        consent_digest: `sha256:${"8".repeat(64)}`,
-        explicit_consent_at: "2026-08-20T12:00:00Z",
-        consent_expires_at: "2026-08-20T12:05:00Z"
-      };
-    },
     async finalizeSession(params) {
       calls.push(["finalize", params]);
       return {
@@ -278,7 +269,11 @@ test("M4 finalize requires exact owner consent and returns the cutover binding",
         state: "verified",
         revision: 3,
         verification_digest: DIGEST,
-        version_public_id: VERSION_ID
+        version_public_id: VERSION_ID,
+        owner_consent_id: `icn_${"7".repeat(32)}`,
+        consent_digest: `sha256:${"8".repeat(64)}`,
+        explicit_consent_at: "2026-08-20T12:00:00Z",
+        consent_expires_at: "2026-08-20T12:05:00Z"
       };
     }
   };
@@ -287,7 +282,7 @@ test("M4 finalize requires exact owner consent and returns the cutover binding",
     body: { expected_revision: 2, idempotency_key: IDEMPOTENCY_KEY },
     params: { sessionId: SESSION_ID }, context, idempotencyKey: IDEMPOTENCY_KEY, repository
   });
-  assert.deepEqual(calls.map(([name]) => name), ["consent", "finalize"]);
+  assert.deepEqual(calls.map(([name]) => name), ["finalize"]);
   assert.equal(calls[0][1].p_expected_session_revision, 2);
   assert.equal(result.version_public_id, VERSION_ID);
   assert.equal(result.finalized_revision, 3);
@@ -312,7 +307,7 @@ test("M4 missing cutover consent maps to the exact owner-consent-required respon
     }
   }));
   await assert.rejects(
-    repository.requireCutoverConsent({}),
+    repository.finalizeSession({}),
     (error) => error?.code === "owner_consent_required" && error?.status === 409
   );
 });
