@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import path from 'node:path';
+import { computeQuarantineTreeDigest } from './quarantine-tree-digest.js';
 
 import { LOCAL_QUARANTINE_OUTCOMES, type LocalQuarantineOutcomeV1 } from '../contracts/local-quarantine-registry.js';
 import type {
@@ -82,6 +83,7 @@ async function snapshotCandidate(root: RootCapability, relativePath: string, obs
   if (!contained(root.canonicalRootPath, canonicalSourcePath)) throw new Error('Candidate escaped its approved root.');
   const escapedRelativePath = escapeRelativePath(relativePath);
   const sourceKind = stats.isFile() ? 'file' : 'directory';
+  const treeDigest = await computeQuarantineTreeDigest(canonicalSourcePath);
   const snapshotBase = {
     rootId: root.rootId,
     escapedRelativePath,
@@ -91,7 +93,8 @@ async function snapshotCandidate(root: RootCapability, relativePath: string, obs
     size: stats.size,
     mode: stats.mode,
     modifiedAtMs: stats.mtimeMs,
-    changedAtMs: stats.ctimeMs
+    changedAtMs: stats.ctimeMs,
+    treeDigest
   } as const;
   return {
     candidateId: digest({ kind: 'skillmap.quarantine-candidate.v1', ...snapshotBase }),

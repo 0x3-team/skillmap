@@ -26,6 +26,7 @@ export interface CandidateSnapshot {
   mode: number;
   modifiedAtMs: number;
   changedAtMs: number;
+  treeDigest: string;
   snapshotDigest: string;
   observedAt: string;
 }

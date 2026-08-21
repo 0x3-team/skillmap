@@ -28,7 +28,8 @@ test('M4.09 processes one bounded analysis claim and completes its exact lease',
       if (name === 'complete_import_analysis_job') return {
         job_public_id: JOB_ID,
         state: 'completed',
-        result_digest: params.p_result_digest,
+        analysis_state: 'passed',
+        result_digest: `sha256:${'d'.repeat(64)}`,
         completed_at: '2026-08-20T11:59:00Z'
       };
       throw new Error(`unexpected ${name}`);
@@ -36,9 +37,12 @@ test('M4.09 processes one bounded analysis claim and completes its exact lease',
   };
   const result = await processImportAnalysisOnce({ rpc, workerId: 'm4-test-worker', leaseSeconds: 60 });
   assert.equal(result.result, 'completed');
+  assert.equal(result.analysisState, 'passed');
   assert.match(result.resultDigest, /^sha256:[0-9a-f]{64}$/);
   assert.deepEqual(calls.map((call) => call.name), ['claim_import_analysis_jobs', 'complete_import_analysis_job']);
   assert.equal(calls[1].params.p_lease_token, LEASE);
+  assert.equal(calls[1].params.p_worker_version, 'skillmap-import-analysis/0.1.0');
+  assert.equal('p_result_digest' in calls[1].params, false);
 });
 
 test('M4.09 returns idle without a mutation when no job is available', async () => {

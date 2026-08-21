@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { computeQuarantineTreeDigest } from './quarantine-tree-digest.js';
 
 import { LOCAL_QUARANTINE_OUTCOMES, type LocalQuarantineOutcomeV1 } from '../contracts/local-quarantine-registry.js';
 import { computeRestoreExpiryUtc } from './quarantine-retention.js';
@@ -384,6 +385,8 @@ export async function executeQuarantine(input: {
     await assertRootCapabilitiesCurrent(input.preflight);
     const sourceImmediatelyBeforeMove = await lstat(input.preflight.sourcePath);
     if (!sameSnapshot(input.preflight, sourceImmediatelyBeforeMove)) throw new Error('CANDIDATE_STALE');
+    const currentTreeDigest = await computeQuarantineTreeDigest(input.preflight.sourcePath);
+    if (currentTreeDigest !== input.preflight.snapshot.treeDigest) throw new Error('CANDIDATE_STALE');
     const destinationImmediatelyBeforeMove = await lstat(input.preflight.destinationPath).catch((error: unknown) => {
       if (errno(error, 'ENOENT')) return undefined;
       throw error;

@@ -264,6 +264,25 @@ test('authority that expires during preparation is rechecked before the atomic m
   await assert.rejects(access(state.preflight.destinationPath), { code: 'ENOENT' });
 });
 
+test('child content changed after preflight is rejected before the atomic move', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  let moveCalls = 0;
+  await writeFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'changed after preflight', 'utf8');
+
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: { async move() { moveCalls += 1; } },
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  }), /CANDIDATE_STALE/);
+
+  assert.equal(moveCalls, 0);
+  assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), 'changed after preflight');
+  await assert.rejects(access(state.preflight.destinationPath), { code: 'ENOENT' });
+});
+
 test('a replaced quarantine root is rejected before destination creation or move', { skip: process.platform !== 'darwin' }, async (t) => {
   const state = await setup(t);
   await rename(state.quarantine, `${state.quarantine}-original`);

@@ -37,6 +37,7 @@ export default async function ImportPage({
   if (auth.state === "signed-out") redirect("/sign-in?next=/import");
 
   let projection: ImportSessionProjection | null = null;
+  let dashboardError: { message: string; code: string } | undefined;
   if (auth.state === "authenticated") {
     const client = supabase as unknown as DashboardProjectionClient;
     const [dashboard, consents] = await Promise.all([
@@ -44,7 +45,12 @@ export default async function ImportPage({
       client.from("my_import_cutover_consents").select("session_public_id,owner_consent_id,consent_expires_at").limit(20)
     ]);
     const dashboardRow = dashboard.data?.[0];
-    if (!dashboard.error && dashboardRow && "projection" in dashboardRow) {
+    if (dashboard.error) {
+      dashboardError = {
+        message: "The import dashboard is temporarily unavailable. Your local skills were not changed.",
+        code: "IMPORT_DASHBOARD_UNAVAILABLE"
+      };
+    } else if (dashboardRow && "projection" in dashboardRow) {
       projection = sanitizeImportSessionProjection(dashboardRow.projection);
       if (projection && projection.state !== "cutover_ready" && !consents.error) {
         const projectionSessionId = projection.sessionId;
@@ -58,7 +64,12 @@ export default async function ImportPage({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState={auth.state === "authenticated" ? "authenticated" : "unavailable"} />
-      <ImportReviewClient initialProjection={projection} notice={notice} onConsentAction={authorizeImportCutover} />
+      <ImportReviewClient
+        initialProjection={projection}
+        initialError={dashboardError}
+        notice={notice}
+        onConsentAction={authorizeImportCutover}
+      />
     </div>
   );
 }

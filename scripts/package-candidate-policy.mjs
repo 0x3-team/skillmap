@@ -259,6 +259,7 @@ PUBLIC_DIST_MODULES.push(
   'core/quarantine-preflight',
   'core/quarantine-restore',
   'core/quarantine-retention',
+  'core/quarantine-tree-digest',
   'core/quarantine-types',
   'network/import-client',
   'network/import-uploader',

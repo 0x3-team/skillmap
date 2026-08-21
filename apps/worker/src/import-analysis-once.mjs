@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { createHash } from 'node:crypto';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { createSupabaseRpcClientFromEnvironment } from './supabase-rpc.mjs';
@@ -34,20 +33,6 @@ function validateClaim(value) {
   return value;
 }
 
-function resultDigest(claim) {
-  const payload = [
-    'SKILLMAP-IMPORT-ANALYSIS-RESULT-V1',
-    claim.job_public_id,
-    claim.skill_public_id,
-    claim.version_public_id,
-    claim.reason,
-    String(claim.attempt_count),
-    IMPORT_ANALYSIS_WORKER_VERSION,
-    ''
-  ].join('\n');
-  return `sha256:${createHash('sha256').update(payload, 'utf8').digest('hex')}`;
-}
-
 export async function processImportAnalysisOnce({
   rpc,
   workerId,
@@ -66,19 +51,27 @@ export async function processImportAnalysisOnce({
   if (!Array.isArray(claimed) || claimed.length > 1) throw new Error('Import analysis claim RPC returned an invalid bounded result.');
   if (claimed.length === 0) return { result: 'idle', mutation: false };
   const claim = validateClaim(claimed[0]);
-  const digest = resultDigest(claim);
   try {
     const completion = await rpc.call('complete_import_analysis_job', {
       p_job_public_id: claim.job_public_id,
       p_worker_id: workerId,
       p_lease_token: claim.lease_token,
-      p_result_digest: digest
+      p_worker_version: IMPORT_ANALYSIS_WORKER_VERSION
     });
     if (!completion || completion.job_public_id !== claim.job_public_id
-      || completion.state !== 'completed' || completion.result_digest !== digest) {
+      || completion.state !== 'completed'
+      || completion.analysis_state !== 'passed'
+      || typeof completion.result_digest !== 'string'
+      || !/^sha256:[0-9a-f]{64}$/.test(completion.result_digest)) {
       throw new Error('Import analysis completion RPC returned an invalid result.');
     }
-    return { result: 'completed', mutation: true, jobPublicId: claim.job_public_id, resultDigest: digest };
+    return {
+      result: 'completed',
+      mutation: true,
+      jobPublicId: claim.job_public_id,
+      analysisState: completion.analysis_state,
+      resultDigest: completion.result_digest
+    };
   } catch (error) {
     try {
       await rpc.call('fail_import_analysis_job', {

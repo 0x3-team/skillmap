@@ -61,8 +61,11 @@ declare
   v_session private.import_sessions%rowtype;
   v_finalization_expected_revision bigint;
 begin
-  if p_expiry_at is null or p_expiry_at <= pg_catalog.statement_timestamp() then
-    raise exception 'import expiry must be explicit and in the future' using errcode = '22023';
+  if p_expiry_at is null
+    or p_expiry_at <= pg_catalog.statement_timestamp()
+    or p_expiry_at > pg_catalog.statement_timestamp() + interval '6 hours'
+  then
+    raise exception 'import expiry must be explicit and within six hours' using errcode = '22023';
   end if;
 
   select * into v_context

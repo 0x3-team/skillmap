@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { computeSha256 } from '../dist/contracts/device-auth.js';
-import { ImportClient } from '../dist/network/import-client.js';
+import { ImportClient, ImportClientError } from '../dist/network/import-client.js';
 import { ImportUploader } from '../dist/network/import-uploader.js';
 import { InMemoryDeviceKeyStore } from '../dist/platform/device-key-store.js';
 
@@ -285,4 +285,153 @@ test('M4.07 accepts a matching immutable object after a no-overwrite storage con
   assert.equal(result.uploaded.length, 1);
   assert.equal(result.failed.length, 0);
   assert.equal(result.session.acceptedFileCount, 1);
+});
+
+test('M4.07 refreshes authoritative session state after a lost accept response', async () => {
+  const file = makeFile(0);
+  let resumeCalls = 0;
+  const client = {
+    async listReceipts() {
+      return { sessionPublicId: SESSION_ID, receipts: [] };
+    },
+    async prepareUpload() {
+      return {
+        sessionPublicId: SESSION_ID,
+        filePublicId: file.filePublicId,
+        versionPublicId: VERSION_ID,
+        bucketId: 'skill-vault-private',
+        objectName: `v1/${VERSION_ID}/${file.filePublicId}`,
+        uploadUrl: `${ORIGIN}/upload/${file.filePublicId}`,
+        uploadExpiresAt: EXPIRES_AT,
+        contentType: file.mediaType,
+        declaredSize: file.byteSize
+      };
+    },
+    async acceptFile() {
+      throw new ImportClientError(409, 'already_accepted');
+    },
+    async resumeImportSession() {
+      resumeCalls += 1;
+      return {
+        sessionPublicId: SESSION_ID,
+        state: 'verified',
+        expectedFileCount: 1,
+        expectedByteTotal: file.byteSize,
+        acceptedFileCount: 1,
+        acceptedByteTotal: file.byteSize,
+        revision: 2,
+        expiresAt: '2026-08-20T13:00:00.000Z',
+        verificationDigest: `sha256:${'e'.repeat(64)}`,
+        finalizationExpectedRevision: 2
+      };
+    }
+  };
+  const uploader = new ImportUploader({
+    client,
+    concurrency: 1,
+    fileMaxRetries: 0,
+    storageTransport: makeStorageRouter()
+  });
+  const result = await uploader.uploadFiles({
+    session: { ...baseSession(), expectedFileCount: 1, expectedByteTotal: file.byteSize },
+    files: [file],
+    accessToken: ACCESS_TOKEN
+  });
+
+  assert.equal(resumeCalls, 1);
+  assert.equal(result.session.revision, 2);
+  assert.equal(result.session.state, 'verified');
+  assert.equal(result.session.acceptedFileCount, 1);
+  assert.equal(result.session.acceptedByteTotal, file.byteSize);
+  assert.equal(result.session.expiresAt, '2026-08-20T13:00:00.000Z');
+  assert.equal(result.session.verificationDigest, `sha256:${'e'.repeat(64)}`);
+  assert.equal(result.session.finalizationExpectedRevision, 2);
+  assert.equal(result.uploaded.length, 1);
+});
+
+test('M4.07 serializes lost-response recovery before the next concurrent accept', async () => {
+  const files = [makeFile(0), makeFile(1)];
+  let storageCalls = 0;
+  let releaseStored;
+  const allStored = new Promise((resolve) => { releaseStored = resolve; });
+  const acceptedRevisions = [];
+  let serverRevision = 1;
+  let acceptedFileCount = 0;
+  let acceptedByteTotal = 0;
+  let firstAccept = true;
+  const authoritativeSession = () => ({
+    sessionPublicId: SESSION_ID,
+    state: acceptedFileCount === 2 ? 'verified' : 'in_progress',
+    expectedFileCount: 2,
+    expectedByteTotal: 18,
+    acceptedFileCount,
+    acceptedByteTotal,
+    revision: serverRevision,
+    expiresAt: EXPIRES_AT,
+    ...(acceptedFileCount === 2
+      ? { verificationDigest: `sha256:${'f'.repeat(64)}`, finalizationExpectedRevision: serverRevision }
+      : {})
+  });
+  const client = {
+    async listReceipts() {
+      return { sessionPublicId: SESSION_ID, receipts: [] };
+    },
+    async prepareUpload({ filePublicId }) {
+      const file = files.find((candidate) => candidate.filePublicId === filePublicId);
+      return {
+        sessionPublicId: SESSION_ID,
+        filePublicId,
+        versionPublicId: VERSION_ID,
+        bucketId: 'skill-vault-private',
+        objectName: `v1/${VERSION_ID}/${filePublicId}`,
+        uploadUrl: `${ORIGIN}/upload/${filePublicId}`,
+        uploadExpiresAt: EXPIRES_AT,
+        contentType: file.mediaType,
+        declaredSize: file.byteSize
+      };
+    },
+    async acceptFile({ expectedRevision }) {
+      acceptedRevisions.push(expectedRevision);
+      if (firstAccept) {
+        firstAccept = false;
+        await allStored;
+        serverRevision = 2;
+        acceptedFileCount = 1;
+        acceptedByteTotal = 9;
+        throw new ImportClientError(409, 'already_accepted');
+      }
+      if (expectedRevision !== serverRevision) {
+        throw new ImportClientError(409, 'session_conflict');
+      }
+      serverRevision += 1;
+      acceptedFileCount += 1;
+      acceptedByteTotal += 9;
+      return authoritativeSession();
+    },
+    async resumeImportSession() {
+      return authoritativeSession();
+    }
+  };
+  const uploader = new ImportUploader({
+    client,
+    concurrency: 2,
+    fileMaxRetries: 0,
+    storageTransport: async () => {
+      storageCalls += 1;
+      if (storageCalls === 2) releaseStored();
+      return { status: 200 };
+    }
+  });
+  const result = await uploader.uploadFiles({
+    session: baseSession(),
+    files,
+    accessToken: ACCESS_TOKEN
+  });
+
+  assert.deepEqual(acceptedRevisions, [1, 2]);
+  assert.equal(result.failed.length, 0);
+  assert.equal(result.uploaded.length, 2);
+  assert.equal(result.session.revision, 3);
+  assert.equal(result.session.state, 'verified');
+  assert.equal(result.session.verificationDigest, `sha256:${'f'.repeat(64)}`);
 });

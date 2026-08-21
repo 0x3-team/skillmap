@@ -53,9 +53,9 @@ function integer(value: unknown, minimum = 0): number {
 
 function isoDate(value: unknown): string {
   const input = text(value);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(input)
-    || Number.isNaN(Date.parse(input))) throw new ImportRouteError("invalid_request");
-  return input;
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?)(Z|\+00:00)$/.exec(input);
+  if (!match || Number.isNaN(Date.parse(input))) throw new ImportRouteError("invalid_request");
+  return `${match[1]}Z`;
 }
 
 function optionalDigest(value: unknown): string | undefined {

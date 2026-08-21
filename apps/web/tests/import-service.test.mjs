@@ -129,6 +129,31 @@ test("M4 begin maps the stored pre-finalization revision for verified recovery",
   assert.equal(result.finalization_expected_revision, 3);
 });
 
+test("M4 normalizes PostgreSQL UTC offsets without truncating fractional precision", async () => {
+  const repository = {
+    async beginSession() {
+      return sessionRow({ expiry_at: "2026-08-20T12:00:00.123456+00:00" });
+    }
+  };
+  const result = await executeImportOperation({
+    operation: "begin",
+    body: {
+      skill_public_id: SKILL_ID,
+      version_public_id: VERSION_ID,
+      manifest_schema_version: "1.0",
+      manifest_digest: DIGEST,
+      content_digest: CONTENT_DIGEST,
+      expected_file_count: 1,
+      expected_byte_total: 4,
+      idempotency_key: IDEMPOTENCY_KEY,
+      expires_at: "2026-08-20T12:00:00Z"
+    },
+    params: {}, context, idempotencyKey: IDEMPOTENCY_KEY, repository
+  });
+
+  assert.equal(result.expires_at, "2026-08-20T12:00:00.123456Z");
+});
+
 test("M4 prepare-upload returns the signed URL and public version binding", async () => {
   const calls = [];
   const repository = {
@@ -272,8 +297,8 @@ test("M4 finalize uses one RPC and returns the stored cutover binding", async ()
         version_public_id: VERSION_ID,
         owner_consent_id: `icn_${"7".repeat(32)}`,
         consent_digest: `sha256:${"8".repeat(64)}`,
-        explicit_consent_at: "2026-08-20T12:00:00Z",
-        consent_expires_at: "2026-08-20T12:05:00Z"
+        explicit_consent_at: "2026-08-20T12:00:00.123456+00:00",
+        consent_expires_at: "2026-08-20T12:05:00+00:00"
       };
     }
   };
@@ -288,6 +313,8 @@ test("M4 finalize uses one RPC and returns the stored cutover binding", async ()
   assert.equal(result.finalized_revision, 3);
   assert.equal(result.owner_consent_id, `icn_${"7".repeat(32)}`);
   assert.equal(result.consent_digest, `sha256:${"8".repeat(64)}`);
+  assert.equal(result.explicit_consent_at, "2026-08-20T12:00:00.123456Z");
+  assert.equal(result.consent_expires_at, "2026-08-20T12:05:00Z");
   assert.match(result.cutover_authority_id, /^cut_[0-9a-f]{32}$/);
 });
 

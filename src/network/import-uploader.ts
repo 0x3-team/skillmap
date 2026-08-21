@@ -294,9 +294,7 @@ export class ImportUploader {
                 params.accessToken,
                 params.signal
               );
-              session.revision = nextSession.revision;
-              session.acceptedFileCount = nextSession.acceptedFileCount;
-              session.acceptedByteTotal = nextSession.acceptedByteTotal;
+              this.syncSession(session, nextSession);
               acceptedCount += 1;
               acceptedBytes += next.byteSize;
               uploaded.push(next);
@@ -454,7 +452,13 @@ export class ImportUploader {
       } catch (error) {
         lastError = error instanceof ImportUploadError ? error : this.toUploadError(error, file);
         if (lastError.code === 'already_accepted') {
-          return currentSession;
+          return this.withAcceptanceLock(async () => this.syncSession(
+            currentSession,
+            await this.client.resumeImportSession(
+              { sessionPublicId: currentSession.sessionPublicId },
+              { accessToken, signal }
+            )
+          ));
         }
         if (lastError.code === 'digest_conflict') {
           throw lastError;
@@ -556,21 +560,43 @@ export class ImportUploader {
     signal: AbortSignal
   ): Promise<ImportSession> {
     return this.withAcceptanceLock(async () => {
-      const result = await this.client.acceptFile(
-        {
-          sessionPublicId: session.sessionPublicId,
-          filePublicId: file.filePublicId,
-          expectedRevision: session.revision,
-          fileDigest: file.digest,
-          byteSize: file.byteSize
-        },
-        { accessToken, signal, idempotencyKey }
-      );
-      session.revision = result.revision;
-      session.acceptedFileCount = result.acceptedFileCount;
-      session.acceptedByteTotal = result.acceptedByteTotal;
-      return result;
+      try {
+        const result = await this.client.acceptFile(
+          {
+            sessionPublicId: session.sessionPublicId,
+            filePublicId: file.filePublicId,
+            expectedRevision: session.revision,
+            fileDigest: file.digest,
+            byteSize: file.byteSize
+          },
+          { accessToken, signal, idempotencyKey }
+        );
+        return this.syncSession(session, result);
+      } catch (error) {
+        if (!(error instanceof ImportClientError) || error.code !== 'already_accepted') throw error;
+        const resumed = await this.client.resumeImportSession(
+          { sessionPublicId: session.sessionPublicId },
+          { accessToken, signal }
+        );
+        return this.syncSession(session, resumed);
+      }
     });
+  }
+
+  private syncSession(target: ImportSession, source: ImportSession): ImportSession {
+    target.sessionPublicId = source.sessionPublicId;
+    target.state = source.state;
+    target.expectedFileCount = source.expectedFileCount;
+    target.expectedByteTotal = source.expectedByteTotal;
+    target.acceptedFileCount = source.acceptedFileCount;
+    target.acceptedByteTotal = source.acceptedByteTotal;
+    target.revision = source.revision;
+    target.expiresAt = source.expiresAt;
+    target.manifestDigest = source.manifestDigest;
+    target.contentDigest = source.contentDigest;
+    target.verificationDigest = source.verificationDigest;
+    target.finalizationExpectedRevision = source.finalizationExpectedRevision;
+    return target;
   }
 
   private async withAcceptanceLock<T>(operation: () => Promise<T>): Promise<T> {

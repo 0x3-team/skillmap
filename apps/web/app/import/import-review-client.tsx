@@ -44,6 +44,8 @@ import { cn } from "@/lib/utils";
 export interface ImportReviewClientProps {
   /** Previously sanitized, dashboard-safe import session projection. */
   initialProjection?: ImportSessionProjection | null;
+  /** Bounded server-side dashboard load failure. */
+  initialError?: { message: string; code: string };
   notice?: { tone: "error" | "warning" | "success"; message: string };
   stateOverride?: ImportViewStateKind;
   onConsentAction?: (formData: FormData) => void | Promise<void>;
@@ -57,6 +59,7 @@ export interface ImportReviewClientProps {
 
 export function ImportReviewClient({
   initialProjection = null,
+  initialError,
   notice,
   stateOverride,
   onConsentAction,
@@ -69,8 +72,13 @@ export function ImportReviewClient({
 }: ImportReviewClientProps) {
   const [state, dispatch] = useReducer(
     importViewReducer,
-    initialProjection,
-    getInitialImportState
+    { initialProjection, initialError },
+    ({ initialProjection: projection, initialError: error }) => {
+      const initial = getInitialImportState(projection);
+      return error
+        ? { ...initial, viewState: "error" as const, error }
+        : initial;
+    }
   );
 
   const [copiedText, setCopiedText] = useState<string | null>(null);

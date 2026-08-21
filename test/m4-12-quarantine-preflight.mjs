@@ -54,6 +54,7 @@ test('preflight accepts exactly one contained candidate without filesystem mutat
   assert.equal(result.reservation.collisionCandidateIndex, 0);
   assert.equal(result.reservation.collisionCandidateCount, 100);
   assert.match(result.reservation.destinationIdentityDigest, /^sha256:[0-9a-f]{64}$/);
+  assert.match(result.snapshot.treeDigest, /^sha256:[0-9a-f]{64}$/);
   assert.match(result.preflightDigest, /^sha256:[0-9a-f]{64}$/);
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), before);
   await assert.rejects(lstat(result.destinationPath), { code: 'ENOENT' });
