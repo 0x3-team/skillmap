@@ -192,7 +192,7 @@ select ok(not has_column_privilege('authenticated', 'api.profiles', 'created_at'
 select is((select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'api' and c.relname in ('catalog_audit_evidence', 'catalog_grade_evidence') and c.reloptions @> array['security_invoker=true','security_barrier=true']), 2::bigint, 'evidence views are security-invoker and security-barrier');
 select is((select count(*) from information_schema.columns where table_schema = 'api' and table_name in ('catalog_audit_evidence','catalog_grade_evidence') and column_name in ('submission_id','submitter_user_id','reporter_user_id','private_evidence_digest')), 0::bigint, 'evidence projections omit submission, account, and private-evidence identifiers');
 select ok(not has_column_privilege('anon', 'private.skill_audit_receipts', 'private_evidence_digest', 'select'), 'anonymous roles cannot select the private evidence digest');
-select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef), 43::bigint, 'API security-definer surface remains the exact forty-three-function reviewed boundary');
+select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef), 44::bigint, 'API security-definer surface remains the exact forty-four-function reviewed boundary');
 
 set local role anon;
 select is((select count(*) from api.catalog_audit_evidence where skill_id = 'skl_00000000000000000000000000000001'), 1::bigint, 'anonymous users can see audit evidence only for a current public version');

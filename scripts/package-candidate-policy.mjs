@@ -100,6 +100,7 @@ const PUBLIC_CONTRACT_PATHS = [
   'contracts/hosted-skill/v1.schema.json',
   'contracts/hosted-submission/v1.schema.json',
   'contracts/job/v1.schema.json',
+  'contracts/managed-manifest/v1.schema.json',
   'contracts/manifest.json',
   'contracts/mcp-doctor-summary-result/v1.schema.json',
   'contracts/mcp-route-prompt-result/v1.schema.json',
@@ -241,6 +242,27 @@ PUBLIC_DIST_MODULES.push(
   'platform/macos-keychain-protocol',
   'services/device-auth-use-case',
   'contracts/generated/standalone-validators'
+);
+
+// M4 import integration modules and quarantine execution surface.
+PUBLIC_DIST_MODULES.push(
+  'commands/managed-import',
+  'contracts/local-quarantine-registry',
+  'core/immutable-content-digest',
+  'core/import-manifest-builder',
+  'core/import-parity',
+  'core/import-preview',
+  'core/import-secret-blocker',
+  'core/managed-manifest',
+  'core/quarantine-authorization',
+  'core/quarantine-execution',
+  'core/quarantine-preflight',
+  'core/quarantine-restore',
+  'core/quarantine-retention',
+  'core/quarantine-types',
+  'network/import-client',
+  'network/import-uploader',
+  'services/managed-import-use-case'
 );
 
 const PUBLIC_PACKAGE_PATHS = new Set([

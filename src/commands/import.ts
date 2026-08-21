@@ -14,6 +14,7 @@ import {
 import { hashText, readJson, writeJson } from '../core/fs.js';
 import { fileExists } from '../core/status.js';
 import { outDir } from './common.js';
+import { managedImportCommand, type ManagedImportCommandDeps } from './managed-import.js';
 
 interface LegacyImportedSnapshot {
   version?: number;
@@ -32,7 +33,15 @@ interface ImportReport {
   activation: 'none';
 }
 
-export async function importCommand(cwd: string, positionals: string[], flags: Record<string, string | boolean | string[]>): Promise<unknown> {
+export async function importCommand(
+  cwd: string,
+  positionals: string[],
+  flags: Record<string, string | boolean | string[]>,
+  managedDeps?: ManagedImportCommandDeps
+): Promise<unknown> {
+  if (positionals[0] === 'vault') {
+    return managedImportCommand(cwd, positionals.slice(1), flags, managedDeps);
+  }
   const file = positionals[0] ?? flagString(flags, 'file');
   if (!file) throw new Error('import requires a snapshot file path.');
   const resolved = path.resolve(cwd, file);

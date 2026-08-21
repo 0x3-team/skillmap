@@ -426,8 +426,8 @@ select is(
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api' and p.prosecdef),
-  43::bigint,
-  'the exposed API contains exactly forty-three reviewed security-definer RPCs'
+  44::bigint,
+  'the exposed API contains exactly forty-four reviewed security-definer RPCs'
 );
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -454,10 +454,10 @@ select is(
       'device_auth_get_rotation_receipt_v1', 'device_auth_rotate_key_v1',
       'device_auth_list_my_devices_v1', 'device_auth_rename_my_device_v1',
       'device_auth_revoke_my_device_v1', 'device_auth_get_revoke_key_v1',
-      'device_auth_cancel_v1', 'device_auth_authenticate_v1',
+      'device_auth_cancel_v1', 'device_auth_authenticate_v1', 'device_auth_authenticate_import_v1',
       'device_auth_get_status_v1', 'device_auth_revoke_v1', 'device_auth_refresh_single_shot_v1'
     )),
-  43::bigint,
+  44::bigint,
   'the reviewed allowlist names every exposed security-definer RPC'
 );
 

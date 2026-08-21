@@ -72,7 +72,16 @@ test('historical M3.02 receipt is immutable and superseding receipt binds curren
   assert.equal(cloudflareRuntimeReceipt.supersedes.receipt, 'docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json');
   assert.equal(cloudflareRuntimeReceipt.supersedes.old_receipt_sha256, '0001aedba21380147f6922845d7d4c1e58ac2a7126020ac0de78dc7efbc0b063');
   assert.equal(sha256('docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json'), cloudflareRuntimeReceipt.supersedes.old_receipt_sha256);
+  assert.equal(
+    cloudflareRuntimeReceipt.artifacts.find(({ path }) => path === 'apps/web/package.json')?.sha256,
+    '4cc78b78e684b36d192bb97bc7b9d1f157f7787107876d4f8e9c132ffa506f18',
+    'historical M3 package hash must remain immutable'
+  );
   for (const artifact of cloudflareRuntimeReceipt.artifacts) {
+    // M4 adds package scripts after the deployed M3 receipt. The historical
+    // hash remains evidence of M3; current M4 package contents are validated by
+    // the package lifecycle and M4 acceptance suites instead.
+    if (artifact.path === 'apps/web/package.json') continue;
     assert.equal(sha256(artifact.path), artifact.sha256, `${artifact.path} Cloudflare runtime hash drift`);
   }
   assert.equal(cloudflareRuntimeReceipt.cloudflare.worker, 'skillmap');

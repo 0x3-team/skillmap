@@ -17,7 +17,17 @@ const ALLOWED_RPC = new Set([
   'get_skill_submission_operator_detail',
   'disposition_skill_report',
   'list_skill_report_queue',
-  'control_catalog_lifecycle'
+  'control_catalog_lifecycle',
+  'claim_import_analysis_jobs',
+  'renew_import_analysis_job',
+  'complete_import_analysis_job',
+  'fail_import_analysis_job'
+]);
+const RPC_SCHEMA = new Map([
+  ['claim_import_analysis_jobs', 'analysis_worker_adapter'],
+  ['renew_import_analysis_job', 'analysis_worker_adapter'],
+  ['complete_import_analysis_job', 'analysis_worker_adapter'],
+  ['fail_import_analysis_job', 'analysis_worker_adapter']
 ]);
 const DUAL_CONTROL_EXECUTION_RPC = new Set([
   'record_skill_submission_publisher_authorization',
@@ -54,6 +64,7 @@ export function createSupabaseRpcClient(options) {
       timer.unref?.();
       let response;
       try {
+        const profile = RPC_SCHEMA.get(name);
         response = await fetchImpl(new URL(`/rest/v1/rpc/${name}`, origin), {
           method: 'POST',
           redirect: 'error',
@@ -64,6 +75,7 @@ export function createSupabaseRpcClient(options) {
             accept: 'application/json',
             'content-type': 'application/json',
             'user-agent': 'skillmap-hosted-operator/1',
+            ...(profile ? { 'accept-profile': profile, 'content-profile': profile } : {}),
             ...(operatorTransport?.headers ?? {})
           },
           body

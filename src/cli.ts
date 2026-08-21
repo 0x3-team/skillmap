@@ -250,6 +250,7 @@ Commands:
   export --include-sensitive-local --output .skillmap/private-exports/FILE [--json]  (POSIX only; fails closed on Windows)
   export --dashboard-snapshot --redact-paths [--output PATH] [--json]
   import FILE [--dry-run|--confirm] [--acknowledge-sensitive-local] [--json]
+  import vault SKILL_DIR [--dry-run] [--json]
   curate codex --prepare [--json]
   curate codex --ingest FILE --rationale FILE --model MODEL [--dry-run|--confirm] [--json]
   sources list|check [--json]

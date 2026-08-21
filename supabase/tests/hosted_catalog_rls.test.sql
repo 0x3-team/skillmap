@@ -74,7 +74,7 @@ select is(
       'device_auth_get_rotation_receipt_v1', 'device_auth_rotate_key_v1',
       'device_auth_list_my_devices_v1', 'device_auth_rename_my_device_v1',
       'device_auth_revoke_my_device_v1', 'device_auth_get_revoke_key_v1',
-      'device_auth_cancel_v1', 'device_auth_authenticate_v1',
+      'device_auth_cancel_v1', 'device_auth_authenticate_v1', 'device_auth_authenticate_import_v1',
       'device_auth_get_status_v1', 'device_auth_revoke_v1', 'device_auth_refresh_single_shot_v1'
     )),
     0::bigint,
