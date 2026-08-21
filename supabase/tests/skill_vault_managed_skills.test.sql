@@ -87,12 +87,12 @@ select ok(position('^msk_[0-9a-f]{32}$' in (
     and conname = 'managed_skills_public_id_format_check'
 )) > 0, 'public ID constraint freezes the msk_ lowercase hexadecimal grammar');
 
-select ok(position('140' in (
+select ok(position('200' in (
   select pg_catalog.pg_get_constraintdef(oid)
   from pg_catalog.pg_constraint
   where conrelid = 'private.managed_skills'::regclass
     and conname = 'managed_skills_display_name_length_check'
-)) > 0, 'display name is bounded to the established 140-character skill limit');
+)) > 0, 'display name is bounded to the canonical 200-character skill limit');
 
 select ok(position('20000' in (
   select pg_catalog.pg_get_constraintdef(oid)
@@ -292,13 +292,13 @@ $sql$, 23503, null, 'unknown account ownership is rejected');
 
 select lives_ok($sql$
   insert into private.managed_skills (public_id, account_id, display_name)
-  values ('msk_c3000000000043008300000000000024', 'c3000000-0000-4300-8300-000000000001', repeat('n', 140))
-$sql$, '140-character display name is accepted');
+  values ('msk_c3000000000043008300000000000024', 'c3000000-0000-4300-8300-000000000001', repeat('n', 200))
+$sql$, '200-character display name is accepted');
 
 select throws_ok($sql$
   insert into private.managed_skills (public_id, account_id, display_name)
-  values ('msk_c3000000000043008300000000000025', 'c3000000-0000-4300-8300-000000000001', repeat('n', 141))
-$sql$, 23514, null, '141-character display name is rejected');
+  values ('msk_c3000000000043008300000000000025', 'c3000000-0000-4300-8300-000000000001', repeat('n', 201))
+$sql$, 23514, null, '201-character display name is rejected');
 
 select throws_ok($sql$
   insert into private.managed_skills (public_id, account_id, display_name)

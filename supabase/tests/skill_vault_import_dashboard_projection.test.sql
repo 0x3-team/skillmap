@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(8);
+select plan(9);
 
 select has_function('private', 'my_owner_import_dashboard', array[]::text[], 'owner dashboard projection helper exists');
 select has_view('api', 'my_import_dashboard', 'owner dashboard projection view exists');
@@ -26,7 +26,8 @@ insert into private.devices(id,public_id,account_id,display_name,platform,connec
 ('a4000000-0000-4400-8400-000000000111','dev_'||repeat('d',32),'a4000000-0000-4400-8400-000000000011','Dashboard connector','macos','1.0.0','en-US');
 
 create temporary table m4_dashboard_target(response jsonb not null) on commit drop;
-grant select, insert on m4_dashboard_target to service_role;
+create temporary table m4_dashboard_session(response jsonb not null) on commit drop;
+grant select, insert on m4_dashboard_target, m4_dashboard_session to service_role;
 
 set local role service_role;
 insert into m4_dashboard_target(response)
@@ -43,6 +44,7 @@ select device_adapter.adapter_prepare_import_target(
   'a4000000-0000-4400-8400-000000000311'
 );
 
+insert into m4_dashboard_session(response)
 select device_adapter.adapter_begin_import_session_v2(
   'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
   (select response->>'skill_public_id' from m4_dashboard_target),
@@ -76,6 +78,37 @@ select ok(
 );
 
 reset role;
+insert into storage.objects(id,bucket_id,name,owner,owner_id,metadata,user_metadata) values (
+  'a4000000-0000-4400-8400-000000000411','skill-vault-private',
+  (select response->'files'->0->>'storage_key' from m4_dashboard_target),
+  'a4000000-0000-4400-8400-000000000011','a4000000-0000-4400-8400-000000000011',
+  '{"mimetype":"text/markdown","size":3}','{}'
+);
+set local role service_role;
+select device_adapter.adapter_accept_import_file_v2(
+  'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
+  (select response->>'session_id' from m4_dashboard_session),1,
+  (select response->'files'->0->>'file_public_id' from m4_dashboard_target)
+);
+select device_adapter.adapter_finalize_import_session_v2(
+  'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
+  (select response->>'session_id' from m4_dashboard_session),2,
+  'a4000000-0000-4400-8400-000000000313'
+);
+reset role;
+
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a4000000-0000-4400-8400-000000000011","is_anonymous":false}', true);
+set local role authenticated;
+select ok(
+  (select projection->>'state' = 'cutover_ready'
+     and projection->'cutoverReceipt'->>'receiptId' ~ '^rcpt_[0-9a-f]{32}$'
+     and projection->'cutoverReceipt'->>'verificationDigest' ~ '^sha256:[0-9a-f]{64}$'
+     and projection->'cutoverReceipt'->>'sessionId' = projection->>'sessionId'
+   from api.my_import_dashboard),
+  'verified session projects a browser-safe cutover receipt and reachable cutover-ready state'
+);
+reset role;
+
 select set_config('request.jwt.claims', '{"role":"authenticated","sub":"b4000000-0000-4400-8400-000000000012","is_anonymous":false}', true);
 set local role authenticated;
 select is((select count(*) from api.my_import_dashboard), 0::bigint, 'another account cannot see the owner dashboard row');

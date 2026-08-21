@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 export interface ImportReviewClientProps {
   /** Previously sanitized, dashboard-safe import session projection. */
   initialProjection?: ImportSessionProjection | null;
+  notice?: { tone: "error" | "warning" | "success"; message: string };
   stateOverride?: ImportViewStateKind;
   onConsentAction?: (formData: FormData) => void | Promise<void>;
   onRequestExclusionAction?: (skillName: string) => void | Promise<void>;
@@ -56,6 +57,7 @@ export interface ImportReviewClientProps {
 
 export function ImportReviewClient({
   initialProjection = null,
+  notice,
   stateOverride,
   onConsentAction,
   onRequestExclusionAction,
@@ -156,6 +158,22 @@ export function ImportReviewClient({
           ) : null}
         </div>
       </header>
+
+      {notice ? (
+        <p
+          role={notice.tone === "error" ? "alert" : "status"}
+          aria-live="polite"
+          className={`mt-6 rounded-xl border p-4 text-sm leading-6 ${
+            notice.tone === "error"
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : notice.tone === "warning"
+                ? "border-warning/35 bg-warning/10 text-foreground"
+                : "border-success/30 bg-success/10 text-foreground"
+          }`}
+        >
+          {notice.message}
+        </p>
+      ) : null}
 
       {/* Main Viewport Content based on 10 States */}
       <div className="mt-8">

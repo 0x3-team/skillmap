@@ -186,6 +186,11 @@ test('M4.16 managed import pauses for owner consent, then resumes to an exact pa
     })))
   );
   assert.equal(prepareInput.contentDigest, expectedContent.contentDigest);
+  assert.deepEqual(prepareInput.canonicalMetadata, {
+    logical_id: 'alpha',
+    display_name: 'Alpha',
+    description: 'Alpha fixture.'
+  });
   assert.match(prepareInput.idempotencyKey, /^[A-Za-z0-9_-]{22}$/);
   assert.match(cloud.calls.find(([name]) => name === 'begin')[1].idempotencyKey, /^[A-Za-z0-9_-]{22}$/);
 

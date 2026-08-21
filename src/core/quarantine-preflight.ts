@@ -205,7 +205,11 @@ export async function preflightQuarantine(input: {
     const preflightDigest = digest({
       kind: 'skillmap.quarantine-preflight.v1',
       sourceRootId: input.sourceRoot.rootId,
+      sourceRootVolumeId: input.sourceRoot.volumeId,
+      sourceRootFileId: input.sourceRoot.rootFileId,
       quarantineRootId: input.quarantineRoot.rootId,
+      quarantineRootVolumeId: input.quarantineRoot.volumeId,
+      quarantineRootFileId: input.quarantineRoot.rootFileId,
       policyVersion: input.sourceRoot.policyVersion,
       snapshotDigest: snapshot.snapshotDigest,
       destinationIdentityDigest: reservation.destinationIdentityDigest,
@@ -220,6 +224,10 @@ export async function preflightQuarantine(input: {
       destinationParentPath,
       sourceRootRealPath: input.sourceRoot.canonicalRootPath,
       quarantineRootRealPath: input.quarantineRoot.canonicalRootPath,
+      sourceRootVolumeId: input.sourceRoot.volumeId,
+      sourceRootFileId: input.sourceRoot.rootFileId,
+      quarantineRootVolumeId: input.quarantineRoot.volumeId,
+      quarantineRootFileId: input.quarantineRoot.rootFileId,
       snapshot,
       reservation,
       preflightDigest

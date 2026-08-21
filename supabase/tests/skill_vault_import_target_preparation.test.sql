@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(17);
+select plan(21);
 
 select has_table('private', 'import_target_preparations', 'target preparation receipt table exists');
 select ok(
@@ -47,7 +47,8 @@ insert into private.devices(id,public_id,account_id,display_name,platform,connec
 ('a4000000-0000-4400-8400-000000000101','dev_'||repeat('4',32),'a4000000-0000-4400-8400-000000000001','M4 target','macos','1.0.0','en-US');
 
 create temporary table m4_target_receipt(response jsonb not null) on commit drop;
-grant select, insert on m4_target_receipt to service_role;
+create temporary table m4_target_revision(response jsonb not null) on commit drop;
+grant select, insert on m4_target_receipt, m4_target_revision to service_role;
 
 set local role service_role;
 select lives_ok($$insert into m4_target_receipt(response)
@@ -126,6 +127,47 @@ select ok(
   ) @> '{"reused":true}'::jsonb,
   'a new request exactly reuses the immutable manifest identity without duplicating the skill'
 );
+select lives_ok($$insert into m4_target_revision(response)
+  select device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    'Imported Alpha v2','Changed immutable version','1.0',
+    pg_catalog.convert_to('{"schema_version":"1.1"}','UTF8'),
+    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.1"}','UTF8'),'sha256'),'hex'),
+    'sha256:'||repeat('7',64),
+    '{"logical_id":"alpha","display_name":"Imported Alpha v2","description":"Changed immutable version"}',
+    '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r2"}',
+    'verified',
+    '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":4,"file_digest":"sha256:8888888888888888888888888888888888888888888888888888888888888888","executable":false,"ordinal":0}]',
+    'a4000000-0000-4400-8400-000000000304'
+  )$$, 'changed content for one logical skill creates a new immutable version');
+reset role;
+select ok(
+  (select revision.response->>'skill_public_id' = original.response->>'skill_public_id'
+      and revision.response->>'version_public_id' <> original.response->>'version_public_id'
+   from m4_target_revision as revision cross join m4_target_receipt as original)
+  and (select count(*) from private.managed_skills where account_id='a4000000-0000-4400-8400-000000000001') = 1
+  and (select count(*) from private.managed_skill_versions where account_id='a4000000-0000-4400-8400-000000000001') = 2,
+  'logical identity stays stable while immutable version history grows'
+);
+set local role service_role;
+select lives_ok($$select device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    repeat('N',200),null,'1.0',pg_catalog.convert_to('{"schema_version":"1.2"}','UTF8'),
+    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.2"}','UTF8'),'sha256'),'hex'),
+    'sha256:'||repeat('9',64),
+    pg_catalog.jsonb_build_object('logical_id','name-bound','display_name',repeat('N',200)),
+    '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"name-bound","revision":"r1"}',
+    'verified','[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","executable":false,"ordinal":0}]',
+    'a4000000-0000-4400-8400-000000000305')$$,
+  'a 200-character display name is accepted end to end');
+select throws_ok($$select device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    repeat('N',201),null,'1.0',decode('7b7d','hex'),'sha256:'||repeat('0',64),'sha256:'||repeat('1',64),
+    pg_catalog.jsonb_build_object('logical_id','name-bound-oversize','display_name',repeat('N',201)),
+    '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"name-bound-oversize","revision":"r1"}',
+    'verified','[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","executable":false,"ordinal":0}]',
+    'a4000000-0000-4400-8400-000000000306')$$,
+  22023, 'invalid import target preparation', 'a 201-character display name is rejected');
 select throws_ok($$select device_adapter.adapter_prepare_import_target(
     'acct_b4000000000044008400000000000002','dev_'||repeat('4',32),
     'Foreign','x','1.0',decode('7b7d','hex'),'sha256:'||repeat('0',64),'sha256:'||repeat('1',64),

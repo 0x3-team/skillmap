@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(27);
+select plan(29);
 
 select ok(
   (select relrowsecurity and relforcerowsecurity from pg_catalog.pg_class where oid='private.import_finalization_receipts'::regclass),
@@ -96,6 +96,20 @@ select throws_ok($$select device_adapter.adapter_begin_import_session_v2(
     1,3,'a4100000-0000-4410-8410-000000000302',now()+interval '3 hours'
   )$$, 22023, 'conflicting import session idempotency reuse',
   'changed begin-session expiry conflicts on idempotent replay');
+
+select throws_ok($$select device_adapter.adapter_prepare_import_upload(
+    'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
+    (select public_id from m4_upload_session),2,
+    (select response->'files'->0->>'file_public_id' from m4_upload_target),
+    now()+interval '2 minutes'
+  )$$, '40001', 'import session revision conflict',
+  'stale upload preparation maps to a session revision conflict');
+select throws_ok($$select device_adapter.adapter_accept_import_file_v2(
+    'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
+    (select public_id from m4_upload_session),2,
+    (select response->'files'->0->>'file_public_id' from m4_upload_target)
+  )$$, '40001', 'import session revision conflict',
+  'stale file acceptance maps to a session revision conflict');
 
 select ok(
   device_adapter.adapter_prepare_import_upload(

@@ -543,7 +543,10 @@ export class ImportClient {
     options?: ImportCallOptions
   ): Promise<ImportClientResponse<ImportPreparedTarget>> {
     throwIfAborted(options?.signal);
-    if (typeof params.displayName !== 'string' || params.displayName.trim().length < 1 || params.displayName.length > 140) {
+    if (typeof params.displayName !== 'string'
+      || params.displayName.trim().length < 1
+      || params.displayName.length > 200
+      || new TextEncoder().encode(params.displayName).byteLength > 800) {
       throw new ImportClientError(400, 'invalid_request');
     }
     if (typeof params.description !== 'string' || new TextEncoder().encode(params.description).byteLength > 2_048) {

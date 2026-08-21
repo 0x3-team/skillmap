@@ -13,7 +13,7 @@ as $function$
     'sessionId', sessions.imp_,
     'state', case
       when sessions.state in ('cancelled', 'expired') or sessions.expiry_at <= pg_catalog.statement_timestamp() then 'stale'
-      when sessions.state = 'verified' then 'consented'
+      when sessions.state = 'verified' then 'cutover_ready'
       when sessions.accepted_file_count = sessions.expected_file_count then 'ready_for_consent'
       when sessions.accepted_file_count > 0 then 'partial'
       else 'preview'
@@ -67,6 +67,24 @@ as $function$
       'expectedFileCount', sessions.expected_file_count,
       'expectedByteTotal', sessions.expected_byte_total
     ),
+    'cutoverReceipt', case when sessions.state = 'verified' then (
+      select pg_catalog.jsonb_build_object(
+        'receiptId', 'rcpt_' || pg_catalog.replace(receipts.id::text, '-', ''),
+        'sessionId', sessions.imp_,
+        'deviceId', devices.public_id,
+        'manifestDigest', sessions.manifest_digest,
+        'verificationDigest', receipts.response ->> 'verification_digest',
+        'eligibleSkillCount', 1,
+        'issuedAt', receipts.created_at,
+        'expiresAt', sessions.expiry_at
+      )
+      from private.import_finalization_receipts as receipts
+      where receipts.account_id = sessions.account_id
+        and receipts.device_id = sessions.device_id
+        and receipts.session_id = sessions.id
+      order by receipts.created_at desc, receipts.id
+      limit 1
+    ) else null end,
     'createdAt', sessions.created_at,
     'expiresAt', sessions.expiry_at,
     'revision', sessions.revision

@@ -149,8 +149,8 @@ test('M4.05 prepareImportTarget sends the canonical projection and validates pub
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   });
   const key = 'P'.repeat(22);
-  const target = await client.prepareImportTarget({
-    displayName: 'Fixture',
+  const targetParams = {
+    displayName: 'F'.repeat(200),
     description: 'Fixture description',
     manifestSchemaVersion: '1.0',
     canonicalManifestBytes: new TextEncoder().encode('{"schema_version":"1.0"}\n'),
@@ -161,15 +161,22 @@ test('M4.05 prepareImportTarget sends the canonical projection and validates pub
     provenanceState: 'verified',
     files: [{ relativePath: 'SKILL.md', mediaType: 'text/plain', byteSize: 4, fileDigest: MANIFEST_DIGEST, executable: false, ordinal: 0 }],
     idempotencyKey: key
-  }, { accessToken: ACCESS_TOKEN });
+  };
+  const target = await client.prepareImportTarget(targetParams, { accessToken: ACCESS_TOKEN });
 
   assert.equal(captured.url, `${ORIGIN}/api/import/v1/targets`);
   const body = JSON.parse(captured.init.body);
   assert.equal(Buffer.from(body.manifest_projection_base64, 'base64').toString(), '{"schema_version":"1.0"}\n');
   assert.equal(body.files[0].relative_path, 'SKILL.md');
+  assert.equal(body.display_name.length, 200);
   assert.equal(captured.init.headers['Idempotency-Key'], key);
   assert.equal(target.versionPublicId, VERSION_ID);
   assert.equal(target.files[0].storageKey, `v1/${VERSION_ID}/${FILE_ID}`);
+
+  await assert.rejects(
+    client.prepareImportTarget({ ...targetParams, displayName: 'F'.repeat(201) }, { accessToken: ACCESS_TOKEN }),
+    (error) => error instanceof ImportClientError && error.code === 'invalid_request'
+  );
 });
 
 test('M4.05 idempotent retries return the same session and keep the idempotency key stable', async () => {

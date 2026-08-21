@@ -108,6 +108,26 @@ test('M4.16 CLI blocks canaries before runtime creation or checkpoint mutation',
   await assert.rejects(readdir(path.join(state.cwd, '.skillmap', 'imports', 'vault')), { code: 'ENOENT' });
 });
 
+test('M4.16 CLI rejects a source changed after inventory before runtime or checkpoint mutation', async (t) => {
+  const state = await projectFixture(t);
+  await writeFile(path.join(state.skillDir, 'SKILL.md'), '---\nname: Alpha\ndescription: Changed after inventory.\n---\nBody changed\n', 'utf8');
+  let runtimeCalls = 0;
+
+  await assert.rejects(
+    importCommand(state.cwd, ['vault', state.skillDir], {}, {
+      runtimeFactory: async () => { runtimeCalls += 1; return inertRuntime(); },
+      now: () => new Date(NOW)
+    }),
+    (error) => error instanceof CliExitError
+      && error.code === 'IMPORT_SOURCE_CHANGED'
+      && error.exitCode === CLI_EXIT_CODES.INTEGRITY_PROTOCOL_ERROR
+      && error.message === 'The local import source changed after scanning.'
+  );
+
+  assert.equal(runtimeCalls, 0);
+  await assert.rejects(readdir(path.join(state.cwd, '.skillmap', 'imports', 'vault')), { code: 'ENOENT' });
+});
+
 test('M4.16 CLI reserves an explicit vault subcommand and rejects ambiguous arguments', async (t) => {
   const state = await projectFixture(t);
   await assert.rejects(

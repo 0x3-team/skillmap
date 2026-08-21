@@ -2,6 +2,15 @@ begin;
 
 set local search_path = '';
 
+alter table private.managed_skills
+  drop constraint managed_skills_display_name_length_check;
+alter table private.managed_skills
+  add constraint managed_skills_display_name_length_check
+  check (
+    pg_catalog.char_length(display_name) between 1 and 200
+    and pg_catalog.octet_length(display_name) <= 800
+  );
+
 create table private.import_target_preparations (
   id uuid primary key default pg_catalog.gen_random_uuid(),
   account_id uuid not null,
@@ -110,7 +119,8 @@ begin
 
   if p_idempotency_key is null
     or p_display_name is null
-    or pg_catalog.char_length(pg_catalog.btrim(p_display_name)) not between 1 and 140
+    or pg_catalog.char_length(pg_catalog.btrim(p_display_name)) not between 1 and 200
+    or pg_catalog.octet_length(pg_catalog.btrim(p_display_name)) > 800
     or (p_description is not null and pg_catalog.octet_length(p_description) > 2048)
     or p_manifest_schema_version !~ '^[0-9]+\.[0-9]+$'
     or pg_catalog.octet_length(p_manifest_projection) not between 1 and 262144
@@ -254,9 +264,29 @@ begin
     end if;
     v_reused := true;
   else
-    insert into private.managed_skills (account_id, display_name, description)
-    values (v_context.account_id, pg_catalog.btrim(p_display_name), nullif(pg_catalog.btrim(p_description), ''))
-    returning * into v_skill;
+    select skills.* into v_skill
+    from private.managed_skills as skills
+    join private.managed_skill_versions as versions
+      on versions.account_id = skills.account_id
+     and versions.managed_skill_id = skills.id
+    where skills.account_id = v_context.account_id
+      and versions.canonical_metadata ->> 'logical_id' = p_canonical_metadata ->> 'logical_id'
+    order by skills.created_at, skills.public_id, versions.created_at, versions.public_id
+    limit 1
+    for update of skills;
+
+    if not found then
+      insert into private.managed_skills (account_id, display_name, description)
+      values (v_context.account_id, pg_catalog.btrim(p_display_name), nullif(pg_catalog.btrim(p_description), ''))
+      returning * into v_skill;
+    else
+      update private.managed_skills as skills
+      set display_name = pg_catalog.btrim(p_display_name),
+          description = nullif(pg_catalog.btrim(p_description), ''),
+          updated_at = pg_catalog.statement_timestamp()
+      where skills.account_id = v_skill.account_id and skills.id = v_skill.id
+      returning skills.* into v_skill;
+    end if;
 
     insert into private.managed_skill_versions (
       account_id, managed_skill_id, manifest_schema_version, manifest_projection,

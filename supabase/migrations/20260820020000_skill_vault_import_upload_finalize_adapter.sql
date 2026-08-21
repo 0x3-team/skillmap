@@ -168,12 +168,14 @@ begin
     and sessions.imp_ = p_session_public_id
   for update;
 
-  if not found
-    or v_session.state <> 'in_progress'
-    or v_session.expiry_at <= v_now
-    or v_session.revision <> p_expected_session_revision
-  then
+  if not found then
     raise exception 'import authority unavailable' using errcode = '42501';
+  end if;
+  if v_session.revision <> p_expected_session_revision or v_session.state <> 'in_progress' then
+    raise exception 'import session revision conflict' using errcode = '40001';
+  end if;
+  if v_session.expiry_at <= v_now then
+    raise exception 'import session expired' using errcode = '22023';
   end if;
 
   select files.* into v_file
@@ -406,12 +408,14 @@ begin
     and sessions.imp_ = p_session_public_id
   for update;
 
-  if not found
-    or v_session.state <> 'in_progress'
-    or v_session.expiry_at <= pg_catalog.statement_timestamp()
-    or v_session.revision <> p_expected_session_revision
-  then
+  if not found then
     raise exception 'import authority unavailable' using errcode = '42501';
+  end if;
+  if v_session.revision <> p_expected_session_revision or v_session.state <> 'in_progress' then
+    raise exception 'import session revision conflict' using errcode = '40001';
+  end if;
+  if v_session.expiry_at <= pg_catalog.statement_timestamp() then
+    raise exception 'import session expired' using errcode = '22023';
   end if;
 
   select files.* into v_file

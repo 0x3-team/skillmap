@@ -165,11 +165,11 @@ function requireObject(value: unknown, field: string, depth = 1): Record<string,
   return object;
 }
 
-function requireString(value: unknown, field: string, maxBytes?: number, asciiOnly = false): string {
+function requireString(value: unknown, field: string, maxBytes?: number, asciiOnly = false, allowEmpty = false): string {
   if (typeof value !== 'string') {
     throw new ManagedManifestError(MANIFEST_TYPE_MISMATCH, `${field} must be a string`, field);
   }
-  if (value === '') {
+  if (value === '' && !allowEmpty) {
     throw new ManagedManifestError(MANIFEST_REQUIRED_FIELD, `${field} must be a non-empty string`, field);
   }
   if (hasControlCharacter(value)) {
@@ -329,7 +329,7 @@ function parseDisplay(input: Record<string, unknown>, depth: number): ManagedSki
   if (!DISPLAY_NAME_RE.test(name)) {
     throw new ManagedManifestError(MANIFEST_INVALID_UTF8, 'display.name contains unsafe characters or is empty', 'display.name');
   }
-  const description = requireString(object.description, 'display.description', BOUNDS.maxDescriptionBytes);
+  const description = requireString(object.description, 'display.description', BOUNDS.maxDescriptionBytes, false, true);
   if (Object.keys(object).length !== 2) {
     throw new ManagedManifestError(MANIFEST_UNKNOWN_FIELD, 'display contains an unknown field', 'display');
   }

@@ -50,6 +50,10 @@ export interface QuarantinePreflightSuccess {
   destinationParentPath: string;
   sourceRootRealPath: string;
   quarantineRootRealPath: string;
+  sourceRootVolumeId: number;
+  sourceRootFileId: number;
+  quarantineRootVolumeId: number;
+  quarantineRootFileId: number;
   snapshot: CandidateSnapshot;
   reservation: DestinationReservation;
   preflightDigest: string;

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -165,5 +165,25 @@ test('tampered or expired parity authority is rejected before mutation', { skip:
     mover: createMacOSAtomicNoReplaceMover(state.helper),
     now: () => new Date(state.parityReceipt.expiresAt)
   }), /expired/i);
+  assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
+});
+
+test('a replaced quarantine root is rejected before destination creation or move', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  await rename(state.quarantine, `${state.quarantine}-original`);
+  await mkdir(state.quarantine);
+  let moveCalls = 0;
+
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: { async move() { moveCalls += 1; } },
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  }), /ROOT_CAPABILITY_STALE/);
+
+  assert.equal(moveCalls, 0);
+  assert.deepEqual(await readdir(state.quarantine), []);
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
 });

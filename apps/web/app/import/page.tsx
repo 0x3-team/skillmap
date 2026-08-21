@@ -17,7 +17,20 @@ interface DashboardProjectionClient {
   };
 }
 
-export default async function ImportPage() {
+export default async function ImportPage({
+  searchParams
+}: {
+  searchParams: Promise<{ status?: string | string[] }>;
+}) {
+  const statusValue = (await searchParams).status;
+  const status = Array.isArray(statusValue) ? undefined : statusValue;
+  const notice = status === "invalid-consent"
+    ? { tone: "error" as const, message: "The consent request was invalid. No approval was recorded. Refresh and try again." }
+    : status === "consent-conflict"
+      ? { tone: "warning" as const, message: "The import changed or expired before consent. Refresh and review the current state." }
+      : status === "consented"
+        ? { tone: "success" as const, message: "Consent was recorded. Return to the CLI and run the same import command to finish verification." }
+        : undefined;
   const supabase = await createSupabaseServerClient();
   const { data: claims, error: claimsError } = await supabase.auth.getClaims();
   const auth = classifyVerifiedClaims(claims, claimsError);
@@ -33,8 +46,11 @@ export default async function ImportPage() {
     const dashboardRow = dashboard.data?.[0];
     if (!dashboard.error && dashboardRow && "projection" in dashboardRow) {
       projection = sanitizeImportSessionProjection(dashboardRow.projection);
-      if (projection && !consents.error && consents.data?.some((row) => row.session_public_id === projection?.sessionId)) {
-        projection = { ...projection, state: "consented" as const };
+      if (projection && projection.state !== "cutover_ready" && !consents.error) {
+        const projectionSessionId = projection.sessionId;
+        if (consents.data?.some((row) => row.session_public_id === projectionSessionId)) {
+          projection = { ...projection, state: "consented" as const };
+        }
       }
     }
   }
@@ -42,7 +58,7 @@ export default async function ImportPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <CatalogHeader accountState={auth.state === "authenticated" ? "authenticated" : "unavailable"} />
-      <ImportReviewClient initialProjection={projection} onConsentAction={authorizeImportCutover} />
+      <ImportReviewClient initialProjection={projection} notice={notice} onConsentAction={authorizeImportCutover} />
     </div>
   );
 }

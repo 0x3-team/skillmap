@@ -159,6 +159,22 @@ function sameSnapshot(preflight: QuarantinePreflightSuccess, stats: Awaited<Retu
     && stats.ctimeMs === expected.changedAtMs;
 }
 
+async function assertRootCapabilitiesCurrent(preflight: QuarantinePreflightSuccess): Promise<void> {
+  const roots = [
+    { path: preflight.sourceRootRealPath, volumeId: preflight.sourceRootVolumeId, fileId: preflight.sourceRootFileId },
+    { path: preflight.quarantineRootRealPath, volumeId: preflight.quarantineRootVolumeId, fileId: preflight.quarantineRootFileId }
+  ];
+  for (const root of roots) {
+    const stats = await lstat(root.path).catch(() => undefined);
+    if (!stats || stats.isSymbolicLink() || !stats.isDirectory()
+      || stats.dev !== root.volumeId || stats.ino !== root.fileId) {
+      throw new Error('ROOT_CAPABILITY_STALE');
+    }
+    const currentRealPath = await realpath(root.path).catch(() => undefined);
+    if (currentRealPath !== root.path) throw new Error('ROOT_CAPABILITY_STALE');
+  }
+}
+
 function encodeMoveRequest(sourcePath: string, destinationPath: string): Buffer {
   const values = [Buffer.from(sourcePath, 'utf8'), Buffer.from(destinationPath, 'utf8')];
   if (values.some((value) => value.length === 0 || value.length > 32_768 || value.includes(0))) {
@@ -219,6 +235,7 @@ export async function executeQuarantine(input: {
     return existing as unknown as QuarantineMutationReceipt;
   }
 
+  await assertRootCapabilitiesCurrent(input.preflight);
   const sourceBefore = await lstat(input.preflight.sourcePath);
   if (!sameSnapshot(input.preflight, sourceBefore)) throw new Error('CANDIDATE_STALE');
   await ensureDestinationParent(input.preflight);
@@ -245,6 +262,16 @@ export async function executeQuarantine(input: {
   if (!existingIntent) await writeExclusiveRecord(intentFile, { ...intent, intentDigest: digest(intent) });
 
   try {
+    await assertRootCapabilitiesCurrent(input.preflight);
+    const sourceImmediatelyBeforeMove = await lstat(input.preflight.sourcePath);
+    if (!sameSnapshot(input.preflight, sourceImmediatelyBeforeMove)) throw new Error('CANDIDATE_STALE');
+    const destinationImmediatelyBeforeMove = await lstat(input.preflight.destinationPath).catch((error: unknown) => {
+      if (errno(error, 'ENOENT')) return undefined;
+      throw error;
+    });
+    if (destinationImmediatelyBeforeMove) {
+      return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
+    }
     await input.mover.move(input.preflight.sourcePath, input.preflight.destinationPath);
   } catch (error) {
     if (errno(error, 'EEXIST')) return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;

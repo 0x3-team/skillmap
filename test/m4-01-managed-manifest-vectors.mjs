@@ -67,6 +67,13 @@ test('V3 changed file bytes produce a different canonical digest', () => {
   assert.notEqual(result.manifest.manifest_digest, V1_MANIFEST_DIGEST);
 });
 
+test('an empty display description remains valid under the canonical schema', () => {
+  const input = baseManifest();
+  input.display.description = '';
+  const result = canonicalizeManagedManifest(input);
+  assert.equal(result.manifest.display.description, '');
+});
+
 test('canonicalizer verifies a claimed manifest_digest and rejects mismatches', () => {
   const input = baseManifest();
   input.manifest_digest = 'sha256:' + '0'.repeat(64);

@@ -56,6 +56,7 @@ export interface ImportSourceReceipt {
   source: ManagedSkillSource;
   provenance: ManagedSkillProvenance;
   generatedAt: string;
+  contentRevision?: string;
 }
 
 export interface ImportManifestResult {
@@ -345,7 +346,8 @@ function buildSourceReceipt(
       ingest_id: options.provenance?.ingest_id ?? 'ingest-1',
       created_at: options.provenance?.created_at ?? generatedAt
     },
-    generatedAt
+    generatedAt,
+    ...(identity ? { contentRevision: identity.contentRevision } : {})
   };
 }
 

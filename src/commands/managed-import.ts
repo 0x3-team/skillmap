@@ -184,6 +184,17 @@ function safeSummary(result: ManagedImportResult): string {
   return 'Import is blocked. Review the bounded blocker list and correct the local copy.';
 }
 
+function assertInventoryRevision(currentRevision: string | undefined, inventoryRevision: string): string {
+  if (currentRevision !== inventoryRevision) {
+    throw new CliExitError(
+      CLI_EXIT_CODES.INTEGRITY_PROTOCOL_ERROR,
+      SAFE_ERROR_MESSAGES.IMPORT_SOURCE_CHANGED,
+      'IMPORT_SOURCE_CHANGED'
+    );
+  }
+  return currentRevision;
+}
+
 export async function managedImportCommand(
   cwd: string,
   positionals: string[],
@@ -208,6 +219,7 @@ export async function managedImportCommand(
 
   if (flags['dry-run'] === true) {
     const manifest = await buildImportManifest(resolved.skillDir, resolved.manifestOptions);
+    assertInventoryRevision(manifest.sourceReceipt.contentRevision, resolved.skill.contentRevision);
     const preview = buildImportPreview([manifest], { blockedRecords: nonImportableToPreviewRecords(manifest) });
     return {
       state: manifest.importable ? 'preview' : 'blocked',
@@ -219,6 +231,10 @@ export async function managedImportCommand(
   }
 
   const preflight = await buildImportManifest(resolved.skillDir, resolved.manifestOptions);
+  const currentContentRevision = assertInventoryRevision(
+    preflight.sourceReceipt.contentRevision,
+    resolved.skill.contentRevision
+  );
   if (!preflight.importable) {
     const preview = buildImportPreview([preflight], { blockedRecords: nonImportableToPreviewRecords(preflight) });
     return {
@@ -233,14 +249,14 @@ export async function managedImportCommand(
   const existing = await readCheckpoint(file);
   const reusable = existing
     && existing.skillId === resolved.skill.skillId
-    && existing.contentRevision === resolved.skill.contentRevision
+    && existing.contentRevision === currentContentRevision
     && (existing.state === 'in_progress' || existing.state === 'awaiting_owner_consent')
     && Date.parse(existing.startedAt) + SESSION_TTL_MS > now.getTime();
   const checkpoint: ManagedImportCheckpoint = reusable ? existing : {
     kind: CHECKPOINT_KIND,
     version: CHECKPOINT_VERSION,
     skillId: resolved.skill.skillId,
-    contentRevision: resolved.skill.contentRevision,
+    contentRevision: currentContentRevision,
     startedAt: now.toISOString(),
     state: 'in_progress'
   };

@@ -313,6 +313,7 @@ export async function runManagedImport(
     executable: file.executable,
     ordinal
   }));
+  const canonicalDescription = manifest.display.description.trim();
 
   const target = await deps.client.prepareImportTarget(
     {
@@ -322,7 +323,11 @@ export async function runManagedImport(
       canonicalManifestBytes: manifestResult.canonicalBytes,
       manifestDigest: manifestResult.manifestDigest,
       contentDigest,
-      canonicalMetadata: {},
+      canonicalMetadata: {
+        logical_id: manifest.identity.logical_id.trim(),
+        display_name: manifest.display.name.trim(),
+        ...(canonicalDescription === '' ? {} : { description: canonicalDescription })
+      },
       source: { ...manifest.source },
       provenanceState: 'provisional',
       files: prepareFiles,
