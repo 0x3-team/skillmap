@@ -81,6 +81,8 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   for (const floor of ['20260727061300', '20260810070000', '20260820050000']) {
     assert.match(databaseHarness, new RegExp(floor), `hosted database harness omits required migration floor ${floor}`);
   }
+  assert.match(databaseHarness, /const POST_CUTOVER_API_DEFINER_COUNT = '44';/,
+    'hosted database harness is not bound to the reviewed forty-four-function API definer boundary');
   assert.match(source, /command -v psql/, 'hosted browser CI does not install its PostgreSQL client dependency when absent');
   assert.match(source, /psql --version/, 'hosted browser CI does not verify the PostgreSQL client before running fixtures');
   assert.match(source, /npm --prefix apps\/web run build/, 'hosted browser CI does not build the exact web source');
