@@ -102,15 +102,15 @@ select ok(
 select is(
   (select count(*) from pg_catalog.pg_policies
    where schemaname = 'private' and tablename = 'devices'),
-  6::bigint,
-  'devices has the owner-select policy plus five final DeviceAuth definer policies'
+  1::bigint,
+  'devices has exactly the M2.11 owner-select policy'
 );
 
 select is(
   (select count(*) from pg_catalog.pg_policies
    where schemaname = 'private' and tablename = 'device_tokens'),
-  1::bigint,
-  'device tokens has the final DeviceAuth owner-definer policy'
+  0::bigint,
+  'device tokens have zero policies'
 );
 
 select ok(
@@ -547,9 +547,9 @@ select throws_ok(
   $$update private.devices
       set display_name = 'MUTATION'
     where id = (select id from local_issue_device_ids)$$,
-  '42501',
-  'device display name update is not authorized',
-  'post-cutover device metadata updates require the owner DeviceAuth authority'
+  '22023',
+  'device identity and account metadata are immutable',
+  'device identity metadata updates are rejected'
 );
 
 select throws_ok(

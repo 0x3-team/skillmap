@@ -25,8 +25,8 @@ select ok(
     and not has_table_privilege('service_role', 'private.device_auth_confirmation_attempts', 'select,insert,update,delete'),
   'confirmation attempts have no direct request-role grants'
 );
-select ok(has_function_privilege('authenticated', 'api.device_auth_review_my_pairing_v1(text)', 'execute'), 'post-cutover review RPC is granted to authenticated');
-select ok(has_function_privilege('authenticated', 'api.device_auth_confirm_my_pairing_v1(text,bigint,text)', 'execute'), 'post-cutover decision RPC is granted to authenticated');
+select ok(not has_function_privilege('authenticated', 'api.device_auth_review_my_pairing_v1(text)', 'execute'), 'feature-off review RPC is ungranted to authenticated');
+select ok(not has_function_privilege('authenticated', 'api.device_auth_confirm_my_pairing_v1(text,bigint,text)', 'execute'), 'feature-off decision RPC is ungranted to authenticated');
 select ok(not has_function_privilege('anon', 'api.device_auth_review_my_pairing_v1(text)', 'execute'), 'anon cannot execute review RPC');
 select ok(not has_function_privilege('anon', 'api.device_auth_confirm_my_pairing_v1(text,bigint,text)', 'execute'), 'anon cannot execute decision RPC');
 select ok(not has_function_privilege('service_role', 'api.device_auth_review_my_pairing_v1(text)', 'execute'), 'service_role cannot execute owner review RPC');

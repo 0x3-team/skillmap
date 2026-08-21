@@ -103,7 +103,7 @@ select ok(
   'device_auth_pairings closed state-machine set'
 );
 
--- 20-22 RPC exists, single overload, and retains the final cutover grant ------
+-- 20-22 RPC exists, single overload, unexecutable ----------------------------
 select ok(
   exists (select 1 from pg_catalog.pg_proc p
             join pg_catalog.pg_namespace n on n.oid = p.pronamespace
@@ -119,8 +119,8 @@ select ok(
 select ok(
   not has_function_privilege('anon','api.device_auth_initiate_v1(text,text,text,text,text,text[],text,text,text,text,text,text,text,text,text,text,integer,integer,integer,integer)','execute')
   and not has_function_privilege('authenticated','api.device_auth_initiate_v1(text,text,text,text,text,text[],text,text,text,text,text,text,text,text,text,text,integer,integer,integer,integer)','execute')
-  and has_function_privilege('service_role','api.device_auth_initiate_v1(text,text,text,text,text,text[],text,text,text,text,text,text,text,text,text,text,integer,integer,integer,integer)','execute'),
-  'post-cutover initiate RPC is service-role-only'
+  and not has_function_privilege('service_role','api.device_auth_initiate_v1(text,text,text,text,text,text[],text,text,text,text,text,text,text,text,text,text,integer,integer,integer,integer)','execute'),
+  'api.device_auth_initiate_v1 unexecutable by anon/authenticated/service_role (feature OFF)'
 );
 
 -- 25-34 Characterize the M1.08/M3.02 idempotency + nonce + rate contract
