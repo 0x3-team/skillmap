@@ -1,6 +1,18 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(8);
+
+select ok(
+  exists (
+    select 1
+    from pg_catalog.pg_db_role_setting as settings
+    join pg_catalog.pg_roles as roles on roles.oid = settings.setrole
+    cross join lateral pg_catalog.unnest(settings.setconfig) as config(value)
+    where roles.rolname = 'authenticator'
+      and config.value = 'pgrst.db_schemas=public, graphql_public, api, device_adapter'
+  ),
+  'PostgREST exposes the service-role device adapter schema without changing function grants'
+);
 
 select function_owner_is(
   'api', 'device_auth_authenticate_import_v1',

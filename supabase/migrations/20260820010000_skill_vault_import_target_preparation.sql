@@ -9,7 +9,9 @@ alter table private.managed_skills
   check (
     pg_catalog.char_length(display_name) between 1 and 200
     and pg_catalog.octet_length(display_name) <= 800
-  );
+  ) not valid;
+alter table private.managed_skills
+  validate constraint managed_skills_display_name_length_check;
 
 create table private.import_target_preparations (
   id uuid primary key default pg_catalog.gen_random_uuid(),
@@ -43,7 +45,7 @@ create table private.import_target_preparations (
   constraint import_target_preparations_response_check
     check (
       pg_catalog.jsonb_typeof(response) = 'object'
-      and pg_catalog.octet_length(response::text) <= 262144
+      and pg_catalog.octet_length(response::text) <= 4194304
     )
 );
 
@@ -72,6 +74,46 @@ as $function$
     and devices.revoked_at is null
     and (devices.expires_at is null or devices.expires_at > pg_catalog.statement_timestamp())
   limit 1;
+$function$;
+
+create function private.compute_import_content_digest(
+  p_manifest_digest text,
+  p_files jsonb
+)
+returns text
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $function$
+  select 'sha256:' || pg_catalog.encode(
+    extensions.digest(
+      pg_catalog.convert_to('skillmap.skill-version', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+      pg_catalog.convert_to('v1', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+      pg_catalog.convert_to('manifest-digest', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+      pg_catalog.convert_to('v1', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+      pg_catalog.decode(pg_catalog.substr(p_manifest_digest, 8), 'hex') ||
+      pg_catalog.int4send(pg_catalog.jsonb_array_length(p_files)) ||
+      coalesce((
+        select pg_catalog.string_agg(
+          pg_catalog.convert_to('file-entry', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+          pg_catalog.convert_to('v1', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+          pg_catalog.int4send(pg_catalog.octet_length(pg_catalog.convert_to(item.value ->> 'relative_path', 'UTF8'))) ||
+          pg_catalog.convert_to(item.value ->> 'relative_path', 'UTF8') ||
+          pg_catalog.int8send((item.value ->> 'byte_size')::bigint) ||
+          pg_catalog.convert_to('file-digest', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+          pg_catalog.convert_to('v1', 'UTF8') || pg_catalog.decode('00', 'hex') ||
+          pg_catalog.decode(pg_catalog.substr(item.value ->> 'file_digest', 8), 'hex'),
+          ''::bytea
+          order by pg_catalog.convert_to(item.value ->> 'relative_path', 'UTF8')
+        )
+        from pg_catalog.jsonb_array_elements(p_files) as item(value)
+      ), ''::bytea),
+      'sha256'
+    ),
+    'hex'
+  );
 $function$;
 
 create function device_adapter.adapter_prepare_import_target(
@@ -109,6 +151,9 @@ declare
   v_count integer;
   v_total numeric;
   v_reused boolean := false;
+  v_manifest jsonb;
+  v_manifest_files jsonb;
+  v_expected_metadata jsonb;
 begin
   select * into v_context
   from private.resolve_import_owner_context(p_account_public_id, p_device_public_id);
@@ -135,6 +180,58 @@ begin
     or pg_catalog.jsonb_array_length(p_files) not between 1 and 2048
   then
     raise exception 'invalid import target preparation' using errcode = '22023';
+  end if;
+
+  begin
+    v_manifest := pg_catalog.convert_from(p_manifest_projection, 'UTF8')::jsonb;
+  exception
+    when character_not_in_repertoire or untranslatable_character or invalid_text_representation then
+      raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end;
+
+  if pg_catalog.jsonb_typeof(v_manifest) is distinct from 'object'
+    or pg_catalog.jsonb_typeof(v_manifest -> 'schema_version') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_manifest -> 'identity') is distinct from 'object'
+    or pg_catalog.jsonb_typeof(v_manifest #> '{identity,logical_id}') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_manifest -> 'display') is distinct from 'object'
+    or pg_catalog.jsonb_typeof(v_manifest #> '{display,name}') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_manifest #> '{display,description}') is distinct from 'string'
+    or pg_catalog.jsonb_typeof(v_manifest -> 'source') is distinct from 'object'
+    or pg_catalog.jsonb_typeof(v_manifest -> 'files') is distinct from 'array'
+  then
+    raise exception 'invalid canonical import manifest' using errcode = '22023';
+  end if;
+
+  v_expected_metadata := pg_catalog.jsonb_build_object(
+    'logical_id', pg_catalog.btrim(v_manifest #>> '{identity,logical_id}'),
+    'display_name', pg_catalog.btrim(v_manifest #>> '{display,name}')
+  );
+  if nullif(pg_catalog.btrim(v_manifest #>> '{display,description}'), '') is not null then
+    v_expected_metadata := v_expected_metadata || pg_catalog.jsonb_build_object(
+      'description', pg_catalog.btrim(v_manifest #>> '{display,description}')
+    );
+  end if;
+
+  select pg_catalog.jsonb_agg(
+    pg_catalog.jsonb_build_object(
+      'relative_path', item.value ->> 'path',
+      'media_type', item.value ->> 'media_type',
+      'byte_size', item.value -> 'utf8_bytes',
+      'file_digest', item.value ->> 'digest',
+      'executable', item.value -> 'executable',
+      'ordinal', item.ordinality - 1
+    ) order by item.ordinality
+  ) into v_manifest_files
+  from pg_catalog.jsonb_array_elements(v_manifest -> 'files') with ordinality as item(value, ordinality);
+
+  if pg_catalog.btrim(p_manifest_schema_version) <> v_manifest ->> 'schema_version'
+    or pg_catalog.btrim(p_display_name) <> pg_catalog.btrim(v_manifest #>> '{display,name}')
+    or coalesce(p_description, '') <> v_manifest #>> '{display,description}'
+    or p_canonical_metadata <> v_expected_metadata
+    or p_source <> v_manifest -> 'source'
+    or p_files <> v_manifest_files
+  then
+    raise exception 'import target projection does not match canonical manifest' using errcode = '22023';
   end if;
 
   if exists (
@@ -184,6 +281,10 @@ begin
     )
   then
     raise exception 'import target file projection is not exact' using errcode = '22023';
+  end if;
+
+  if p_content_digest <> private.compute_import_content_digest(p_manifest_digest, p_files) then
+    raise exception 'import content digest does not match canonical projection' using errcode = '22023';
   end if;
 
   v_request_digest := 'sha256:' || pg_catalog.encode(
@@ -375,6 +476,8 @@ end
 $function$;
 
 revoke all privileges on function private.resolve_import_owner_context(text,text)
+  from public, anon, authenticated, service_role, skillmap_vault_definer;
+revoke all privileges on function private.compute_import_content_digest(text,jsonb)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 
 revoke all privileges on function device_adapter.adapter_prepare_import_target(

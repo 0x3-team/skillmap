@@ -184,3 +184,22 @@ test('changed-during-scan is reported as a failed fixture when it cannot be repr
   // the read path in the builder is structured to detect size, mode, mtime, ctime, and digest changes.
   console.log('# skipped changed-during-scan: not reproduced in disposable fixtures');
 });
+
+test('WebP RIFF/WEBP magic is recognized by content even without image extension', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'skillmap-webp-magic-'));
+  t.after(async () => rm(dir, { recursive: true, force: true }));
+
+  // Minimal 12-byte RIFF container with the WEBP form type.
+  // Bytes 0-3: 'RIFF', 4-7: chunk size (4), 8-11: 'WEBP'.
+  // Byte 10 must be 0x42 ('B'); a common bug checks it as 0x57 ('W').
+  const webpMagic = Buffer.from([
+    0x52, 0x49, 0x46, 0x46, // "RIFF"
+    0x04, 0x00, 0x00, 0x00, // chunk size = 4
+    0x57, 0x45, 0x42, 0x50  // "WEBP"
+  ]);
+
+  const skillDir = await makeTempSkill(dir, 'webp-magic-skill', { 'image.bin': webpMagic });
+  const result = await buildImportManifest(skillDir, buildOptions({ rootRecord: rootRecord(dir) }));
+  assert.equal(result.importable, true, `expected importable, got: ${result.nonImportable.map((n) => `${n.reason}:${n.path}`).join(', ')}`);
+  assert.ok(result.files.some((f) => f.path === 'image.bin' && f.media_type === 'image/webp'));
+});

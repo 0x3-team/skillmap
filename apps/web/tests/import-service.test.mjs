@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { executeImportOperation, importIdempotencyUuid } from "../lib/import/import-service.server.ts";
 import { authenticateImportRequest } from "../lib/import/import-auth.server.ts";
@@ -95,6 +96,39 @@ test("M4 deterministic idempotency UUID is stable and operation-bound", () => {
   assert.match(first, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
+test("M4 begin maps the stored pre-finalization revision for verified recovery", async () => {
+  const repository = {
+    async beginSession() {
+      return sessionRow({
+        state: "verified",
+        accepted_file_count: 1,
+        accepted_byte_total: 4,
+        revision: 4,
+        finalization_expected_revision: 3
+      });
+    }
+  };
+  const result = await executeImportOperation({
+    operation: "begin",
+    body: {
+      skill_public_id: SKILL_ID,
+      version_public_id: VERSION_ID,
+      manifest_schema_version: "1.0",
+      manifest_digest: DIGEST,
+      content_digest: CONTENT_DIGEST,
+      expected_file_count: 1,
+      expected_byte_total: 4,
+      idempotency_key: IDEMPOTENCY_KEY,
+      expires_at: "2026-08-20T12:00:00Z"
+    },
+    params: {}, context, idempotencyKey: IDEMPOTENCY_KEY, repository
+  });
+
+  assert.equal(result.state, "verified");
+  assert.equal(result.revision, 4);
+  assert.equal(result.finalization_expected_revision, 3);
+});
+
 test("M4 prepare-upload returns the signed URL and public version binding", async () => {
   const calls = [];
   const repository = {
@@ -155,6 +189,74 @@ test("M4 accept rejects a changed digest before the accept RPC", async () => {
     (error) => error?.code === "invalid_request"
   );
   assert.equal(accepted, false);
+});
+
+test("M4 accept hashes the stored object bytes before the accept RPC", async () => {
+  let accepted = false;
+  const expectedBytes = new TextEncoder().encode("test");
+  const digest = `sha256:${createHash("sha256").update(expectedBytes).digest("hex")}`;
+  const repository = {
+    async prepareUpload() {
+      return {
+        bucket_id: "skill-vault-private",
+        object_name: `v1/${VERSION_ID}/${FILE_ID}`,
+        file_digest: digest,
+        declared_size: expectedBytes.byteLength
+      };
+    },
+    async readStoredObject() {
+      return new TextEncoder().encode("tampered");
+    },
+    async acceptFile() {
+      accepted = true;
+      return sessionRow();
+    }
+  };
+
+  await assert.rejects(
+    executeImportOperation({
+      operation: "accept",
+      body: { expected_revision: 1, file_digest: digest, byte_size: expectedBytes.byteLength },
+      params: { sessionId: SESSION_ID, fileId: FILE_ID },
+      context, idempotencyKey: IDEMPOTENCY_KEY, repository,
+      now: () => new Date("2026-08-20T11:55:00Z")
+    }),
+    (error) => error?.code === "invalid_request"
+  );
+  assert.equal(accepted, false);
+
+  repository.readStoredObject = async () => expectedBytes;
+  const result = await executeImportOperation({
+    operation: "accept",
+    body: { expected_revision: 1, file_digest: digest, byte_size: expectedBytes.byteLength },
+    params: { sessionId: SESSION_ID, fileId: FILE_ID },
+    context, idempotencyKey: IDEMPOTENCY_KEY, repository,
+    now: () => new Date("2026-08-20T11:55:00Z")
+  });
+  assert.equal(result.session_public_id, SESSION_ID);
+  assert.equal(accepted, true);
+});
+
+test("M4 expire forwards the exact expected revision to the adapter", async () => {
+  const calls = [];
+  const repository = {
+    async expireSession(params) {
+      calls.push(["expire", params]);
+      return sessionRow({ state: "expired", revision: 8 });
+    },
+    async listReceipts(params) {
+      calls.push(["receipts", params]);
+      return sessionRow({ state: "expired", revision: 8 });
+    }
+  };
+  const result = await executeImportOperation({
+    operation: "expire",
+    body: { expected_revision: 7 },
+    params: { sessionId: SESSION_ID }, context, idempotencyKey: IDEMPOTENCY_KEY, repository
+  });
+  assert.equal(calls[0][1].p_expected_session_revision, 7);
+  assert.equal(result.state, "expired");
+  assert.equal(result.revision, 8);
 });
 
 test("M4 finalize requires exact owner consent and returns the cutover binding", async () => {

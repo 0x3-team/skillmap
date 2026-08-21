@@ -187,3 +187,52 @@ test('a replaced quarantine root is rejected before destination creation or move
   assert.deepEqual(await readdir(state.quarantine), []);
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
 });
+
+test('native mover rejects a source-root replacement after caller revalidation', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const realMover = createMacOSAtomicNoReplaceMover(state.helper);
+  const originalSource = `${state.source}-original`;
+
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: {
+      async move(sourcePath, destinationPath, binding) {
+        await rename(state.source, originalSource);
+        await mkdir(path.join(state.source, 'skill-a'), { recursive: true });
+        await writeFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'replacement', 'utf8');
+        await realMover.move(sourcePath, destinationPath, binding);
+      }
+    },
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  }), /ROOT_CAPABILITY_STALE/);
+
+  assert.equal(await readFile(path.join(originalSource, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
+  assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), 'replacement');
+});
+
+test('native mover rejects a quarantine-root replacement after caller revalidation', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const realMover = createMacOSAtomicNoReplaceMover(state.helper);
+  const originalQuarantine = `${state.quarantine}-original`;
+
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: {
+      async move(sourcePath, destinationPath, binding) {
+        await rename(state.quarantine, originalQuarantine);
+        await mkdir(state.quarantine);
+        await realMover.move(sourcePath, destinationPath, binding);
+      }
+    },
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  }), /ROOT_CAPABILITY_STALE/);
+
+  assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
+  assert.deepEqual(await readdir(state.quarantine), []);
+});

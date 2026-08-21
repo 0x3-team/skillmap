@@ -162,4 +162,10 @@ comment on function api.device_auth_authenticate_import_v1(
   text[],integer[],text,text,text,text,text,text,text,text
 ) is 'Authenticates an M3 device access token and consumes one protected.import proof nonce for M4 server routes.';
 
+-- The trusted web service calls the device adapter through PostgREST with the
+-- service role. Schema exposure does not broaden function privileges: every
+-- adapter remains explicitly revoked from anon and authenticated.
+alter role authenticator set pgrst.db_schemas = 'public, graphql_public, api, device_adapter';
+notify pgrst, 'reload config';
+
 commit;

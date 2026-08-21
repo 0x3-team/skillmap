@@ -8,6 +8,7 @@ import { LOCAL_QUARANTINE_OUTCOMES, type LocalQuarantineOutcomeV1 } from '../con
 import { computeRestoreExpiryUtc } from './quarantine-retention.js';
 import { validateImportParityReceipt, type ImportParityReceipt } from './import-parity.js';
 import type {
+  AtomicMoveBinding,
   AtomicNoReplaceMover,
   QuarantineAuthorization,
   QuarantineMutationReceipt,
@@ -175,10 +176,52 @@ async function assertRootCapabilitiesCurrent(preflight: QuarantinePreflightSucce
   }
 }
 
-function encodeMoveRequest(sourcePath: string, destinationPath: string): Buffer {
-  const values = [Buffer.from(sourcePath, 'utf8'), Buffer.from(destinationPath, 'utf8')];
+function moveRelativeParts(value: string): string[] {
+  if (!value || value !== value.normalize('NFC') || path.isAbsolute(value) || value.includes('\\')) {
+    throw new Error('Atomic move requires one normalized relative path.');
+  }
+  const parts = value.split('/');
+  if (parts.some((part) => !part || part === '.' || part === '..' || /[\u0000-\u001f\u007f]/u.test(part))) {
+    throw new Error('Atomic move relative path contains an unsafe component.');
+  }
+  return parts;
+}
+
+function encodeMoveRequest(sourcePath: string, destinationPath: string, binding: AtomicMoveBinding): Buffer {
+  const sourceParts = moveRelativeParts(binding.sourceRelativePath);
+  const destinationParts = moveRelativeParts(binding.destinationRelativePath);
+  if (!path.isAbsolute(binding.sourceRootPath) || !path.isAbsolute(binding.destinationRootPath)
+    || path.resolve(sourcePath) !== path.join(binding.sourceRootPath, ...sourceParts)
+    || path.resolve(destinationPath) !== path.join(binding.destinationRootPath, ...destinationParts)) {
+    throw new Error('Atomic move path does not match its root capability binding.');
+  }
+  const identities = [
+    binding.sourceRootVolumeId,
+    binding.sourceRootFileId,
+    binding.sourceObjectVolumeId,
+    binding.sourceObjectFileId,
+    binding.destinationRootVolumeId,
+    binding.destinationRootFileId
+  ];
+  if (identities.some((value) => !Number.isSafeInteger(value) || value < 0)) {
+    throw new Error('Atomic move identity is invalid.');
+  }
+  const fields = [
+    '2',
+    binding.sourceRootPath,
+    binding.sourceRelativePath,
+    String(binding.sourceRootVolumeId),
+    String(binding.sourceRootFileId),
+    String(binding.sourceObjectVolumeId),
+    String(binding.sourceObjectFileId),
+    binding.destinationRootPath,
+    binding.destinationRelativePath,
+    String(binding.destinationRootVolumeId),
+    String(binding.destinationRootFileId)
+  ];
+  const values = fields.map((value) => Buffer.from(value, 'utf8'));
   if (values.some((value) => value.length === 0 || value.length > 32_768 || value.includes(0))) {
-    throw new Error('Atomic move path exceeds its private helper boundary.');
+    throw new Error('Atomic move request exceeds its private helper boundary.');
   }
   return Buffer.concat(values.flatMap((value) => {
     const length = Buffer.allocUnsafe(4);
@@ -190,8 +233,8 @@ function encodeMoveRequest(sourcePath: string, destinationPath: string): Buffer 
 export function createMacOSAtomicNoReplaceMover(helperPath: string): AtomicNoReplaceMover {
   if (!path.isAbsolute(helperPath)) throw new Error('Atomic move helper path must be absolute.');
   return {
-    async move(sourcePath: string, destinationPath: string): Promise<void> {
-      const request = encodeMoveRequest(sourcePath, destinationPath);
+    async move(sourcePath: string, destinationPath: string, binding: AtomicMoveBinding): Promise<void> {
+      const request = encodeMoveRequest(sourcePath, destinationPath, binding);
       await new Promise<void>((resolve, reject) => {
         const child = spawn(helperPath, [], { stdio: ['pipe', 'pipe', 'ignore'] });
         const stdout: Buffer[] = [];
@@ -207,6 +250,13 @@ export function createMacOSAtomicNoReplaceMover(helperPath: string): AtomicNoRep
           const error = new Error('Atomic no-replace move failed.') as NodeJS.ErrnoException;
           if (code === 17 && result === 'DESTINATION_OCCUPIED\n') error.code = 'EEXIST';
           else if (code === 18 && result === 'CROSS_VOLUME\n') error.code = 'EXDEV';
+          else if (code === 65 && result === 'ROOT_CAPABILITY_STALE\n') {
+            error.code = 'ESTALE';
+            error.message = 'ROOT_CAPABILITY_STALE';
+          } else if (code === 66 && result === 'SOURCE_IDENTITY_STALE\n') {
+            error.code = 'ESTALE';
+            error.message = 'CANDIDATE_STALE';
+          }
           else error.code = 'ATOMIC_MOVE_FAILED';
           reject(error);
         });
@@ -272,7 +322,18 @@ export async function executeQuarantine(input: {
     if (destinationImmediatelyBeforeMove) {
       return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
     }
-    await input.mover.move(input.preflight.sourcePath, input.preflight.destinationPath);
+    await input.mover.move(input.preflight.sourcePath, input.preflight.destinationPath, {
+      sourceRootPath: input.preflight.sourceRootRealPath,
+      sourceRootVolumeId: input.preflight.sourceRootVolumeId,
+      sourceRootFileId: input.preflight.sourceRootFileId,
+      sourceRelativePath: input.preflight.snapshot.relativePath,
+      sourceObjectVolumeId: input.preflight.snapshot.sourceVolumeId,
+      sourceObjectFileId: input.preflight.snapshot.sourceFileId,
+      destinationRootPath: input.preflight.quarantineRootRealPath,
+      destinationRootVolumeId: input.preflight.quarantineRootVolumeId,
+      destinationRootFileId: input.preflight.quarantineRootFileId,
+      destinationRelativePath: input.preflight.reservation.escapedDestinationRelativePath
+    });
   } catch (error) {
     if (errno(error, 'EEXIST')) return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
     if (errno(error, 'EXDEV')) return LOCAL_QUARANTINE_OUTCOMES.CROSS_VOLUME_NOT_ATOMIC;

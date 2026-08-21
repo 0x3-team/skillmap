@@ -112,6 +112,23 @@ export interface ManagedImportResult {
   parityReceipt?: ImportParityReceipt;
 }
 
+interface CompleteManagedImportInput {
+  request: ManagedImportRequest;
+  client: ManagedImportClientLike;
+  target: ImportPreparedTarget;
+  manifestResult: ImportManifestResult;
+  accountPublicId: string;
+  devicePublicId: string;
+  contentDigest: string;
+  sessionPublicId: string;
+  expectedRevision: number;
+  acceptedFileCount: number;
+  acceptedByteTotal: number;
+  accessToken: string;
+  now: Date;
+  operationBinding: string[];
+}
+
 export class ManagedImportError extends Error {
   readonly code: string;
 
@@ -252,6 +269,64 @@ function bindTargetFiles(
   });
 }
 
+async function completeManagedImport(input: CompleteManagedImportInput): Promise<ManagedImportResult> {
+  try {
+    const finalized = await input.client.finalizeImportSession(
+      {
+        sessionPublicId: input.sessionPublicId,
+        expectedRevision: input.expectedRevision,
+        idempotencyKey: idempotencyKey('finalize-session', input.operationBinding)
+      },
+      { accessToken: input.accessToken }
+    );
+    const receiptResponse = await input.client.listReceipts(
+      { sessionPublicId: finalized.sessionPublicId, expectedRevision: finalized.finalizedRevision },
+      { accessToken: input.accessToken }
+    );
+    const parityReceipt = await issueImportParityReceipt({
+      accountId: input.accountPublicId,
+      deviceId: input.devicePublicId,
+      source: {
+        sourceObjectId: input.request.sourceObjectId,
+        rootId: input.request.rootId,
+        relativePath: input.request.relativePath,
+        skillDir: input.request.skillDir,
+        manifestOptions: input.request.manifestOptions
+      },
+      cloud: {
+        manifestDigest: input.manifestResult.manifestDigest!,
+        contentDigest: input.contentDigest,
+        receipts: receiptResponse.receipts,
+        finalized
+      },
+      now: input.now
+    });
+    return {
+      state: 'verified',
+      skillPublicId: input.target.skillPublicId,
+      versionPublicId: input.target.versionPublicId,
+      releasePublicId: input.target.releasePublicId,
+      sessionPublicId: finalized.sessionPublicId,
+      acceptedFileCount: input.acceptedFileCount,
+      acceptedByteTotal: input.acceptedByteTotal,
+      parityReceipt
+    };
+  } catch (error) {
+    if (error instanceof ImportClientError && error.code === 'owner_consent_required') {
+      return {
+        state: 'awaiting_owner_consent',
+        skillPublicId: input.target.skillPublicId,
+        versionPublicId: input.target.versionPublicId,
+        releasePublicId: input.target.releasePublicId,
+        sessionPublicId: input.sessionPublicId,
+        acceptedFileCount: input.acceptedFileCount,
+        acceptedByteTotal: input.acceptedByteTotal
+      };
+    }
+    throw error;
+  }
+}
+
 export async function runManagedImport(
   request: ManagedImportRequest,
   deps: ManagedImportDependencies
@@ -351,6 +426,39 @@ export async function runManagedImport(
     { accessToken }
   );
 
+  const expectedFileCount = manifestResult.files.length;
+  const expectedByteTotal = manifestResult.files.reduce((sum, file) => sum + file.utf8_bytes, 0);
+  if (session.state === 'verified') {
+    if (session.revision < 2
+      || !Number.isSafeInteger(session.finalizationExpectedRevision)
+      || (session.finalizationExpectedRevision ?? 0) < 1
+      || session.acceptedFileCount !== expectedFileCount
+      || session.acceptedByteTotal !== expectedByteTotal
+      || (session.manifestDigest !== undefined && session.manifestDigest !== manifestResult.manifestDigest)
+      || (session.contentDigest !== undefined && session.contentDigest !== contentDigest)) {
+      throw new ImportClientError(502, 'invalid_response');
+    }
+    return completeManagedImport({
+      request,
+      client: deps.client,
+      target,
+      manifestResult,
+      accountPublicId: authStatus.accountPublicId,
+      devicePublicId: authStatus.devicePublicId,
+      contentDigest,
+      sessionPublicId: session.sessionPublicId,
+      expectedRevision: session.finalizationExpectedRevision!,
+      acceptedFileCount: session.acceptedFileCount,
+      acceptedByteTotal: session.acceptedByteTotal,
+      accessToken,
+      now,
+      operationBinding
+    });
+  }
+  if (session.state !== 'in_progress') {
+    throw new ImportClientError(session.state === 'expired' ? 410 : 409, session.state === 'expired' ? 'session_expired' : 'session_conflict');
+  }
+
   const preUploadReceipts = await deps.client.listReceipts(
     { sessionPublicId: session.sessionPublicId, expectedRevision: session.revision },
     { accessToken }
@@ -359,8 +467,6 @@ export async function runManagedImport(
 
   const uploadFiles = bindTargetFiles(uploadSnapshot, target.files);
   const uploadResult = await deps.uploader.uploadFiles({ session, files: uploadFiles, accessToken });
-  const expectedFileCount = manifestResult.files.length;
-  const expectedByteTotal = manifestResult.files.reduce((sum, file) => sum + file.utf8_bytes, 0);
   if (uploadResult.conflicts.length !== 0
     || uploadResult.failed.length !== 0
     || uploadResult.progress.percentComplete !== 100
@@ -371,66 +477,20 @@ export async function runManagedImport(
     throw new ManagedImportError('IMPORT_UPLOAD_INCOMPLETE', 'The import upload did not reach exact parity.');
   }
 
-  try {
-    const finalized = await deps.client.finalizeImportSession(
-      {
-        sessionPublicId: uploadResult.session.sessionPublicId,
-        expectedRevision: uploadResult.session.revision,
-        idempotencyKey: idempotencyKey('finalize-session', operationBinding)
-      },
-      { accessToken }
-    );
-
-    const receiptResponse = await deps.client.listReceipts(
-      { sessionPublicId: finalized.sessionPublicId, expectedRevision: finalized.finalizedRevision },
-      { accessToken }
-    );
-
-    const parityReceipt = await issueImportParityReceipt(
-      {
-        accountId: authStatus.accountPublicId,
-        deviceId: authStatus.devicePublicId,
-        source: {
-          sourceObjectId: request.sourceObjectId,
-          rootId: request.rootId,
-          relativePath: request.relativePath,
-          skillDir: request.skillDir,
-          manifestOptions: request.manifestOptions
-        },
-        cloud: {
-          manifestDigest: manifestResult.manifestDigest,
-          contentDigest,
-          receipts: receiptResponse.receipts,
-          finalized
-        },
-        now
-      }
-    );
-
-    return {
-      state: 'verified',
-      skillPublicId: target.skillPublicId,
-      versionPublicId: target.versionPublicId,
-      releasePublicId: target.releasePublicId,
-      sessionPublicId: finalized.sessionPublicId,
-      acceptedFileCount: uploadResult.session.acceptedFileCount,
-      acceptedByteTotal: uploadResult.session.acceptedByteTotal,
-      parityReceipt
-    };
-  } catch (error) {
-    if (error instanceof ImportClientError) {
-      if (error.code === 'owner_consent_required') {
-        return {
-          state: 'awaiting_owner_consent',
-          skillPublicId: target.skillPublicId,
-          versionPublicId: target.versionPublicId,
-          releasePublicId: target.releasePublicId,
-          sessionPublicId: uploadResult.session.sessionPublicId,
-          acceptedFileCount: uploadResult.session.acceptedFileCount,
-          acceptedByteTotal: uploadResult.session.acceptedByteTotal
-        };
-      }
-    }
-    throw error;
-  }
+  return completeManagedImport({
+    request,
+    client: deps.client,
+    target,
+    manifestResult,
+    accountPublicId: authStatus.accountPublicId,
+    devicePublicId: authStatus.devicePublicId,
+    contentDigest,
+    sessionPublicId: uploadResult.session.sessionPublicId,
+    expectedRevision: uploadResult.session.revision,
+    acceptedFileCount: uploadResult.session.acceptedFileCount,
+    acceptedByteTotal: uploadResult.session.acceptedByteTotal,
+    accessToken,
+    now,
+    operationBinding
+  });
 }

@@ -51,19 +51,23 @@ export function containsPathPattern(value: unknown): boolean {
 /** Checks if a path is a safe relative root path (e.g. "SKILL.md", "scripts/run.py"). */
 export function isSafeRelativePath(value: unknown): boolean {
   if (typeof value !== "string") return false;
-  const str = value.trim();
-  if (str.length === 0 || str.length > 512) return false;
+  const str = value;
+  if (str.length === 0 || str !== str.normalize("NFC")) return false;
+  if (new TextEncoder().encode(str).byteLength > 512) return false;
   if (isPrivatePath(str)) return false;
-  // Must match safe relative path format: alphanumeric, underscore, dot, hyphen, forward slashes
-  return /^[a-zA-Z0-9_.-]+(?:[\/][a-zA-Z0-9_.-]+)*$/.test(str);
+  if (/^[A-Za-z]:/u.test(str) || /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(str)) return false;
+  if (/%(?:2e|2f|5c)/iu.test(str) || /[\\\u0000-\u001f\u007f-\u009f]/u.test(str)) return false;
+  if (str === "manifest_digest") return false;
+  const segments = str.split("/");
+  if (segments.length > 32) return false;
+  return segments.every((segment) => segment !== "" && segment !== "." && segment !== ".." && !segment.startsWith("."));
 }
 
 /** Normalizes and sanitizes a path, replacing absolute/unsafe paths with a fixed marker. */
 export function sanitizePath(value: unknown): string {
   if (typeof value !== "string") return REDACTED_PATH_MARKER;
-  const trimmed = value.trim();
-  if (isSafeRelativePath(trimmed)) {
-    return trimmed;
+  if (isSafeRelativePath(value)) {
+    return value;
   }
   return REDACTED_PATH_MARKER;
 }

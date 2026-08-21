@@ -123,6 +123,58 @@ test('M4.05 beginImportSession calls the correct API route with proof headers an
   assert.equal(session.revision, 1);
 });
 
+test('M4.05 beginImportSession preserves the stored pre-finalization revision on verified replay', async () => {
+  const client = await makeClient(async () => new Response(JSON.stringify(sessionBody({
+    state: 'verified',
+    accepted_file_count: 2,
+    accepted_byte_total: 8,
+    revision: 4,
+    finalization_expected_revision: 3
+  })), {
+    status: 200,
+    headers: { 'content-type': 'application/json' }
+  }));
+
+  const session = await client.beginImportSession({
+    skillPublicId: SKILL_ID,
+    versionPublicId: VERSION_ID,
+    manifestSchemaVersion: '1.0',
+    manifestDigest: MANIFEST_DIGEST,
+    contentDigest: CONTENT_DIGEST,
+    expectedFileCount: 2,
+    expectedByteTotal: 8,
+    idempotencyKey: 'R'.repeat(22),
+    expiresAt: EXPIRES_AT
+  }, { accessToken: ACCESS_TOKEN });
+
+  assert.equal(session.state, 'verified');
+  assert.equal(session.revision, 4);
+  assert.equal(session.finalizationExpectedRevision, 3);
+});
+
+test('M4.05 normalizes a trailing slash before building protected import URLs', async () => {
+  let capturedUrl;
+  const client = await makeClient(async (url) => {
+    capturedUrl = url;
+    return validSessionResponse();
+  }, { origin: `${ORIGIN}/` });
+
+  await client.beginImportSession({
+    skillPublicId: SKILL_ID,
+    versionPublicId: VERSION_ID,
+    manifestSchemaVersion: '1.0',
+    manifestDigest: MANIFEST_DIGEST,
+    contentDigest: CONTENT_DIGEST,
+    expectedFileCount: 2,
+    expectedByteTotal: 8,
+    idempotencyKey: 'N'.repeat(22),
+    expiresAt: EXPIRES_AT
+  }, { accessToken: ACCESS_TOKEN });
+
+  assert.equal(client.origin, ORIGIN);
+  assert.equal(capturedUrl, `${ORIGIN}/api/import/v1/sessions`);
+});
+
 test('M4.05 prepareImportTarget sends the canonical projection and validates public file bindings', async () => {
   let captured;
   const client = await makeClient(async (url, init) => {
@@ -173,10 +225,73 @@ test('M4.05 prepareImportTarget sends the canonical projection and validates pub
   assert.equal(target.versionPublicId, VERSION_ID);
   assert.equal(target.files[0].storageKey, `v1/${VERSION_ID}/${FILE_ID}`);
 
+  const astralDisplayName = '🧭'.repeat(200);
+  await client.prepareImportTarget({ ...targetParams, displayName: astralDisplayName }, { accessToken: ACCESS_TOKEN });
+  assert.equal(JSON.parse(captured.init.body).display_name, astralDisplayName);
+
   await assert.rejects(
     client.prepareImportTarget({ ...targetParams, displayName: 'F'.repeat(201) }, { accessToken: ACCESS_TOKEN }),
     (error) => error instanceof ImportClientError && error.code === 'invalid_request'
   );
+});
+
+test('M4.05 default payload ceilings support the maximum 2,048-file target projection', async () => {
+  let requestBytes = 0;
+  const files = Array.from({ length: MAX_IMPORT_FILE_COUNT }, (_, ordinal) => {
+    const suffix = ordinal.toString(16).padStart(8, '0');
+    const relativePath = `${'directory/'.repeat(50)}${suffix}.md`;
+    const filePublicId = `msf_${ordinal.toString(16).padStart(32, '0')}`;
+    return {
+      relativePath,
+      mediaType: 'text/markdown; charset=utf-8',
+      byteSize: 0,
+      fileDigest: MANIFEST_DIGEST,
+      executable: false,
+      ordinal,
+      filePublicId,
+      storageKey: `v1/${VERSION_ID}/${filePublicId}`
+    };
+  });
+  const client = await makeClient(async (_url, init) => {
+    requestBytes = new TextEncoder().encode(init.body).byteLength;
+    return new Response(JSON.stringify({
+      skill_public_id: SKILL_ID,
+      version_public_id: VERSION_ID,
+      release_public_id: RELEASE_ID,
+      manifest_digest: MANIFEST_DIGEST,
+      content_digest: CONTENT_DIGEST,
+      file_count: files.length,
+      byte_total: 0,
+      reused: false,
+      files: files.map((file) => ({
+        file_public_id: file.filePublicId,
+        relative_path: file.relativePath,
+        media_type: file.mediaType,
+        byte_size: file.byteSize,
+        file_digest: file.fileDigest,
+        storage_key: file.storageKey,
+        executable: file.executable,
+        ordinal: file.ordinal
+      }))
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  const target = await client.prepareImportTarget({
+    displayName: 'Maximum target',
+    description: '',
+    manifestSchemaVersion: '1.0',
+    canonicalManifestBytes: new Uint8Array(262_144).fill(65),
+    manifestDigest: MANIFEST_DIGEST,
+    contentDigest: CONTENT_DIGEST,
+    canonicalMetadata: { logical_id: 'maximum-target', display_name: 'Maximum target' },
+    source: { authority: 'local', kind: 'directory', namespace: 'test', source_id: 'maximum', revision: '1' },
+    provenanceState: 'provisional',
+    files: files.map(({ filePublicId: _filePublicId, storageKey: _storageKey, ...file }) => file),
+    idempotencyKey: 'M'.repeat(22)
+  }, { accessToken: ACCESS_TOKEN });
+
+  assert.equal(requestBytes > 256 * 1024, true);
+  assert.equal(target.files.length, MAX_IMPORT_FILE_COUNT);
 });
 
 test('M4.05 idempotent retries return the same session and keep the idempotency key stable', async () => {

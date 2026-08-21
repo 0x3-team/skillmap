@@ -348,7 +348,18 @@ export async function executeRestore(input: {
   } as const;
   if (!existingIntent) await writeExclusiveRecord(intentFile, { ...intent, intentDigest: digest(intent) });
   try {
-    await input.mover.move(quarantineEntry.absolutePath, originalPath);
+    await input.mover.move(quarantineEntry.absolutePath, originalPath, {
+      sourceRootPath: input.quarantineRoot.canonicalRootPath,
+      sourceRootVolumeId: input.quarantineRoot.volumeId,
+      sourceRootFileId: input.quarantineRoot.rootFileId,
+      sourceRelativePath: quarantineRelativePath,
+      sourceObjectVolumeId: Number(quarantineEntry.stats.dev),
+      sourceObjectFileId: Number(quarantineEntry.stats.ino),
+      destinationRootPath: input.originalRoot.canonicalRootPath,
+      destinationRootVolumeId: input.originalRoot.volumeId,
+      destinationRootFileId: input.originalRoot.rootFileId,
+      destinationRelativePath: originalRelativePath
+    });
   } catch (error) {
     if (errno(error, 'EEXIST')) return LOCAL_QUARANTINE_OUTCOMES.RESTORE_DESTINATION_OCCUPIED;
     if (errno(error, 'EXDEV')) return LOCAL_QUARANTINE_OUTCOMES.CROSS_VOLUME_NOT_ATOMIC;

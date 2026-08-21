@@ -5,7 +5,7 @@ project_id = "skillmap"
 [api]
 enabled = true
 port = 54321
-schemas = ["api"]
+schemas = ["api", "device_adapter"]
 extra_search_path = ["public", "extensions"]
 # The public API accepts limit=50 and reads one extra row to determine whether
 # a cursor exists. Keep the PostgREST ceiling above that sentinel query.

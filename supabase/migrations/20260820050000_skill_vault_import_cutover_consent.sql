@@ -49,6 +49,7 @@ declare
   v_session private.import_sessions%rowtype;
   v_consent private.import_cutover_consents%rowtype;
   v_now timestamp with time zone := pg_catalog.statement_timestamp();
+  v_consent_revision bigint;
 begin
   if v_account_id is null
     or coalesce((auth.jwt() -> 'is_anonymous'), 'true'::jsonb) <> 'false'::jsonb
@@ -70,13 +71,20 @@ begin
   for update;
 
   if not found then raise exception 'import consent authority unavailable' using errcode = '42501'; end if;
-  if v_session.state <> 'in_progress'
-    or v_session.expiry_at <= v_now
+  if v_session.state not in ('in_progress', 'verified')
+    or (v_session.state = 'in_progress' and v_session.expiry_at <= v_now)
     or v_session.revision <> p_expected_revision
     or v_session.manifest_digest <> p_manifest_digest
     or v_session.accepted_file_count <> v_session.expected_file_count
     or v_session.accepted_byte_total <> v_session.expected_byte_total
   then
+    raise exception 'import consent state conflict' using errcode = '40001';
+  end if;
+  v_consent_revision := case
+    when v_session.state = 'verified' then v_session.revision - 1
+    else v_session.revision
+  end;
+  if v_consent_revision < 1 then
     raise exception 'import consent state conflict' using errcode = '40001';
   end if;
 
@@ -85,7 +93,7 @@ begin
   where consents.account_id = v_account_id
     and consents.device_id = v_session.device_id
     and consents.session_id = v_session.id
-    and consents.session_revision = v_session.revision
+    and consents.session_revision = v_consent_revision
     and consents.manifest_digest = v_session.manifest_digest
     and consents.revoked_at is null
     and consents.consent_expires_at > v_now
@@ -97,7 +105,7 @@ begin
       account_id, device_id, session_id, session_revision, manifest_digest,
       consent_digest, explicit_consent_at, consent_expires_at
     ) values (
-      v_account_id, v_session.device_id, v_session.id, v_session.revision, v_session.manifest_digest,
+      v_account_id, v_session.device_id, v_session.id, v_consent_revision, v_session.manifest_digest,
       'sha256:' || repeat('0', 64), v_now, v_now + interval '10 minutes'
     ) returning * into v_consent;
 
@@ -108,7 +116,7 @@ begin
           pg_catalog.jsonb_build_object(
             'consent_id', v_consent.public_id,
             'session_id', p_session_public_id,
-            'session_revision', v_session.revision,
+            'session_revision', v_consent_revision,
             'manifest_digest', v_session.manifest_digest,
             'explicit_consent_at', v_consent.explicit_consent_at,
             'consent_expires_at', v_consent.consent_expires_at
@@ -202,7 +210,14 @@ begin
   where sessions.account_id = v_context.account_id
     and sessions.device_id = v_context.device_id
     and sessions.imp_ = p_session_public_id;
-  if not found or v_session.revision <> p_expected_session_revision then
+  if not found
+    or p_expected_session_revision is null
+    or p_expected_session_revision < 1
+    or not (
+      (v_session.state = 'in_progress' and v_session.revision = p_expected_session_revision)
+      or (v_session.state = 'verified' and v_session.revision = p_expected_session_revision + 1)
+    )
+  then
     raise exception 'import consent state conflict' using errcode = '40001';
   end if;
 
@@ -211,7 +226,7 @@ begin
   where consents.account_id = v_context.account_id
     and consents.device_id = v_context.device_id
     and consents.session_id = v_session.id
-    and consents.session_revision = v_session.revision
+    and consents.session_revision = p_expected_session_revision
     and consents.manifest_digest = v_session.manifest_digest
     and consents.revoked_at is null
     and consents.consent_expires_at > pg_catalog.statement_timestamp()

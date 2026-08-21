@@ -25,19 +25,63 @@ insert into auth.users (
 insert into private.devices(id,public_id,account_id,display_name,platform,connector_version,locale) values
 ('a4000000-0000-4400-8400-000000000111','dev_'||repeat('d',32),'a4000000-0000-4400-8400-000000000011','Dashboard connector','macos','1.0.0','en-US');
 
+create function pg_temp.m4_prepare_target(
+  p_account_public_id text, p_device_public_id text, p_display_name text, p_description text,
+  p_manifest_schema_version text, p_logical_id text, p_source jsonb,
+  p_provenance_state text, p_files jsonb, p_idempotency_key uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_manifest jsonb;
+  v_manifest_bytes bytea;
+  v_manifest_digest text;
+  v_metadata jsonb;
+begin
+  v_manifest := pg_catalog.jsonb_build_object(
+    'schema_version', p_manifest_schema_version,
+    'identity', pg_catalog.jsonb_build_object('logical_id', p_logical_id, 'public_id', 'fixture.' || pg_catalog.replace(p_logical_id, '-', '_')),
+    'display', pg_catalog.jsonb_build_object('name', p_display_name, 'description', coalesce(p_description, '')),
+    'source', p_source,
+    'files', (
+      select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+        'path', item.value ->> 'relative_path', 'media_type', item.value ->> 'media_type',
+        'utf8_bytes', item.value -> 'byte_size', 'digest', item.value ->> 'file_digest',
+        'executable', item.value -> 'executable'
+      ) order by (item.value ->> 'ordinal')::integer)
+      from pg_catalog.jsonb_array_elements(p_files) as item(value)
+    ),
+    'provenance', pg_catalog.jsonb_build_object('publisher_id','local-owner','ingest_id','m4-pgtap','created_at','2026-08-20T00:00:00.000Z'),
+    'compatibility', pg_catalog.jsonb_build_object('manifest_major',1,'minimum_consumer_major',1)
+  );
+  v_manifest_bytes := pg_catalog.convert_to(v_manifest::text, 'UTF8');
+  v_manifest_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_manifest_bytes, 'sha256'), 'hex');
+  v_metadata := pg_catalog.jsonb_build_object('logical_id',p_logical_id,'display_name',pg_catalog.btrim(p_display_name));
+  if nullif(pg_catalog.btrim(coalesce(p_description, '')), '') is not null then
+    v_metadata := v_metadata || pg_catalog.jsonb_build_object('description',pg_catalog.btrim(p_description));
+  end if;
+  return device_adapter.adapter_prepare_import_target(
+    p_account_public_id,p_device_public_id,p_display_name,p_description,p_manifest_schema_version,
+    v_manifest_bytes,v_manifest_digest,private.compute_import_content_digest(v_manifest_digest,p_files),
+    v_metadata,p_source,p_provenance_state,p_files,p_idempotency_key
+  );
+end
+$function$;
+revoke all privileges on function pg_temp.m4_prepare_target(text,text,text,text,text,text,jsonb,text,jsonb,uuid) from public;
+grant execute on function pg_temp.m4_prepare_target(text,text,text,text,text,text,jsonb,text,jsonb,uuid) to service_role;
+
 create temporary table m4_dashboard_target(response jsonb not null) on commit drop;
 create temporary table m4_dashboard_session(response jsonb not null) on commit drop;
 grant select, insert on m4_dashboard_target, m4_dashboard_session to service_role;
 
 set local role service_role;
 insert into m4_dashboard_target(response)
-select device_adapter.adapter_prepare_import_target(
+select pg_temp.m4_prepare_target(
   'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
-  'Dashboard Alpha','Dashboard projection fixture','1.0',
-  pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),
-  'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),'sha256'),'hex'),
-  'sha256:'||repeat('5',64),
-  '{"logical_id":"dashboard-alpha","display_name":"Dashboard Alpha","description":"Dashboard projection fixture"}',
+  'Dashboard Alpha','Dashboard projection fixture','1.0','dashboard-alpha',
   '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"dashboard-alpha","revision":"r1"}',
   'verified',
   '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
@@ -88,7 +132,8 @@ set local role service_role;
 select device_adapter.adapter_accept_import_file_v2(
   'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
   (select response->>'session_id' from m4_dashboard_session),1,
-  (select response->'files'->0->>'file_public_id' from m4_dashboard_target)
+  (select response->'files'->0->>'file_public_id' from m4_dashboard_target),
+  'sha256:'||repeat('6',64),3
 );
 select device_adapter.adapter_finalize_import_session_v2(
   'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),

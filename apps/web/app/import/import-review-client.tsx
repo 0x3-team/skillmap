@@ -540,7 +540,8 @@ function ActiveSessionView({
               </h2>
               <p className="text-xs leading-5 text-muted-foreground">
                 Canary secrets, private keys, or disallowed extensions were detected. You cannot
-                force-upload blocked classes, but you may exclude them below to proceed.
+                force-upload blocked classes. Return to the CLI to exclude blocked skills, rebuild
+                the manifest, and retry this import.
               </p>
             </div>
           </div>
@@ -562,7 +563,7 @@ function ActiveSessionView({
                 <p className="text-xs text-muted-foreground">
                   {session.uploadProgress?.acceptedFileCount ?? 0} of{" "}
                   {session.uploadProgress?.expectedFileCount ?? summary.totalFiles} files
-                  transferred. You can safely resume.
+                  transferred. Return to the CLI to safely resume this upload with device proof.
                 </p>
               </div>
             </div>

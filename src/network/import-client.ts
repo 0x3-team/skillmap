@@ -15,9 +15,9 @@ export const IMPORT_CLIENT_DEFAULT_TIMEOUT_MS = 30_000;
 export const IMPORT_CLIENT_MAX_TIMEOUT_MS = 120_000;
 export const IMPORT_CLIENT_DEFAULT_MAX_RETRIES = 2;
 export const IMPORT_CLIENT_MAX_RETRIES = 3;
-export const IMPORT_CLIENT_DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024;
+export const IMPORT_CLIENT_DEFAULT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 export const IMPORT_CLIENT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
-export const IMPORT_CLIENT_DEFAULT_MAX_REQUEST_BYTES = 256 * 1024;
+export const IMPORT_CLIENT_DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 export const IMPORT_CLIENT_MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 export const IMPORT_CLIENT_DEFAULT_MAX_RETRY_AFTER_MS = 5_000;
 export const IMPORT_CLIENT_MAX_RETRY_AFTER_MS = 30_000;
@@ -112,6 +112,7 @@ export interface ImportSession {
   manifestDigest?: string;
   contentDigest?: string;
   verificationDigest?: string;
+  finalizationExpectedRevision?: number;
 }
 
 export interface ImportTargetFile {
@@ -510,7 +511,6 @@ export class ImportClient {
     if (typeof options.deviceId !== 'string' || !IDEMPOTENCY_KEY_PATTERN.test(options.deviceId)) {
       throw new ImportClientError(400, 'invalid_request');
     }
-    this.origin = options.origin;
     this.keyStore = options.keyStore;
     this.deviceId = options.deviceId;
     this.fetchFn = options.fetchFn ?? globalThis.fetch;
@@ -545,7 +545,7 @@ export class ImportClient {
     throwIfAborted(options?.signal);
     if (typeof params.displayName !== 'string'
       || params.displayName.trim().length < 1
-      || params.displayName.length > 200
+      || Array.from(params.displayName).length > 200
       || new TextEncoder().encode(params.displayName).byteLength > 800) {
       throw new ImportClientError(400, 'invalid_request');
     }
@@ -1201,7 +1201,8 @@ function isImportSessionResponse(value: unknown): ImportSession | false {
     'expires_at',
     'manifest_digest',
     'content_digest',
-    'verification_digest'
+    'verification_digest',
+    'finalization_expected_revision'
   ]);
   if (!hasOnlyKeys(value, [...allowed])) return false;
   if (!(isImportSessionId(value.session_public_id)
@@ -1214,7 +1215,9 @@ function isImportSessionResponse(value: unknown): ImportSession | false {
     && isIso8601Utc(value.expires_at)
     && (value.manifest_digest === undefined || isSha256Digest(value.manifest_digest))
     && (value.content_digest === undefined || isSha256Digest(value.content_digest))
-    && (value.verification_digest === undefined || isSha256Digest(value.verification_digest)))) {
+    && (value.verification_digest === undefined || isSha256Digest(value.verification_digest))
+    && (value.finalization_expected_revision === undefined
+      || isPositiveSafeInteger(value.finalization_expected_revision)))) {
     return false;
   }
   return {
@@ -1228,7 +1231,8 @@ function isImportSessionResponse(value: unknown): ImportSession | false {
     expiresAt: value.expires_at as string,
     manifestDigest: value.manifest_digest as string | undefined,
     contentDigest: value.content_digest as string | undefined,
-    verificationDigest: value.verification_digest as string | undefined
+    verificationDigest: value.verification_digest as string | undefined,
+    finalizationExpectedRevision: value.finalization_expected_revision as number | undefined
   };
 }
 

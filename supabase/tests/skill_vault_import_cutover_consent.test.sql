@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(15);
+select plan(16);
 
 select has_table('private', 'import_cutover_consents', 'cutover consent authority table exists');
 select ok(
@@ -37,6 +37,54 @@ insert into auth.users (
 insert into private.devices(id,public_id,account_id,display_name,platform,connector_version,locale) values
 ('a4200000-0000-4420-8420-000000000101','dev_'||repeat('8',32),'a4200000-0000-4420-8420-000000000001','Consent connector','macos','1.0.0','en-US');
 
+create function pg_temp.m4_prepare_target(
+  p_account_public_id text, p_device_public_id text, p_display_name text, p_description text,
+  p_manifest_schema_version text, p_logical_id text, p_source jsonb,
+  p_provenance_state text, p_files jsonb, p_idempotency_key uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_manifest jsonb;
+  v_manifest_bytes bytea;
+  v_manifest_digest text;
+  v_metadata jsonb;
+begin
+  v_manifest := pg_catalog.jsonb_build_object(
+    'schema_version', p_manifest_schema_version,
+    'identity', pg_catalog.jsonb_build_object('logical_id', p_logical_id, 'public_id', 'fixture.' || pg_catalog.replace(p_logical_id, '-', '_')),
+    'display', pg_catalog.jsonb_build_object('name', p_display_name, 'description', coalesce(p_description, '')),
+    'source', p_source,
+    'files', (
+      select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+        'path', item.value ->> 'relative_path', 'media_type', item.value ->> 'media_type',
+        'utf8_bytes', item.value -> 'byte_size', 'digest', item.value ->> 'file_digest',
+        'executable', item.value -> 'executable'
+      ) order by (item.value ->> 'ordinal')::integer)
+      from pg_catalog.jsonb_array_elements(p_files) as item(value)
+    ),
+    'provenance', pg_catalog.jsonb_build_object('publisher_id','local-owner','ingest_id','m4-pgtap','created_at','2026-08-20T00:00:00.000Z'),
+    'compatibility', pg_catalog.jsonb_build_object('manifest_major',1,'minimum_consumer_major',1)
+  );
+  v_manifest_bytes := pg_catalog.convert_to(v_manifest::text, 'UTF8');
+  v_manifest_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_manifest_bytes, 'sha256'), 'hex');
+  v_metadata := pg_catalog.jsonb_build_object('logical_id',p_logical_id,'display_name',pg_catalog.btrim(p_display_name));
+  if nullif(pg_catalog.btrim(coalesce(p_description, '')), '') is not null then
+    v_metadata := v_metadata || pg_catalog.jsonb_build_object('description',pg_catalog.btrim(p_description));
+  end if;
+  return device_adapter.adapter_prepare_import_target(
+    p_account_public_id,p_device_public_id,p_display_name,p_description,p_manifest_schema_version,
+    v_manifest_bytes,v_manifest_digest,private.compute_import_content_digest(v_manifest_digest,p_files),
+    v_metadata,p_source,p_provenance_state,p_files,p_idempotency_key
+  );
+end
+$function$;
+revoke all privileges on function pg_temp.m4_prepare_target(text,text,text,text,text,text,jsonb,text,jsonb,uuid) from public;
+grant execute on function pg_temp.m4_prepare_target(text,text,text,text,text,text,jsonb,text,jsonb,uuid) to service_role;
+
 create temporary table m4_consent_target(response jsonb not null) on commit drop;
 create temporary table m4_consent_session(public_id text not null, manifest_digest text not null, revision bigint not null) on commit drop;
 create temporary table m4_consent_receipt(response jsonb not null) on commit drop;
@@ -47,13 +95,9 @@ grant select on m4_consent_receipt to service_role;
 
 set local role service_role;
 insert into m4_consent_target(response)
-select device_adapter.adapter_prepare_import_target(
+select pg_temp.m4_prepare_target(
   'acct_a4200000000044208420000000000001','dev_'||repeat('8',32),
-  'Consent Alpha','Consent fixture','1.0',
-  pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),
-  'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),'sha256'),'hex'),
-  'sha256:'||repeat('5',64),
-  '{"logical_id":"consent-alpha","display_name":"Consent Alpha","description":"Consent fixture"}',
+  'Consent Alpha','Consent fixture','1.0','consent-alpha',
   '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"consent-alpha","revision":"r1"}',
   'verified',
   '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
@@ -79,9 +123,20 @@ select throws_ok($$select device_adapter.adapter_require_import_cutover_consent(
 )$$, '42501', 'import cutover consent required', 'connector cannot finalize before owner consent');
 reset role;
 
-update private.import_sessions
-set accepted_file_count=expected_file_count, accepted_byte_total=expected_byte_total
-where imp_=(select public_id from m4_consent_session);
+insert into storage.objects(id,bucket_id,name,owner,owner_id,metadata,user_metadata) values (
+  'a4200000-0000-4420-8420-000000000401','skill-vault-private',
+  (select response->'files'->0->>'storage_key' from m4_consent_target),
+  'a4200000-0000-4420-8420-000000000001','a4200000-0000-4420-8420-000000000001',
+  '{"mimetype":"text/markdown","size":3}','{}'
+);
+set local role service_role;
+select device_adapter.adapter_accept_import_file_v2(
+  'acct_a4200000000044208420000000000001','dev_'||repeat('8',32),
+  (select public_id from m4_consent_session),1,
+  (select response->'files'->0->>'file_public_id' from m4_consent_target),
+  'sha256:'||repeat('6',64),3
+);
+reset role;
 update m4_consent_session as fixture
 set revision=sessions.revision
 from private.import_sessions as sessions
@@ -135,6 +190,21 @@ select ok(
     (select public_id from m4_consent_session),(select revision from m4_consent_session)
   ) @> (select response - array['session_public_id','revision','manifest_digest'] from m4_consent_receipt),
   'connector receives the exact active owner consent binding'
+);
+reset role;
+
+select private.finalize_import_session(
+  'a4200000-0000-4420-8420-000000000001',
+  'a4200000-0000-4420-8420-000000000101',
+  (select id from private.import_sessions where imp_=(select public_id from m4_consent_session))
+);
+set local role service_role;
+select ok(
+  device_adapter.adapter_require_import_cutover_consent(
+    'acct_a4200000000044208420000000000001','dev_'||repeat('8',32),
+    (select public_id from m4_consent_session),(select revision from m4_consent_session)
+  ) @> (select response - array['session_public_id','revision','manifest_digest'] from m4_consent_receipt),
+  'verified terminal-session recovery can replay the consent bound to the pre-finalize revision'
 );
 reset role;
 

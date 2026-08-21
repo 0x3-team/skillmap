@@ -27,6 +27,7 @@ const VERSION_ID = /^msv_[0-9a-f]{32}$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const IDEMPOTENCY = /^[A-Za-z0-9_-]{22}$/;
 const SAFE_PATH = /^[^/\\\x00-\x1f\x7f]+(?:\/[^/\\\x00-\x1f\x7f]+)*$/;
+const MAX_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -96,9 +97,16 @@ function mapSession(row: Record<string, unknown>): Record<string, unknown> {
   const manifestDigest = optionalDigest(row.manifest_digest);
   const contentDigest = optionalDigest(row.content_digest);
   const verificationDigest = optionalDigest(row.verification_digest);
+  const finalizationExpectedRevision = row.finalization_expected_revision === undefined
+    || row.finalization_expected_revision === null
+    ? undefined
+    : integer(row.finalization_expected_revision, 1);
   if (manifestDigest) result.manifest_digest = manifestDigest;
   if (contentDigest) result.content_digest = contentDigest;
   if (verificationDigest) result.verification_digest = verificationDigest;
+  if (finalizationExpectedRevision !== undefined) {
+    result.finalization_expected_revision = finalizationExpectedRevision;
+  }
   return result;
 }
 
@@ -236,9 +244,17 @@ export async function executeImportOperation(input: {
 
   if (operation === "resume" || operation === "receipts" || operation === "expire") {
     if (!exact(body, [], ["expected_revision"])) throw new ImportRouteError("invalid_request");
-    if (body.expected_revision !== undefined) integer(body.expected_revision, 1);
+    let expectedRevision = body.expected_revision === undefined ? undefined : integer(body.expected_revision, 1);
     if (operation === "expire") {
-      const expired = await repository.expireSession(base);
+      if (expectedRevision === undefined) {
+        const current = await repository.listReceipts(base);
+        if (current === null) throw new ImportRouteError("session_not_found");
+        expectedRevision = integer(current.revision, 1);
+      }
+      const expired = await repository.expireSession({
+        ...base,
+        p_expected_session_revision: expectedRevision
+      });
       if (expired === null) throw new ImportRouteError("session_not_found");
     }
     const row = await repository.listReceipts(base);
@@ -308,10 +324,20 @@ export async function executeImportOperation(input: {
       || prepared.declared_size !== integer(body.byte_size)) {
       throw new ImportRouteError("invalid_request");
     }
+    const bucketId = text(prepared.bucket_id);
+    const objectName = text(prepared.object_name, /^v1\/msv_[0-9a-f]{32}\/msf_[0-9a-f]{32}$/);
+    const storedBytes = await repository.readStoredObject(bucketId, objectName);
+    if (storedBytes.byteLength > MAX_IMPORT_FILE_BYTES
+      || storedBytes.byteLength !== prepared.declared_size
+      || `sha256:${createHash("sha256").update(storedBytes).digest("hex")}` !== prepared.file_digest) {
+      throw new ImportRouteError("invalid_request");
+    }
     return mapSession(await repository.acceptFile({
       ...base,
       p_expected_session_revision: revision,
-      p_file_public_id: fileId
+      p_file_public_id: fileId,
+      p_verified_file_digest: prepared.file_digest,
+      p_verified_byte_size: storedBytes.byteLength
     }));
   }
 

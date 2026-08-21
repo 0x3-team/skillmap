@@ -112,8 +112,21 @@ export interface QuarantineMutationReceipt {
   receiptDigest: string;
 }
 
+export interface AtomicMoveBinding {
+  sourceRootPath: string;
+  sourceRootVolumeId: number;
+  sourceRootFileId: number;
+  sourceRelativePath: string;
+  sourceObjectVolumeId: number;
+  sourceObjectFileId: number;
+  destinationRootPath: string;
+  destinationRootVolumeId: number;
+  destinationRootFileId: number;
+  destinationRelativePath: string;
+}
+
 export interface AtomicNoReplaceMover {
-  move(sourcePath: string, destinationPath: string): Promise<void>;
+  move(sourcePath: string, destinationPath: string, binding: AtomicMoveBinding): Promise<void>;
 }
 
 export interface RestoreAuthorization {

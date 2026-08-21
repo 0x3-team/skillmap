@@ -85,6 +85,10 @@ export function deriveImportViewState(
   // may remain at 100% after consent, so they must not move the view backward.
   if (session.state === "consented") return "consented";
 
+  // A terminal stale session is authoritative; accepted upload progress or
+  // active blockers must not mask it.
+  if (session.state === "stale") return "stale";
+
   // Check for blocked items in the server projection
   const hasBlocked = session.skills.some(
     (s) => !s.excluded && (s.status === "blocked" || s.blockedReasons.length > 0)

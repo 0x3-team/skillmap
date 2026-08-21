@@ -281,3 +281,52 @@ test('M4.16 incomplete upload fails closed before finalization', async (t) => {
   );
   assert.equal(cloud.calls.some(([name]) => name === 'finalize'), false);
 });
+
+test('M4.16 retries a verified terminal session without uploading again', async (t) => {
+  const state = await fixture(t);
+  const cloud = makeCloud({ consented: true });
+  const originalListReceipts = cloud.client.listReceipts;
+  let failAfterFinalize = true;
+  cloud.client.listReceipts = async (...args) => {
+    const response = await originalListReceipts(...args);
+    if (failAfterFinalize && cloud.calls.some(([name]) => name === 'finalize')) {
+      failAfterFinalize = false;
+      throw new ImportClientError(503, 'temporarily_unavailable');
+    }
+    return response;
+  };
+  const deps = { auth: auth(), client: cloud.client, uploader: cloud.uploader, now: () => new Date(NOW) };
+
+  await assert.rejects(
+    runManagedImport(state.request, deps),
+    (error) => error instanceof ImportClientError && error.code === 'temporarily_unavailable'
+  );
+  const originalBegin = cloud.calls.find(([name]) => name === 'begin')[1];
+  const finalizedRevision = 4;
+  cloud.client.beginImportSession = async (input) => {
+    cloud.calls.push(['begin', input]);
+    return {
+      sessionPublicId: SESSION_ID,
+      state: 'verified',
+      expectedFileCount: originalBegin.expectedFileCount,
+      expectedByteTotal: originalBegin.expectedByteTotal,
+      acceptedFileCount: originalBegin.expectedFileCount,
+      acceptedByteTotal: originalBegin.expectedByteTotal,
+      revision: finalizedRevision,
+      expiresAt: '2026-08-20T18:00:00.000Z',
+      manifestDigest: input.manifestDigest,
+      contentDigest: input.contentDigest,
+      verificationDigest: `sha256:${'2'.repeat(64)}`,
+      finalizationExpectedRevision: finalizedRevision - 1
+    };
+  };
+  const callsBeforeRetry = cloud.calls.length;
+  const recovered = await runManagedImport(state.request, deps);
+  const retryCalls = cloud.calls.slice(callsBeforeRetry);
+
+  assert.equal(recovered.state, 'verified');
+  assert.equal(recovered.parityReceipt.parityState, 'PARITY_CONFIRMED');
+  assert.equal(retryCalls.some(([name]) => name === 'upload'), false);
+  const replay = retryCalls.find(([name]) => name === 'finalize');
+  assert.equal(replay[1].expectedRevision, finalizedRevision - 1);
+});

@@ -8,6 +8,7 @@ create table private.import_finalization_receipts (
   device_id uuid not null,
   session_id uuid not null,
   idempotency_key uuid not null,
+  expected_session_revision bigint not null,
   request_digest text not null,
   response jsonb not null,
   created_at timestamp with time zone not null default pg_catalog.statement_timestamp(),
@@ -22,6 +23,8 @@ create table private.import_finalization_receipts (
     on delete cascade,
   constraint import_finalization_receipts_request_digest_check
     check (request_digest ~ '^sha256:[0-9a-f]{64}$'),
+  constraint import_finalization_receipts_expected_revision_check
+    check (expected_session_revision >= 1),
   constraint import_finalization_receipts_response_check
     check (pg_catalog.jsonb_typeof(response) = 'object' and pg_catalog.octet_length(response::text) <= 16384)
 );
@@ -56,6 +59,7 @@ declare
   v_session_id uuid;
   v_existing private.import_sessions%rowtype;
   v_session private.import_sessions%rowtype;
+  v_finalization_expected_revision bigint;
 begin
   if p_expiry_at is null or p_expiry_at <= pg_catalog.statement_timestamp() then
     raise exception 'import expiry must be explicit and in the future' using errcode = '22023';
@@ -103,6 +107,28 @@ begin
     or v_existing.expiry_at is distinct from p_expiry_at
   ) then
     raise exception 'conflicting import session idempotency reuse' using errcode = '22023';
+  end if;
+
+  if found then
+    select receipts.expected_session_revision into v_finalization_expected_revision
+    from private.import_finalization_receipts as receipts
+    where receipts.account_id = v_context.account_id
+      and receipts.device_id = v_context.device_id
+      and receipts.session_id = v_existing.id;
+    return pg_catalog.jsonb_strip_nulls(pg_catalog.jsonb_build_object(
+      'session_id', v_existing.imp_,
+      'state', v_existing.state,
+      'revision', v_existing.revision,
+      'expected_file_count', v_existing.expected_file_count,
+      'accepted_file_count', v_existing.accepted_file_count,
+      'expected_byte_total', v_existing.expected_byte_total,
+      'accepted_byte_total', v_existing.accepted_byte_total,
+      'expiry_at', v_existing.expiry_at,
+      'manifest_digest', v_existing.manifest_digest,
+      'content_digest', v_existing.content_digest,
+      'verification_digest', v_existing.verification_digest,
+      'finalization_expected_revision', v_finalization_expected_revision
+    ));
   end if;
 
   v_session_id := private.begin_import_session(
@@ -294,7 +320,8 @@ $function$;
 create function device_adapter.adapter_expire_import_session(
   p_account_public_id text,
   p_device_public_id text,
-  p_session_public_id text
+  p_session_public_id text,
+  p_expected_session_revision bigint
 )
 returns jsonb
 language plpgsql
@@ -320,10 +347,18 @@ begin
   for update;
 
   if not found then return null; end if;
-  perform private.expire_import_session(v_context.account_id, v_context.device_id, v_session.id);
-  select sessions.* into v_session
-  from private.import_sessions as sessions
-  where sessions.account_id = v_context.account_id and sessions.id = v_session.id;
+  if p_expected_session_revision is null
+    or p_expected_session_revision < 1
+    or v_session.revision <> p_expected_session_revision
+  then
+    raise exception 'import session revision conflict' using errcode = '40001';
+  end if;
+  if v_session.state = 'in_progress' then
+    perform private.expire_import_session(v_context.account_id, v_context.device_id, v_session.id);
+    select sessions.* into v_session
+    from private.import_sessions as sessions
+    where sessions.account_id = v_context.account_id and sessions.id = v_session.id;
+  end if;
 
   return pg_catalog.jsonb_build_object(
     'session_id', v_session.imp_,
@@ -380,7 +415,9 @@ create function device_adapter.adapter_accept_import_file_v2(
   p_device_public_id text,
   p_session_public_id text,
   p_expected_session_revision bigint,
-  p_file_public_id text
+  p_file_public_id text,
+  p_verified_file_digest text,
+  p_verified_byte_size bigint
 )
 returns jsonb
 language plpgsql
@@ -398,7 +435,6 @@ begin
   if not found then
     raise exception 'import authority unavailable' using errcode = '42501';
   end if;
-
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_context.account_id::text, 4));
 
   select sessions.* into v_session
@@ -427,6 +463,11 @@ begin
 
   if not found then
     raise exception 'import authority unavailable' using errcode = '42501';
+  end if;
+  if p_verified_file_digest is distinct from v_file.file_digest
+    or p_verified_byte_size is distinct from v_file.byte_size
+  then
+    raise exception 'uploaded object checksum does not match the immutable file binding' using errcode = '22023';
   end if;
 
   if not exists (
@@ -579,9 +620,10 @@ begin
   );
 
   insert into private.import_finalization_receipts (
-    account_id, device_id, session_id, idempotency_key, request_digest, response
+    account_id, device_id, session_id, idempotency_key, expected_session_revision, request_digest, response
   ) values (
-    v_context.account_id, v_context.device_id, v_session.id, p_idempotency_key, v_request_digest, v_response
+    v_context.account_id, v_context.device_id, v_session.id, p_idempotency_key,
+    p_expected_session_revision, v_request_digest, v_response
   );
   return v_response;
 end
@@ -593,11 +635,11 @@ revoke all privileges on function device_adapter.adapter_prepare_import_upload(t
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 revoke all privileges on function device_adapter.adapter_list_import_file_receipts(text,text,text)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
-revoke all privileges on function device_adapter.adapter_expire_import_session(text,text,text)
+revoke all privileges on function device_adapter.adapter_expire_import_session(text,text,text,bigint)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 revoke all privileges on function device_adapter.adapter_enqueue_import_upload_cleanup(text,text,text,text,text)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
-revoke all privileges on function device_adapter.adapter_accept_import_file_v2(text,text,text,bigint,text)
+revoke all privileges on function device_adapter.adapter_accept_import_file_v2(text,text,text,bigint,text,text,bigint)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
 revoke all privileges on function device_adapter.adapter_finalize_import_session_v2(text,text,text,bigint,uuid)
   from public, anon, authenticated, service_role, skillmap_vault_definer;
@@ -608,11 +650,11 @@ grant execute on function device_adapter.adapter_prepare_import_upload(text,text
   to service_role;
 grant execute on function device_adapter.adapter_list_import_file_receipts(text,text,text)
   to service_role;
-grant execute on function device_adapter.adapter_expire_import_session(text,text,text)
+grant execute on function device_adapter.adapter_expire_import_session(text,text,text,bigint)
   to service_role;
 grant execute on function device_adapter.adapter_enqueue_import_upload_cleanup(text,text,text,text,text)
   to service_role;
-grant execute on function device_adapter.adapter_accept_import_file_v2(text,text,text,bigint,text)
+grant execute on function device_adapter.adapter_accept_import_file_v2(text,text,text,bigint,text,text,bigint)
   to service_role;
 grant execute on function device_adapter.adapter_finalize_import_session_v2(text,text,text,bigint,uuid)
   to service_role;

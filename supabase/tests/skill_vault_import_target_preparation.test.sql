@@ -3,7 +3,16 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(21);
+select plan(25);
+
+select is(
+  private.compute_import_content_digest(
+    'sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a',
+    '[{"relative_path":"SKILL.md","media_type":"text/plain","byte_size":3,"file_digest":"sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","executable":false,"ordinal":0}]'
+  ),
+  'sha256:8e63837f60951567b4bf156d4920fb808cc43fc77068ff2db429f7546fc592a6',
+  'database content digest encoding matches the accepted Node vector'
+);
 
 select has_table('private', 'import_target_preparations', 'target preparation receipt table exists');
 select ok(
@@ -15,6 +24,14 @@ select ok(
   and not has_table_privilege('authenticated', 'private.import_target_preparations', 'select,insert,update,delete')
   and not has_table_privilege('service_role', 'private.import_target_preparations', 'select,insert,update,delete'),
   'application roles have no target preparation table grants'
+);
+select ok(
+  position('4194304' in pg_catalog.pg_get_constraintdef(
+    (select oid from pg_catalog.pg_constraint
+     where conname = 'import_target_preparations_response_check'
+       and conrelid = 'private.import_target_preparations'::regclass)
+  )) > 0,
+  'target receipts allow the bounded four-MiB maximum response projection'
 );
 select ok(
   has_function_privilege(
@@ -46,26 +63,132 @@ insert into auth.users (
 insert into private.devices(id,public_id,account_id,display_name,platform,connector_version,locale) values
 ('a4000000-0000-4400-8400-000000000101','dev_'||repeat('4',32),'a4000000-0000-4400-8400-000000000001','M4 target','macos','1.0.0','en-US');
 
+create function pg_temp.m4_prepare_target(
+  p_account_public_id text,
+  p_device_public_id text,
+  p_display_name text,
+  p_description text,
+  p_manifest_schema_version text,
+  p_logical_id text,
+  p_source jsonb,
+  p_provenance_state text,
+  p_files jsonb,
+  p_idempotency_key uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_manifest jsonb;
+  v_manifest_bytes bytea;
+  v_manifest_digest text;
+  v_metadata jsonb;
+begin
+  v_manifest := pg_catalog.jsonb_build_object(
+    'schema_version', p_manifest_schema_version,
+    'identity', pg_catalog.jsonb_build_object(
+      'logical_id', p_logical_id,
+      'public_id', 'fixture.' || pg_catalog.replace(p_logical_id, '-', '_')
+    ),
+    'display', pg_catalog.jsonb_build_object(
+      'name', p_display_name,
+      'description', coalesce(p_description, '')
+    ),
+    'source', p_source,
+    'files', (
+      select pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'path', item.value ->> 'relative_path',
+          'media_type', item.value ->> 'media_type',
+          'utf8_bytes', item.value -> 'byte_size',
+          'digest', item.value ->> 'file_digest',
+          'executable', item.value -> 'executable'
+        ) order by (item.value ->> 'ordinal')::integer
+      )
+      from pg_catalog.jsonb_array_elements(p_files) as item(value)
+    ),
+    'provenance', pg_catalog.jsonb_build_object(
+      'publisher_id', 'local-owner',
+      'ingest_id', 'm4-pgtap',
+      'created_at', '2026-08-20T00:00:00.000Z'
+    ),
+    'compatibility', pg_catalog.jsonb_build_object(
+      'manifest_major', 1,
+      'minimum_consumer_major', 1
+    )
+  );
+  v_manifest_bytes := pg_catalog.convert_to(v_manifest::text, 'UTF8');
+  v_manifest_digest := 'sha256:' || pg_catalog.encode(extensions.digest(v_manifest_bytes, 'sha256'), 'hex');
+  v_metadata := pg_catalog.jsonb_build_object(
+    'logical_id', p_logical_id,
+    'display_name', pg_catalog.btrim(p_display_name)
+  );
+  if nullif(pg_catalog.btrim(coalesce(p_description, '')), '') is not null then
+    v_metadata := v_metadata || pg_catalog.jsonb_build_object(
+      'description', pg_catalog.btrim(p_description)
+    );
+  end if;
+  return device_adapter.adapter_prepare_import_target(
+    p_account_public_id, p_device_public_id, p_display_name, p_description,
+    p_manifest_schema_version, v_manifest_bytes, v_manifest_digest,
+    private.compute_import_content_digest(v_manifest_digest, p_files),
+    v_metadata, p_source, p_provenance_state, p_files, p_idempotency_key
+  );
+end
+$function$;
+
+revoke all privileges on function pg_temp.m4_prepare_target(
+  text,text,text,text,text,text,jsonb,text,jsonb,uuid
+) from public;
+grant execute on function pg_temp.m4_prepare_target(
+  text,text,text,text,text,text,jsonb,text,jsonb,uuid
+) to service_role;
+
 create temporary table m4_target_receipt(response jsonb not null) on commit drop;
 create temporary table m4_target_revision(response jsonb not null) on commit drop;
 grant select, insert on m4_target_receipt, m4_target_revision to service_role;
 
 set local role service_role;
 select lives_ok($$insert into m4_target_receipt(response)
-  select device_adapter.adapter_prepare_import_target(
+  select pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001',
     'dev_'||repeat('4',32),
-    'Imported Alpha','Bounded import target','1.0',
-    pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),
-    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),'sha256'),'hex'),
-    'sha256:'||repeat('5',64),
-    '{"logical_id":"alpha","display_name":"Imported Alpha","description":"Bounded import target"}',
+    'Imported Alpha','Bounded import target','1.0','alpha',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r1"}',
     'verified',
     '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000301'
   )$$, 'valid target preparation succeeds');
 reset role;
+
+select throws_ok($$select device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    'Imported Alpha','Bounded import target','1.0',
+    (select manifest_projection from private.managed_skill_versions where account_id='a4000000-0000-4400-8400-000000000001'),
+    (select manifest_digest from private.managed_skill_versions where account_id='a4000000-0000-4400-8400-000000000001'),
+    (select content_digest from private.managed_skill_versions where account_id='a4000000-0000-4400-8400-000000000001'),
+    '{"logical_id":"alpha","display_name":"Imported Alpha","description":"Bounded import target"}',
+    '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r1"}',
+    'verified',
+    '[{"relative_path":"CHANGED.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
+    'a4000000-0000-4400-8400-000000000307'
+  )$$, 22023, 'import target projection does not match canonical manifest',
+  'independent file parameters cannot diverge from the hash-bound canonical manifest');
+select throws_ok($$select device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    'Imported Alpha','Bounded import target','1.0',
+    (select manifest_projection from private.managed_skill_versions where account_id='a4000000-0000-4400-8400-000000000001'),
+    (select manifest_digest from private.managed_skill_versions where account_id='a4000000-0000-4400-8400-000000000001'),
+    'sha256:'||repeat('0',64),
+    '{"logical_id":"alpha","display_name":"Imported Alpha","description":"Bounded import target"}',
+    '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r1"}',
+    'verified',
+    '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
+    'a4000000-0000-4400-8400-000000000308'
+  )$$, 22023, 'import content digest does not match canonical projection',
+  'caller-supplied content digests must match the exact manifest and file envelope');
 
 select ok(
   (select response ?& array['skill_public_id','version_public_id','release_public_id','manifest_digest','content_digest','file_count','byte_total','reused','files']
@@ -85,13 +208,9 @@ select is((select count(*) from private.import_target_preparations), 1::bigint, 
 
 set local role service_role;
 select is(
-  device_adapter.adapter_prepare_import_target(
+  pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    'Imported Alpha','Bounded import target','1.0',
-    pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),
-    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),'sha256'),'hex'),
-    'sha256:'||repeat('5',64),
-    '{"logical_id":"alpha","display_name":"Imported Alpha","description":"Bounded import target"}',
+    'Imported Alpha','Bounded import target','1.0','alpha',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r1"}',
     'verified',
     '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
@@ -100,26 +219,18 @@ select is(
   (select response from m4_target_receipt),
   'exact idempotency replay returns the same response'
 );
-select throws_ok($$select device_adapter.adapter_prepare_import_target(
+select throws_ok($$select pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    'Changed Name','Bounded import target','1.0',
-    pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),
-    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),'sha256'),'hex'),
-    'sha256:'||repeat('5',64),
-    '{"logical_id":"alpha","display_name":"Imported Alpha","description":"Bounded import target"}',
+    'Changed Name','Bounded import target','1.0','alpha',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r1"}',
     'verified',
     '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000301')$$,
   22023, 'conflicting import target idempotency reuse', 'changed idempotent request conflicts');
 select ok(
-  device_adapter.adapter_prepare_import_target(
+  pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    'Imported Alpha','Bounded import target','1.0',
-    pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),
-    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.0"}','UTF8'),'sha256'),'hex'),
-    'sha256:'||repeat('5',64),
-    '{"logical_id":"alpha","display_name":"Imported Alpha","description":"Bounded import target"}',
+    'Imported Alpha','Bounded import target','1.0','alpha',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r1"}',
     'verified',
     '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":3,"file_digest":"sha256:6666666666666666666666666666666666666666666666666666666666666666","executable":false,"ordinal":0}]',
@@ -128,13 +239,9 @@ select ok(
   'a new request exactly reuses the immutable manifest identity without duplicating the skill'
 );
 select lives_ok($$insert into m4_target_revision(response)
-  select device_adapter.adapter_prepare_import_target(
+  select pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    'Imported Alpha v2','Changed immutable version','1.0',
-    pg_catalog.convert_to('{"schema_version":"1.1"}','UTF8'),
-    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.1"}','UTF8'),'sha256'),'hex'),
-    'sha256:'||repeat('7',64),
-    '{"logical_id":"alpha","display_name":"Imported Alpha v2","description":"Changed immutable version"}',
+    'Imported Alpha v2','Changed immutable version','1.1','alpha',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"alpha","revision":"r2"}',
     'verified',
     '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":4,"file_digest":"sha256:8888888888888888888888888888888888888888888888888888888888888888","executable":false,"ordinal":0}]',
@@ -150,38 +257,32 @@ select ok(
   'logical identity stays stable while immutable version history grows'
 );
 set local role service_role;
-select lives_ok($$select device_adapter.adapter_prepare_import_target(
+select lives_ok($$select pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    repeat('N',200),null,'1.0',pg_catalog.convert_to('{"schema_version":"1.2"}','UTF8'),
-    'sha256:'||pg_catalog.encode(extensions.digest(pg_catalog.convert_to('{"schema_version":"1.2"}','UTF8'),'sha256'),'hex'),
-    'sha256:'||repeat('9',64),
-    pg_catalog.jsonb_build_object('logical_id','name-bound','display_name',repeat('N',200)),
+    repeat('N',200),null,'1.2','name-bound',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"name-bound","revision":"r1"}',
     'verified','[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000305')$$,
   'a 200-character display name is accepted end to end');
-select throws_ok($$select device_adapter.adapter_prepare_import_target(
+select throws_ok($$select pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    repeat('N',201),null,'1.0',decode('7b7d','hex'),'sha256:'||repeat('0',64),'sha256:'||repeat('1',64),
-    pg_catalog.jsonb_build_object('logical_id','name-bound-oversize','display_name',repeat('N',201)),
+    repeat('N',201),null,'1.0','name-bound-oversize',
     '{"authority":"local-owner","kind":"skill-directory","namespace":"skillmap","source_id":"name-bound-oversize","revision":"r1"}',
     'verified','[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000306')$$,
   22023, 'invalid import target preparation', 'a 201-character display name is rejected');
-select throws_ok($$select device_adapter.adapter_prepare_import_target(
+select throws_ok($$select pg_temp.m4_prepare_target(
     'acct_b4000000000044008400000000000002','dev_'||repeat('4',32),
-    'Foreign','x','1.0',decode('7b7d','hex'),'sha256:'||repeat('0',64),'sha256:'||repeat('1',64),
-    '{}','{}','verified','[]','b4000000-0000-4400-8400-000000000301')$$,
+    'Foreign','x','1.0','foreign','{}','verified','[]','b4000000-0000-4400-8400-000000000301')$$,
   '42501', 'import authority unavailable', 'foreign account cannot use another account device context');
 reset role;
 update private.devices
 set state='revoked', revoked_at=pg_catalog.statement_timestamp(), revision=revision+1
 where id='a4000000-0000-4400-8400-000000000101';
 set local role service_role;
-select throws_ok($$select device_adapter.adapter_prepare_import_target(
+select throws_ok($$select pg_temp.m4_prepare_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
-    'Inactive','x','1.0',decode('7b7d','hex'),'sha256:'||repeat('0',64),'sha256:'||repeat('1',64),
-    '{}','{}','verified','[]','a4000000-0000-4400-8400-000000000303')$$,
+    'Inactive','x','1.0','inactive','{}','verified','[]','a4000000-0000-4400-8400-000000000303')$$,
   '42501', 'import authority unavailable', 'revoked device cannot prepare an import target');
 select throws_ok($$select * from private.import_target_preparations$$, '42501', null, 'service role cannot list private target receipts');
 reset role;

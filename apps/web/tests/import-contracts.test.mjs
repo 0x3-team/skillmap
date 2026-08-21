@@ -138,14 +138,19 @@ test("redaction: isSafeRelativePath validates relative paths without escape", ()
   assert.equal(isSafeRelativePath("SKILL.md"), true);
   assert.equal(isSafeRelativePath("scripts/run.py"), true);
   assert.equal(isSafeRelativePath("assets/images/diagram.png"), true);
-  assert.equal(isSafeRelativePath(".env"), true);
+  assert.equal(isSafeRelativePath("references/Crème brûlée notes.md"), true);
+  assert.equal(isSafeRelativePath("invalid path with spaces.md"), true);
   assert.equal(isSafeRelativePath("a-b_c.d/e-f_g.h"), true);
 
   assert.equal(isSafeRelativePath("/SKILL.md"), false);
   assert.equal(isSafeRelativePath("../SKILL.md"), false);
+  assert.equal(isSafeRelativePath(".env"), false);
   assert.equal(isSafeRelativePath(""), false);
   assert.equal(isSafeRelativePath("scripts//double-slash.py"), false);
-  assert.equal(isSafeRelativePath("invalid path with spaces.md"), false);
+  assert.equal(isSafeRelativePath("references/Cre\u0300me.md"), false);
+  assert.equal(isSafeRelativePath("references/%2e%2e/secret.md"), false);
+  assert.equal(isSafeRelativePath(`${"a/".repeat(32)}file.md`), false);
+  assert.equal(isSafeRelativePath(`${"é".repeat(256)}.md`), false);
 });
 
 test("redaction: sanitizePath redacts sensitive paths and returns clean relative paths", () => {

@@ -477,3 +477,24 @@ test("view-state: canApproveConsent returns false when all skills are excluded o
   const state = getInitialImportState(session);
   assert.equal(canApproveConsent(state), false);
 });
+
+test("view-state: terminal stale session with accepted progress derives stale before progress states", () => {
+  const staleSession = createMockSession({
+    state: "stale",
+    uploadProgress: {
+      acceptedFileCount: 4,
+      acceptedByteTotal: 8192,
+      expectedFileCount: 4,
+      expectedByteTotal: 8192,
+      percentComplete: 100
+    }
+  });
+
+  // A session whose server state is stale must not regress to ready_for_consent
+  // just because all upload bytes have already been accepted.
+  assert.equal(deriveImportViewState(staleSession), "stale");
+
+  const state = getInitialImportState(staleSession);
+  assert.equal(state.viewState, "stale");
+  assert.equal(canRetry(state), true);
+});

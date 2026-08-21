@@ -18,6 +18,7 @@ export interface ImportRpcClient {
         data: { signedUrl: string; path: string; token: string } | null;
         error: unknown;
       }>;
+      download(path: string): Promise<{ data: Blob | null; error: unknown }>;
     };
   };
 }
@@ -138,6 +139,19 @@ export class SupabaseImportRepository {
       }
       return data.signedUrl;
     } catch (error) {
+      throw new ImportRouteError("temporarily_unavailable", 0, error);
+    }
+  }
+
+  async readStoredObject(bucket: string, objectName: string): Promise<Uint8Array> {
+    try {
+      const { data, error } = await this.factory("device_adapter").storage
+        .from(bucket)
+        .download(objectName);
+      if (error || data === null) throw new Error(messageFrom(error));
+      return new Uint8Array(await data.arrayBuffer());
+    } catch (error) {
+      if (error instanceof ImportRouteError) throw error;
       throw new ImportRouteError("temporarily_unavailable", 0, error);
     }
   }
