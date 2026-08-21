@@ -21,7 +21,9 @@ const SECRET_CANARIES = Object.freeze([
 // that release and Apple-readiness checks fail closed. No other path is exempt.
 const REVIEWED_FIXTURE_EXEMPTIONS = new Map([
   ['test/package-candidate-verifier.mjs', new Set(['PEM private key'])],
-  ['test/fixtures/m3-03-apple-signing-readiness/cases.json', new Set(['PEM private key'])]
+  ['test/fixtures/m3-03-apple-signing-readiness/cases.json', new Set(['PEM private key'])],
+  ['apps/web/tests/import-contracts.test.mjs', new Set(['PEM private key', 'GitHub credential'])],
+  ['test/m4-03-secret-blocking.mjs', new Set(['PEM private key'])]
 ]);
 
 export function scanRepositorySecretCanaries(entries) {

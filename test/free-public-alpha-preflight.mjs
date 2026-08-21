@@ -127,6 +127,18 @@ test('repository secret canary scan catches credentials and limits the fixture e
     bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
   }]), []);
   assert.deepEqual(scanRepositorySecretCanaries([{
+    path: 'apps/web/tests/import-contracts.test.mjs',
+    bytes: Buffer.from(`${['-----BEGIN', 'PRIVATE KEY-----'].join(' ')}\nghp_${'A'.repeat(36)}`)
+  }]), []);
+  assert.deepEqual(scanRepositorySecretCanaries([{
+    path: 'test/m4-03-secret-blocking.mjs',
+    bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
+  }]), []);
+  assert.deepEqual(scanRepositorySecretCanaries([{
+    path: 'test/m4-03-secret-blocking.mjs',
+    bytes: Buffer.from(`ghp_${'A'.repeat(36)}`)
+  }]), [{ path: 'test/m4-03-secret-blocking.mjs', label: 'GitHub credential' }]);
+  assert.deepEqual(scanRepositorySecretCanaries([{
     path: 'test/another-test.mjs',
     bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
   }]), [{ path: 'test/another-test.mjs', label: 'PEM private key' }]);
