@@ -229,6 +229,14 @@ test("manifest binding regression: exclusion request does not locally mutate dig
   state = importViewReducer(state, { type: "REQUEST_SKILL_EXCLUSION", skillName: "bad-skill" });
   assert.equal(state.pendingExclusionSkillNames.has("bad-skill"), true);
 
+  // A failed server request clears only the pending marker so the user can retry.
+  state = importViewReducer(state, { type: "SKILL_EXCLUSION_FAILED", skillName: "bad-skill" });
+  assert.equal(state.pendingExclusionSkillNames.has("bad-skill"), false);
+  assert.equal(state.viewState, "blocked");
+  assert.equal(state.session.summary.manifestDigest, originalDigest);
+
+  state = importViewReducer(state, { type: "REQUEST_SKILL_EXCLUSION", skillName: "bad-skill" });
+
   // P1: Client state MUST NOT mutate session totals, digest, or transition to ready_for_consent
   assert.equal(state.viewState, "blocked");
   assert.equal(state.session.summary.manifestDigest, originalDigest);

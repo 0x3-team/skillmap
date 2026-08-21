@@ -454,4 +454,10 @@ comment on table private.import_analysis_jobs is
 comment on function analysis_worker_adapter.claim_import_analysis_jobs(text,integer,integer) is
   'Claims bounded immutable-version analysis jobs using expiring worker-specific leases.';
 
+-- PostgREST must expose the service-role-only worker adapter before the worker
+-- can reach its explicitly granted RPCs. Browser roles retain no execute grants.
+alter role authenticator set pgrst.db_schemas =
+  'public, graphql_public, api, device_adapter, analysis_worker_adapter';
+notify pgrst, 'reload config';
+
 commit;

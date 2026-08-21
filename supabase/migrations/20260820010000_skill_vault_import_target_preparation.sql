@@ -224,6 +224,8 @@ begin
   ) into v_manifest_files
   from pg_catalog.jsonb_array_elements(v_manifest -> 'files') with ordinality as item(value, ordinality);
 
+  v_manifest_files := coalesce(v_manifest_files, '[]'::jsonb);
+
   if pg_catalog.btrim(p_manifest_schema_version) <> v_manifest ->> 'schema_version'
     or pg_catalog.btrim(p_display_name) <> pg_catalog.btrim(v_manifest #>> '{display,name}')
     or coalesce(p_description, '') <> v_manifest #>> '{display,description}'

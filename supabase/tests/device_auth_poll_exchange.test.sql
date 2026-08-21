@@ -28,14 +28,14 @@ select ok(
   'refresh generations have no request-role grants'
 );
 
-select ok(not has_function_privilege('anon','api.device_auth_poll_v1(text,text,text,text,text,text,text,text,text)','execute'), 'poll remains feature-off for anon');
-select ok(not has_function_privilege('authenticated','api.device_auth_poll_v1(text,text,text,text,text,text,text,text,text)','execute'), 'poll remains feature-off for authenticated');
-select ok(not has_function_privilege('service_role','api.device_auth_poll_v1(text,text,text,text,text,text,text,text,text)','execute'), 'poll remains feature-off for service_role');
+select ok(not has_function_privilege('anon','api.device_auth_poll_v1(text,text,text,text,text,text,text,text,text)','execute'), 'anon cannot execute poll after cutover');
+select ok(not has_function_privilege('authenticated','api.device_auth_poll_v1(text,text,text,text,text,text,text,text,text)','execute'), 'authenticated cannot execute poll after cutover');
+select ok(has_function_privilege('service_role','api.device_auth_poll_v1(text,text,text,text,text,text,text,text,text)','execute'), 'service_role can execute poll after cutover');
 select ok(exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.proname = 'device_auth_get_active_key_v1'), 'active proof-key lookup exists');
-select ok(not has_function_privilege('service_role','api.device_auth_get_active_key_v1(text)','execute'), 'active proof-key lookup remains feature-off for service_role');
-select ok(not has_function_privilege('anon','api.device_auth_exchange_v1(text,text,text,text,text[],text,text,text,text,text,text,text,integer,text,integer)','execute'), 'exchange remains feature-off for anon');
-select ok(not has_function_privilege('authenticated','api.device_auth_exchange_v1(text,text,text,text,text[],text,text,text,text,text,text,text,integer,text,integer)','execute'), 'exchange remains feature-off for authenticated');
-select ok(not has_function_privilege('service_role','api.device_auth_exchange_v1(text,text,text,text,text[],text,text,text,text,text,text,text,integer,text,integer)','execute'), 'exchange remains feature-off for service_role');
+select ok(has_function_privilege('service_role','api.device_auth_get_active_key_v1(text)','execute'), 'service_role can look up the active proof key after cutover');
+select ok(not has_function_privilege('anon','api.device_auth_exchange_v1(text,text,text,text,text[],text,text,text,text,text,text,text,integer,text,integer)','execute'), 'anon cannot execute exchange after cutover');
+select ok(not has_function_privilege('authenticated','api.device_auth_exchange_v1(text,text,text,text,text[],text,text,text,text,text,text,text,integer,text,integer)','execute'), 'authenticated cannot execute exchange after cutover');
+select ok(has_function_privilege('service_role','api.device_auth_exchange_v1(text,text,text,text,text[],text,text,text,text,text,text,text,integer,text,integer)','execute'), 'service_role can execute exchange after cutover');
 
 select ok(not exists (select 1 from pg_catalog.pg_attribute where attrelid = 'private.device_auth_token_families'::regclass and attname in ('access_token','refresh_token','exchange_code')), 'family table has no raw credentials');
 select ok(not exists (select 1 from pg_catalog.pg_attribute where attrelid = 'private.device_auth_access_tokens'::regclass and attname = 'access_token'), 'access table has no raw token column');

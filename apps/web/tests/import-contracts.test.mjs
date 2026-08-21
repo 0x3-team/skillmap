@@ -381,6 +381,8 @@ test("exclusion control requires a server callback and has no legacy client togg
 
   assert.ok(clientSource.includes("disabled={isExcluded || !onRequestExclusionAction"));
   assert.ok(clientSource.includes("event.currentTarget.checked"));
+  assert.ok(clientSource.includes('type: "SKILL_EXCLUSION_FAILED"'));
+  assert.ok(stateSource.includes('| { type: "SKILL_EXCLUSION_FAILED"; skillName: string }'));
   assert.equal(stateSource.includes("TOGGLE_SKILL_EXCLUSION"), false);
 });
 

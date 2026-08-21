@@ -769,7 +769,14 @@ function ActiveSessionView({
                               type: "REQUEST_SKILL_EXCLUSION",
                               skillName: skill.skillName
                             });
-                            void onRequestExclusionAction(skill.skillName);
+                            void Promise.resolve()
+                              .then(() => onRequestExclusionAction(skill.skillName))
+                              .catch(() => {
+                                dispatch({
+                                  type: "SKILL_EXCLUSION_FAILED",
+                                  skillName: skill.skillName
+                                });
+                              });
                           }}
                           className="h-4 w-4 rounded border-border text-primary focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label={`Include ${skill.skillName} in import`}

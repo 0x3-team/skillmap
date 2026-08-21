@@ -57,6 +57,18 @@ test('M4.16 CLI dry-run produces a path-free preview without auth or checkpoint 
   await assert.rejects(readdir(path.join(state.cwd, '.skillmap', 'imports', 'vault')), { code: 'ENOENT' });
 });
 
+test('M4.16 CLI dry-run accepts the documented inline true value without mutation', async (t) => {
+  const state = await projectFixture(t);
+  let runtimeCalls = 0;
+  const result = await importCommand(state.cwd, ['vault', state.skillDir], { 'dry-run': 'true' }, {
+    runtimeFactory: async () => { runtimeCalls += 1; return inertRuntime(); },
+    now: () => new Date(NOW)
+  });
+  assert.equal(result.state, 'preview');
+  assert.equal(runtimeCalls, 0);
+  await assert.rejects(readdir(path.join(state.cwd, '.skillmap', 'imports', 'vault')), { code: 'ENOENT' });
+});
+
 test('M4.16 CLI preserves one stable retry checkpoint across the owner-consent pause', async (t) => {
   const state = await projectFixture(t);
   const requests = [];

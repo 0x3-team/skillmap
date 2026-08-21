@@ -4,6 +4,7 @@ import { lstat, open, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
 import { LOCAL_QUARANTINE_OUTCOMES, type LocalQuarantineOutcomeV1 } from '../contracts/local-quarantine-registry.js';
+import { validateQuarantineMutationReceipt } from './quarantine-execution.js';
 import { assertSameVolume } from './quarantine-preflight.js';
 import { assertRestoreWindowOpen } from './quarantine-retention.js';
 import type {
@@ -273,6 +274,7 @@ export async function executeRestore(input: {
   if (!SAFE_ID.test(input.authorization.operationId) || !SAFE_ID.test(input.authorization.idempotencyKey)) {
     throw new Error('Restore operation identity is invalid.');
   }
+  validateQuarantineMutationReceipt(input.quarantineReceipt);
   const now = input.now?.() ?? new Date();
   await Promise.all([assertCapabilityCurrent(input.originalRoot), assertCapabilityCurrent(input.quarantineRoot)]);
   const volumeFailure = assertSameVolume(input.originalRoot.volumeId, input.quarantineRoot.volumeId);

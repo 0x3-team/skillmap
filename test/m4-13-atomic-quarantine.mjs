@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { access, chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -8,7 +9,8 @@ import { test } from 'node:test';
 import { establishRootCapability, preflightQuarantine } from '../dist/core/quarantine-preflight.js';
 import {
   createMacOSAtomicNoReplaceMover,
-  executeQuarantine
+  executeQuarantine,
+  validateQuarantineMutationReceipt
 } from '../dist/core/quarantine-execution.js';
 import { buildImportManifest } from '../dist/core/import-manifest-builder.js';
 import { issueImportParityReceipt } from '../dist/core/import-parity.js';
@@ -17,6 +19,74 @@ import { bindQuarantineAuthorization } from '../dist/core/quarantine-authorizati
 const SOURCE_ROOT_ID = '00000000-0000-4000-8000-000000000010';
 const QUARANTINE_ROOT_ID = '00000000-0000-4000-8000-000000000020';
 const SKILL_CONTENT = '---\nname: Skill A\ndescription: Quarantine fixture.\n---\n# Skill A\n';
+
+function digest(value) {
+  return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
+}
+
+async function resultHelper(t, stdout, exitCode) {
+  const root = await mkdtemp(path.join(tmpdir(), 'skillmap-m4-helper-result-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const helper = path.join(root, 'helper.sh');
+  await writeFile(helper, `#!/bin/sh\ncat >/dev/null\nprintf '${stdout}\\n'\nexit ${exitCode}\n`, 'utf8');
+  await chmod(helper, 0o755);
+  return helper;
+}
+
+function helperBinding() {
+  return {
+    sourceRootPath: '/tmp/skillmap-source',
+    sourceRelativePath: 'skill-a',
+    sourceRootVolumeId: 1,
+    sourceRootFileId: 2,
+    sourceObjectVolumeId: 1,
+    sourceObjectFileId: 3,
+    destinationRootPath: '/tmp/skillmap-quarantine',
+    destinationRelativePath: 'operation/skill-a',
+    destinationRootVolumeId: 1,
+    destinationRootFileId: 4
+  };
+}
+
+test('native mover preserves unsafe-path and durability helper failures', async (t) => {
+  const cases = [
+    { stdout: 'UNSAFE_PATH', exitCode: 67, code: 'EINVAL', message: 'UNSAFE_PATH' },
+    { stdout: 'SYNC_FAILED', exitCode: 19, code: 'EIO', message: 'ATOMIC_MOVE_DURABILITY_FAILED' }
+  ];
+  for (const expected of cases) {
+    const helper = await resultHelper(t, expected.stdout, expected.exitCode);
+    const mover = createMacOSAtomicNoReplaceMover(helper);
+    await assert.rejects(
+      mover.move('/tmp/skillmap-source/skill-a', '/tmp/skillmap-quarantine/operation/skill-a', helperBinding()),
+      (error) => error?.code === expected.code && error?.message === expected.message
+    );
+  }
+});
+
+test('quarantine receipt validation rejects modified authority fields', () => {
+  const base = {
+    kind: 'skillmap.local-quarantine-receipt',
+    schemaVersion: 1,
+    status: 'MOVE_OBSERVED',
+    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v1', operationId: 'op-1' }),
+    operationId: 'op-1',
+    authorizationDigest: `sha256:${'1'.repeat(64)}`,
+    preflightDigest: `sha256:${'2'.repeat(64)}`,
+    candidateSnapshotDigest: `sha256:${'3'.repeat(64)}`,
+    contentDigest: `sha256:${'4'.repeat(64)}`,
+    sourceObjectId: 'source-1',
+    quarantineObjectIdentityDigest: `sha256:${'5'.repeat(64)}`,
+    destinationIdentityDigest: `sha256:${'6'.repeat(64)}`,
+    quarantinedAt: '2026-08-20T12:00:00.000Z',
+    restoreExpiresAt: '2026-09-19T12:00:00.000Z'
+  };
+  const receipt = { ...base, receiptDigest: digest(base) };
+  assert.deepEqual(validateQuarantineMutationReceipt(receipt), receipt);
+  assert.throws(
+    () => validateQuarantineMutationReceipt({ ...receipt, contentDigest: `sha256:${'7'.repeat(64)}` }),
+    /Quarantine receipt/
+  );
+});
 
 async function run(command, args) {
   await new Promise((resolve, reject) => {
@@ -211,6 +281,7 @@ test('native mover rejects a source-root replacement after caller revalidation',
 
   assert.equal(await readFile(path.join(originalSource, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), 'replacement');
+  await assert.rejects(access(state.preflight.destinationPath), { code: 'ENOENT' });
 });
 
 test('native mover rejects a quarantine-root replacement after caller revalidation', { skip: process.platform !== 'darwin' }, async (t) => {

@@ -30,6 +30,7 @@ export type ImportClientAction =
   | { type: "SET_SESSION"; projection: ImportSessionProjection | null }
   | { type: "SET_STATE"; state: ImportViewStateKind }
   | { type: "REQUEST_SKILL_EXCLUSION"; skillName: string }
+  | { type: "SKILL_EXCLUSION_FAILED"; skillName: string }
   | { type: "SELECT_SKILL"; skillName: string | null }
   | { type: "OPEN_CONSENT_MODAL" }
   | { type: "CLOSE_CONSENT_MODAL" }
@@ -169,6 +170,15 @@ export function importViewReducer(
       const nextPending = new Set(state.pendingExclusionSkillNames);
       nextPending.add(action.skillName);
 
+      return {
+        ...state,
+        pendingExclusionSkillNames: nextPending
+      };
+    }
+
+    case "SKILL_EXCLUSION_FAILED": {
+      const nextPending = new Set(state.pendingExclusionSkillNames);
+      nextPending.delete(action.skillName);
       return {
         ...state,
         pendingExclusionSkillNames: nextPending

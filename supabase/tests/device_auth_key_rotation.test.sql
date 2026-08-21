@@ -14,7 +14,7 @@ select function_owner_is('api','device_auth_rotate_key_v1',array['text','text','
 select ok(not has_function_privilege('public','api.device_auth_rotate_key_v1(text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,integer)','execute'), 'rotation RPC is not executable by public');
 select ok(not has_function_privilege('anon','api.device_auth_rotate_key_v1(text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,integer)','execute'), 'rotation RPC is not executable by anon');
 select ok(not has_function_privilege('authenticated','api.device_auth_rotate_key_v1(text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,integer)','execute'), 'rotation RPC is not executable by authenticated');
-select ok(not has_function_privilege('service_role','api.device_auth_rotate_key_v1(text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,integer)','execute'), 'rotation RPC is not executable by service_role while feature is off');
+select ok(has_function_privilege('service_role','api.device_auth_rotate_key_v1(text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,integer)','execute'), 'post-cutover rotation RPC is executable only through service_role');
 
 select results_eq($$select count(*)::int from pg_catalog.pg_policies where schemaname = 'private' and tablename = 'device_auth_key_rotation_receipts' and roles @> array['skillmap_device_auth_definer'::name]$$, $$select 2$$, 'definer has separate rotation receipt read and insert policies');
 select ok((select exists (select 1 from pg_catalog.pg_indexes where schemaname = 'private' and indexname = 'device_auth_key_bindings_one_active_per_device')), 'one active key partial unique index remains in force');

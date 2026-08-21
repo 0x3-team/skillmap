@@ -533,33 +533,44 @@ export class ImportUploader {
         signal: fileAbort.signal
       });
 
+      if (storageResponse.status === 409) {
+        return this.acceptPreparedFile(file, session, idempotencyKey, accessToken, fileAbort.signal);
+      }
       if (storageResponse.status < 200 || storageResponse.status >= 300) {
         const retryable = storageResponse.status >= 500 || storageResponse.status === 408 || storageResponse.status === 429;
         throw new ImportUploadError('upload_rejected', `Storage upload failed: ${storageResponse.status}`, file.filePublicId, retryable, storageResponse.status);
       }
 
-      const accepted = await this.withAcceptanceLock(async () => {
-        const result = await this.client.acceptFile(
-          {
-            sessionPublicId: session.sessionPublicId,
-            filePublicId: file.filePublicId,
-            expectedRevision: session.revision,
-            fileDigest: file.digest,
-            byteSize: file.byteSize
-          },
-          { accessToken, signal: fileAbort.signal, idempotencyKey }
-        );
-        session.revision = result.revision;
-        session.acceptedFileCount = result.acceptedFileCount;
-        session.acceptedByteTotal = result.acceptedByteTotal;
-        return result;
-      });
-
-      return accepted;
+      return this.acceptPreparedFile(file, session, idempotencyKey, accessToken, fileAbort.signal);
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', onParentAbort);
     }
+  }
+
+  private async acceptPreparedFile(
+    file: ImportUploadFile,
+    session: ImportSession,
+    idempotencyKey: string,
+    accessToken: string | undefined,
+    signal: AbortSignal
+  ): Promise<ImportSession> {
+    return this.withAcceptanceLock(async () => {
+      const result = await this.client.acceptFile(
+        {
+          sessionPublicId: session.sessionPublicId,
+          filePublicId: file.filePublicId,
+          expectedRevision: session.revision,
+          fileDigest: file.digest,
+          byteSize: file.byteSize
+        },
+        { accessToken, signal, idempotencyKey }
+      );
+      session.revision = result.revision;
+      session.acceptedFileCount = result.acceptedFileCount;
+      session.acceptedByteTotal = result.acceptedByteTotal;
+      return result;
+    });
   }
 
   private async withAcceptanceLock<T>(operation: () => Promise<T>): Promise<T> {

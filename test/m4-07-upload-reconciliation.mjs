@@ -256,3 +256,33 @@ test('M4.07 handles transient prepare failure with retry and idempotency', async
   assert.equal(result.failed.length, 0);
   assert.equal(router.calls.prepare.length, 2);
 });
+
+test('M4.07 accepts a matching immutable object after a no-overwrite storage conflict', async () => {
+  const file = makeFile(0);
+  const state = { revision: 1, acceptedCount: 0, acceptedBytes: 0 };
+  const router = makeRouter({ state });
+  const client = await makeClient(router.fetchFn, { maxRetries: 0 });
+  let storageCalls = 0;
+  const uploader = new ImportUploader({
+    client,
+    concurrency: 1,
+    fileMaxRetries: 0,
+    storageTransport: async () => {
+      storageCalls += 1;
+      return { status: 409 };
+    }
+  });
+  const session = {
+    ...baseSession(),
+    expectedFileCount: 1,
+    expectedByteTotal: file.byteSize
+  };
+
+  const result = await uploader.uploadFiles({ session, files: [file], accessToken: ACCESS_TOKEN });
+
+  assert.equal(storageCalls, 1);
+  assert.deepEqual(router.calls.accept, [file.filePublicId]);
+  assert.equal(result.uploaded.length, 1);
+  assert.equal(result.failed.length, 0);
+  assert.equal(result.session.acceptedFileCount, 1);
+});

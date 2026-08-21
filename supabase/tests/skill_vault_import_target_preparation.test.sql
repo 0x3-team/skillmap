@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(25);
+select plan(26);
 
 select is(
   private.compute_import_content_digest(
@@ -271,6 +271,42 @@ select throws_ok($$select pg_temp.m4_prepare_target(
     'verified','[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","executable":false,"ordinal":0}]',
     'a4000000-0000-4400-8400-000000000306')$$,
   22023, 'invalid import target preparation', 'a 201-character display name is rejected');
+select throws_ok($$
+  with inputs as (
+    select
+      pg_catalog.jsonb_build_object(
+        'schema_version', '1.0',
+        'identity', pg_catalog.jsonb_build_object('logical_id', 'empty-canonical', 'public_id', 'fixture.empty_canonical'),
+        'display', pg_catalog.jsonb_build_object('name', 'Empty Canonical', 'description', ''),
+        'source', pg_catalog.jsonb_build_object(
+          'authority', 'local-owner', 'kind', 'skill-directory', 'namespace', 'skillmap',
+          'source_id', 'empty-canonical', 'revision', 'r1'
+        ),
+        'files', '[]'::jsonb,
+        'provenance', pg_catalog.jsonb_build_object(
+          'publisher_id', 'local-owner', 'ingest_id', 'm4-pgtap', 'created_at', '2026-08-20T00:00:00.000Z'
+        ),
+        'compatibility', pg_catalog.jsonb_build_object('manifest_major', 1, 'minimum_consumer_major', 1)
+      ) as manifest,
+      '[{"relative_path":"SKILL.md","media_type":"text/markdown","byte_size":1,"file_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","executable":false,"ordinal":0}]'::jsonb as files
+  ), encoded as (
+    select pg_catalog.convert_to(manifest::text, 'UTF8') as bytes, manifest, files
+    from inputs
+  ), hashed as (
+    select bytes, manifest, files,
+      'sha256:' || pg_catalog.encode(extensions.digest(bytes, 'sha256'), 'hex') as manifest_digest
+    from encoded
+  )
+  select device_adapter.adapter_prepare_import_target(
+    'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),
+    'Empty Canonical',null,'1.0',bytes,manifest_digest,
+    'sha256:'||repeat('d',64),
+    '{"logical_id":"empty-canonical","display_name":"Empty Canonical"}',
+    manifest -> 'source','verified',files,'a4000000-0000-4400-8400-000000000309'
+  )
+  from hashed
+$$, 22023, 'import target projection does not match canonical manifest',
+  'an empty canonical file list cannot accept a non-empty caller projection');
 select throws_ok($$select pg_temp.m4_prepare_target(
     'acct_b4000000000044008400000000000002','dev_'||repeat('4',32),
     'Foreign','x','1.0','foreign','{}','verified','[]','b4000000-0000-4400-8400-000000000301')$$,

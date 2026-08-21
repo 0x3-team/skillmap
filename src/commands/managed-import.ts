@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { hasFlag } from '../core/args.js';
 import { assertQualifiedInventory } from '../core/identity.js';
 import { buildImportManifest, type BuildImportManifestOptions } from '../core/import-manifest-builder.js';
 import { buildImportPreview, nonImportableToPreviewRecords } from '../core/import-preview.js';
@@ -217,7 +218,7 @@ export async function managedImportCommand(
     manifestOptions: resolved.manifestOptions
   };
 
-  if (flags['dry-run'] === true) {
+  if (hasFlag(flags, 'dry-run')) {
     const manifest = await buildImportManifest(resolved.skillDir, resolved.manifestOptions);
     assertInventoryRevision(manifest.sourceReceipt.contentRevision, resolved.skill.contentRevision);
     const preview = buildImportPreview([manifest], { blockedRecords: nonImportableToPreviewRecords(manifest) });

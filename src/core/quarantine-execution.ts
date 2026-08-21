@@ -18,6 +18,23 @@ import type {
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_RECORD_BYTES = 128 * 1024;
+const QUARANTINE_RECEIPT_KEYS = [
+  'kind',
+  'schemaVersion',
+  'status',
+  'receiptId',
+  'operationId',
+  'authorizationDigest',
+  'preflightDigest',
+  'candidateSnapshotDigest',
+  'contentDigest',
+  'sourceObjectId',
+  'quarantineObjectIdentityDigest',
+  'destinationIdentityDigest',
+  'quarantinedAt',
+  'restoreExpiresAt',
+  'receiptDigest'
+] as const;
 
 function digest(value: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(value)).digest('hex')}`;
@@ -39,6 +56,50 @@ function assertTimestamp(value: string, label: string): Date {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) throw new Error(`${label} is invalid.`);
   return date;
+}
+
+export function validateQuarantineMutationReceipt(value: unknown): QuarantineMutationReceipt {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Quarantine receipt is malformed.');
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== QUARANTINE_RECEIPT_KEYS.length
+    || !QUARANTINE_RECEIPT_KEYS.every((key) => keys.includes(key))) {
+    throw new Error('Quarantine receipt is malformed.');
+  }
+  const digestFields = [
+    record.authorizationDigest,
+    record.preflightDigest,
+    record.candidateSnapshotDigest,
+    record.contentDigest,
+    record.quarantineObjectIdentityDigest,
+    record.destinationIdentityDigest,
+    record.receiptDigest
+  ];
+  if (record.kind !== 'skillmap.local-quarantine-receipt'
+    || record.schemaVersion !== 1
+    || record.status !== 'MOVE_OBSERVED'
+    || typeof record.operationId !== 'string'
+    || !SAFE_ID.test(record.operationId)
+    || typeof record.sourceObjectId !== 'string'
+    || !SAFE_ID.test(record.sourceObjectId)
+    || digestFields.some((field) => typeof field !== 'string' || !DIGEST.test(field))) {
+    throw new Error('Quarantine receipt is malformed.');
+  }
+  const quarantinedAt = assertTimestamp(String(record.quarantinedAt), 'quarantinedAt');
+  const restoreExpiresAt = assertTimestamp(String(record.restoreExpiresAt), 'restoreExpiresAt');
+  const expectedReceiptId = digest({
+    kind: 'skillmap.local-quarantine-receipt-id.v1',
+    operationId: record.operationId
+  });
+  const { receiptDigest, ...base } = record;
+  if (restoreExpiresAt.getTime() <= quarantinedAt.getTime()
+    || record.receiptId !== expectedReceiptId
+    || receiptDigest !== digest(base)) {
+    throw new Error('Quarantine receipt digest is invalid.');
+  }
+  return record as unknown as QuarantineMutationReceipt;
 }
 
 function assertAuthorization(
@@ -244,6 +305,7 @@ export function createMacOSAtomicNoReplaceMover(helperPath: string): AtomicNoRep
           if (stdoutBytes <= 64) stdout.push(chunk);
         });
         child.on('error', reject);
+        child.stdin.on('error', reject);
         child.on('close', (code) => {
           const result = Buffer.concat(stdout).toString('utf8');
           if (code === 0 && result === 'OK\n') return resolve();
@@ -256,6 +318,12 @@ export function createMacOSAtomicNoReplaceMover(helperPath: string): AtomicNoRep
           } else if (code === 66 && result === 'SOURCE_IDENTITY_STALE\n') {
             error.code = 'ESTALE';
             error.message = 'CANDIDATE_STALE';
+          } else if (code === 67 && result === 'UNSAFE_PATH\n') {
+            error.code = 'EINVAL';
+            error.message = 'UNSAFE_PATH';
+          } else if (code === 19 && result === 'SYNC_FAILED\n') {
+            error.code = 'EIO';
+            error.message = 'ATOMIC_MOVE_DURABILITY_FAILED';
           }
           else error.code = 'ATOMIC_MOVE_FAILED';
           reject(error);
@@ -281,8 +349,9 @@ export async function executeQuarantine(input: {
   const receiptFile = path.join(input.receiptDirectory, `${input.authorization.operationId}.quarantine-receipt.json`);
   const existing = await safeReadRecord(receiptFile);
   if (existing) {
-    if (existing.authorizationDigest !== authorizationDigest) throw new Error('IDEMPOTENCY_CONFLICT');
-    return existing as unknown as QuarantineMutationReceipt;
+    const receipt = validateQuarantineMutationReceipt(existing);
+    if (receipt.authorizationDigest !== authorizationDigest) throw new Error('IDEMPOTENCY_CONFLICT');
+    return receipt;
   }
 
   await assertRootCapabilitiesCurrent(input.preflight);

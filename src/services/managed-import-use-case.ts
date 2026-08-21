@@ -411,6 +411,8 @@ export async function runManagedImport(
     { accessToken }
   );
 
+  const expectedFileCount = manifestResult.files.length;
+  const expectedByteTotal = manifestResult.files.reduce((sum, file) => sum + file.utf8_bytes, 0);
   const session = await deps.client.beginImportSession(
     {
       skillPublicId: target.skillPublicId,
@@ -418,24 +420,22 @@ export async function runManagedImport(
       manifestSchemaVersion: manifest.schema_version,
       manifestDigest: manifestResult.manifestDigest,
       contentDigest,
-      expectedFileCount: manifestResult.files.length,
-      expectedByteTotal: manifestResult.files.reduce((sum, file) => sum + file.utf8_bytes, 0),
+      expectedFileCount,
+      expectedByteTotal,
       expiresAt: sessionExpiresAt,
       idempotencyKey: idempotencyKey('begin-session', operationBinding)
     },
     { accessToken }
   );
 
-  const expectedFileCount = manifestResult.files.length;
-  const expectedByteTotal = manifestResult.files.reduce((sum, file) => sum + file.utf8_bytes, 0);
   if (session.state === 'verified') {
     if (session.revision < 2
       || !Number.isSafeInteger(session.finalizationExpectedRevision)
       || (session.finalizationExpectedRevision ?? 0) < 1
       || session.acceptedFileCount !== expectedFileCount
       || session.acceptedByteTotal !== expectedByteTotal
-      || (session.manifestDigest !== undefined && session.manifestDigest !== manifestResult.manifestDigest)
-      || (session.contentDigest !== undefined && session.contentDigest !== contentDigest)) {
+      || session.manifestDigest !== manifestResult.manifestDigest
+      || session.contentDigest !== contentDigest) {
       throw new ImportClientError(502, 'invalid_response');
     }
     return completeManagedImport({

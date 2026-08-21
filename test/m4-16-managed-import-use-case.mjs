@@ -330,3 +330,36 @@ test('M4.16 retries a verified terminal session without uploading again', async 
   const replay = retryCalls.find(([name]) => name === 'finalize');
   assert.equal(replay[1].expectedRevision, finalizedRevision - 1);
 });
+
+test('M4.16 rejects verified-session recovery when a bound digest is missing', async (t) => {
+  for (const missingField of ['manifestDigest', 'contentDigest']) {
+    const state = await fixture(t);
+    const cloud = makeCloud({ consented: true });
+    const originalBegin = cloud.client.beginImportSession;
+    cloud.client.beginImportSession = async (input) => {
+      const started = await originalBegin(input);
+      const verified = {
+        ...started,
+        state: 'verified',
+        revision: 2,
+        acceptedFileCount: started.expectedFileCount,
+        acceptedByteTotal: started.expectedByteTotal,
+        finalizationExpectedRevision: 1
+      };
+      delete verified[missingField];
+      return verified;
+    };
+
+    await assert.rejects(
+      runManagedImport(state.request, {
+        auth: auth(),
+        client: cloud.client,
+        uploader: cloud.uploader,
+        now: () => new Date(NOW)
+      }),
+      (error) => error instanceof ImportClientError && error.code === 'invalid_response',
+      missingField
+    );
+    assert.equal(cloud.calls.some(([name]) => name === 'upload'), false);
+  }
+});

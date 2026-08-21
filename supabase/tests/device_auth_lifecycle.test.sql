@@ -23,11 +23,11 @@ select ok((select relforcerowsecurity from pg_catalog.pg_class where oid = 'priv
 select ok((select relforcerowsecurity from pg_catalog.pg_class where oid = 'private.device_auth_refresh_generations'::regclass), 'refresh generations FORCE RLS');
 select ok((select relforcerowsecurity from pg_catalog.pg_class where oid = 'private.device_auth_idempotency_receipts'::regclass), 'idempotency receipts FORCE RLS');
 
-select ok(not has_function_privilege('public', 'api.device_auth_cancel_v1(text,text,text,text,text,text,text,text,text,text,text)', 'execute'), 'cancel feature remains off for PUBLIC');
-select ok(not has_function_privilege('service_role', 'api.device_auth_cancel_v1(text,text,text,text,text,text,text,text,text,text,text)', 'execute'), 'cancel feature remains off for service_role');
-select ok(not has_function_privilege('service_role', 'api.device_auth_authenticate_v1(text[],integer[],text,text,text,text,text,text,text,text)', 'execute'), 'authenticate feature remains off');
-select ok(not has_function_privilege('service_role', 'api.device_auth_get_status_v1(text[],integer[],text,text,text,text,text,text,text,text)', 'execute'), 'status feature remains off');
-select ok(not has_function_privilege('service_role', 'api.device_auth_revoke_v1(text[],integer[],text,text,text,text,text,text,text,text,text,text,text)', 'execute'), 'revoke feature remains off');
+select ok(not has_function_privilege('public', 'api.device_auth_cancel_v1(text,text,text,text,text,text,text,text,text,text,text)', 'execute'), 'PUBLIC cannot execute cancel after cutover');
+select ok(has_function_privilege('service_role', 'api.device_auth_cancel_v1(text,text,text,text,text,text,text,text,text,text,text)', 'execute'), 'service_role can execute cancel after cutover');
+select ok(has_function_privilege('service_role', 'api.device_auth_authenticate_v1(text[],integer[],text,text,text,text,text,text,text,text)', 'execute'), 'service_role can execute authenticate after cutover');
+select ok(has_function_privilege('service_role', 'api.device_auth_get_status_v1(text[],integer[],text,text,text,text,text,text,text,text)', 'execute'), 'service_role can execute status after cutover');
+select ok(has_function_privilege('service_role', 'api.device_auth_revoke_v1(text[],integer[],text,text,text,text,text,text,text,text,text,text,text)', 'execute'), 'service_role can execute revoke after cutover');
 
 select ok(pg_get_functiondef('api.device_auth_cancel_v1(text,text,text,text,text,text,text,text,text,text,text)'::regprocedure) like '%device_code_digest%' and pg_get_functiondef('api.device_auth_cancel_v1(text,text,text,text,text,text,text,text,text,text,text)'::regprocedure) like '%idempotency_conflict%', 'cancel binds exact code and idempotency');
 select ok(pg_get_functiondef('api.device_auth_authenticate_v1(text[],integer[],text,text,text,text,text,text,text,text)'::regprocedure) like '%current_generation%' and pg_get_functiondef('api.device_auth_authenticate_v1(text[],integer[],text,text,text,text,text,text,text,text)'::regprocedure) like '%expires_at%', 'authenticate checks generation and expiry');

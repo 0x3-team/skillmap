@@ -180,8 +180,10 @@ do {
         }
     }
     if result == 0 {
-        _ = fsync(source.descriptor)
-        _ = fsync(destination.descriptor)
+        if fsync(source.descriptor) != 0 || fsync(destination.descriptor) != 0 {
+            FileHandle.standardOutput.write(Data("SYNC_FAILED\n".utf8))
+            exit(19)
+        }
         FileHandle.standardOutput.write(Data("OK\n".utf8))
         exit(0)
     }

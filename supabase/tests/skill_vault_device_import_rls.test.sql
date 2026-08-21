@@ -41,24 +41,24 @@ select ok(has_table_privilege('authenticated','api.my_devices','select')
   and has_table_privilege('authenticated','api.my_import_sessions','select'), 'authenticated can select both bounded owner views');
 select ok(not has_table_privilege('anon','api.my_devices','select')
   and not has_table_privilege('anon','api.my_import_sessions','select'), 'anon cannot select either owner view');
-select ok(has_function_privilege('authenticated','private.register_my_device(text,text,text,text)','execute')
+select ok(not has_function_privilege('authenticated','private.register_my_device(text,text,text,text)','execute')
   and not has_function_privilege('anon','private.register_my_device(text,text,text,text)','execute')
-  and not has_function_privilege('service_role','private.register_my_device(text,text,text,text)','execute'), 'register_my_device is authenticated-only');
-select ok(has_function_privilege('authenticated','private.revoke_my_device(text,bigint)','execute')
+  and not has_function_privilege('service_role','private.register_my_device(text,text,text,text)','execute'), 'legacy register_my_device is fenced after DeviceAuth cutover');
+select ok(not has_function_privilege('authenticated','private.revoke_my_device(text,bigint)','execute')
   and not has_function_privilege('anon','private.revoke_my_device(text,bigint)','execute')
-  and not has_function_privilege('service_role','private.revoke_my_device(text,bigint)','execute'), 'revoke_my_device is authenticated-only');
-select ok(has_function_privilege('authenticated','private.rotate_my_device(text,bigint)','execute')
+  and not has_function_privilege('service_role','private.revoke_my_device(text,bigint)','execute'), 'legacy revoke_my_device is fenced after DeviceAuth cutover');
+select ok(not has_function_privilege('authenticated','private.rotate_my_device(text,bigint)','execute')
   and not has_function_privilege('anon','private.rotate_my_device(text,bigint)','execute')
-  and not has_function_privilege('service_role','private.rotate_my_device(text,bigint)','execute'), 'rotate_my_device is authenticated-only');
+  and not has_function_privilege('service_role','private.rotate_my_device(text,bigint)','execute'), 'legacy rotate_my_device is fenced after DeviceAuth cutover');
 select ok(
-  has_function_privilege('service_role','device_adapter.adapter_issue_device_token(uuid,text,text,integer,text[],timestamptz,bigint)','execute')
-  and has_function_privilege('service_role','device_adapter.adapter_rotate_device_token(uuid,text,integer,bigint,bigint,text,integer,text[],timestamptz)','execute')
-  and has_function_privilege('service_role','device_adapter.adapter_revoke_device_token(uuid,text,integer,bigint,bigint)','execute')
+  not has_function_privilege('service_role','device_adapter.adapter_issue_device_token(uuid,text,text,integer,text[],timestamptz,bigint)','execute')
+  and not has_function_privilege('service_role','device_adapter.adapter_rotate_device_token(uuid,text,integer,bigint,bigint,text,integer,text[],timestamptz)','execute')
+  and not has_function_privilege('service_role','device_adapter.adapter_revoke_device_token(uuid,text,integer,bigint,bigint)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_begin_import_session(uuid,text,integer,bigint,bigint,text,text,text,text,text,integer,bigint,uuid,timestamptz)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_resume_import_session(uuid,text,integer,bigint,bigint,text)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_accept_import_file(uuid,text,integer,bigint,bigint,text,bigint,text)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_finalize_import_session(uuid,text,integer,bigint,bigint,text,bigint)','execute'),
-  'service_role receives all and only the exact adapter wrapper entry points');
+  'cutover fences legacy token adapters while preserving the four accepted import adapters');
 select ok(
   not has_function_privilege('authenticated','device_adapter.adapter_begin_import_session(uuid,text,integer,bigint,bigint,text,text,text,text,text,integer,bigint,uuid,timestamptz)','execute')
   and not has_function_privilege('anon','device_adapter.adapter_begin_import_session(uuid,text,integer,bigint,bigint,text,text,text,text,text,integer,bigint,uuid,timestamptz)','execute')
@@ -75,9 +75,12 @@ select ok(not has_function_privilege('anon','private.resolve_device_context(uuid
 select is((select count(*) from pg_catalog.pg_policies where schemaname='private' and policyname in
   ('devices_owner_select','import_sessions_owner_select','import_file_receipts_owner_select')), 3::bigint, 'three catalog owner-select policies exist');
 select ok((select count(*) = 7 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace
-  where n.nspname='device_adapter' and p.proname like 'adapter\_%' escape '\' and p.prosecdef
+  where n.nspname='device_adapter'
+    and p.proname in ('adapter_issue_device_token','adapter_rotate_device_token','adapter_revoke_device_token',
+      'adapter_begin_import_session','adapter_resume_import_session','adapter_accept_import_file','adapter_finalize_import_session')
+    and p.prosecdef
     and pg_catalog.pg_get_userbyid(p.proowner)='postgres'
-    and p.proconfig @> array['search_path=""']), 'all seven adapter wrappers are postgres-owned definer functions with empty search_path');
+    and p.proconfig @> array['search_path=""']), 'all seven original adapter wrappers remain postgres-owned definers with empty search_path');
 select ok(not has_function_privilege('public','device_adapter.adapter_resume_import_session(uuid,text,integer,bigint,bigint,text)','execute')
   and not has_function_privilege('public','device_adapter.adapter_issue_device_token(uuid,text,text,integer,text[],timestamptz,bigint)','execute'), 'PUBLIC receives no adapter execute');
 select ok(has_schema_privilege('service_role','device_adapter','usage')
@@ -143,9 +146,10 @@ select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','a1100000-0000-4110-8110-000000000001',true);
 select is((select count(*) from api.my_devices),6::bigint,'account A sees its six devices');
 select is_empty($$select * from api.my_devices where public_id='dev_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'$$,'A cannot enumerate B device');
-select lives_ok($$select * from private.register_my_device('A registered','macos','2.0.0','en-US')$$,'A can register bounded device metadata');
+select throws_ok($$select * from private.register_my_device('A registered','macos','2.0.0','en-US')$$,
+  '42501','permission denied for function register_my_device','legacy owner registration is fenced after cutover');
 reset role;
-select ok((select count(*)=1 and bool_and(state='active' and revision=1) from private.devices where account_id='a1100000-0000-4110-8110-000000000001' and display_name='A registered'),'registration creates one active revision-1 owner device');
+select is((select count(*) from private.devices where account_id='a1100000-0000-4110-8110-000000000001' and display_name='A registered'),0::bigint,'fenced legacy registration creates no device');
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','b1100000-0000-4110-8110-000000000002',true);
@@ -169,16 +173,15 @@ grant select, insert on m211_session to service_role;
 create temporary table m211_issue (receipt jsonb not null) on commit drop;
 grant select, insert on m211_issue to service_role;
 set local role service_role;
-select lives_ok($$insert into m211_issue(receipt)
-  select device_adapter.adapter_issue_device_token(
+select throws_ok($$select device_adapter.adapter_issue_device_token(
   'a1100000-0000-4110-8110-000000000001','dev_66666666666666666666666666666666',
-  'hmac-sha256:'||repeat('9',64),1,array['device.import'],now()+interval '1 day',1)$$,'service adapter can issue an exact scoped token');
-select ok(position('credential' in (select receipt::text from m211_issue))=0,
-  'token issuance receipt contains no credential material');
+  'hmac-sha256:'||repeat('9',64),1,array['device.import'],now()+interval '1 day',1)$$,
+  '42501','permission denied for function adapter_issue_device_token','legacy token issuance adapter is fenced after cutover');
+select is_empty($$select * from m211_issue$$,'fenced legacy token issuance leaves no receipt');
 select throws_ok($$select device_adapter.adapter_issue_device_token(
   'a1100000-0000-4110-8110-000000000001','dev_66666666666666666666666666666666',
   'hmac-sha256:'||repeat('8',64),2,array['device.import'],now()+interval '1 day',1)$$,
-  22023,'device token already active','adapter issuance cannot create a second live token family');
+  '42501','permission denied for function adapter_issue_device_token','legacy token replay remains fenced after cutover');
 select throws_ok($$select device_adapter.adapter_begin_import_session(
   'a1100000-0000-4110-8110-000000000001','hmac-sha256:'||repeat('b',64),1,1,1,
   'msk_'||repeat('a',32),'msv_'||repeat('a',32),'1.0','sha256:'||repeat('1',64),'sha256:'||repeat('2',64),1,3,
@@ -271,23 +274,25 @@ select is(device_adapter.adapter_resume_import_session(
   'a1100000-0000-4110-8110-000000000001','hmac-sha256:'||repeat('a',64),1,1,1,'imp_'||repeat('e',32)),null::jsonb,'expired session is not resumable');
 reset role;
 
--- 58-65: owner rotation/revocation, post-change denial, and direct-access probes.
+-- 58-65: fenced legacy mutation surfaces and direct-access probes.
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','a1100000-0000-4110-8110-000000000001',true);
-select is((select revision from private.rotate_my_device('dev_'||repeat('1',32),1)),2::bigint,'owner rotation advances device revision');
+select throws_ok($$select * from private.rotate_my_device('dev_'||repeat('1',32),1)$$,
+  '42501','permission denied for function rotate_my_device','legacy owner rotation is fenced after cutover');
 reset role;
-select ok((select revoked_at is not null from private.device_tokens where id='a1100000-0000-4110-8110-000000000401'),'owner rotation revokes the live token family');
+select ok((select revoked_at is null from private.device_tokens where id='a1100000-0000-4110-8110-000000000401'),'fenced legacy rotation leaves the token unchanged');
 set local role service_role;
 select throws_ok($$select device_adapter.adapter_resume_import_session(
-  'a1100000-0000-4110-8110-000000000001','hmac-sha256:'||repeat('a',64),1,2,1,'imp_'||repeat('e',32))$$,'42501','device authority unavailable','rotated old token cannot regain authority');
+  'a1100000-0000-4110-8110-000000000001','hmac-sha256:'||repeat('a',64),1,2,1,'imp_'||repeat('e',32))$$,'42501','device authority unavailable','unapplied legacy rotation cannot manufacture a newer device revision');
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','a1100000-0000-4110-8110-000000000001',true);
-select is((select state from private.revoke_my_device('dev_'||repeat('2',32),1)),'revoked','owner revoke moves device to terminal revoked');
+select throws_ok($$select * from private.revoke_my_device('dev_'||repeat('2',32),1)$$,
+  '42501','permission denied for function revoke_my_device','legacy owner revoke is fenced after cutover');
 reset role;
-select ok((select revision=2 and revoked_at is not null from private.devices where id='a1100000-0000-4110-8110-000000000302'),'owner revoke increments revision and records revocation');
+select ok((select revision=1 and revoked_at is null from private.devices where id='a1100000-0000-4110-8110-000000000302'),'fenced legacy revoke leaves device state unchanged');
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','a1100000-0000-4110-8110-000000000001',true);
@@ -296,7 +301,7 @@ reset role;
 set local role service_role;
 select throws_ok($$select * from private.device_tokens$$,'42501',null,'service_role direct token listing is denied');
 select throws_ok($$select device_adapter.adapter_resume_import_session(
-  'a1100000-0000-4110-8110-000000000001','hmac-sha256:'||repeat('b',64),1,2,1,'imp_'||repeat('e',32))$$,'42501','device authority unavailable','revoked owner device remains denied');
+  'a1100000-0000-4110-8110-000000000001','hmac-sha256:'||repeat('b',64),1,2,1,'imp_'||repeat('e',32))$$,'42501','device authority unavailable','unapplied legacy revoke cannot manufacture a newer device revision');
 reset role;
 
 select * from finish();

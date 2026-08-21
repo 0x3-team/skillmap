@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { processImportAnalysisOnce } from '../apps/worker/src/import-analysis-once.mjs';
 import { createSupabaseRpcClient } from '../apps/worker/src/supabase-rpc.mjs';
@@ -62,4 +63,9 @@ test('M4.09 analysis RPC calls use the exact PostgREST schema profile', async ()
   assert.equal(request.init.headers['accept-profile'], 'analysis_worker_adapter');
   assert.equal(request.init.headers['content-profile'], 'analysis_worker_adapter');
   assert.match(request.url, /\/rest\/v1\/rpc\/claim_import_analysis_jobs$/);
+});
+
+test('M4.09 local PostgREST configuration exposes the worker adapter schema', async () => {
+  const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
+  assert.match(config, /schemas\s*=\s*\["public",\s*"graphql_public",\s*"api",\s*"device_adapter",\s*"analysis_worker_adapter"\]/);
 });

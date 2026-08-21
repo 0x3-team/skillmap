@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   api: {
     Tables: {
       profiles: {
@@ -635,6 +630,20 @@ export type Database = {
         }
         Relationships: []
       }
+      my_import_cutover_consents: {
+        Row: {
+          consent_expires_at: string | null
+          owner_consent_id: string | null
+          session_public_id: string | null
+        }
+        Relationships: []
+      }
+      my_import_dashboard: {
+        Row: {
+          projection: Json | null
+        }
+        Relationships: []
+      }
       my_import_sessions: {
         Row: {
           accepted_byte_total: number | null
@@ -1114,6 +1123,14 @@ export type Database = {
           expires_at: string
         }[]
       }
+      authorize_my_import_cutover: {
+        Args: {
+          p_expected_revision: number
+          p_manifest_digest: string
+          p_session_public_id: string
+        }
+        Returns: Json
+      }
       claim_skill_submission: {
         Args: {
           p_lease_seconds?: number
@@ -1196,6 +1213,21 @@ export type Database = {
         }[]
       }
       delete_my_account: { Args: never; Returns: boolean }
+      device_auth_authenticate_import_v1: {
+        Args: {
+          p_access_token_digests: string[]
+          p_access_token_key_versions: number[]
+          p_audience: string
+          p_device_id: string
+          p_issued_at: string
+          p_key_thumbprint: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_request_digest: string
+        }
+        Returns: Json
+      }
       device_auth_authenticate_v1: {
         Args: {
           p_access_token_digests: string[]
@@ -1344,6 +1376,28 @@ export type Database = {
         Args: { p_idempotency_key_digest: string; p_token_family_id: string }
         Returns: Json
       }
+      device_auth_refresh_single_shot_v1: {
+        Args: {
+          p_access_token_digest: string
+          p_access_token_key_version: number
+          p_audience: string
+          p_device_id: string
+          p_idempotency_key_digest: string
+          p_idempotency_key_version: number
+          p_issued_at: string
+          p_proof_nonce: string
+          p_proof_purpose: string
+          p_proof_suite: string
+          p_refresh_token_digest: string
+          p_refresh_token_key_version: number
+          p_request_digest: string
+          p_response_format_version: string
+          p_response_issued_at: number
+          p_successor_refresh_token_digest: string
+          p_token_family_id: string
+        }
+        Returns: Json
+      }
       device_auth_refresh_v1: {
         Args: {
           p_access_token_digest: string
@@ -1368,28 +1422,6 @@ export type Database = {
           p_response_format_version: string
           p_response_issued_at: number
           p_runtime_purge_after: number
-          p_successor_refresh_token_digest: string
-          p_token_family_id: string
-        }
-        Returns: Json
-      }
-      device_auth_refresh_single_shot_v1: {
-        Args: {
-          p_access_token_digest: string
-          p_access_token_key_version: number
-          p_audience: string
-          p_device_id: string
-          p_idempotency_key_digest: string
-          p_idempotency_key_version: number
-          p_issued_at: string
-          p_proof_nonce: string
-          p_proof_purpose: string
-          p_proof_suite: string
-          p_refresh_token_digest: string
-          p_refresh_token_key_version: number
-          p_request_digest: string
-          p_response_format_version: string
-          p_response_issued_at: number
           p_successor_refresh_token_digest: string
           p_token_family_id: string
         }
@@ -2358,28 +2390,28 @@ export type Database = {
           idempotency_key_version: number
           outcome: string
           prior_generation: number
+          refresh_mode: string
           replay_until: number | null
           request_digest: string
           response_issued_at: number
           runtime_purge_after: number | null
-          refresh_mode: string
           successor_generation: number
         }
         Insert: {
           created_at?: string
           db_committed_at: string
           device_id: string
-          expired_at: string | null
+          expired_at?: string | null
           family_id: string
           idempotency_key_digest: string
           idempotency_key_version: number
           outcome?: string
           prior_generation: number
-          replay_until: number | null
+          refresh_mode?: string
+          replay_until?: number | null
           request_digest: string
           response_issued_at: number
-          runtime_purge_after: number | null
-          refresh_mode?: string
+          runtime_purge_after?: number | null
           successor_generation: number
         }
         Update: {
@@ -2392,11 +2424,11 @@ export type Database = {
           idempotency_key_version?: number
           outcome?: string
           prior_generation?: number
+          refresh_mode?: string
           replay_until?: number | null
           request_digest?: string
           response_issued_at?: number
           runtime_purge_after?: number | null
-          refresh_mode?: string
           successor_generation?: number
         }
         Relationships: [
@@ -2588,6 +2620,130 @@ export type Database = {
         }
         Relationships: []
       }
+      import_analysis_jobs: {
+        Row: {
+          account_id: string
+          attempt_count: number
+          available_at: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error_code: string | null
+          lease_expires_at: string | null
+          lease_owner: string | null
+          lease_token: string | null
+          managed_skill_id: string
+          max_attempts: number
+          priority: number
+          public_id: string
+          reason: string
+          result_digest: string | null
+          state: string
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          account_id: string
+          attempt_count?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error_code?: string | null
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          lease_token?: string | null
+          managed_skill_id: string
+          max_attempts?: number
+          priority?: number
+          public_id?: string
+          reason: string
+          result_digest?: string | null
+          state?: string
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          account_id?: string
+          attempt_count?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error_code?: string | null
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          lease_token?: string | null
+          managed_skill_id?: string
+          max_attempts?: number
+          priority?: number
+          public_id?: string
+          reason?: string
+          result_digest?: string | null
+          state?: string
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_analysis_jobs_version_fkey"
+            columns: ["account_id", "managed_skill_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "managed_skill_versions"
+            referencedColumns: ["account_id", "managed_skill_id", "id"]
+          },
+        ]
+      }
+      import_cutover_consents: {
+        Row: {
+          account_id: string
+          consent_digest: string
+          consent_expires_at: string
+          device_id: string
+          explicit_consent_at: string
+          id: string
+          manifest_digest: string
+          public_id: string
+          revoked_at: string | null
+          session_id: string
+          session_revision: number
+        }
+        Insert: {
+          account_id: string
+          consent_digest: string
+          consent_expires_at: string
+          device_id: string
+          explicit_consent_at?: string
+          id?: string
+          manifest_digest: string
+          public_id?: string
+          revoked_at?: string | null
+          session_id: string
+          session_revision: number
+        }
+        Update: {
+          account_id?: string
+          consent_digest?: string
+          consent_expires_at?: string
+          device_id?: string
+          explicit_consent_at?: string
+          id?: string
+          manifest_digest?: string
+          public_id?: string
+          revoked_at?: string | null
+          session_id?: string
+          session_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_cutover_consents_session_fkey"
+            columns: ["account_id", "device_id", "session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["account_id", "device_id", "id"]
+          },
+        ]
+      }
       import_file_receipts: {
         Row: {
           accepted_at: string
@@ -2651,6 +2807,50 @@ export type Database = {
             foreignKeyName: "import_file_receipts_session_fkey"
             columns: ["account_id", "device_id", "session_id"]
             isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["account_id", "device_id", "id"]
+          },
+        ]
+      }
+      import_finalization_receipts: {
+        Row: {
+          account_id: string
+          created_at: string
+          device_id: string
+          expected_session_revision: number
+          id: string
+          idempotency_key: string
+          request_digest: string
+          response: Json
+          session_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          device_id: string
+          expected_session_revision: number
+          id?: string
+          idempotency_key: string
+          request_digest: string
+          response: Json
+          session_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          device_id?: string
+          expected_session_revision?: number
+          id?: string
+          idempotency_key?: string
+          request_digest?: string
+          response?: Json
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_finalization_receipts_session_fkey"
+            columns: ["account_id", "device_id", "session_id"]
+            isOneToOne: true
             referencedRelation: "import_sessions"
             referencedColumns: ["account_id", "device_id", "id"]
           },
@@ -2736,6 +2936,64 @@ export type Database = {
           },
           {
             foreignKeyName: "import_sessions_version_fkey"
+            columns: ["account_id", "managed_skill_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "managed_skill_versions"
+            referencedColumns: ["account_id", "managed_skill_id", "id"]
+          },
+        ]
+      }
+      import_target_preparations: {
+        Row: {
+          account_id: string
+          created_at: string
+          device_id: string
+          id: string
+          idempotency_key: string
+          managed_skill_id: string
+          request_digest: string
+          response: Json
+          version_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          device_id: string
+          id?: string
+          idempotency_key: string
+          managed_skill_id: string
+          request_digest: string
+          response: Json
+          version_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          device_id?: string
+          id?: string
+          idempotency_key?: string
+          managed_skill_id?: string
+          request_digest?: string
+          response?: Json
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_target_preparations_device_fkey"
+            columns: ["account_id", "device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["account_id", "id"]
+          },
+          {
+            foreignKeyName: "import_target_preparations_skill_fkey"
+            columns: ["account_id", "managed_skill_id"]
+            isOneToOne: false
+            referencedRelation: "managed_skills"
+            referencedColumns: ["account_id", "id"]
+          },
+          {
+            foreignKeyName: "import_target_preparations_version_fkey"
             columns: ["account_id", "managed_skill_id", "version_id"]
             isOneToOne: false
             referencedRelation: "managed_skill_versions"
@@ -4461,6 +4719,14 @@ export type Database = {
         }
         Returns: string
       }
+      authorize_my_import_cutover: {
+        Args: {
+          p_expected_revision: number
+          p_manifest_digest: string
+          p_session_public_id: string
+        }
+        Returns: Json
+      }
       begin_import_session: {
         Args: {
           p_account_id: string
@@ -4590,6 +4856,10 @@ export type Database = {
         }
         Returns: string
       }
+      compute_import_content_digest: {
+        Args: { p_files: Json; p_manifest_digest: string }
+        Returns: string
+      }
       control_catalog_lifecycle_unchecked: {
         Args: {
           p_action: string
@@ -4665,6 +4935,14 @@ export type Database = {
           version_quarantined: boolean
           version_revoked: boolean
         }[]
+      }
+      enqueue_import_analysis_job: {
+        Args: {
+          p_account_id: string
+          p_managed_skill_id: string
+          p_version_id: string
+        }
+        Returns: Json
       }
       enqueue_skill_vault_incomplete_upload_cleanup: {
         Args: {
@@ -4797,6 +5075,20 @@ export type Database = {
           h_revision: number
           h_revoked_at: string
           h_state: string
+        }[]
+      }
+      my_owner_import_cutover_consents: {
+        Args: never
+        Returns: {
+          h_consent_expires_at: string
+          h_owner_consent_id: string
+          h_session_public_id: string
+        }[]
+      }
+      my_owner_import_dashboard: {
+        Args: never
+        Returns: {
+          h_projection: Json
         }[]
       }
       my_owner_import_sessions: {
@@ -5119,6 +5411,13 @@ export type Database = {
         Returns: {
           device_id: string
           token_id: string
+        }[]
+      }
+      resolve_import_owner_context: {
+        Args: { p_account_public_id: string; p_device_public_id: string }
+        Returns: {
+          account_id: string
+          device_id: string
         }[]
       }
       resume_import_session: {
