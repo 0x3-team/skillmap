@@ -224,8 +224,8 @@ export class ImportUploader {
     }
     this.client = options.client;
     this.trustedUploadOrigins = options.trustedUploadOrigins
-      ?? (Array.isArray((options.client as ImportClient & { trustedUploadOrigins?: readonly string[] }).trustedUploadOrigins)
-        ? (options.client as ImportClient & { trustedUploadOrigins: readonly string[] }).trustedUploadOrigins
+      ?? (Array.isArray(options.client.trustedUploadOrigins)
+        ? options.client.trustedUploadOrigins
         : []);
     this.storageTransport = options.storageTransport ?? defaultStorageTransport();
     this.concurrency = Math.max(1, Math.min(8, Math.floor(options.concurrency ?? DEFAULT_CONCURRENCY)));
@@ -507,12 +507,13 @@ export class ImportUploader {
       throw new ImportUploadError('digest_mismatch', 'File bytes do not match manifest digest', file.filePublicId, false);
     }
 
-    const fileAbort = new AbortController();
+    const transferAbort = new AbortController();
     const timeout = setTimeout(() => {
-      fileAbort.abort();
+      transferAbort.abort();
     }, this.fileTimeoutMs);
-    const onParentAbort = () => fileAbort.abort();
+    const onParentAbort = () => transferAbort.abort();
     signal?.addEventListener('abort', onParentAbort, { once: true });
+    if (signal?.aborted) transferAbort.abort();
 
     try {
       const metadata = await this.client.prepareUpload(
@@ -521,7 +522,7 @@ export class ImportUploader {
           filePublicId: file.filePublicId,
           expectedRevision: session.revision
         },
-        { accessToken, signal: fileAbort.signal, idempotencyKey }
+        { accessToken, signal: transferAbort.signal, idempotencyKey }
       );
 
       if (metadata.declaredSize !== file.byteSize) {
@@ -548,22 +549,19 @@ export class ImportUploader {
         url: metadata.uploadUrl,
         headers,
         body: file.bytes,
-        signal: fileAbort.signal
+        signal: transferAbort.signal
       });
 
-      if (storageResponse.status === 409) {
-        return this.acceptPreparedFile(file, session, idempotencyKey, accessToken, fileAbort.signal);
-      }
-      if (storageResponse.status < 200 || storageResponse.status >= 300) {
+      if (storageResponse.status !== 409 && (storageResponse.status < 200 || storageResponse.status >= 300)) {
         const retryable = storageResponse.status >= 500 || storageResponse.status === 408 || storageResponse.status === 429;
         throw new ImportUploadError('upload_rejected', `Storage upload failed: ${storageResponse.status}`, file.filePublicId, retryable, storageResponse.status);
       }
-
-      return this.acceptPreparedFile(file, session, idempotencyKey, accessToken, fileAbort.signal);
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', onParentAbort);
     }
+
+    return this.acceptPreparedFile(file, session, idempotencyKey, accessToken, signal);
   }
 
   private isTrustedUploadUrl(value: string): boolean {
@@ -579,10 +577,16 @@ export class ImportUploader {
     session: ImportSession,
     idempotencyKey: string,
     accessToken: string | undefined,
-    signal: AbortSignal
+    signal?: AbortSignal
   ): Promise<ImportSession> {
     return this.withAcceptanceLock(async () => {
+      const acceptAbort = new AbortController();
+      const timeout = setTimeout(() => acceptAbort.abort(), this.fileTimeoutMs);
+      const onParentAbort = () => acceptAbort.abort();
+      signal?.addEventListener('abort', onParentAbort, { once: true });
+      if (signal?.aborted) acceptAbort.abort();
       try {
+        throwIfAborted(acceptAbort.signal);
         const result = await this.client.acceptFile(
           {
             sessionPublicId: session.sessionPublicId,
@@ -591,7 +595,7 @@ export class ImportUploader {
             fileDigest: file.digest,
             byteSize: file.byteSize
           },
-          { accessToken, signal, idempotencyKey }
+          { accessToken, signal: acceptAbort.signal, idempotencyKey }
         );
         return this.syncSession(session, result);
       } catch (error) {
@@ -601,9 +605,12 @@ export class ImportUploader {
         // with the returned authoritative revision.
         const resumed = await this.client.resumeImportSession(
           { sessionPublicId: session.sessionPublicId },
-          { accessToken, signal }
+          { accessToken, signal: acceptAbort.signal }
         );
         return this.syncSession(session, resumed);
+      } finally {
+        clearTimeout(timeout);
+        signal?.removeEventListener('abort', onParentAbort);
       }
     });
   }

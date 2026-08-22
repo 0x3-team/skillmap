@@ -442,6 +442,111 @@ test('M4.07 rejects an attacker-origin signed upload before storage transport', 
   assert.equal(result.failed[0].error.code, 'invalid_response');
 });
 
+test('M4.07 enforces the uploader origin guard for a structural client double', async () => {
+  const file = makeFile(0);
+  let storageCalls = 0;
+  let acceptCalls = 0;
+  const client = {
+    trustedUploadOrigins: [ORIGIN],
+    async listReceipts() {
+      return { sessionPublicId: SESSION_ID, revision: 1, receipts: [] };
+    },
+    async prepareUpload() {
+      return {
+        sessionPublicId: SESSION_ID,
+        filePublicId: file.filePublicId,
+        versionPublicId: VERSION_ID,
+        bucketId: 'skill-vault-private',
+        objectName: `v1/${VERSION_ID}/${file.filePublicId}`,
+        uploadUrl: 'https://attacker.example.test/upload',
+        uploadExpiresAt: EXPIRES_AT,
+        contentType: file.mediaType,
+        declaredSize: file.byteSize
+      };
+    },
+    async acceptFile() {
+      acceptCalls += 1;
+      throw new Error('accept must not run');
+    }
+  };
+  const result = await new ImportUploader({
+    client,
+    concurrency: 1,
+    storageTransport: async () => {
+      storageCalls += 1;
+      return { status: 200 };
+    }
+  }).uploadFiles({
+    session: { ...baseSession(), expectedFileCount: 1, expectedByteTotal: file.byteSize },
+    files: [file],
+    accessToken: ACCESS_TOKEN
+  });
+
+  assert.equal(storageCalls, 0);
+  assert.equal(acceptCalls, 0);
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0].error.code, 'invalid_response');
+});
+
+test('M4.07 gives each queued acceptance a fresh deadline after lock acquisition', async () => {
+  const files = [makeFile(0), makeFile(1)];
+  let firstAccept = true;
+  let revision = 1;
+  let acceptedFileCount = 0;
+  const client = {
+    trustedUploadOrigins: [ORIGIN],
+    async listReceipts() {
+      return { sessionPublicId: SESSION_ID, revision, receipts: [] };
+    },
+    async prepareUpload({ filePublicId }) {
+      const file = files.find((candidate) => candidate.filePublicId === filePublicId);
+      return {
+        sessionPublicId: SESSION_ID,
+        filePublicId,
+        versionPublicId: VERSION_ID,
+        bucketId: 'skill-vault-private',
+        objectName: `v1/${VERSION_ID}/${filePublicId}`,
+        uploadUrl: `${ORIGIN}/upload/${filePublicId}`,
+        uploadExpiresAt: EXPIRES_AT,
+        contentType: file.mediaType,
+        declaredSize: file.byteSize
+      };
+    },
+    async acceptFile(_params, { signal }) {
+      const isFirstAccept = firstAccept;
+      if (isFirstAccept) {
+        firstAccept = false;
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+      if (!isFirstAccept && signal.aborted) {
+        throw new DOMException('The operation was aborted.', 'AbortError');
+      }
+      revision += 1;
+      acceptedFileCount += 1;
+      return {
+        ...baseSession(),
+        acceptedFileCount,
+        acceptedByteTotal: acceptedFileCount * 9,
+        revision,
+        ...(acceptedFileCount === 2
+          ? { state: 'verified', verificationDigest: `sha256:${'f'.repeat(64)}`, finalizationExpectedRevision: revision }
+          : {})
+      };
+    }
+  };
+  const result = await new ImportUploader({
+    client,
+    concurrency: 2,
+    fileTimeoutMs: 10,
+    fileMaxRetries: 0,
+    storageTransport: makeStorageRouter()
+  }).uploadFiles({ session: baseSession(), files, accessToken: ACCESS_TOKEN });
+
+  assert.equal(result.failed.length, 0);
+  assert.equal(result.uploaded.length, 2);
+  assert.equal(result.session.revision, 3);
+});
+
 test('M4.07 serializes lost-response recovery before the next concurrent accept', async () => {
   const files = [makeFile(0), makeFile(1)];
   let storageCalls = 0;

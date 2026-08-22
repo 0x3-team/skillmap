@@ -1,8 +1,10 @@
 import type { ImportSessionProjection } from "./contracts.ts";
+import { sanitizeImportSessionProjection } from "./redaction.ts";
 
 const IMPORT_STATE_PRIORITY: readonly ImportSessionProjection["state"][] = [
   "ready_for_consent",
   "consented",
+  "cutover_ready",
   "partial",
   "preview"
 ];
@@ -20,6 +22,17 @@ function orderNewestFirst(
       return Number.isFinite(bCreatedAt) ? 1 : -1;
     }
     return a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0;
+  });
+}
+
+/** Sanitizes every bounded dashboard row and drops malformed projections. */
+export function sanitizeImportDashboardRows(
+  rows: readonly Record<string, unknown>[]
+): ImportSessionProjection[] {
+  return rows.flatMap((row) => {
+    if (!("projection" in row)) return [];
+    const projection = sanitizeImportSessionProjection(row.projection);
+    return projection ? [projection] : [];
   });
 }
 

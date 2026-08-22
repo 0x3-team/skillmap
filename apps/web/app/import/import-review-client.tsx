@@ -39,6 +39,7 @@ import {
   type ImportViewStateKind
 } from "@/lib/import/contracts.ts";
 import { cn } from "@/lib/utils";
+import { submitImportConsent } from "@/lib/import/consent-submission.ts";
 
 export interface ImportReviewClientProps {
   /** Previously sanitized, dashboard-safe import session projection. */
@@ -66,6 +67,7 @@ export function ImportReviewClient({
   onRetryAction,
   isPending = false
 }: ImportReviewClientProps) {
+  const router = useRouter();
   const [state, dispatch] = useReducer(
     importViewReducer,
     { initialProjection, initialError },
@@ -223,6 +225,7 @@ export function ImportReviewClient({
               onCopy={copyToClipboard}
               copiedLabel={copiedText}
               isPending={isPending}
+              consentActionAvailable={typeof onConsentAction === "function"}
             />
           )}
       </div>
@@ -234,9 +237,14 @@ export function ImportReviewClient({
           onClose={() => dispatch({ type: "CLOSE_CONSENT_MODAL" })}
           onConfirm={(formData) => {
             dispatch({ type: "START_CONSENT_SUBMISSION" });
-            if (onConsentAction) {
-              void onConsentAction(formData);
-            }
+            void submitImportConsent(onConsentAction, formData).then((result) => {
+              if (result.ok) {
+                dispatch({ type: "CONSENT_RECORDED" });
+                router.refresh();
+                return;
+              }
+              dispatch({ type: "CONSENT_FAILURE", error: result.error, code: result.code });
+            });
           }}
           isSubmitting={state.isSubmittingConsent || isPending}
         />
@@ -253,7 +261,7 @@ function IdleStateView({
   onCopy: (text: string) => void;
   copied: boolean;
 }) {
-  const cliCommand = "skillmap import";
+  const cliCommand = MANAGED_IMPORT_COMMAND;
 
   return (
     <Card className="mx-auto max-w-2xl border-border bg-card p-6 sm:p-8">
@@ -503,7 +511,8 @@ function ActiveSessionView({
   onRequestExclusionAction,
   onCopy,
   copiedLabel,
-  isPending
+  isPending,
+  consentActionAvailable
 }: {
   state: ImportClientState;
   currentViewState: ImportViewStateKind;
@@ -514,6 +523,7 @@ function ActiveSessionView({
   onCopy: (text: string, label: string) => void;
   copiedLabel: string | null;
   isPending: boolean;
+  consentActionAvailable: boolean;
 }) {
   const summary = session.summary;
   const isBlocked = currentViewState === "blocked" || summary.blockedCount > 0;
@@ -565,12 +575,17 @@ function ActiveSessionView({
                   {session.uploadProgress?.acceptedFileCount ?? 0} of{" "}
                   {session.uploadProgress?.expectedFileCount ?? summary.totalFiles} files
                   transferred. Return to the CLI to safely resume this upload with device proof.
-                  {" "}{CLI_RECOVERY_MESSAGE}
                 </p>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {state.error && (
+        <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {state.error.message}
+        </p>
       )}
 
       {isReadyForConsent && (
@@ -894,7 +909,8 @@ function ActiveSessionView({
               variant="primary"
               size="md"
               onClick={() => dispatch({ type: "OPEN_CONSENT_MODAL" })}
-              disabled={isPending || isConsented}
+              disabled={isPending || isConsented || !consentActionAvailable}
+              title={consentActionAvailable ? undefined : "Consent is temporarily unavailable. Refresh and try again."}
               icon={isPending || isConsented ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             >
               {isConsented ? "Issuing Receipt…" : "Authorize Activation & Cutover"}

@@ -327,6 +327,22 @@ test("view-state: reducer manages consent flow, modal states, and receipt delive
   assert.equal(state.receipt.eligibleSkillCount, 2);
 });
 
+test("view-state: consent failure clears submission and returns to retryable consent", () => {
+  const session = createMockSession({ state: "ready_for_consent" });
+  let state = getInitialImportState(session);
+  state = importViewReducer(state, { type: "START_CONSENT_SUBMISSION" });
+  state = importViewReducer(state, {
+    type: "CONSENT_FAILURE",
+    error: "Consent could not be recorded. Refresh and try again.",
+    code: "IMPORT_CONSENT_FAILED"
+  });
+
+  assert.equal(state.isSubmittingConsent, false);
+  assert.equal(state.viewState, "ready_for_consent");
+  assert.equal(state.error?.code, "IMPORT_CONSENT_FAILED");
+  assert.equal(canApproveConsent(state), true);
+});
+
 test("view-state: reducer manages upload progress and interruption", () => {
   let state = getInitialImportState(createMockSession());
   assert.equal(state.viewState, "preview");

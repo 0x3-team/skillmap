@@ -193,7 +193,7 @@ export interface ImportFinalizeResponse {
   state: 'verified';
   verificationDigest: string;
   versionPublicId?: string;
-  finalizedRevision?: number;
+  finalizedRevision: number;
   ownerConsentId?: string;
   consentDigest?: string;
   explicitConsentAt?: string;
@@ -507,13 +507,16 @@ export class ImportClient {
       if (message.includes('protocol')) throw new Error('Invalid origin protocol');
       throw new Error('Invalid origin URL');
     }
-    if (options.production === true || process.env.NODE_ENV === 'production') {
+    const production = options.production === true || process.env.NODE_ENV === 'production';
+    if (production) {
       if (!this.origin.startsWith('https://')) {
         throw new Error('Production import client requires HTTPS');
       }
     }
     const configuredUploadOrigins = options.trustedUploadOrigins ?? [this.origin];
-    if (!Array.isArray(configuredUploadOrigins) || configuredUploadOrigins.length > 16) {
+    if (!Array.isArray(configuredUploadOrigins)
+      || configuredUploadOrigins.length < 1
+      || configuredUploadOrigins.length > 16) {
       throw new Error('Invalid trusted upload origins');
     }
     const normalizedUploadOrigins = configuredUploadOrigins.map((uploadOrigin) => {
@@ -523,6 +526,9 @@ export class ImportClient {
         throw new Error('Invalid trusted upload origin');
       }
     });
+    if (production && normalizedUploadOrigins.some((uploadOrigin) => !uploadOrigin.startsWith('https://'))) {
+      throw new Error('Production import client requires HTTPS for every trusted upload origin');
+    }
     this.trustedUploadOrigins = Object.freeze([...new Set(normalizedUploadOrigins)]);
     if (typeof options.deviceId !== 'string' || !IDEMPOTENCY_KEY_PATTERN.test(options.deviceId)) {
       throw new ImportClientError(400, 'invalid_request');
@@ -1443,7 +1449,7 @@ function isImportReceiptsResponse(value: unknown): ImportReceiptsResponse | fals
 }
 
 function isImportFinalizeResponse(value: unknown): ImportFinalizeResponse | false {
-  if (!hasObjectFields(value, ['session_public_id', 'state', 'verification_digest'])) return false;
+  if (!hasObjectFields(value, ['session_public_id', 'state', 'verification_digest', 'finalized_revision'])) return false;
   const allowed = new Set([
     'session_public_id', 'state', 'verification_digest', 'version_public_id', 'finalized_revision', 'owner_consent_id',
     'consent_digest', 'explicit_consent_at', 'consent_expires_at', 'cutover_authority_id'
@@ -1453,7 +1459,7 @@ function isImportFinalizeResponse(value: unknown): ImportFinalizeResponse | fals
     && value.state === 'verified'
     && isSha256Digest(value.verification_digest)
     && (value.version_public_id === undefined || isVersionPublicId(value.version_public_id))
-    && (value.finalized_revision === undefined || isPositiveSafeInteger(value.finalized_revision))
+    && isPositiveSafeInteger(value.finalized_revision)
     && (value.owner_consent_id === undefined || (typeof value.owner_consent_id === 'string' && /^icn_[0-9a-f]{32}$/.test(value.owner_consent_id)))
     && (value.consent_digest === undefined || isSha256Digest(value.consent_digest))
     && (value.explicit_consent_at === undefined || isIso8601Utc(value.explicit_consent_at))
@@ -1466,7 +1472,7 @@ function isImportFinalizeResponse(value: unknown): ImportFinalizeResponse | fals
     state: value.state as 'verified',
     verificationDigest: value.verification_digest as string,
     versionPublicId: value.version_public_id as string | undefined,
-    finalizedRevision: value.finalized_revision as number | undefined,
+    finalizedRevision: value.finalized_revision as number,
     ownerConsentId: value.owner_consent_id as string | undefined,
     consentDigest: value.consent_digest as string | undefined,
     explicitConsentAt: value.explicit_consent_at as string | undefined,

@@ -10,8 +10,6 @@ alter table private.managed_skills
     pg_catalog.char_length(display_name) between 1 and 200
     and pg_catalog.octet_length(display_name) <= 800
   ) not valid;
-alter table private.managed_skills
-  validate constraint managed_skills_display_name_length_check;
 
 alter table private.managed_skill_versions
   drop constraint managed_skill_versions_canonical_metadata_check;
@@ -43,8 +41,6 @@ alter table private.managed_skill_versions
       )
     )
   ) not valid;
-alter table private.managed_skill_versions
-  validate constraint managed_skill_versions_canonical_metadata_check;
 
 create table private.import_target_preparations (
   id uuid primary key default pg_catalog.gen_random_uuid(),

@@ -111,7 +111,7 @@ function createDisposableCloud() {
     },
     async listReceipts() {
       operations.push('receipts');
-      return { sessionPublicId: SESSION_ID, receipts: structuredClone(receipts) };
+      return { sessionPublicId: SESSION_ID, revision, receipts: structuredClone(receipts) };
     },
     async finalizeImportSession() {
       operations.push('finalize');

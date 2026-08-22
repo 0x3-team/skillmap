@@ -105,6 +105,20 @@ test('M4.08 finalization is idempotent and retries return the same verification 
   assert.equal(result.verificationDigest, MANIFEST_DIGEST);
 });
 
+test('M4.08 rejects a verified response without its revision binding', async () => {
+  const body = await validFinalizeResponse().json();
+  delete body.finalized_revision;
+  const client = await makeClient(async () => new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' }
+  }), { maxRetries: 0 });
+
+  await assert.rejects(
+    client.finalizeImportSession({ sessionPublicId: SESSION_ID, expectedRevision: 3 }),
+    (error) => error instanceof ImportClientError && error.code === 'invalid_response'
+  );
+});
+
 test('M4.08 rejects finalization for incomplete or tampered sessions', async () => {
   const cases = [
     { status: 409, code: 'owner_consent_required', body: { error: 'owner_consent_required', error_description: 'Owner consent is required before this import can be finalized.', retry_after: 0 } },

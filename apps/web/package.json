@@ -14,7 +14,7 @@
     "test:fixtures": "node scripts/check-fixtures.mjs && node scripts/test-snapshot-integrity.mjs && node scripts/check-ui-truth.mjs && npm run test:hosted-boundaries",
     "test:hosted-boundaries": "node --experimental-strip-types --test tests/hosted-boundaries.test.mjs",
     "test:worker-secret-preflight": "node --test tests/worker-secret-preflight.test.mjs",
-    "test:import": "node --experimental-strip-types --import ./tests/register-device-auth-loader.mjs --test tests/import-cli-guidance.test.mjs tests/import-contracts.test.mjs tests/import-consent-notice.test.mjs tests/import-view-state.test.mjs tests/import-service.test.mjs",
+    "test:import": "node --experimental-strip-types --import ./tests/register-device-auth-loader.mjs --test tests/import-cli-guidance.test.mjs tests/import-consent-submission.test.mjs tests/import-contracts.test.mjs tests/import-consent-notice.test.mjs tests/import-page-selection.test.mjs tests/import-view-state.test.mjs tests/import-service.test.mjs",
     "test:device-auth": "node --experimental-strip-types --import ./tests/register-device-auth-loader.mjs --test --test-concurrency=1 tests/device-auth.seams.test.mjs tests/device-auth.test.mjs tests/device-auth.route.test.mjs tests/device-auth-confirmation.test.mjs tests/device-auth-poll-exchange.test.mjs tests/device-auth-refresh-replay.test.mjs tests/device-auth-key-rotation.test.mjs tests/device-auth-lifecycle.test.mjs tests/device-auth-owner-devices.test.mjs",
     "test:device-auth:worker": "opennextjs-cloudflare build && node scripts/device-auth-worker-smoke.mjs",
     "test:ui-contracts": "node scripts/check-ui-truth.mjs",

@@ -8,7 +8,7 @@ const REPO = process.cwd();
 const TEST_ROOT = join(REPO, 'supabase', 'tests');
 const LEGACY_FLOOR = '20260727061300';
 const PRE_CUTOVER_FLOOR = '20260810070000';
-const POST_CUTOVER_HEAD = '20260820050000';
+const POST_CUTOVER_HEAD = '20260822011555';
 const POST_CUTOVER_API_DEFINER_COUNT = '44';
 
 // This suite asserts the exact M2.11 policy and error surface. M3's additive

@@ -412,7 +412,8 @@ test('M4.05 resume, finalize, expire, prepare, accept, and list call the correct
       return new Response(JSON.stringify({
         session_public_id: SESSION_ID,
         state: 'verified',
-        verification_digest: MANIFEST_DIGEST
+        verification_digest: MANIFEST_DIGEST,
+        finalized_revision: 3
       }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
     if (url.includes('/expire')) {
@@ -525,6 +526,23 @@ test('M4.05 only accepts signed upload URLs from the explicit trusted-origin con
     (err) => err instanceof ImportClientError && err.code === 'invalid_response'
   );
   assert.equal(requests, 1);
+});
+
+test('M4.05 requires at least one trusted upload origin', async () => {
+  await assert.rejects(
+    makeClient(async () => validSessionResponse(), { trustedUploadOrigins: [] }),
+    /Invalid trusted upload origins/
+  );
+});
+
+test('M4.05 production mode requires HTTPS for every trusted upload origin', async () => {
+  await assert.rejects(
+    makeClient(async () => validSessionResponse(), {
+      production: true,
+      trustedUploadOrigins: ['http://localhost:54321']
+    }),
+    /Production import client requires HTTPS/
+  );
 });
 
 test('M4.05 maps HTTP errors to stable typed codes without leaking server details', async () => {

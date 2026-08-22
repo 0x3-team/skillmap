@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(33);
+select plan(34);
 
 select is(
   private.compute_import_content_digest(
@@ -220,7 +220,8 @@ grant execute on function pg_temp.m4_prepare_manifest(jsonb,text,uuid) to servic
 
 create temporary table m4_target_receipt(response jsonb not null) on commit drop;
 create temporary table m4_target_revision(response jsonb not null) on commit drop;
-grant select, insert on m4_target_receipt, m4_target_revision to service_role;
+create temporary table m4_contract_boundary(response jsonb not null) on commit drop;
+grant select, insert on m4_target_receipt, m4_target_revision, m4_contract_boundary to service_role;
 
 set local role service_role;
 select lives_ok($$insert into m4_target_receipt(response)
@@ -260,7 +261,8 @@ select throws_ok($$select pg_temp.m4_prepare_manifest(
 reset role;
 
 set local role service_role;
-select lives_ok($$select pg_temp.m4_prepare_manifest(
+select lives_ok($$insert into m4_contract_boundary(response)
+select pg_temp.m4_prepare_manifest(
   pg_catalog.jsonb_set(
     pg_temp.m4_valid_manifest(),
     '{display,description}',
@@ -284,9 +286,22 @@ reset role;
 -- The accepted boundary probe writes a real immutable version. Remove only
 -- that exact disposable fixture so the later cardinality assertions retain
 -- their original one-target contract.
-delete from private.managed_skills
-where account_id = 'a4000000-0000-4400-8400-000000000001'
-  and display_name = 'Contract Case';
+delete from private.managed_skills as skills
+using private.managed_skill_versions as versions, m4_contract_boundary as boundary
+where skills.account_id = 'a4000000-0000-4400-8400-000000000001'
+  and versions.account_id = skills.account_id
+  and versions.managed_skill_id = skills.id
+  and versions.public_id = boundary.response ->> 'version_public_id';
+
+select ok(
+  (select pg_catalog.bool_and(constraints.convalidated)
+   from pg_catalog.pg_constraint as constraints
+   where (constraints.conrelid, constraints.conname) in (
+     ('private.managed_skills'::regclass, 'managed_skills_display_name_length_check'),
+     ('private.managed_skill_versions'::regclass, 'managed_skill_versions_canonical_metadata_check')
+   )),
+  'managed import metadata constraints are validated at the migration head'
+);
 
 select throws_ok($$select device_adapter.adapter_prepare_import_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),

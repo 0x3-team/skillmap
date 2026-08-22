@@ -35,6 +35,7 @@ export type ImportClientAction =
   | { type: "OPEN_CONSENT_MODAL" }
   | { type: "CLOSE_CONSENT_MODAL" }
   | { type: "START_CONSENT_SUBMISSION" }
+  | { type: "CONSENT_RECORDED" }
   | { type: "CONSENT_SUCCESS"; receipt: CutoverReceipt }
   | { type: "CONSENT_FAILURE"; error: string; code?: string }
   | { type: "START_UPLOAD" }
@@ -219,12 +220,20 @@ export function importViewReducer(
         viewState: "cutover_ready"
       };
 
+    case "CONSENT_RECORDED":
+      return {
+        ...state,
+        isSubmittingConsent: false,
+        error: null,
+        viewState: "consented"
+      };
+
     case "CONSENT_FAILURE":
       return {
         ...state,
         isSubmittingConsent: false,
         error: { message: action.error, code: action.code },
-        viewState: "error"
+        viewState: "ready_for_consent"
       };
 
     case "START_UPLOAD":

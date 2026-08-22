@@ -356,7 +356,7 @@ test("boundary check: redaction.ts is marked server-only", async () => {
 test("M4 import page fetches only the owner dashboard-safe projection before client rendering", async () => {
   const pageSource = await readFile(new URL("../app/import/page.tsx", import.meta.url), "utf8");
   assert.ok(pageSource.includes('from("my_import_dashboard")'));
-  assert.ok(pageSource.includes("sanitizeImportSessionProjection"));
+  assert.ok(pageSource.includes("sanitizeImportDashboardRows"));
   assert.match(pageSource, /<ImportReviewClient\s+initialProjection=\{projection\}/u);
   assert.equal(pageSource.includes("serviceRoleKey"), false);
   assert.equal(pageSource.includes("private."), false);

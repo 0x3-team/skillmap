@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(9);
+select plan(12);
 
 select has_function('private', 'my_owner_import_dashboard', array[]::text[], 'owner dashboard projection helper exists');
 select has_view('api', 'my_import_dashboard', 'owner dashboard projection view exists');
@@ -137,11 +137,53 @@ select device_adapter.adapter_accept_import_file_v2(
   'sha256:'||repeat('6',64),3
 );
 reset role;
+
+-- More than one page of newer preview sessions must not hide the older owner
+-- action. These disposable rows share the same immutable target but have
+-- distinct idempotency keys and later creation times.
+insert into private.import_sessions (
+  account_id, device_id, managed_skill_id, version_id,
+  manifest_schema_version, manifest_digest, content_digest,
+  expected_file_count, expected_byte_total, idempotency_key,
+  expiry_at, created_at, updated_at
+)
+select
+  sessions.account_id, sessions.device_id, sessions.managed_skill_id, sessions.version_id,
+  sessions.manifest_schema_version, sessions.manifest_digest, sessions.content_digest,
+  sessions.expected_file_count, sessions.expected_byte_total, pg_catalog.gen_random_uuid(),
+  pg_catalog.statement_timestamp() + interval '2 days',
+  pg_catalog.statement_timestamp() + (series.n * interval '1 minute'),
+  pg_catalog.statement_timestamp() + (series.n * interval '1 minute')
+from private.import_sessions as sessions
+cross join pg_catalog.generate_series(1, 21) as series(n)
+where sessions.imp_ = (select response ->> 'session_id' from m4_dashboard_session);
+
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a4000000-0000-4400-8400-000000000011","is_anonymous":false}', true);
+set local role authenticated;
+select is((select count(*) from api.my_import_dashboard), 20::bigint, 'dashboard remains bounded to twenty rows');
+select ok(
+  exists (
+    select 1 from api.my_import_dashboard
+    where projection ->> 'sessionId' = (select response ->> 'session_id' from m4_dashboard_session)
+      and projection ->> 'state' = 'ready_for_consent'
+  ),
+  'an older owner-action session is retained ahead of newer preview sessions'
+);
+reset role;
+
 select set_config('request.jwt.claims', '{"role":"authenticated","sub":"a4000000-0000-4400-8400-000000000011","is_anonymous":false}', true);
 set local role authenticated;
 select api.authorize_my_import_cutover(
   (select response->>'session_id' from m4_dashboard_session),2,
   (select response->>'manifest_digest' from m4_dashboard_target)
+);
+select ok(
+  exists (
+    select 1 from api.my_import_dashboard
+    where projection ->> 'sessionId' = (select response ->> 'session_id' from m4_dashboard_session)
+      and projection ->> 'state' = 'consented'
+  ),
+  'active consent is projected from the authoritative dashboard query'
 );
 reset role;
 set local role service_role;
@@ -159,7 +201,8 @@ select ok(
      and projection->'cutoverReceipt'->>'receiptId' ~ '^rcpt_[0-9a-f]{32}$'
      and projection->'cutoverReceipt'->>'verificationDigest' ~ '^sha256:[0-9a-f]{64}$'
      and projection->'cutoverReceipt'->>'sessionId' = projection->>'sessionId'
-   from api.my_import_dashboard),
+   from api.my_import_dashboard
+   where projection ->> 'sessionId' = (select response ->> 'session_id' from m4_dashboard_session)),
   'verified session projects a browser-safe cutover receipt and reachable cutover-ready state'
 );
 reset role;

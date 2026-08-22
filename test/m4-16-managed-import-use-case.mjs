@@ -116,7 +116,7 @@ function makeCloud({ consented = false } = {}) {
     },
     async listReceipts() {
       calls.push(['receipts']);
-      return { sessionPublicId: SESSION_ID, receipts: receipts.map((receipt) => ({ ...receipt })) };
+      return { sessionPublicId: SESSION_ID, revision: session.revision, receipts: receipts.map((receipt) => ({ ...receipt })) };
     }
   };
   const uploader = {

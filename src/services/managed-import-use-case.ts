@@ -69,7 +69,7 @@ export interface ManagedImportClientLike {
   listReceipts(
     params: { sessionPublicId: string; expectedRevision?: number },
     options?: { accessToken?: string }
-  ): Promise<{ sessionPublicId: string; receipts: ImportFileReceipt[] }>;
+  ): Promise<{ sessionPublicId: string; revision: number; receipts: ImportFileReceipt[] }>;
 }
 
 export interface ManagedImportUploaderLike {

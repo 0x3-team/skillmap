@@ -10,6 +10,8 @@ test("read-only import dashboard routes device-proof resume and exclusion work b
   assert.ok(clientSource.includes("skillmap import vault <skill-path>"));
   assert.ok(clientSource.includes("To cancel, stop the local command and let the session expire"));
   assert.ok(clientSource.includes("cannot resume or cancel device-auth sessions"));
+  assert.ok(clientSource.includes("const cliCommand = MANAGED_IMPORT_COMMAND"));
+  assert.equal((clientSource.match(/\{CLI_RECOVERY_MESSAGE\}/g) ?? []).length, 1);
   assert.ok(clientSource.includes("router.refresh()"));
   assert.equal(clientSource.includes("Resume Upload"), false);
   assert.equal(clientSource.includes("Cancel Import"), false);
