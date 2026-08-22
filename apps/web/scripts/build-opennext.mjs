@@ -33,18 +33,23 @@ export async function normalizeOpenNextStandaloneLayout(options = {}) {
   const packagePath = packagePathWithinRepo(resolvedRepoDir, resolvedAppDir);
   const standaloneRoot = join(resolvedAppDir, ".next", "standalone");
   const expectedManifest = join(standaloneRoot, ".next", "server", "pages-manifest.json");
-
-  if (await kind(expectedManifest) === "file") {
-    return { state: "already-normalized", packagePath };
-  }
-
-  const nestedRoot = join(standaloneRoot, packagePath);
   const entries = [
     { path: ".next", kind: "directory" },
     { path: "node_modules", kind: "directory" },
     { path: "package.json", kind: "file" },
     { path: "server.js", kind: "file" }
   ];
+
+  if (await kind(expectedManifest) === "file") {
+    for (const entry of entries) {
+      if (await kind(join(standaloneRoot, entry.path)) !== entry.kind) {
+        throw new Error(`OpenNext already-normalized standalone entry is missing or unsafe: ${entry.path}`);
+      }
+    }
+    return { state: "already-normalized", packagePath };
+  }
+
+  const nestedRoot = join(standaloneRoot, packagePath);
 
   for (const entry of entries) {
     const source = join(nestedRoot, entry.path);
