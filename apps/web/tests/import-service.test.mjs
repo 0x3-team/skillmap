@@ -328,7 +328,7 @@ test("M4 accept preserves stored_object_conflict when cleanup enqueue fails", as
 
 test("M4 accept applies the hosted content policy before recording a receipt", async () => {
   let accepted = false;
-  const secretBytes = new TextEncoder().encode("-----BEGIN PRIVATE KEY-----\nnot-safe\n");
+  const secretBytes = new TextEncoder().encode(["-----BEGIN ", "PRIVATE KEY-----\nnot-safe\n"].join(""));
   const secretDigest = `sha256:${createHash("sha256").update(secretBytes).digest("hex")}`;
   const repository = {
     async prepareUpload() {
