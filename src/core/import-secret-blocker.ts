@@ -101,7 +101,7 @@ export function inspectImportFileForSecrets(input: ImportSecretInspectionInput):
     if (containsCredentialAssignment(imageText)) return blocked('IMPORT_SECRET_BLOCKED', 'credential_assignment');
     return { decision: 'allowed' };
   }
-  if (!isTextMediaType(input.mediaType)) return blocked('IMPORT_SECRET_SCAN_UNSAFE', 'unscannable_binary');
+  if (!isTextMediaType(mediaType)) return blocked('IMPORT_SECRET_SCAN_UNSAFE', 'unscannable_binary');
 
   const decoded = decodeUtf8(input.content);
   if (decoded === null) return blocked('IMPORT_SECRET_SCAN_UNSAFE', 'invalid_utf8');

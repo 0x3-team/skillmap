@@ -67,6 +67,7 @@ export interface ImportUploadResult {
 
 export interface ImportUploaderOptions {
   client: ImportClient;
+  trustedUploadOrigins?: readonly string[];
   storageTransport?: StorageTransport;
   concurrency?: number;
   fileTimeoutMs?: number;
@@ -204,6 +205,7 @@ async function consumeBoundedResponse(response: Response, maxBytes: number, sign
 
 export class ImportUploader {
   private readonly client: ImportClient;
+  private readonly trustedUploadOrigins: readonly string[];
   private readonly storageTransport: StorageTransport;
   private readonly concurrency: number;
   private readonly fileTimeoutMs: number;
@@ -221,6 +223,10 @@ export class ImportUploader {
       throw new ImportUploadError('invalid_request', 'ImportUploader requires an ImportClient', undefined, false);
     }
     this.client = options.client;
+    this.trustedUploadOrigins = options.trustedUploadOrigins
+      ?? (Array.isArray((options.client as ImportClient & { trustedUploadOrigins?: readonly string[] }).trustedUploadOrigins)
+        ? (options.client as ImportClient & { trustedUploadOrigins: readonly string[] }).trustedUploadOrigins
+        : []);
     this.storageTransport = options.storageTransport ?? defaultStorageTransport();
     this.concurrency = Math.max(1, Math.min(8, Math.floor(options.concurrency ?? DEFAULT_CONCURRENCY)));
     this.fileTimeoutMs = Math.max(1, Math.min(120_000, Math.floor(options.fileTimeoutMs ?? DEFAULT_FILE_TIMEOUT_MS)));
@@ -452,6 +458,9 @@ export class ImportUploader {
       } catch (error) {
         lastError = error instanceof ImportUploadError ? error : this.toUploadError(error, file);
         if (lastError.code === 'already_accepted') {
+          // A lost accept response means the server revision is expected to be
+          // newer. Fetch the current read-only projection without asserting the
+          // stale local revision, then bind every later mutation to that result.
           return this.withAcceptanceLock(async () => this.syncSession(
             currentSession,
             await this.client.resumeImportSession(
@@ -465,6 +474,8 @@ export class ImportUploader {
         }
         if (lastError.code === 'session_conflict') {
           try {
+            // This is an authoritative read used to recover the revision that
+            // the failed mutation proved was stale.
             const resumed = await this.client.resumeImportSession(
               { sessionPublicId: currentSession.sessionPublicId },
               { accessToken, signal }
@@ -519,6 +530,9 @@ export class ImportUploader {
       if (metadata.contentType !== file.mediaType) {
         throw new ImportUploadError('prepare_rejected', 'Content type does not match file media type', file.filePublicId, false);
       }
+      if (!this.isTrustedUploadUrl(metadata.uploadUrl)) {
+        throw new ImportUploadError('invalid_response', 'Signed upload origin is not trusted', file.filePublicId, false);
+      }
 
       const headers: Record<string, string> = {
         'Content-Type': file.mediaType,
@@ -552,6 +566,14 @@ export class ImportUploader {
     }
   }
 
+  private isTrustedUploadUrl(value: string): boolean {
+    try {
+      return this.trustedUploadOrigins.includes(new URL(value).origin);
+    } catch {
+      return false;
+    }
+  }
+
   private async acceptPreparedFile(
     file: ImportUploadFile,
     session: ImportSession,
@@ -574,6 +596,9 @@ export class ImportUploader {
         return this.syncSession(session, result);
       } catch (error) {
         if (!(error instanceof ImportClientError) || error.code !== 'already_accepted') throw error;
+        // The accepted mutation may have committed even though its response was
+        // lost. Refresh without a stale revision precondition, then continue
+        // with the returned authoritative revision.
         const resumed = await this.client.resumeImportSession(
           { sessionPublicId: session.sessionPublicId },
           { accessToken, signal }
@@ -592,10 +617,12 @@ export class ImportUploader {
     target.acceptedByteTotal = source.acceptedByteTotal;
     target.revision = source.revision;
     target.expiresAt = source.expiresAt;
-    target.manifestDigest = source.manifestDigest;
-    target.contentDigest = source.contentDigest;
-    target.verificationDigest = source.verificationDigest;
-    target.finalizationExpectedRevision = source.finalizationExpectedRevision;
+    if (source.manifestDigest !== undefined) target.manifestDigest = source.manifestDigest;
+    if (source.contentDigest !== undefined) target.contentDigest = source.contentDigest;
+    if (source.verificationDigest !== undefined) target.verificationDigest = source.verificationDigest;
+    if (source.finalizationExpectedRevision !== undefined) {
+      target.finalizationExpectedRevision = source.finalizationExpectedRevision;
+    }
     return target;
   }
 

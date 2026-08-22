@@ -19,7 +19,6 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useId, useReducer, useRef, useState } from "react";
 import {
   canApproveConsent,
-  canCancelSession,
   getInitialImportState,
   getStateAriaAnnouncement,
   getStateBadgeTone,
@@ -50,12 +49,12 @@ export interface ImportReviewClientProps {
   stateOverride?: ImportViewStateKind;
   onConsentAction?: (formData: FormData) => void | Promise<void>;
   onRequestExclusionAction?: (skillName: string) => void | Promise<void>;
-  onCancelAction?: () => void | Promise<void>;
-  onResumeAction?: () => void | Promise<void>;
   onRetryAction?: () => void | Promise<void>;
-  onRefreshAction?: () => void | Promise<void>;
   isPending?: boolean;
 }
+
+const MANAGED_IMPORT_COMMAND = "skillmap import vault <skill-path>";
+const CLI_RECOVERY_MESSAGE = "This browser cannot resume or cancel device-auth sessions.";
 
 export function ImportReviewClient({
   initialProjection = null,
@@ -64,10 +63,7 @@ export function ImportReviewClient({
   stateOverride,
   onConsentAction,
   onRequestExclusionAction,
-  onCancelAction,
-  onResumeAction,
   onRetryAction,
-  onRefreshAction,
   isPending = false
 }: ImportReviewClientProps) {
   const [state, dispatch] = useReducer(
@@ -199,7 +195,7 @@ export function ImportReviewClient({
         )}
 
         {currentViewState === "stale" && (
-          <StaleStateView onRefresh={onRefreshAction} isPending={isPending} />
+          <StaleStateView isPending={isPending} />
         )}
 
         {currentViewState === "cutover_ready" && (
@@ -224,8 +220,6 @@ export function ImportReviewClient({
               selectedSkill={selectedSkill}
               dispatch={dispatch}
               onRequestExclusionAction={onRequestExclusionAction}
-              onCancelAction={onCancelAction}
-              onResumeAction={onResumeAction}
               onCopy={copyToClipboard}
               copiedLabel={copiedText}
               isPending={isPending}
@@ -380,12 +374,12 @@ function ErrorStateView({
 
 /** 3. Stale / Expired State View. */
 function StaleStateView({
-  onRefresh,
   isPending
 }: {
-  onRefresh?: () => void | Promise<void>;
   isPending: boolean;
 }) {
+  const router = useRouter();
+
   return (
     <Card className="mx-auto max-w-xl border-amber-500/30 bg-amber-500/5 p-6 sm:p-8">
       <div className="flex flex-col items-center text-center">
@@ -402,7 +396,7 @@ function StaleStateView({
           <Button
             variant="primary"
             size="md"
-            onClick={() => void onRefresh?.()}
+            onClick={() => router.refresh()}
             disabled={isPending}
             icon={isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           >
@@ -507,8 +501,6 @@ function ActiveSessionView({
   selectedSkill,
   dispatch,
   onRequestExclusionAction,
-  onCancelAction,
-  onResumeAction,
   onCopy,
   copiedLabel,
   isPending
@@ -519,8 +511,6 @@ function ActiveSessionView({
   selectedSkill: ImportSkillPreviewItem | null;
   dispatch: React.Dispatch<ImportClientAction>;
   onRequestExclusionAction?: (skillName: string) => void | Promise<void>;
-  onCancelAction?: () => void | Promise<void>;
-  onResumeAction?: () => void | Promise<void>;
   onCopy: (text: string, label: string) => void;
   copiedLabel: string | null;
   isPending: boolean;
@@ -531,6 +521,9 @@ function ActiveSessionView({
   const isPartial = currentViewState === "partial";
   const isReadyForConsent = currentViewState === "ready_for_consent";
   const isConsented = currentViewState === "consented";
+  const needsCliRecovery = currentViewState === "preview"
+    || currentViewState === "partial"
+    || currentViewState === "ready_for_consent";
 
   return (
     <div className="space-y-6">
@@ -572,20 +565,10 @@ function ActiveSessionView({
                   {session.uploadProgress?.acceptedFileCount ?? 0} of{" "}
                   {session.uploadProgress?.expectedFileCount ?? summary.totalFiles} files
                   transferred. Return to the CLI to safely resume this upload with device proof.
+                  {" "}{CLI_RECOVERY_MESSAGE}
                 </p>
               </div>
             </div>
-            {onResumeAction && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void onResumeAction()}
-                disabled={isPending}
-                icon={<RefreshCw className="h-3.5 w-3.5" />}
-              >
-                Resume Upload
-              </Button>
-            )}
           </div>
         </div>
       )}
@@ -894,15 +877,14 @@ function ActiveSessionView({
       {/* Sticky Bottom Action Bar */}
       <footer className="mt-8 flex flex-col-reverse gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {canCancelSession(state) && onCancelAction && (
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => void onCancelAction()}
-              disabled={isPending}
-            >
-              Cancel Import
-            </Button>
+          {needsCliRecovery && (
+            <p className="max-w-xl text-xs leading-5 text-muted-foreground">
+              To resume, return to the local terminal and run{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">
+                {MANAGED_IMPORT_COMMAND}
+              </code>{" "}
+              again. To cancel, stop the local command and let the session expire. {CLI_RECOVERY_MESSAGE}
+            </p>
           )}
         </div>
 

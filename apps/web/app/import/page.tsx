@@ -3,6 +3,7 @@ import { CatalogHeader } from "@/components/skillmap/catalog-header";
 import { classifyVerifiedClaims } from "@/lib/auth/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { sanitizeImportSessionProjection } from "@/lib/import/redaction.ts";
+import { selectImportDashboardProjection } from "@/lib/import/dashboard-selection.ts";
 import type { ImportSessionProjection } from "@/lib/import/contracts.ts";
 import { ImportReviewClient } from "./import-review-client.tsx";
 import { authorizeImportCutover } from "./actions.ts";
@@ -16,6 +17,8 @@ interface DashboardProjectionClient {
     };
   };
 }
+
+const DASHBOARD_ROW_LIMIT = 20;
 
 export default async function ImportPage({
   searchParams
@@ -41,23 +44,31 @@ export default async function ImportPage({
   if (auth.state === "authenticated") {
     const client = supabase as unknown as DashboardProjectionClient;
     const [dashboard, consents] = await Promise.all([
-      client.from("my_import_dashboard").select("projection").limit(1),
+      client.from("my_import_dashboard").select("projection").limit(DASHBOARD_ROW_LIMIT),
       client.from("my_import_cutover_consents").select("session_public_id,owner_consent_id,consent_expires_at").limit(20)
     ]);
-    const dashboardRow = dashboard.data?.[0];
     if (dashboard.error) {
       dashboardError = {
         message: "The import dashboard is temporarily unavailable. Your local skills were not changed.",
         code: "IMPORT_DASHBOARD_UNAVAILABLE"
       };
-    } else if (dashboardRow && "projection" in dashboardRow) {
-      projection = sanitizeImportSessionProjection(dashboardRow.projection);
-      if (projection && projection.state !== "cutover_ready" && !consents.error) {
-        const projectionSessionId = projection.sessionId;
-        if (consents.data?.some((row) => row.session_public_id === projectionSessionId)) {
-          projection = { ...projection, state: "consented" as const };
-        }
-      }
+    } else {
+      const sanitizedProjections = (dashboard.data ?? []).flatMap((row) => {
+        if (!("projection" in row)) return [];
+        const sanitized = sanitizeImportSessionProjection(row.projection);
+        return sanitized ? [sanitized] : [];
+      });
+      const consentedSessionIds = new Set(
+        (consents.error ? [] : (consents.data ?? []))
+          .map((row) => row.session_public_id)
+          .filter((sessionId): sessionId is string => typeof sessionId === "string")
+      );
+      const consentedProjections = sanitizedProjections.map((projection) => (
+        projection.state !== "cutover_ready" && consentedSessionIds.has(projection.sessionId)
+          ? { ...projection, state: "consented" as const }
+          : projection
+      ));
+      projection = selectImportDashboardProjection(consentedProjections);
     }
   }
 

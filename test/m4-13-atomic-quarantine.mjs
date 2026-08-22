@@ -48,7 +48,7 @@ function helperBinding(root = path.resolve(tmpdir(), 'skillmap-m4-helper-paths')
   };
 }
 
-test('native mover preserves unsafe-path and durability helper failures', async (t) => {
+test('native mover preserves unsafe-path and durability helper failures', { skip: process.platform !== 'darwin' }, async (t) => {
   const cases = [
     { stdout: 'UNSAFE_PATH', exitCode: 67, code: 'EINVAL', message: 'UNSAFE_PATH' },
     { stdout: 'SYNC_FAILED', exitCode: 19, code: 'EIO', message: 'ATOMIC_MOVE_DURABILITY_FAILED' }
@@ -281,6 +281,30 @@ test('child content changed after preflight is rejected before the atomic move',
   assert.equal(moveCalls, 0);
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), 'changed after preflight');
   await assert.rejects(access(state.preflight.destinationPath), { code: 'ENOENT' });
+});
+
+test('hostile mover child mutation is detected before issuing a MOVE_OBSERVED receipt', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: {
+      async move(sourcePath, destinationPath) {
+        await writeFile(path.join(sourcePath, 'SKILL.md'), 'hostile final-window mutation', 'utf8');
+        await rename(sourcePath, destinationPath);
+      }
+    },
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  }), /MOVE_OUTCOME_NEEDS_RECONCILIATION/);
+
+  await assert.rejects(access(path.join(state.source, 'skill-a')));
+  assert.equal(await readFile(path.join(state.preflight.destinationPath, 'SKILL.md'), 'utf8'), 'hostile final-window mutation');
+  await assert.rejects(
+    access(path.join(state.receipts, `${state.authorization.operationId}.quarantine-receipt.json`)),
+    { code: 'ENOENT' }
+  );
 });
 
 test('a replaced quarantine root is rejected before destination creation or move', { skip: process.platform !== 'darwin' }, async (t) => {

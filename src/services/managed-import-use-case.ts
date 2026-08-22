@@ -125,7 +125,7 @@ interface CompleteManagedImportInput {
   acceptedFileCount: number;
   acceptedByteTotal: number;
   accessToken: string;
-  now: Date;
+  now: () => Date;
   operationBinding: string[];
 }
 
@@ -299,7 +299,7 @@ async function completeManagedImport(input: CompleteManagedImportInput): Promise
         receipts: receiptResponse.receipts,
         finalized
       },
-      now: input.now
+      now: input.now()
     });
     return {
       state: 'verified',
@@ -361,13 +361,14 @@ export async function runManagedImport(
   const accessToken = await deps.auth.getAccessToken();
 
   const { manifest } = manifestResult;
-  const now = deps.now ? deps.now() : new Date();
-  const sessionStartedAt = request.sessionStartedAt === undefined ? now : new Date(request.sessionStartedAt);
+  const now = deps.now ?? (() => new Date());
+  const currentNow = now();
+  const sessionStartedAt = request.sessionStartedAt === undefined ? currentNow : new Date(request.sessionStartedAt);
   if (!Number.isFinite(sessionStartedAt.getTime())) {
     throw new ManagedImportError('IMPORT_CHECKPOINT_INVALID', 'The import checkpoint is invalid.');
   }
   const sessionExpiresAtDate = new Date(sessionStartedAt.getTime() + SESSION_TTL_MS);
-  if (sessionExpiresAtDate.getTime() <= now.getTime()) {
+  if (sessionExpiresAtDate.getTime() <= currentNow.getTime()) {
     throw new ManagedImportError('IMPORT_CHECKPOINT_EXPIRED', 'The import checkpoint has expired. Start a fresh import.');
   }
   const sessionExpiresAt = sessionExpiresAtDate.toISOString();

@@ -74,6 +74,16 @@ test('an empty display description remains valid under the canonical schema', ()
   assert.equal(result.manifest.display.description, '');
 });
 
+test('display description bounds use Unicode code points with a four-byte UTF-8 ceiling', () => {
+  const boundary = baseManifest();
+  boundary.display.description = '\ud83d\ude00'.repeat(2048);
+  assert.doesNotThrow(() => canonicalizeManagedManifest(boundary));
+
+  const overBoundary = baseManifest();
+  overBoundary.display.description = '\u00e9'.repeat(2049);
+  expectCode(() => canonicalizeManagedManifest(overBoundary), MANIFEST_LIMIT_EXCEEDED, 'display.description');
+});
+
 test('canonicalizer verifies a claimed manifest_digest and rejects mismatches', () => {
   const input = baseManifest();
   input.manifest_digest = 'sha256:' + '0'.repeat(64);

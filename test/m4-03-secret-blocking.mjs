@@ -86,6 +86,27 @@ test('M4.03 keeps common documentation placeholders and inert text importable', 
   }
 });
 
+test('M4.03 scans JSON, YAML, and TOML charset media types for secrets', () => {
+  for (const [extension, mediaType, allowedContent, credentialContent] of [
+    ['json', 'application/json; charset=utf-8', '{"name":"example"}', `{"token":"ghp_${'A'.repeat(36)}"}`],
+    ['yaml', 'application/yaml; charset=UTF-8', 'name: example', `token: ghp_${'A'.repeat(36)}`],
+    ['toml', 'application/toml; charset=utf-8', 'name = "example"', `token = "ghp_${'A'.repeat(36)}"`]
+  ]) {
+    assert.deepEqual(inspect(`references/example.${extension}`, allowedContent, mediaType), {
+      decision: 'allowed'
+    });
+    assert.deepEqual(inspect(
+      `references/credential.${extension}`,
+      credentialContent,
+      mediaType
+    ), {
+      decision: 'blocked',
+      code: 'IMPORT_SECRET_BLOCKED',
+      reason: 'credential_pattern'
+    });
+  }
+});
+
 test('M4.03 rejects oversized scan input before pattern matching and returns bounded metadata only', () => {
   const content = Buffer.alloc(IMPORT_SECRET_SCAN_MAX_BYTES + 1, 0x61);
   const result = inspectImportFileForSecrets({

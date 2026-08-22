@@ -110,7 +110,8 @@ const BOUNDS = {
   maxLogicalIdBytes: 128,
   maxPublicIdBytes: 128,
   maxDisplayNameChars: 200,
-  maxDescriptionBytes: 2_048,
+  maxDescriptionCodePoints: 2_048,
+  maxDescriptionBytes: 8_192,
   maxSourceComponentBytes: 512,
   maxProvenanceStringBytes: 512
 } as const;
@@ -330,6 +331,9 @@ function parseDisplay(input: Record<string, unknown>, depth: number): ManagedSki
     throw new ManagedManifestError(MANIFEST_INVALID_UTF8, 'display.name contains unsafe characters or is empty', 'display.name');
   }
   const description = requireString(object.description, 'display.description', BOUNDS.maxDescriptionBytes, false, true);
+  if ([...description].length > BOUNDS.maxDescriptionCodePoints) {
+    throw new ManagedManifestError(MANIFEST_LIMIT_EXCEEDED, `display.description exceeds ${BOUNDS.maxDescriptionCodePoints} Unicode code points`, 'display.description');
+  }
   if (Object.keys(object).length !== 2) {
     throw new ManagedManifestError(MANIFEST_UNKNOWN_FIELD, 'display contains an unknown field', 'display');
   }

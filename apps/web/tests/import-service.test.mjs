@@ -284,6 +284,43 @@ test("M4 expire forwards the exact expected revision to the adapter", async () =
   assert.equal(result.revision, 8);
 });
 
+test("M4 resume and receipts reject a stale expected revision", async () => {
+  const repository = {
+    async listReceipts() {
+      return sessionRow({ revision: 3, receipts: [] });
+    }
+  };
+  for (const operation of ["resume", "receipts"]) {
+    await assert.rejects(
+      executeImportOperation({
+        operation,
+        body: { expected_revision: 2 },
+        params: { sessionId: SESSION_ID },
+        context,
+        idempotencyKey: IDEMPOTENCY_KEY,
+        repository
+      }),
+      (error) => error?.code === "session_conflict"
+    );
+  }
+});
+
+test("M4 receipts return the authoritative session revision", async () => {
+  const result = await executeImportOperation({
+    operation: "receipts",
+    body: { expected_revision: 3 },
+    params: { sessionId: SESSION_ID },
+    context,
+    idempotencyKey: IDEMPOTENCY_KEY,
+    repository: {
+      async listReceipts() {
+        return sessionRow({ revision: 3, receipts: [] });
+      }
+    }
+  });
+  assert.equal(result.revision, 3);
+});
+
 test("M4 finalize uses one RPC and returns the stored cutover binding", async () => {
   const calls = [];
   const repository = {

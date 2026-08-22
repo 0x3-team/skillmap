@@ -53,6 +53,48 @@ test('M4.09 returns idle without a mutation when no job is available', async () 
   assert.deepEqual(result, { result: 'idle', mutation: false });
 });
 
+test('M4.09 rejects a completed job with rejected analysis and fails the exact lease', async () => {
+  const calls = [];
+  const rpc = {
+    async call(name, params) {
+      calls.push({ name, params });
+      if (name === 'claim_import_analysis_jobs') return [{
+        job_public_id: JOB_ID,
+        skill_public_id: SKILL_ID,
+        version_public_id: VERSION_ID,
+        reason: 'import_finalized',
+        priority: 50,
+        attempt_count: 1,
+        max_attempts: 5,
+        lease_token: LEASE,
+        lease_expires_at: '2026-08-20T12:00:00Z'
+      }];
+      if (name === 'complete_import_analysis_job') return {
+        job_public_id: JOB_ID,
+        state: 'completed',
+        analysis_state: 'rejected',
+        result_digest: `sha256:${'d'.repeat(64)}`,
+        completed_at: '2026-08-20T11:59:00Z'
+      };
+      if (name === 'fail_import_analysis_job') return undefined;
+      throw new Error(`unexpected ${name}`);
+    }
+  };
+
+  await assert.rejects(
+    processImportAnalysisOnce({ rpc, workerId: 'm4-test-worker', leaseSeconds: 60 }),
+    /completion RPC returned an invalid result/
+  );
+  assert.deepEqual(calls.map((call) => call.name), [
+    'claim_import_analysis_jobs',
+    'complete_import_analysis_job',
+    'fail_import_analysis_job'
+  ]);
+  assert.equal(calls[2].params.p_job_public_id, JOB_ID);
+  assert.equal(calls[2].params.p_worker_id, 'm4-test-worker');
+  assert.equal(calls[2].params.p_lease_token, LEASE);
+});
+
 test('M4.09 analysis RPC calls use the exact PostgREST schema profile', async () => {
   let request;
   const client = createSupabaseRpcClient({

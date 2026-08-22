@@ -229,8 +229,16 @@ test('M4.05 prepareImportTarget sends the canonical projection and validates pub
   await client.prepareImportTarget({ ...targetParams, displayName: astralDisplayName }, { accessToken: ACCESS_TOKEN });
   assert.equal(JSON.parse(captured.init.body).display_name, astralDisplayName);
 
+  const multibyteDescription = '😀'.repeat(2_048);
+  await client.prepareImportTarget({ ...targetParams, description: multibyteDescription }, { accessToken: ACCESS_TOKEN });
+  assert.equal(JSON.parse(captured.init.body).description, multibyteDescription);
+
   await assert.rejects(
     client.prepareImportTarget({ ...targetParams, displayName: 'F'.repeat(201) }, { accessToken: ACCESS_TOKEN }),
+    (error) => error instanceof ImportClientError && error.code === 'invalid_request'
+  );
+  await assert.rejects(
+    client.prepareImportTarget({ ...targetParams, description: 'é'.repeat(2_049) }, { accessToken: ACCESS_TOKEN }),
     (error) => error instanceof ImportClientError && error.code === 'invalid_request'
   );
 });
@@ -437,6 +445,7 @@ test('M4.05 resume, finalize, expire, prepare, accept, and list call the correct
     if (url.includes('/receipts')) {
       return new Response(JSON.stringify({
         session_public_id: SESSION_ID,
+        revision: 2,
         receipts: [{
           file_public_id: FILE_ID,
           relative_path: 'test.txt',
@@ -476,6 +485,46 @@ test('M4.05 resume, finalize, expire, prepare, accept, and list call the correct
   assert.equal(listed.receipts[0].filePublicId, FILE_ID);
 
   assert.equal(paths.length, 6);
+});
+
+test('M4.05 rejects stale resume and receipt revisions from a successful response', async () => {
+  const client = await makeClient(async (url) => new Response(JSON.stringify(
+    url.includes('/receipts')
+      ? { session_public_id: SESSION_ID, revision: 3, receipts: [] }
+      : sessionBody({ revision: 3 })
+  ), { status: 200, headers: { 'content-type': 'application/json' } }), { maxRetries: 0 });
+  await assert.rejects(
+    client.resumeImportSession({ sessionPublicId: SESSION_ID, expectedRevision: 2 }),
+    (err) => err instanceof ImportClientError && err.code === 'session_conflict'
+  );
+  await assert.rejects(
+    client.listReceipts({ sessionPublicId: SESSION_ID, expectedRevision: 2 }),
+    (err) => err instanceof ImportClientError && err.code === 'session_conflict'
+  );
+});
+
+test('M4.05 only accepts signed upload URLs from the explicit trusted-origin contract', async () => {
+  let requests = 0;
+  const client = await makeClient(async () => {
+    requests += 1;
+    return new Response(JSON.stringify({
+      session_public_id: SESSION_ID,
+      file_public_id: FILE_ID,
+      version_public_id: VERSION_ID,
+      bucket_id: 'skill-vault-private',
+      object_name: `v1/${VERSION_ID}/${FILE_ID}`,
+      upload_url: 'https://attacker.example.test/upload',
+      upload_expires_at: EXPIRES_AT,
+      content_type: 'text/plain',
+      declared_size: 4,
+      upload_authorization: 'Bearer upload-secret'
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }, { trustedUploadOrigins: ['https://storage.example.test'], maxRetries: 0 });
+  await assert.rejects(
+    client.prepareUpload({ sessionPublicId: SESSION_ID, filePublicId: FILE_ID, expectedRevision: 1 }),
+    (err) => err instanceof ImportClientError && err.code === 'invalid_response'
+  );
+  assert.equal(requests, 1);
 });
 
 test('M4.05 maps HTTP errors to stable typed codes without leaking server details', async () => {

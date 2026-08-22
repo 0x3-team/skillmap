@@ -426,6 +426,18 @@ export async function executeQuarantine(input: {
   });
   if (sourceAfter) throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
 
+  // This post-move digest detects a child mutation before the receipt; it does
+  // not make the filesystem move itself atomic.
+  let destinationTreeDigest: string;
+  try {
+    destinationTreeDigest = await computeQuarantineTreeDigest(input.preflight.destinationPath);
+  } catch (error) {
+    throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+  }
+  if (destinationTreeDigest !== input.preflight.snapshot.treeDigest) {
+    throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+  }
+
   const quarantinedAt = now.toISOString();
   const base = {
     kind: 'skillmap.local-quarantine-receipt' as const,

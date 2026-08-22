@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(31);
+select plan(33);
 
 select is(
   private.compute_import_content_digest(
@@ -258,6 +258,35 @@ select throws_ok($$select pg_temp.m4_prepare_manifest(
   'a4000000-0000-4400-8400-000000000315'
 )$$, 22023, 'invalid canonical import manifest', 'noncanonical manifest bytes are rejected even when their digest matches');
 reset role;
+
+set local role service_role;
+select lives_ok($$select pg_temp.m4_prepare_manifest(
+  pg_catalog.jsonb_set(
+    pg_temp.m4_valid_manifest(),
+    '{display,description}',
+    pg_catalog.to_jsonb(repeat(U&'\00E9', 2048))
+  ),
+  '',
+  'a4000000-0000-4400-8400-000000000316'
+)$$, 'a 2048-code-point multibyte description is accepted');
+select throws_ok($$select pg_temp.m4_prepare_manifest(
+  pg_catalog.jsonb_set(
+    pg_temp.m4_valid_manifest(),
+    '{display,description}',
+    pg_catalog.to_jsonb(repeat(U&'\00E9', 2049))
+  ),
+  '',
+  'a4000000-0000-4400-8400-000000000317'
+)$$, 22023, 'invalid canonical import manifest',
+  'a 2049-code-point multibyte description is rejected');
+reset role;
+
+-- The accepted boundary probe writes a real immutable version. Remove only
+-- that exact disposable fixture so the later cardinality assertions retain
+-- their original one-target contract.
+delete from private.managed_skills
+where account_id = 'a4000000-0000-4400-8400-000000000001'
+  and display_name = 'Contract Case';
 
 select throws_ok($$select device_adapter.adapter_prepare_import_target(
     'acct_a4000000000044008400000000000001','dev_'||repeat('4',32),

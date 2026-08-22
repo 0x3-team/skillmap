@@ -13,6 +13,39 @@ alter table private.managed_skills
 alter table private.managed_skills
   validate constraint managed_skills_display_name_length_check;
 
+alter table private.managed_skill_versions
+  drop constraint managed_skill_versions_canonical_metadata_check;
+alter table private.managed_skill_versions
+  add constraint managed_skill_versions_canonical_metadata_check
+  check (
+    pg_catalog.jsonb_typeof(canonical_metadata) = 'object'
+    and pg_catalog.octet_length(canonical_metadata::text) <= 16384
+    and canonical_metadata ?& array['logical_id', 'display_name']
+    and (canonical_metadata - array['logical_id', 'display_name', 'description']) = '{}'::jsonb
+    and pg_catalog.jsonb_typeof(canonical_metadata -> 'logical_id') = 'string'
+    and pg_catalog.jsonb_typeof(canonical_metadata -> 'display_name') = 'string'
+    and pg_catalog.octet_length(canonical_metadata ->> 'logical_id') between 1 and 128
+    and pg_catalog.char_length(canonical_metadata ->> 'display_name') between 1 and 200
+    and pg_catalog.octet_length(canonical_metadata ->> 'display_name') <= 800
+    and canonical_metadata ->> 'logical_id' = pg_catalog.btrim(canonical_metadata ->> 'logical_id')
+    and canonical_metadata ->> 'display_name' = pg_catalog.btrim(canonical_metadata ->> 'display_name')
+    and (canonical_metadata ->> 'logical_id') !~ '[[:cntrl:]]'
+    and (canonical_metadata ->> 'display_name') !~ '[[:cntrl:]]'
+    and (
+      not (canonical_metadata ? 'description')
+      or (canonical_metadata -> 'description') = 'null'::jsonb
+      or (
+        pg_catalog.jsonb_typeof(canonical_metadata -> 'description') = 'string'
+        and pg_catalog.char_length(normalize(canonical_metadata ->> 'description', NFC)) <= 2048
+        and pg_catalog.octet_length(normalize(canonical_metadata ->> 'description', NFC)) <= 8192
+        and canonical_metadata ->> 'description' = pg_catalog.btrim(canonical_metadata ->> 'description')
+        and (canonical_metadata ->> 'description') !~ '[[:cntrl:]]'
+      )
+    )
+  ) not valid;
+alter table private.managed_skill_versions
+  validate constraint managed_skill_versions_canonical_metadata_check;
+
 create table private.import_target_preparations (
   id uuid primary key default pg_catalog.gen_random_uuid(),
   account_id uuid not null,
@@ -176,7 +209,8 @@ begin
     or pg_catalog.jsonb_typeof(v_display -> 'description') is distinct from 'string'
     or pg_catalog.char_length(normalize(v_display ->> 'name', NFC)) not between 1 and 200
     or pg_catalog.octet_length(normalize(v_display ->> 'name', NFC)) > 800
-    or pg_catalog.octet_length(normalize(v_display ->> 'description', NFC)) > 2048
+    or pg_catalog.char_length(normalize(v_display ->> 'description', NFC)) > 2048
+    or pg_catalog.octet_length(normalize(v_display ->> 'description', NFC)) > 8192
     or v_display ->> 'name' ~ '[[:cntrl:]]'
     or v_display ->> 'name' like '%' || U&'\2028' || '%'
     or v_display ->> 'name' like '%' || U&'\2029' || '%'
@@ -475,7 +509,10 @@ begin
     or p_display_name is null
     or pg_catalog.char_length(pg_catalog.btrim(p_display_name)) not between 1 and 200
     or pg_catalog.octet_length(pg_catalog.btrim(p_display_name)) > 800
-    or (p_description is not null and pg_catalog.octet_length(p_description) > 2048)
+    or (p_description is not null and (
+      pg_catalog.char_length(normalize(p_description, NFC)) > 2048
+      or pg_catalog.octet_length(normalize(p_description, NFC)) > 8192
+    ))
     or p_manifest_schema_version !~ '^[0-9]+\.[0-9]+$'
     or pg_catalog.octet_length(p_manifest_projection) not between 1 and 262144
     or p_manifest_digest !~ '^sha256:[0-9a-f]{64}$'

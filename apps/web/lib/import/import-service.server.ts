@@ -259,10 +259,17 @@ export async function executeImportOperation(input: {
     }
     const row = await repository.listReceipts(base);
     if (row === null) throw new ImportRouteError("session_not_found");
+    const authoritativeRevision = integer(row.revision, 1);
+    if ((operation === "resume" || operation === "receipts")
+      && expectedRevision !== undefined
+      && authoritativeRevision !== expectedRevision) {
+      throw new ImportRouteError("session_conflict");
+    }
     if (operation === "receipts") {
       if (!Array.isArray(row.receipts)) throw new ImportRouteError("temporarily_unavailable");
       return {
         session_public_id: text(row.session_id, SESSION_ID),
+        revision: authoritativeRevision,
         receipts: row.receipts.map((item) => {
           if (!object(item)) throw new ImportRouteError("temporarily_unavailable");
           return {

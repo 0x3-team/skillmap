@@ -160,6 +160,9 @@ async function defaultRuntimeFactory(): Promise<ManagedImportDependencies> {
       origin,
       keyStore: stores.keyStore,
       deviceId: await authClient.getDeviceId(),
+      trustedUploadOrigins: process.env.SKILLMAP_IMPORT_UPLOAD_ORIGINS === undefined
+        ? [origin]
+        : process.env.SKILLMAP_IMPORT_UPLOAD_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean),
       production: process.env.NODE_ENV === 'production'
     });
     return { auth, client, uploader: new ImportUploader({ client }) };
@@ -267,7 +270,7 @@ export async function managedImportCommand(
     const runtime = await (deps.runtimeFactory ?? defaultRuntimeFactory)();
     const result = await (deps.runManagedImportFn ?? runManagedImport)({ ...requestBase, sessionStartedAt: checkpoint.startedAt }, {
       ...runtime,
-      now: () => now
+      now: deps.now ?? runtime.now
     });
     await writeCheckpoint(file, {
       ...checkpoint,

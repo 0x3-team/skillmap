@@ -70,6 +70,7 @@ function makeRouter({ receipts = [], state = { revision: 1, acceptedCount: 0, ac
       if (url.includes('/receipts')) {
         return new Response(JSON.stringify({
           session_public_id: SESSION_ID,
+          revision: state.revision,
           receipts
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
@@ -265,6 +266,7 @@ test('M4.07 accepts a matching immutable object after a no-overwrite storage con
   let storageCalls = 0;
   const uploader = new ImportUploader({
     client,
+    trustedUploadOrigins: [ORIGIN],
     concurrency: 1,
     fileMaxRetries: 0,
     storageTransport: async () => {
@@ -290,9 +292,10 @@ test('M4.07 accepts a matching immutable object after a no-overwrite storage con
 test('M4.07 refreshes authoritative session state after a lost accept response', async () => {
   const file = makeFile(0);
   let resumeCalls = 0;
+  let resumeParams;
   const client = {
     async listReceipts() {
-      return { sessionPublicId: SESSION_ID, receipts: [] };
+      return { sessionPublicId: SESSION_ID, revision: 1, receipts: [] };
     },
     async prepareUpload() {
       return {
@@ -310,8 +313,9 @@ test('M4.07 refreshes authoritative session state after a lost accept response',
     async acceptFile() {
       throw new ImportClientError(409, 'already_accepted');
     },
-    async resumeImportSession() {
+    async resumeImportSession(params) {
       resumeCalls += 1;
+      resumeParams = params;
       return {
         sessionPublicId: SESSION_ID,
         state: 'verified',
@@ -328,6 +332,7 @@ test('M4.07 refreshes authoritative session state after a lost accept response',
   };
   const uploader = new ImportUploader({
     client,
+    trustedUploadOrigins: [ORIGIN],
     concurrency: 1,
     fileMaxRetries: 0,
     storageTransport: makeStorageRouter()
@@ -339,6 +344,7 @@ test('M4.07 refreshes authoritative session state after a lost accept response',
   });
 
   assert.equal(resumeCalls, 1);
+  assert.deepEqual(resumeParams, { sessionPublicId: SESSION_ID });
   assert.equal(result.session.revision, 2);
   assert.equal(result.session.state, 'verified');
   assert.equal(result.session.acceptedFileCount, 1);
@@ -347,6 +353,93 @@ test('M4.07 refreshes authoritative session state after a lost accept response',
   assert.equal(result.session.verificationDigest, `sha256:${'e'.repeat(64)}`);
   assert.equal(result.session.finalizationExpectedRevision, 2);
   assert.equal(result.uploaded.length, 1);
+});
+
+test('M4.07 preserves known optional session fields when a response omits them', async () => {
+  const file = makeFile(0);
+  const manifestDigest = `sha256:${'1'.repeat(64)}`;
+  const contentDigest = `sha256:${'2'.repeat(64)}`;
+  const verificationDigest = `sha256:${'3'.repeat(64)}`;
+  const client = {
+    async listReceipts() { return { sessionPublicId: SESSION_ID, revision: 1, receipts: [] }; },
+    async prepareUpload() {
+      return {
+        sessionPublicId: SESSION_ID,
+        filePublicId: file.filePublicId,
+        versionPublicId: VERSION_ID,
+        bucketId: 'skill-vault-private',
+        objectName: `v1/${VERSION_ID}/${file.filePublicId}`,
+        uploadUrl: `${ORIGIN}/upload/${file.filePublicId}`,
+        uploadExpiresAt: EXPIRES_AT,
+        contentType: file.mediaType,
+        declaredSize: file.byteSize
+      };
+    },
+    async acceptFile() {
+      return {
+        sessionPublicId: SESSION_ID,
+        state: 'in_progress',
+        expectedFileCount: 1,
+        expectedByteTotal: file.byteSize,
+        acceptedFileCount: 1,
+        acceptedByteTotal: file.byteSize,
+        revision: 2,
+        expiresAt: EXPIRES_AT
+      };
+    }
+  };
+  const session = {
+    ...baseSession(),
+    expectedFileCount: 1,
+    expectedByteTotal: file.byteSize,
+    manifestDigest,
+    contentDigest,
+    verificationDigest,
+    finalizationExpectedRevision: 1
+  };
+  const result = await new ImportUploader({ client, trustedUploadOrigins: [ORIGIN], concurrency: 1, storageTransport: makeStorageRouter() })
+    .uploadFiles({ session, files: [file], accessToken: ACCESS_TOKEN });
+  assert.equal(result.session.manifestDigest, manifestDigest);
+  assert.equal(result.session.contentDigest, contentDigest);
+  assert.equal(result.session.verificationDigest, verificationDigest);
+  assert.equal(result.session.finalizationExpectedRevision, 1);
+});
+
+test('M4.07 rejects an attacker-origin signed upload before storage transport', async () => {
+  const file = makeFile(0);
+  let storageCalls = 0;
+  const client = await makeClient(async (url) => {
+    if (url.includes('/receipts')) {
+      return new Response(JSON.stringify({ session_public_id: SESSION_ID, revision: 1, receipts: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+    return new Response(JSON.stringify({
+      session_public_id: SESSION_ID,
+      file_public_id: file.filePublicId,
+      version_public_id: VERSION_ID,
+      bucket_id: 'skill-vault-private',
+      object_name: `v1/${VERSION_ID}/${file.filePublicId}`,
+      upload_url: 'https://attacker.example.test/upload',
+      upload_expires_at: EXPIRES_AT,
+      content_type: file.mediaType,
+      declared_size: file.byteSize,
+      upload_authorization: 'Bearer attacker-token'
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }, { maxRetries: 0 });
+  const result = await new ImportUploader({
+    client,
+    concurrency: 1,
+    storageTransport: async () => { storageCalls += 1; return { status: 200 }; }
+  }).uploadFiles({
+    session: { ...baseSession(), expectedFileCount: 1, expectedByteTotal: file.byteSize },
+    files: [file],
+    accessToken: ACCESS_TOKEN
+  });
+  assert.equal(storageCalls, 0);
+  assert.equal(result.failed.length, 1);
+  assert.equal(result.failed[0].error.code, 'invalid_response');
 });
 
 test('M4.07 serializes lost-response recovery before the next concurrent accept', async () => {
@@ -374,7 +467,7 @@ test('M4.07 serializes lost-response recovery before the next concurrent accept'
   });
   const client = {
     async listReceipts() {
-      return { sessionPublicId: SESSION_ID, receipts: [] };
+      return { sessionPublicId: SESSION_ID, revision: serverRevision, receipts: [] };
     },
     async prepareUpload({ filePublicId }) {
       const file = files.find((candidate) => candidate.filePublicId === filePublicId);
@@ -414,6 +507,7 @@ test('M4.07 serializes lost-response recovery before the next concurrent accept'
   };
   const uploader = new ImportUploader({
     client,
+    trustedUploadOrigins: [ORIGIN],
     concurrency: 2,
     fileMaxRetries: 0,
     storageTransport: async () => {

@@ -242,6 +242,20 @@ test('M4.16 post-upload local change blocks parity after consent', async (t) => 
   );
 });
 
+test('M4.16 samples the live clock immediately before issuing the parity receipt', async (t) => {
+  const state = await fixture(t);
+  const cloud = makeCloud({ consented: true });
+  const samples = [new Date(NOW), new Date(NOW.getTime() + 60_000)];
+  const deps = {
+    auth: auth(),
+    client: cloud.client,
+    uploader: cloud.uploader,
+    now: () => samples.shift() ?? new Date(NOW.getTime() + 60_000)
+  };
+  const result = await runManagedImport(state.request, deps);
+  assert.equal(result.parityReceipt.issuedAt, '2026-08-20T12:01:00.000Z');
+});
+
 test('M4.16 authentication failures are not mislabeled as owner consent', async (t) => {
   const state = await fixture(t);
   const cloud = makeCloud({ consented: true });

@@ -82,6 +82,8 @@ export interface ImportClientOptions {
   origin: string;
   keyStore: DeviceKeyStore;
   deviceId: string;
+  /** Origins that may receive signed-upload requests and upload credentials. */
+  trustedUploadOrigins?: readonly string[];
   fetchFn?: typeof fetch;
   randomBytes?: (count: number) => Uint8Array;
   clock?: () => number;
@@ -182,6 +184,7 @@ export interface ImportFileReceipt {
 
 export interface ImportReceiptsResponse {
   sessionPublicId: string;
+  revision: number;
   receipts: ImportFileReceipt[];
 }
 
@@ -477,6 +480,7 @@ function toSnakeCaseBody(input: Record<string, unknown>): Record<string, unknown
 
 export class ImportClient {
   public readonly origin: string;
+  public readonly trustedUploadOrigins: readonly string[];
   private readonly keyStore: DeviceKeyStore;
   private readonly deviceId: string;
   private readonly fetchFn: typeof fetch;
@@ -508,6 +512,18 @@ export class ImportClient {
         throw new Error('Production import client requires HTTPS');
       }
     }
+    const configuredUploadOrigins = options.trustedUploadOrigins ?? [this.origin];
+    if (!Array.isArray(configuredUploadOrigins) || configuredUploadOrigins.length > 16) {
+      throw new Error('Invalid trusted upload origins');
+    }
+    const normalizedUploadOrigins = configuredUploadOrigins.map((uploadOrigin) => {
+      try {
+        return normalizeAndValidateOrigin(uploadOrigin);
+      } catch {
+        throw new Error('Invalid trusted upload origin');
+      }
+    });
+    this.trustedUploadOrigins = Object.freeze([...new Set(normalizedUploadOrigins)]);
     if (typeof options.deviceId !== 'string' || !IDEMPOTENCY_KEY_PATTERN.test(options.deviceId)) {
       throw new ImportClientError(400, 'invalid_request');
     }
@@ -549,7 +565,9 @@ export class ImportClient {
       || new TextEncoder().encode(params.displayName).byteLength > 800) {
       throw new ImportClientError(400, 'invalid_request');
     }
-    if (typeof params.description !== 'string' || new TextEncoder().encode(params.description).byteLength > 2_048) {
+    if (typeof params.description !== 'string'
+      || Array.from(params.description.normalize('NFC')).length > 2_048
+      || new TextEncoder().encode(params.description.normalize('NFC')).byteLength > 8_192) {
       throw new ImportClientError(400, 'invalid_request');
     }
     if (!/^\d+\.\d+$/.test(params.manifestSchemaVersion)) {
@@ -712,6 +730,9 @@ export class ImportClient {
         const parsed = isImportSessionResponse(value);
         if (parsed === false) return false;
         if (parsed.sessionPublicId !== params.sessionPublicId) return false;
+        if (params.expectedRevision !== undefined && parsed.revision !== params.expectedRevision) {
+          throw new ImportClientError(409, 'session_conflict');
+        }
         return parsed;
       }
     });
@@ -800,7 +821,7 @@ export class ImportClient {
       accessToken: options?.accessToken,
       signal: options?.signal,
       validate: (value) => {
-        const parsed = isImportUploadMetadata(value);
+        const parsed = isImportUploadMetadata(value, this.trustedUploadOrigins);
         if (parsed === false) return false;
         if (parsed.sessionPublicId !== params.sessionPublicId) return false;
         if (parsed.filePublicId !== params.filePublicId) return false;
@@ -876,6 +897,9 @@ export class ImportClient {
         const parsed = isImportReceiptsResponse(value);
         if (parsed === false) return false;
         if (parsed.sessionPublicId !== params.sessionPublicId) return false;
+        if (params.expectedRevision !== undefined && parsed.revision !== params.expectedRevision) {
+          throw new ImportClientError(409, 'session_conflict');
+        }
         return parsed;
       }
     });
@@ -1293,7 +1317,7 @@ function isImportPreparedTarget(value: unknown): ImportPreparedTarget | false {
   };
 }
 
-function isImportUploadMetadata(value: unknown): ImportUploadMetadata | false {
+function isImportUploadMetadata(value: unknown, trustedUploadOrigins: readonly string[]): ImportUploadMetadata | false {
   if (!hasObjectFields(value, [
     'session_public_id',
     'file_public_id',
@@ -1328,7 +1352,7 @@ function isImportUploadMetadata(value: unknown): ImportUploadMetadata | false {
     && typeof value.object_name === 'string'
     && STORAGE_OBJECT_NAME_PATTERN.test(value.object_name)
     && isString(value.upload_url)
-    && isTrustedUploadUrl(value.upload_url)
+    && isTrustedUploadUrl(value.upload_url, trustedUploadOrigins)
     && isString(value.upload_expires_at)
     && isIso8601Utc(value.upload_expires_at)
     && isString(value.content_type)
@@ -1352,14 +1376,11 @@ function isImportUploadMetadata(value: unknown): ImportUploadMetadata | false {
   };
 }
 
-function isTrustedUploadUrl(value: string): boolean {
+function isTrustedUploadUrl(value: string, trustedOrigins: readonly string[]): boolean {
   if (typeof value !== 'string' || value.length > 2048) return false;
   try {
     const url = new URL(value);
-    if (url.protocol === 'https:') return true;
-    if (url.protocol !== 'http:') return false;
-    const host = url.hostname.toLowerCase();
-    return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1';
+    return trustedOrigins.includes(url.origin);
   } catch {
     return false;
   }
@@ -1402,10 +1423,12 @@ function isImportFileReceipt(value: unknown): ImportFileReceipt | false {
 }
 
 function isImportReceiptsResponse(value: unknown): ImportReceiptsResponse | false {
-  if (!hasObjectFields(value, ['session_public_id', 'receipts'])) return false;
-  const allowed = new Set(['session_public_id', 'receipts']);
+  if (!hasObjectFields(value, ['session_public_id', 'revision', 'receipts'])) return false;
+  const allowed = new Set(['session_public_id', 'revision', 'receipts']);
   if (!hasOnlyKeys(value, [...allowed])) return false;
-  if (!isImportSessionId(value.session_public_id) || !Array.isArray(value.receipts)) return false;
+  if (!isImportSessionId(value.session_public_id)
+    || !isPositiveSafeInteger(value.revision)
+    || !Array.isArray(value.receipts)) return false;
   const receipts: ImportFileReceipt[] = [];
   for (const item of value.receipts) {
     const receipt = isImportFileReceipt(item);
@@ -1414,6 +1437,7 @@ function isImportReceiptsResponse(value: unknown): ImportReceiptsResponse | fals
   }
   return {
     sessionPublicId: value.session_public_id as string,
+    revision: value.revision as number,
     receipts
   };
 }

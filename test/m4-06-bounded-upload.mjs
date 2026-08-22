@@ -75,6 +75,7 @@ function makeControlRouter(receipts = [], state = { revision: 1, acceptedCount: 
     if (url.includes('/receipts')) {
       return new Response(JSON.stringify({
         session_public_id: SESSION_ID,
+        revision: state.revision,
         receipts
       }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
@@ -185,7 +186,7 @@ test('M4.06 bounds upload concurrency and does not exceed the configured limit',
   };
   const controlRouter = async (url, init) => {
     if (url.includes('/receipts')) {
-      return new Response(JSON.stringify({ session_public_id: SESSION_ID, receipts: [] }), {
+      return new Response(JSON.stringify({ session_public_id: SESSION_ID, revision: state.revision, receipts: [] }), {
         status: 200,
         headers: { 'content-type': 'application/json' }
       });
