@@ -77,6 +77,14 @@ test('historical M3.02 receipt is immutable and superseding receipt binds curren
     'b5ea97070f8b7886870b41f32b1b76d33ed5840eb5adb94b8b5a5392ccad4e30',
     'historical M3 root package hash must remain immutable'
   );
+  assert.equal(
+    sha256('package.json'),
+    'c1faf17965e1465f2bf34f7c0e658ff9ed3effc0c399b7d286e2a91824e6a7e7',
+    'current M4 root package hash drift'
+  );
+  const currentRootPackage = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  assert.match(currentRootPackage.scripts['check:web'], /npm --prefix apps\/web run test:import/);
+  assert.match(currentRootPackage.scripts['check:all'], /npm run check:web/);
   assert.equal(cloudflareRuntimeReceipt.status, 'DEPLOYED_ALPHA');
   assert.equal(cloudflareRuntimeReceipt.supersedes.receipt, 'docs/plans/evidence/M3-device-auth-emitted-runtime-fix-receipt.json');
   assert.equal(cloudflareRuntimeReceipt.supersedes.old_receipt_sha256, '0001aedba21380147f6922845d7d4c1e58ac2a7126020ac0de78dc7efbc0b063');

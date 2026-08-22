@@ -21,13 +21,19 @@ const ALLOWED_RPC = new Set([
   'claim_import_analysis_jobs',
   'renew_import_analysis_job',
   'complete_import_analysis_job',
-  'fail_import_analysis_job'
+  'fail_import_analysis_job',
+  'claim_import_upload_cleanup',
+  'complete_import_upload_cleanup',
+  'fail_import_upload_cleanup'
 ]);
 const RPC_SCHEMA = new Map([
   ['claim_import_analysis_jobs', 'analysis_worker_adapter'],
   ['renew_import_analysis_job', 'analysis_worker_adapter'],
   ['complete_import_analysis_job', 'analysis_worker_adapter'],
-  ['fail_import_analysis_job', 'analysis_worker_adapter']
+  ['fail_import_analysis_job', 'analysis_worker_adapter'],
+  ['claim_import_upload_cleanup', 'storage_worker_adapter'],
+  ['complete_import_upload_cleanup', 'storage_worker_adapter'],
+  ['fail_import_upload_cleanup', 'storage_worker_adapter']
 ]);
 const DUAL_CONTROL_EXECUTION_RPC = new Set([
   'record_skill_submission_publisher_authorization',

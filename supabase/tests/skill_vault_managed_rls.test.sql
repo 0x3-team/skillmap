@@ -306,10 +306,10 @@ select ok(has_function_privilege('authenticated','private.prepare_skill_vault_de
   'authenticated EXECUTE on prepare_delete');
 select ok(has_function_privilege('service_role','private.enqueue_skill_vault_incomplete_upload_cleanup(text,text,text)','execute'),
   'service_role EXECUTE on enqueue cleanup');
-select ok(has_function_privilege('service_role','private.claim_skill_vault_incomplete_upload_cleanup(integer)','execute'),
-  'service_role EXECUTE on claim cleanup');
-select ok(has_function_privilege('service_role','private.complete_skill_vault_incomplete_upload_cleanup(uuid)','execute'),
-  'service_role EXECUTE on complete cleanup');
+select ok(not has_function_privilege('service_role','private.claim_skill_vault_incomplete_upload_cleanup(integer)','execute'),
+  'service_role cannot bypass the storage worker adapter to claim cleanup');
+select ok(not has_function_privilege('service_role','private.complete_skill_vault_incomplete_upload_cleanup(uuid)','execute'),
+  'service_role cannot bypass the storage worker adapter to complete cleanup');
 select ok(not has_function_privilege('authenticated','private.claim_skill_vault_incomplete_upload_cleanup(integer)','execute'),
   'authenticated EXECUTE denied on claim cleanup');
 select ok(not has_function_privilege('anon','private.prepare_skill_vault_upload(text,timestamptz)','execute'),

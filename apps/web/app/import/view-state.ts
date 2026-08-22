@@ -367,7 +367,7 @@ export function getStateDescription(state: ImportViewStateKind): string {
     case "consented":
       return "Cloud authorization is recorded. Your connector must finalize and rescan before local quarantine.";
     case "cutover_ready":
-      return "Cloud parity is verified and cutover is authorized. Return to your terminal for the connector to complete local quarantine.";
+      return "Cloud parity is verified and cutover is authorized. Local quarantine remains a separate explicit action in your terminal.";
     case "stale":
       return "This import session has expired or the manifest revision changed. Please re-run the CLI scanner.";
     case "error":

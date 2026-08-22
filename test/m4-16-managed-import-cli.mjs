@@ -7,6 +7,7 @@ import { test } from 'node:test';
 
 import { importCommand } from '../dist/commands/import.js';
 import { CliExitError, CLI_EXIT_CODES } from '../dist/core/cli-exit.js';
+import { ImportParityError } from '../dist/core/import-parity.js';
 import { ImportClientError } from '../dist/network/import-client.js';
 import { ManagedImportError } from '../dist/services/managed-import-use-case.js';
 
@@ -102,6 +103,38 @@ test('M4.16 CLI preserves one stable retry checkpoint across the owner-consent p
   const third = await importCommand(state.cwd, ['vault', state.skillDir], {}, deps);
   assert.equal(third.state, 'verified');
   assert.equal(JSON.parse(await readFile(path.join(checkpointDir, checkpointFiles[0]), 'utf8')).state, 'verified');
+});
+
+test('M4.16 CLI retires an owner-consent checkpoint when finalized consent has expired', async (t) => {
+  const state = await projectFixture(t);
+  const requests = [];
+  let phase = 'awaiting_owner_consent';
+  let currentNow = new Date(NOW);
+  const deps = {
+    runtimeFactory: async () => inertRuntime(),
+    runManagedImportFn: async (request) => {
+      requests.push(request);
+      if (phase === 'expired') throw new ImportParityError('CONSENT_EXPIRED', 'untrusted consent detail');
+      return { state: 'awaiting_owner_consent', sessionPublicId: `imp_${'a'.repeat(32)}` };
+    },
+    now: () => new Date(currentNow)
+  };
+
+  await importCommand(state.cwd, ['vault', state.skillDir], {}, deps);
+  phase = 'expired';
+  currentNow = new Date(NOW.getTime() + 60_000);
+  await assert.rejects(
+    importCommand(state.cwd, ['vault', state.skillDir], {}, deps),
+    (error) => error instanceof CliExitError
+      && error.code === 'CONSENT_EXPIRED'
+      && error.exitCode === CLI_EXIT_CODES.INTEGRITY_PROTOCOL_ERROR
+  );
+
+  phase = 'awaiting_owner_consent';
+  await importCommand(state.cwd, ['vault', state.skillDir], {}, deps);
+  assert.equal(requests[0].sessionStartedAt, NOW.toISOString());
+  assert.equal(requests[1].sessionStartedAt, requests[0].sessionStartedAt);
+  assert.equal(requests[2].sessionStartedAt, currentNow.toISOString());
 });
 
 test('M4.16 CLI blocks canaries before runtime creation or checkpoint mutation', async (t) => {

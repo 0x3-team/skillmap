@@ -166,7 +166,7 @@ test("M4 prepare-upload returns the signed URL and public version binding", asyn
         version_public_id: VERSION_ID,
         bucket_id: "skill-vault-private",
         object_name: `v1/${VERSION_ID}/${FILE_ID}`,
-        expires_at: "2026-08-20T12:00:00Z",
+        expires_at: params.p_expires_at,
         content_type: "text/plain",
         declared_size: 4,
         file_digest: DIGEST,
@@ -184,9 +184,11 @@ test("M4 prepare-upload returns the signed URL and public version binding", asyn
     body: { expected_revision: 1 },
     params: { sessionId: SESSION_ID, fileId: FILE_ID },
     context, idempotencyKey: IDEMPOTENCY_KEY, repository,
-    now: () => new Date("2026-08-20T11:55:00Z")
+    now: () => new Date("2026-08-20T10:00:00Z")
   });
   assert.equal(calls[0].p_expected_session_revision, 1);
+  assert.equal(calls[0].p_expires_at, "2026-08-20T12:00:00.000Z");
+  assert.equal(result.upload_expires_at, "2026-08-20T12:00:00.000Z");
   assert.equal(result.version_public_id, VERSION_ID);
   assert.match(result.upload_url, /^https:\/\/storage\.example\.test\//);
   assert.equal("upload_authorization" in result, false);
@@ -218,6 +220,7 @@ test("M4 accept rejects a changed digest before the accept RPC", async () => {
 
 test("M4 accept hashes the stored object bytes before the accept RPC", async () => {
   let accepted = false;
+  const cleanupCalls = [];
   const expectedBytes = new TextEncoder().encode("test");
   const digest = `sha256:${createHash("sha256").update(expectedBytes).digest("hex")}`;
   const repository = {
@@ -231,6 +234,9 @@ test("M4 accept hashes the stored object bytes before the accept RPC", async () 
     },
     async readStoredObject() {
       return new TextEncoder().encode("tampered");
+    },
+    async enqueueUploadCleanup(params) {
+      cleanupCalls.push(params);
     },
     async acceptFile() {
       accepted = true;
@@ -246,9 +252,16 @@ test("M4 accept hashes the stored object bytes before the accept RPC", async () 
       context, idempotencyKey: IDEMPOTENCY_KEY, repository,
       now: () => new Date("2026-08-20T11:55:00Z")
     }),
-    (error) => error?.code === "invalid_request"
+    (error) => error?.code === "stored_object_conflict"
   );
   assert.equal(accepted, false);
+  assert.deepEqual(cleanupCalls, [{
+    p_account_public_id: ACCOUNT_ID,
+    p_device_public_id: DEVICE_PUBLIC_ID,
+    p_session_public_id: SESSION_ID,
+    p_file_public_id: FILE_ID,
+    p_cleanup_reason: "stored_object_digest_conflict"
+  }]);
 
   repository.readStoredObject = async () => expectedBytes;
   const result = await executeImportOperation({

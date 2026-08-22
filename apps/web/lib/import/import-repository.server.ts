@@ -113,6 +113,25 @@ export class SupabaseImportRepository {
     return this.call("adapter_accept_import_file_v2", params);
   }
 
+  async enqueueUploadCleanup(params: Record<string, unknown>): Promise<void> {
+    try {
+      const { data, error } = await this.factory("device_adapter")
+        .rpc("adapter_enqueue_import_upload_cleanup", params)
+        .single<boolean>();
+      if (error || data !== true) throw new Error(messageFrom(error));
+    } catch (error) {
+      if (error instanceof ImportRouteError) throw error;
+      const message = messageFrom(error).toLowerCase();
+      if (message.includes("authority unavailable") || message.includes("permission denied")) {
+        throw new ImportRouteError("unauthorized");
+      }
+      if (message.includes("invalid") || message.includes("does not match") || message.includes("outside")) {
+        throw new ImportRouteError("invalid_request");
+      }
+      throw new ImportRouteError("temporarily_unavailable", 0, error);
+    }
+  }
+
   async listReceipts(params: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     return this.callNullable("adapter_list_import_file_receipts", params);
   }

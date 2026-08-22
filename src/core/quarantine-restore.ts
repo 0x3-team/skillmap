@@ -364,9 +364,20 @@ async function createRestoreReceipt(input: {
     restoredAt: input.restoredAt
   };
   const receipt: RestoreMutationReceipt = { ...base, receiptDigest: digest(base) };
-  await writeExclusiveRecord(input.receiptFile, receipt)
-    .catch((error: unknown) => { throw new Error('RESTORE_OUTCOME_NEEDS_RECONCILIATION', { cause: error }); });
-  return receipt;
+  try {
+    await writeExclusiveRecord(input.receiptFile, receipt);
+    return receipt;
+  } catch (error) {
+    if (!errno(error, 'EEXIST')) {
+      throw new Error('RESTORE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+    }
+    return validateRestoreReceipt(
+      await readRecordAfterExclusiveConflict(input.receiptFile),
+      input.authorization,
+      input.authorizationDigest,
+      input.quarantineReceipt
+    );
+  }
 }
 
 async function writeExclusiveRecord(file: string, value: unknown): Promise<void> {
@@ -379,6 +390,80 @@ async function writeExclusiveRecord(file: string, value: unknown): Promise<void>
   }
   const directory = await open(path.dirname(file), 'r');
   try { await directory.sync(); } finally { await directory.close(); }
+}
+
+async function readRecordAfterExclusiveConflict(file: string): Promise<Record<string, unknown>> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const record = await safeReadRecord(file);
+      if (record) return record;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('Exclusive restore record winner could not be read safely.', { cause: lastError });
+}
+
+const RESTORE_INTENT_KEYS = [
+  'kind',
+  'schemaVersion',
+  'action',
+  'operationId',
+  'authorizationDigest',
+  'quarantineReceiptId',
+  'quarantineObjectIdentityDigest',
+  'originalDestinationIdentityDigest',
+  'createdAt',
+  'intentDigest'
+] as const;
+
+function validateRestoreIntent(
+  record: Record<string, unknown>,
+  authorization: RestoreAuthorization,
+  authorizationDigest: string,
+  quarantineReceipt: QuarantineMutationReceipt
+): string {
+  const keys = Object.keys(record).sort();
+  if (keys.length !== RESTORE_INTENT_KEYS.length
+    || !RESTORE_INTENT_KEYS.every((key) => keys.includes(key))
+    || record.kind !== 'skillmap.local-restore-intent'
+    || record.schemaVersion !== 1
+    || record.action !== 'restore'
+    || record.operationId !== authorization.operationId
+    || record.authorizationDigest !== authorizationDigest
+    || record.quarantineReceiptId !== quarantineReceipt.receiptId
+    || record.quarantineObjectIdentityDigest !== quarantineReceipt.quarantineObjectIdentityDigest
+    || record.originalDestinationIdentityDigest !== authorization.originalDestinationIdentityDigest
+    || typeof record.createdAt !== 'string'
+    || Number.isNaN(Date.parse(record.createdAt))) {
+    throw new Error('IDEMPOTENCY_CONFLICT');
+  }
+  const { intentDigest, ...base } = record;
+  if (typeof intentDigest !== 'string' || intentDigest !== digest(base)) throw new Error('IDEMPOTENCY_CONFLICT');
+  return record.createdAt;
+}
+
+async function persistRestoreIntent(
+  file: string,
+  intent: Record<string, unknown>,
+  authorization: RestoreAuthorization,
+  authorizationDigest: string,
+  quarantineReceipt: QuarantineMutationReceipt
+): Promise<string> {
+  try {
+    await writeExclusiveRecord(file, intent);
+    return validateRestoreIntent(intent, authorization, authorizationDigest, quarantineReceipt);
+  } catch (error) {
+    if (!errno(error, 'EEXIST')) throw error;
+    return validateRestoreIntent(
+      await readRecordAfterExclusiveConflict(file),
+      authorization,
+      authorizationDigest,
+      quarantineReceipt
+    );
+  }
 }
 
 export async function executeRestore(input: {
@@ -439,19 +524,43 @@ export async function executeRestore(input: {
   ]);
   const intentFile = path.join(input.receiptDirectory, `${input.authorization.idempotencyKey}.restore-intent.json`);
   const existingIntent = await safeReadRecord(intentFile);
-  if (existingIntent && existingIntent.authorizationDigest !== authorizationDigest) throw new Error('IDEMPOTENCY_CONFLICT');
+  let intentCreatedAt = now.toISOString();
+  if (existingIntent) {
+    intentCreatedAt = validateRestoreIntent(
+      existingIntent,
+      input.authorization,
+      authorizationDigest,
+      input.quarantineReceipt
+    );
+  }
+
+  const recoverCompletedRestore = async (): Promise<RestoreMutationReceipt | undefined> => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const [currentQuarantineEntry, currentOriginalEntry] = await Promise.all([
+        observeSafeEntry(input.quarantineRoot, quarantineRelativePath),
+        observeSafeEntry(input.originalRoot, originalRelativePath)
+      ]);
+      if (currentOriginalEntry && !currentQuarantineEntry) {
+        assertQuarantineObjectIdentity(currentOriginalEntry.stats, input.quarantineReceipt);
+        await assertQuarantineTreeIntegrity(currentOriginalEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
+        return createRestoreReceipt({
+          authorization: input.authorization,
+          authorizationDigest,
+          quarantineReceipt: input.quarantineReceipt,
+          restoredAt: intentCreatedAt,
+          receiptFile
+        });
+      }
+      if (attempt < 19) await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    return undefined;
+  };
 
   if (originalEntry) {
     if (!existingIntent || quarantineEntry) return LOCAL_QUARANTINE_OUTCOMES.RESTORE_DESTINATION_OCCUPIED;
-    assertQuarantineObjectIdentity(originalEntry.stats, input.quarantineReceipt);
-    await assertQuarantineTreeIntegrity(originalEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
-    return createRestoreReceipt({
-      authorization: input.authorization,
-      authorizationDigest,
-      quarantineReceipt: input.quarantineReceipt,
-      restoredAt: now.toISOString(),
-      receiptFile
-    });
+    const recovered = await recoverCompletedRestore();
+    if (!recovered) throw new Error('REPLAY_STATE_INCONSISTENT');
+    return recovered;
   }
   if (!quarantineEntry) throw new Error('REPLAY_STATE_INCONSISTENT');
   assertQuarantineObjectIdentity(quarantineEntry.stats, input.quarantineReceipt);
@@ -474,7 +583,15 @@ export async function executeRestore(input: {
     originalDestinationIdentityDigest: input.authorization.originalDestinationIdentityDigest,
     createdAt: now.toISOString()
   } as const;
-  if (!existingIntent) await writeExclusiveRecord(intentFile, { ...intent, intentDigest: digest(intent) });
+  if (!existingIntent) {
+    intentCreatedAt = await persistRestoreIntent(
+      intentFile,
+      { ...intent, intentDigest: digest(intent) },
+      input.authorization,
+      authorizationDigest,
+      input.quarantineReceipt
+    );
+  }
   // Fetch and validate the hosted authority at the final move boundary. The
   // caller-supplied labels are not sufficient because lifecycle authority may
   // be revoked or replaced after local preparation.
@@ -487,8 +604,8 @@ export async function executeRestore(input: {
   const moveExpiryFailure = assertRestoreWindowOpen(input.quarantineReceipt, moveNow);
   if (moveExpiryFailure) return moveExpiryFailure;
   assertHostedRestoreAuthority(hostedAuthority, input.authorization, moveNow);
-  await assertQuarantineTreeIntegrity(quarantineEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
   try {
+    await assertQuarantineTreeIntegrity(quarantineEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
     await input.mover.move(quarantineEntry.absolutePath, originalPath, {
       sourceRootPath: input.quarantineRoot.canonicalRootPath,
       sourceRootVolumeId: input.quarantineRoot.volumeId,
@@ -502,6 +619,16 @@ export async function executeRestore(input: {
       destinationRelativePath: originalRelativePath
     });
   } catch (error) {
+    const concurrentRace = errno(error, 'EEXIST')
+      || errno(error, 'ENOENT')
+      || (error instanceof Error
+        && (error.message === 'CANDIDATE_STALE'
+          || error.message === 'QUARANTINE_TREE_MISMATCH'
+          || (error as NodeJS.ErrnoException).code === 'ATOMIC_MOVE_FAILED'));
+    if (concurrentRace) {
+      const recovered = await recoverCompletedRestore();
+      if (recovered) return recovered;
+    }
     if (errno(error, 'EEXIST')) return LOCAL_QUARANTINE_OUTCOMES.RESTORE_DESTINATION_OCCUPIED;
     if (errno(error, 'EXDEV')) return LOCAL_QUARANTINE_OUTCOMES.CROSS_VOLUME_NOT_ATOMIC;
     throw error;
@@ -524,7 +651,7 @@ export async function executeRestore(input: {
     authorization: input.authorization,
     authorizationDigest,
     quarantineReceipt: input.quarantineReceipt,
-    restoredAt: now.toISOString(),
+    restoredAt: intentCreatedAt,
     receiptFile
   });
 }

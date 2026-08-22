@@ -9,7 +9,7 @@ select ok(
     join pg_catalog.pg_roles as roles on roles.oid = settings.setrole
     cross join lateral pg_catalog.unnest(settings.setconfig) as config(value)
     where roles.rolname = 'authenticator'
-      and config.value = 'pgrst.db_schemas=public, graphql_public, api, device_adapter, analysis_worker_adapter'
+      and config.value = 'pgrst.db_schemas=public, graphql_public, api, device_adapter, analysis_worker_adapter, storage_worker_adapter'
   ),
   'PostgREST exposes the service-role device adapter schema without changing function grants'
 );

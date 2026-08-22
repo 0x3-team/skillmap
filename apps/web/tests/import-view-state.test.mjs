@@ -444,8 +444,10 @@ test("view-state: copy and tone helpers map to all 10 states with accurate cutov
 
   // P2 copy assertion: cutover_ready states cloud parity is verified and cutover is authorized
   const cutoverDesc = getStateDescription("cutover_ready");
-  assert.ok(cutoverDesc.includes("Cloud parity is verified"));
-  assert.ok(cutoverDesc.includes("cutover is authorized"));
+  assert.equal(
+    cutoverDesc,
+    "Cloud parity is verified and cutover is authorized. Local quarantine remains a separate explicit action in your terminal."
+  );
 });
 
 test("view-state: capabilities are strictly mapped to states", () => {

@@ -79,13 +79,15 @@ export const SAFE_ERROR_MESSAGES: Record<string, string> = {
   session_not_found: 'The import session was not found.',
   session_expired: 'The import session has expired.',
   session_conflict: 'The import session conflicts with a concurrent operation.',
+  stored_object_conflict: 'The stored upload does not match the immutable file.',
   owner_consent_required: 'Owner consent is required before this import can be finalized.',
   already_accepted: 'The file is already accepted in this session.',
   invalid_response: 'The import service returned an invalid response.',
   IMPORT_SOURCE_CHANGED: 'The local import source changed after scanning.',
   IMPORT_UPLOAD_INCOMPLETE: 'The import upload did not reach exact parity.',
   IMPORT_CHECKPOINT_INVALID: 'The import checkpoint is invalid.',
-  IMPORT_CHECKPOINT_EXPIRED: 'The import checkpoint has expired. Start a fresh import.'
+  IMPORT_CHECKPOINT_EXPIRED: 'The import checkpoint has expired. Start a fresh import.',
+  CONSENT_EXPIRED: 'Owner consent has expired. Start a fresh import.'
 };
 
 function displayDeviceAuthCode(info: DisplayCodeInfo): void {

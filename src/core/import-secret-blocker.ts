@@ -355,6 +355,12 @@ function isStructurallyValidWebp(content: Uint8Array): boolean {
   if (readUint32Le(content, 4) !== content.length - 8) return false;
   let offset = 12;
   let sawImage = false;
+  let sawExtendedHeader = false;
+  let sawAnimationHeader = false;
+  let sawAnimationFrame = false;
+  let animationEnabled = false;
+  let canvasWidth = 0;
+  let canvasHeight = 0;
   while (offset < content.length) {
     if (offset + 8 > content.length) return false;
     const type = ascii4(content, offset);
@@ -364,26 +370,87 @@ function isStructurallyValidWebp(content: Uint8Array): boolean {
     const chunkEnd = dataEnd + (size & 1);
     if (dataEnd < dataOffset || chunkEnd > content.length) return false;
     if (type === 'VP8 ') {
-      if (size < 10 || content[dataOffset + 3] !== 0x9d || content[dataOffset + 4] !== 0x01 || content[dataOffset + 5] !== 0x2a) return false;
-      const width = (content[dataOffset + 6] | (content[dataOffset + 7] << 8)) & 0x3fff;
-      const height = (content[dataOffset + 8] | (content[dataOffset + 9] << 8)) & 0x3fff;
-      if (width === 0 || height === 0) return false;
+      if (!isValidWebpImageChunk(content, type, dataOffset, size) || animationEnabled || sawImage) return false;
       sawImage = true;
     } else if (type === 'VP8L') {
-      if (size < 5 || content[dataOffset] !== 0x2f) return false;
-      const width = 1 + (content[dataOffset + 1] | ((content[dataOffset + 2] & 0x3f) << 8));
-      const height = 1 + ((content[dataOffset + 2] >> 6) | (content[dataOffset + 3] << 2) | ((content[dataOffset + 4] & 0x03) << 10));
-      if (width === 0 || height === 0) return false;
+      if (!isValidWebpImageChunk(content, type, dataOffset, size) || animationEnabled || sawImage) return false;
       sawImage = true;
     } else if (type === 'VP8X') {
-      if (size < 10) return false;
-      const width = 1 + content[dataOffset + 4] + (content[dataOffset + 5] << 8) + (content[dataOffset + 6] << 16);
-      const height = 1 + content[dataOffset + 7] + (content[dataOffset + 8] << 8) + (content[dataOffset + 9] << 16);
-      if (width === 0 || height === 0) return false;
+      if (sawExtendedHeader || offset !== 12 || size !== 10 || (content[dataOffset] & 0xc1) !== 0
+        || content[dataOffset + 1] !== 0 || content[dataOffset + 2] !== 0 || content[dataOffset + 3] !== 0) return false;
+      sawExtendedHeader = true;
+      animationEnabled = (content[dataOffset] & 0x02) !== 0;
+      canvasWidth = 1 + readUint24Le(content, dataOffset + 4);
+      canvasHeight = 1 + readUint24Le(content, dataOffset + 7);
+    } else if (type === 'ANIM') {
+      if (!animationEnabled || sawAnimationHeader || sawAnimationFrame || size !== 6) return false;
+      sawAnimationHeader = true;
+    } else if (type === 'ANMF') {
+      if (!animationEnabled || !sawAnimationHeader
+        || !isValidWebpAnimationFrame(content, dataOffset, size, canvasWidth, canvasHeight)) return false;
+      sawAnimationFrame = true;
+      sawImage = true;
     }
     offset = chunkEnd;
   }
+  if (animationEnabled && (!sawAnimationHeader || !sawAnimationFrame)) return false;
   return sawImage && offset === content.length;
+}
+
+function isValidWebpImageChunk(content: Uint8Array, type: string, dataOffset: number, size: number): boolean {
+  if (type === 'VP8 ') {
+    if (size < 10 || content[dataOffset + 3] !== 0x9d || content[dataOffset + 4] !== 0x01 || content[dataOffset + 5] !== 0x2a) return false;
+    const width = (content[dataOffset + 6] | (content[dataOffset + 7] << 8)) & 0x3fff;
+    const height = (content[dataOffset + 8] | (content[dataOffset + 9] << 8)) & 0x3fff;
+    return width !== 0 && height !== 0;
+  }
+  if (type !== 'VP8L' || size < 5 || content[dataOffset] !== 0x2f) return false;
+  const width = 1 + (content[dataOffset + 1] | ((content[dataOffset + 2] & 0x3f) << 8));
+  const height = 1 + ((content[dataOffset + 2] >> 6) | (content[dataOffset + 3] << 2) | ((content[dataOffset + 4] & 0x03) << 10));
+  return width !== 0 && height !== 0;
+}
+
+function isValidWebpAnimationFrame(
+  content: Uint8Array,
+  dataOffset: number,
+  size: number,
+  canvasWidth: number,
+  canvasHeight: number
+): boolean {
+  if (size < 24) return false;
+  const frameX = readUint24Le(content, dataOffset) * 2;
+  const frameY = readUint24Le(content, dataOffset + 3) * 2;
+  const frameWidth = readUint24Le(content, dataOffset + 6) + 1;
+  const frameHeight = readUint24Le(content, dataOffset + 9) + 1;
+  if ((content[dataOffset + 15] & 0xfc) !== 0
+    || frameX + frameWidth > canvasWidth
+    || frameY + frameHeight > canvasHeight) return false;
+
+  let offset = dataOffset + 16;
+  const frameEnd = dataOffset + size;
+  let sawAlpha = false;
+  let sawFrameImage = false;
+  while (offset < frameEnd) {
+    if (offset + 8 > frameEnd) return false;
+    const type = ascii4(content, offset);
+    const chunkSize = readUint32Le(content, offset + 4);
+    const nestedDataOffset = offset + 8;
+    const nestedDataEnd = nestedDataOffset + chunkSize;
+    const nestedChunkEnd = nestedDataEnd + (chunkSize & 1);
+    if (nestedDataEnd < nestedDataOffset || nestedChunkEnd > frameEnd) return false;
+    if (type === 'ALPH') {
+      if (sawAlpha || sawFrameImage || chunkSize < 1) return false;
+      sawAlpha = true;
+    } else if (type === 'VP8 ' || type === 'VP8L') {
+      if (sawFrameImage || (type === 'VP8L' && sawAlpha)
+        || !isValidWebpImageChunk(content, type, nestedDataOffset, chunkSize)) return false;
+      sawFrameImage = true;
+    } else {
+      return false;
+    }
+    offset = nestedChunkEnd;
+  }
+  return sawFrameImage && offset === frameEnd;
 }
 
 function isAsciiChunkType(content: Uint8Array, offset: number): boolean {
@@ -404,6 +471,10 @@ function readUint32Be(content: Uint8Array, offset: number): number {
 
 function readUint32Le(content: Uint8Array, offset: number): number {
   return (content[offset] ?? 0) + ((content[offset + 1] ?? 0) << 8) + ((content[offset + 2] ?? 0) << 16) + ((content[offset + 3] ?? 0) * 0x1000000);
+}
+
+function readUint24Le(content: Uint8Array, offset: number): number {
+  return (content[offset] ?? 0) + ((content[offset + 1] ?? 0) << 8) + ((content[offset + 2] ?? 0) << 16);
 }
 
 function crc32(content: Uint8Array): number {

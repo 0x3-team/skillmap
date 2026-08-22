@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(33);
+select plan(34);
 
 select ok(
   (select relrowsecurity and relforcerowsecurity from pg_catalog.pg_class where oid='private.import_finalization_receipts'::regclass),
@@ -206,13 +206,19 @@ select ok(
   ),
   'upload preparation returns one exact immutable object projection'
 );
+select lives_ok($$select device_adapter.adapter_prepare_import_upload(
+    'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
+    (select public_id from m4_upload_session),1,
+    (select response->'files'->0->>'file_public_id' from m4_upload_target),
+    pg_catalog.statement_timestamp()+interval '119 minutes'
+  )$$, 'upload preparation admits the vendor signed-upload lifetime');
 select throws_ok($$select device_adapter.adapter_prepare_import_upload(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
     (select public_id from m4_upload_session),1,
     (select response->'files'->0->>'file_public_id' from m4_upload_target),
-    now()+interval '6 minutes'
+    pg_catalog.statement_timestamp()+interval '121 minutes'
   )$$, 22023, 'invalid import upload expiry',
-  'upload preparation rejects expiry beyond five minutes');
+  'upload preparation rejects expiry beyond the vendor two-hour lifetime');
 select ok(
   device_adapter.adapter_enqueue_import_upload_cleanup(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),

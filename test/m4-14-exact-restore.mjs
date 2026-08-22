@@ -162,6 +162,28 @@ test('restore returns the exact quarantined object to its original destination',
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
 });
 
+test('concurrent identical restore calls converge on one durable receipt', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const input = {
+    quarantineReceipt: state.quarantineReceipt,
+    authorization: state.restoreAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: state.mover,
+    authorityProvider: state.authorityProvider,
+    now: () => new Date('2026-08-21T12:00:00.000Z')
+  };
+  const [first, second] = await Promise.all([
+    executeRestore(input),
+    executeRestore(input)
+  ]);
+  assert.equal(first.status, 'RESTORE_OBSERVED');
+  assert.deepEqual(second, first);
+});
+
 test('restore preserves backward compatibility for a valid persisted v1 quarantine receipt', { skip: process.platform !== 'darwin' }, async (t) => {
   const state = await setup(t);
   const { treeDigest: _treeDigest, receiptDigest: _receiptDigest, ...legacyBase } = state.quarantineReceipt;

@@ -176,6 +176,20 @@ test('M4.03 accepts a complete inert image and rejects image polyglots containin
   });
 });
 
+test('M4.03 accepts a structurally valid animated WebP', () => {
+  const animatedWebp = Buffer.from(
+    'UklGRsAAAABXRUJQVlA4WAoAAAACAAAAAAAAAAAAQU5JTQYAAAD/////AABBTk1GSAAAAAAAAAAAAAAAAAAAAGQAAAJWUDggMAAAANABAJ0BKgEAAQACADQloAJ0ugH4AAOwAP7wxAv/ILlhdcjX/yA/5Af8gP/48gAAAEFOTUZEAAAAAAAAAAAAAAAAAAAAZAAAAFZQOCAsAAAAlAEAnQEqAQABAAAANCWgAnS6AAOYAP75k2//kB//kB//kB//ID/iF3sgMAA=',
+    'base64'
+  );
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/animated.webp',
+    content: animatedWebp,
+    mediaType: 'image/webp'
+  }), {
+    decision: 'allowed'
+  });
+});
+
 test('M4.03 fails closed on invalid UTF-8 and unscannable binary classes', () => {
   assert.deepEqual(inspectImportFileForSecrets({
     relativePath: 'references/invalid.txt',

@@ -34,6 +34,7 @@ export type ImportClientErrorCode =
   | 'session_not_found'
   | 'session_expired'
   | 'session_conflict'
+  | 'stored_object_conflict'
   | 'owner_consent_required'
   | 'already_accepted'
   | 'rate_limited'
@@ -47,6 +48,7 @@ const IMPORT_ERROR_DESCRIPTIONS: Record<ImportClientErrorCode, string> = {
   session_not_found: 'The import session was not found.',
   session_expired: 'The import session has expired.',
   session_conflict: 'The import session conflicts with a concurrent operation.',
+  stored_object_conflict: 'The stored upload does not match the immutable file.',
   owner_consent_required: 'Owner consent is required before this import can be finalized.',
   already_accepted: 'The file is already accepted in this session.',
   rate_limited: 'Too many import requests.',
@@ -367,6 +369,7 @@ const IMPORT_ERROR_STATUS: Readonly<Record<ImportClientErrorCode, number>> = {
   session_not_found: 404,
   session_expired: 410,
   session_conflict: 409,
+  stored_object_conflict: 409,
   owner_consent_required: 409,
   already_accepted: 409,
   rate_limited: 429,

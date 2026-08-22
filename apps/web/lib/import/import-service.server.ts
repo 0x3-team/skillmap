@@ -28,6 +28,7 @@ const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const IDEMPOTENCY = /^[A-Za-z0-9_-]{22}$/;
 const SAFE_PATH = /^[^/\\\x00-\x1f\x7f]+(?:\/[^/\\\x00-\x1f\x7f]+)*$/;
 const MAX_IMPORT_FILE_BYTES = 16 * 1024 * 1024;
+const SIGNED_UPLOAD_TTL_MS = 2 * 60 * 60_000;
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -294,7 +295,7 @@ export async function executeImportOperation(input: {
       if (current === null) throw new ImportRouteError("session_not_found");
       revision = integer(current.revision, 1);
     }
-    const expiresAt = new Date((input.now?.() ?? new Date()).getTime() + 5 * 60_000).toISOString();
+    const expiresAt = new Date((input.now?.() ?? new Date()).getTime() + SIGNED_UPLOAD_TTL_MS).toISOString();
     const row = await repository.prepareUpload({
       ...base,
       p_expected_session_revision: revision,
@@ -325,7 +326,7 @@ export async function executeImportOperation(input: {
       ...base,
       p_expected_session_revision: revision,
       p_file_public_id: fileId,
-      p_expires_at: new Date((input.now?.() ?? new Date()).getTime() + 5 * 60_000).toISOString()
+      p_expires_at: new Date((input.now?.() ?? new Date()).getTime() + SIGNED_UPLOAD_TTL_MS).toISOString()
     });
     if (prepared.file_digest !== text(body.file_digest, DIGEST)
       || prepared.declared_size !== integer(body.byte_size)) {
@@ -337,7 +338,12 @@ export async function executeImportOperation(input: {
     if (storedBytes.byteLength > MAX_IMPORT_FILE_BYTES
       || storedBytes.byteLength !== prepared.declared_size
       || `sha256:${createHash("sha256").update(storedBytes).digest("hex")}` !== prepared.file_digest) {
-      throw new ImportRouteError("invalid_request");
+      await repository.enqueueUploadCleanup({
+        ...base,
+        p_file_public_id: fileId,
+        p_cleanup_reason: "stored_object_digest_conflict"
+      });
+      throw new ImportRouteError("stored_object_conflict");
     }
     return mapSession(await repository.acceptFile({
       ...base,

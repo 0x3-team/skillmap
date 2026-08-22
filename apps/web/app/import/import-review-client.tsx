@@ -490,8 +490,7 @@ function CutoverReadyView({
             <div className="text-sm leading-6">
               <span className="font-semibold text-foreground">Next Step:</span>{" "}
               <span className="text-muted-foreground">
-                Return to your local terminal. The SkillMap connector will automatically verify this
-                receipt and complete the local quarantine.
+                {getStateDescription("cutover_ready")}
               </span>
             </div>
           </div>

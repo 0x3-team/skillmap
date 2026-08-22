@@ -256,6 +256,17 @@ test('M4.16 samples the live clock immediately before issuing the parity receipt
   assert.equal(result.parityReceipt.issuedAt, '2026-08-20T12:01:00.000Z');
 });
 
+test('M4.16 leaves one minute of database clock-skew headroom in session expiry', async (t) => {
+  const state = await fixture(t);
+  const cloud = makeCloud();
+  await runManagedImport(
+    { ...state.request, sessionStartedAt: NOW.toISOString() },
+    { auth: auth(), client: cloud.client, uploader: cloud.uploader, now: () => new Date(NOW) }
+  );
+  const beginInput = cloud.calls.find(([name]) => name === 'begin')[1];
+  assert.equal(beginInput.expiresAt, '2026-08-20T17:59:00.000Z');
+});
+
 test('M4.16 authentication failures are not mislabeled as owner consent', async (t) => {
   const state = await fixture(t);
   const cloud = makeCloud({ consented: true });

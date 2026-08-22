@@ -4974,6 +4974,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      fail_skill_vault_incomplete_upload_cleanup: {
+        Args: { p_job_id: string; p_retry_delay_seconds?: number }
+        Returns: {
+          attempt_count: number
+          available_at: string
+          job_id: string
+          state: string
+        }[]
+      }
       fail_skill_vault_storage_deletion_job: {
         Args: {
           p_error_code: string

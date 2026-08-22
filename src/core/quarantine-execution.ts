@@ -249,6 +249,135 @@ async function writeExclusiveRecord(file: string, value: unknown): Promise<void>
   await syncDirectory(path.dirname(file));
 }
 
+async function readRecordAfterExclusiveConflict(file: string): Promise<Record<string, unknown>> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      const record = await safeReadRecord(file);
+      if (record) return record;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('Exclusive record winner could not be read safely.', { cause: lastError });
+}
+
+async function persistQuarantineIntent(
+  file: string,
+  intent: Record<string, unknown>,
+  binding: {
+    operationId: string;
+    authorizationDigest: string;
+    preflightDigest: string;
+    candidateSnapshotDigest: string;
+    destinationIdentityDigest: string;
+  }
+): Promise<string> {
+  try {
+    await writeExclusiveRecord(file, intent);
+    return validateQuarantineIntent(intent, binding);
+  } catch (error) {
+    if (!errno(error, 'EEXIST')) throw error;
+    return validateQuarantineIntent(await readRecordAfterExclusiveConflict(file), binding);
+  }
+}
+
+async function commitQuarantineReceipt(
+  file: string,
+  candidate: QuarantineMutationReceipt
+): Promise<QuarantineMutationReceipt> {
+  try {
+    await writeExclusiveRecord(file, candidate);
+    return candidate;
+  } catch (error) {
+    if (!errno(error, 'EEXIST')) {
+      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+    }
+    const winner = validateQuarantineMutationReceipt(await readRecordAfterExclusiveConflict(file));
+    if (winner.receiptDigest !== candidate.receiptDigest) throw new Error('IDEMPOTENCY_CONFLICT');
+    return winner;
+  }
+}
+
+function buildQuarantineReceipt(
+  input: {
+    preflight: QuarantinePreflightSuccess;
+    authorization: QuarantineAuthorization;
+  },
+  authorizationDigest: string,
+  quarantinedAt: string,
+  destination: Awaited<ReturnType<typeof lstat>>
+): QuarantineMutationReceipt {
+  const base = {
+    kind: 'skillmap.local-quarantine-receipt' as const,
+    schemaVersion: 2 as const,
+    status: 'MOVE_OBSERVED' as const,
+    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v2', operationId: input.authorization.operationId }),
+    operationId: input.authorization.operationId,
+    authorizationDigest,
+    preflightDigest: input.preflight.preflightDigest,
+    candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
+    treeDigest: input.preflight.snapshot.treeDigest,
+    contentDigest: input.authorization.contentDigest,
+    sourceObjectId: input.authorization.sourceObjectId,
+    quarantineObjectIdentityDigest: digest({
+      kind: 'skillmap.quarantine-object-identity.v1',
+      sourceObjectId: input.authorization.sourceObjectId,
+      device: destination.dev,
+      inode: destination.ino,
+      destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest
+    }),
+    destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest,
+    quarantinedAt,
+    restoreExpiresAt: computeRestoreExpiryUtc(quarantinedAt)
+  };
+  return { ...base, receiptDigest: digest(base) };
+}
+
+async function recoverConcurrentQuarantineMove(
+  input: {
+    preflight: QuarantinePreflightSuccess;
+    authorization: QuarantineAuthorization;
+  },
+  authorizationDigest: string,
+  intentCreatedAt: string,
+  receiptFile: string
+): Promise<QuarantineMutationReceipt | undefined> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const [source, destination] = await Promise.all([
+      lstat(input.preflight.sourcePath).catch((error: unknown) => {
+        if (errno(error, 'ENOENT')) return undefined;
+        throw error;
+      }),
+      lstat(input.preflight.destinationPath).catch((error: unknown) => {
+        if (errno(error, 'ENOENT')) return undefined;
+        throw error;
+      })
+    ]);
+    if (!source && destination) {
+      if (destination.dev !== input.preflight.snapshot.sourceVolumeId
+        || destination.ino !== input.preflight.snapshot.sourceFileId) {
+        throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+      }
+      const treeDigest = await computeQuarantineTreeDigest(input.preflight.destinationPath)
+        .catch((error: unknown) => { throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error }); });
+      if (treeDigest !== input.preflight.snapshot.treeDigest) throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+      const afterDigest = await lstat(input.preflight.destinationPath)
+        .catch((error: unknown) => { throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error }); });
+      if (afterDigest.dev !== destination.dev || afterDigest.ino !== destination.ino) {
+        throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+      }
+      return commitQuarantineReceipt(
+        receiptFile,
+        buildQuarantineReceipt(input, authorizationDigest, intentCreatedAt, destination)
+      );
+    }
+    if (attempt < 19) await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  return undefined;
+}
+
 async function ensureDestinationParent(preflight: QuarantinePreflightSuccess): Promise<void> {
   const relative = path.relative(preflight.quarantineRootRealPath, preflight.destinationParentPath);
   if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
@@ -436,53 +565,9 @@ export async function executeQuarantine(input: {
 
   if (!sourceBefore) {
     if (!existingIntent || !destinationBefore) throw new Error('REPLAY_STATE_INCONSISTENT');
-    if (destinationBefore.dev !== input.preflight.snapshot.sourceVolumeId
-      || destinationBefore.ino !== input.preflight.snapshot.sourceFileId) {
-      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
-    }
-    const recoveredTreeDigest = await computeQuarantineTreeDigest(input.preflight.destinationPath)
-      .catch((error: unknown) => { throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error }); });
-    if (recoveredTreeDigest !== input.preflight.snapshot.treeDigest) {
-      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
-    }
-    const destinationAfterRecoveryDigest = await lstat(input.preflight.destinationPath).catch((error: unknown) => {
-      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
-    });
-    if (destinationAfterRecoveryDigest.dev !== destinationBefore.dev
-      || destinationAfterRecoveryDigest.ino !== destinationBefore.ino) {
-      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
-    }
-    const recoveredBase = {
-      kind: 'skillmap.local-quarantine-receipt' as const,
-      schemaVersion: 2 as const,
-      status: 'MOVE_OBSERVED' as const,
-      receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v2', operationId: input.authorization.operationId }),
-      operationId: input.authorization.operationId,
-      authorizationDigest,
-      preflightDigest: input.preflight.preflightDigest,
-      candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
-      treeDigest: input.preflight.snapshot.treeDigest,
-      contentDigest: input.authorization.contentDigest,
-      sourceObjectId: input.authorization.sourceObjectId,
-      quarantineObjectIdentityDigest: digest({
-        kind: 'skillmap.quarantine-object-identity.v1',
-        sourceObjectId: input.authorization.sourceObjectId,
-        device: destinationBefore.dev,
-        inode: destinationBefore.ino,
-        destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest
-      }),
-      destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest,
-      quarantinedAt: intentCreatedAt,
-      restoreExpiresAt: computeRestoreExpiryUtc(intentCreatedAt)
-    };
-    const recoveredReceipt: QuarantineMutationReceipt = {
-      ...recoveredBase,
-      receiptDigest: digest(recoveredBase)
-    };
-    await writeExclusiveRecord(receiptFile, recoveredReceipt).catch((error: unknown) => {
-      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
-    });
-    return recoveredReceipt;
+    const recovered = await recoverConcurrentQuarantineMove(input, authorizationDigest, intentCreatedAt, receiptFile);
+    if (!recovered) throw new Error('REPLAY_STATE_INCONSISTENT');
+    return recovered;
   }
 
   if (!sameSnapshot(input.preflight, sourceBefore)) throw new Error('CANDIDATE_STALE');
@@ -499,7 +584,13 @@ export async function executeQuarantine(input: {
     destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest,
     createdAt: intentCreatedAt
   } as const;
-  if (!existingIntent) await writeExclusiveRecord(intentFile, { ...intent, intentDigest: digest(intent) });
+  if (!existingIntent) {
+    intentCreatedAt = await persistQuarantineIntent(
+      intentFile,
+      { ...intent, intentDigest: digest(intent) },
+      intentBinding
+    );
+  }
 
   try {
     await assertRootCapabilitiesCurrent(input.preflight);
@@ -512,6 +603,8 @@ export async function executeQuarantine(input: {
       throw error;
     });
     if (destinationImmediatelyBeforeMove) {
+      const recovered = await recoverConcurrentQuarantineMove(input, authorizationDigest, intentCreatedAt, receiptFile);
+      if (recovered) return recovered;
       return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
     }
     // The parity authority can expire while the filesystem checks and intent
@@ -531,6 +624,15 @@ export async function executeQuarantine(input: {
       destinationRelativePath: input.preflight.reservation.escapedDestinationRelativePath
     });
   } catch (error) {
+    const concurrentRace = errno(error, 'EEXIST')
+      || errno(error, 'ENOENT')
+      || (error instanceof Error
+        && (error.message === 'CANDIDATE_STALE'
+          || (error as NodeJS.ErrnoException).code === 'ATOMIC_MOVE_FAILED'));
+    if (concurrentRace) {
+      const recovered = await recoverConcurrentQuarantineMove(input, authorizationDigest, intentCreatedAt, receiptFile);
+      if (recovered) return recovered;
+    }
     if (errno(error, 'EEXIST')) return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
     if (errno(error, 'EXDEV')) return LOCAL_QUARANTINE_OUTCOMES.CROSS_VOLUME_NOT_ATOMIC;
     throw error;
@@ -565,33 +667,8 @@ export async function executeQuarantine(input: {
     throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
   }
 
-  const quarantinedAt = intentCreatedAt;
-  const base = {
-    kind: 'skillmap.local-quarantine-receipt' as const,
-    schemaVersion: 2 as const,
-    status: 'MOVE_OBSERVED' as const,
-    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v2', operationId: input.authorization.operationId }),
-    operationId: input.authorization.operationId,
-    authorizationDigest,
-    preflightDigest: input.preflight.preflightDigest,
-    candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
-    treeDigest: input.preflight.snapshot.treeDigest,
-    contentDigest: input.authorization.contentDigest,
-    sourceObjectId: input.authorization.sourceObjectId,
-    quarantineObjectIdentityDigest: digest({
-      kind: 'skillmap.quarantine-object-identity.v1',
-      sourceObjectId: input.authorization.sourceObjectId,
-      device: destinationAfter.dev,
-      inode: destinationAfter.ino,
-      destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest
-    }),
-    destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest,
-    quarantinedAt,
-    restoreExpiresAt: computeRestoreExpiryUtc(quarantinedAt)
-  };
-  const receipt: QuarantineMutationReceipt = { ...base, receiptDigest: digest(base) };
-  await writeExclusiveRecord(receiptFile, receipt).catch((error: unknown) => {
-    throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
-  });
-  return receipt;
+  return commitQuarantineReceipt(
+    receiptFile,
+    buildQuarantineReceipt(input, authorizationDigest, intentCreatedAt, destinationAfter)
+  );
 }

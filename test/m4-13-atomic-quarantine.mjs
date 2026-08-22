@@ -214,6 +214,24 @@ test('quarantine uses native no-replace rename and writes path-free durable rece
   assert.deepEqual(replay, receipt);
 });
 
+test('concurrent identical quarantine calls converge on one durable receipt', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const input = {
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: createMacOSAtomicNoReplaceMover(state.helper),
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  };
+  const [first, second] = await Promise.all([
+    executeQuarantine(input),
+    executeQuarantine(input)
+  ]);
+  assert.equal(first.status, 'MOVE_OBSERVED');
+  assert.deepEqual(second, first);
+});
+
 test('quarantine retry reconciles a completed move from its durable intent', { skip: process.platform !== 'darwin' }, async (t) => {
   const state = await setup(t);
   const realMover = createMacOSAtomicNoReplaceMover(state.helper);

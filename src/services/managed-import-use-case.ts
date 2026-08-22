@@ -20,7 +20,7 @@ import {
 } from '../network/import-client.js';
 import { type ImportUploadFile } from '../network/import-uploader.js';
 
-const SESSION_TTL_MS = 6 * 60 * 60 * 1000;
+export const MANAGED_IMPORT_SESSION_TTL_MS = (6 * 60 * 60 - 60) * 1000;
 
 export interface ManagedImportRequest {
   skillDir: string;
@@ -367,7 +367,7 @@ export async function runManagedImport(
   if (!Number.isFinite(sessionStartedAt.getTime())) {
     throw new ManagedImportError('IMPORT_CHECKPOINT_INVALID', 'The import checkpoint is invalid.');
   }
-  const sessionExpiresAtDate = new Date(sessionStartedAt.getTime() + SESSION_TTL_MS);
+  const sessionExpiresAtDate = new Date(sessionStartedAt.getTime() + MANAGED_IMPORT_SESSION_TTL_MS);
   if (sessionExpiresAtDate.getTime() <= currentNow.getTime()) {
     throw new ManagedImportError('IMPORT_CHECKPOINT_EXPIRED', 'The import checkpoint has expired. Start a fresh import.');
   }

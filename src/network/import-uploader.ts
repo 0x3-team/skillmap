@@ -39,7 +39,7 @@ export type StorageTransport = (request: StorageTransportRequest) => Promise<Sto
 export interface ImportUploadConflict {
   file: ImportUploadFile;
   receipt?: ImportFileReceipt;
-  reason: 'digest_mismatch' | 'path_mismatch';
+  reason: 'digest_mismatch' | 'path_mismatch' | 'stored_object_conflict';
 }
 
 export interface ImportUploadFailure {
@@ -314,8 +314,11 @@ export class ImportUploader {
                 acceptedBytes += next.byteSize;
                 skipped.push(next);
                 emitProgress(next.relativePath);
-              } else if (uploadError.code === 'digest_conflict') {
-                conflicts.push({ file: next, reason: 'digest_mismatch' });
+              } else if (uploadError.code === 'digest_conflict' || uploadError.code === 'stored_object_conflict') {
+                conflicts.push({
+                  file: next,
+                  reason: uploadError.code === 'stored_object_conflict' ? 'stored_object_conflict' : 'digest_mismatch'
+                });
               } else {
                 failed.push({ file: next, error: uploadError });
               }
@@ -469,7 +472,7 @@ export class ImportUploader {
             )
           ));
         }
-        if (lastError.code === 'digest_conflict') {
+        if (lastError.code === 'digest_conflict' || lastError.code === 'stored_object_conflict') {
           throw lastError;
         }
         if (lastError.code === 'session_conflict') {
@@ -660,6 +663,8 @@ export class ImportUploader {
           return new ImportUploadError('session_conflict', error.description, file.filePublicId, true, error.status);
         case 'already_accepted':
           return new ImportUploadError('already_accepted', error.description, file.filePublicId, false, error.status);
+        case 'stored_object_conflict':
+          return new ImportUploadError('stored_object_conflict', error.description, file.filePublicId, false, error.status);
         case 'session_not_found':
         case 'session_expired':
         case 'unauthorized':

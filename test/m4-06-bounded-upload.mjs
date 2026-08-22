@@ -285,6 +285,65 @@ test('M4.06 retries a transient storage failure and does not duplicate accepted 
   assert.equal(attempts.length, 2);
 });
 
+test('M4.06 reports a reused invalid Storage object as one deterministic conflict', async () => {
+  const file = makeFile(0);
+  let accepted = 0;
+  const controlRouter = async (url) => {
+    if (url.includes('/receipts')) {
+      return new Response(JSON.stringify({ session_public_id: SESSION_ID, revision: 1, receipts: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+    if (url.includes('/prepare-upload')) {
+      return new Response(JSON.stringify({
+        session_public_id: SESSION_ID,
+        file_public_id: file.filePublicId,
+        version_public_id: VERSION_ID,
+        bucket_id: 'skill-vault-private',
+        object_name: `v1/${VERSION_ID}/${file.filePublicId}`,
+        upload_url: `${ORIGIN}/storage/v1/object/skill-vault-private/v1/${VERSION_ID}/${file.filePublicId}`,
+        upload_expires_at: EXPIRES_AT,
+        content_type: file.mediaType,
+        declared_size: file.byteSize
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (url.includes('/accept')) {
+      accepted += 1;
+      return new Response(JSON.stringify({
+        error: 'stored_object_conflict',
+        error_description: 'The stored upload does not match the immutable file.',
+        retry_after: 0
+      }), { status: 409, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response('not found', { status: 404 });
+  };
+  const client = await makeClient(controlRouter, { maxRetries: 0 });
+  const uploader = new ImportUploader({
+    client,
+    storageTransport: async () => ({ status: 409 }),
+    fileMaxRetries: 2
+  });
+  const result = await uploader.uploadFiles({
+    session: {
+      sessionPublicId: SESSION_ID,
+      state: 'in_progress',
+      expectedFileCount: 1,
+      expectedByteTotal: file.byteSize,
+      acceptedFileCount: 0,
+      acceptedByteTotal: 0,
+      revision: 1,
+      expiresAt: EXPIRES_AT
+    },
+    files: [file],
+    accessToken: ACCESS_TOKEN
+  });
+
+  assert.equal(accepted, 1);
+  assert.equal(result.failed.length, 0);
+  assert.deepEqual(result.conflicts.map(({ reason }) => reason), ['stored_object_conflict']);
+});
+
 test('M4.06 enforces per-file timeout and reports failure without stalling the queue', async () => {
   const state = { revision: 1, acceptedCount: 0, acceptedBytes: 0 };
   const file = makeFile(0);

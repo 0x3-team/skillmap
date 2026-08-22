@@ -6,6 +6,7 @@ import { hasFlag } from '../core/args.js';
 import { assertQualifiedInventory } from '../core/identity.js';
 import { buildImportManifest, type BuildImportManifestOptions } from '../core/import-manifest-builder.js';
 import { buildImportPreview, nonImportableToPreviewRecords } from '../core/import-preview.js';
+import { ImportParityError } from '../core/import-parity.js';
 import { CliExitError, CLI_EXIT_CODES, SAFE_ERROR_MESSAGES } from '../core/cli-exit.js';
 import { DeviceAuthClient } from '../network/device-auth-client.js';
 import { ImportClient, ImportClientError } from '../network/import-client.js';
@@ -15,6 +16,7 @@ import type { Inventory, SkillRecord } from '../schemas/types.js';
 import { DeviceAuthUseCase } from '../services/device-auth-use-case.js';
 import {
   ManagedImportError,
+  MANAGED_IMPORT_SESSION_TTL_MS,
   runManagedImport,
   type ManagedImportDependencies,
   type ManagedImportRequest,
@@ -23,7 +25,6 @@ import {
 
 const CHECKPOINT_KIND = 'skillmap.managed-import-checkpoint';
 const CHECKPOINT_VERSION = 1;
-const SESSION_TTL_MS = 6 * 60 * 60 * 1000;
 
 interface ManagedImportCheckpoint {
   kind: typeof CHECKPOINT_KIND;
@@ -255,7 +256,7 @@ export async function managedImportCommand(
     && existing.skillId === resolved.skill.skillId
     && existing.contentRevision === currentContentRevision
     && (existing.state === 'in_progress' || existing.state === 'awaiting_owner_consent')
-    && Date.parse(existing.startedAt) + SESSION_TTL_MS > now.getTime();
+    && Date.parse(existing.startedAt) + MANAGED_IMPORT_SESSION_TTL_MS > now.getTime();
   const checkpoint: ManagedImportCheckpoint = reusable ? existing : {
     kind: CHECKPOINT_KIND,
     version: CHECKPOINT_VERSION,
@@ -297,6 +298,16 @@ export async function managedImportCommand(
       throw new CliExitError(
         CLI_EXIT_CODES.INTEGRITY_PROTOCOL_ERROR,
         SAFE_ERROR_MESSAGES[error.code] ?? 'The managed import failed a local integrity check.',
+        error.code
+      );
+    }
+    if (error instanceof ImportParityError) {
+      if (error.code === 'CONSENT_EXPIRED') {
+        await writeCheckpoint(file, { ...checkpoint, state: 'blocked' });
+      }
+      throw new CliExitError(
+        CLI_EXIT_CODES.INTEGRITY_PROTOCOL_ERROR,
+        SAFE_ERROR_MESSAGES[error.code] ?? 'The managed import failed a local parity check.',
         error.code
       );
     }

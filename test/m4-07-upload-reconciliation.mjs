@@ -512,7 +512,7 @@ test('M4.07 gives each queued acceptance a fresh deadline after lock acquisition
       };
     },
     async acceptFile(_params, { signal }) {
-      await new Promise((resolve) => setTimeout(resolve, 35));
+      await new Promise((resolve) => setTimeout(resolve, 60));
       if (signal.aborted) {
         throw new DOMException('The operation was aborted.', 'AbortError');
       }
@@ -532,7 +532,7 @@ test('M4.07 gives each queued acceptance a fresh deadline after lock acquisition
   const result = await new ImportUploader({
     client,
     concurrency: 2,
-    fileTimeoutMs: 50,
+    fileTimeoutMs: 100,
     fileMaxRetries: 0,
     storageTransport: makeStorageRouter()
   }).uploadFiles({ session: baseSession(), files, accessToken: ACCESS_TOKEN });

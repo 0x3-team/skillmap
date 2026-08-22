@@ -113,5 +113,5 @@ test('M4.09 analysis RPC calls use the exact PostgREST schema profile', async ()
 
 test('M4.09 local PostgREST configuration exposes the worker adapter schema', async () => {
   const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
-  assert.match(config, /schemas\s*=\s*\["public",\s*"graphql_public",\s*"api",\s*"device_adapter",\s*"analysis_worker_adapter"\]/);
+  assert.match(config, /schemas\s*=\s*\["public",\s*"graphql_public",\s*"api",\s*"device_adapter",\s*"analysis_worker_adapter",\s*"storage_worker_adapter"\]/);
 });
