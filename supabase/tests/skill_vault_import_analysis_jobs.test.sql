@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(25);
+select plan(27);
 
 select has_table('private','import_analysis_jobs','import analysis job table exists');
 select ok(
@@ -19,13 +19,15 @@ select ok(
 select ok(
   has_function_privilege('service_role','analysis_worker_adapter.claim_import_analysis_jobs(text,integer,integer)','execute')
   and has_function_privilege('service_role','analysis_worker_adapter.renew_import_analysis_job(text,text,uuid,integer)','execute')
-  and has_function_privilege('service_role','analysis_worker_adapter.complete_import_analysis_job(text,text,uuid,text)','execute')
+  and has_function_privilege('service_role','analysis_worker_adapter.inspect_import_analysis_job(text,text,uuid)','execute')
+  and has_function_privilege('service_role','analysis_worker_adapter.complete_verified_import_analysis_job(text,text,uuid,text,text)','execute')
+  and not has_function_privilege('service_role','analysis_worker_adapter.complete_import_analysis_job(text,text,uuid,text)','execute')
   and has_function_privilege('service_role','analysis_worker_adapter.fail_import_analysis_job(text,text,uuid,text,integer)','execute'),
   'service role has exact analysis worker function grants'
 );
 select ok(
   not has_function_privilege('authenticated','analysis_worker_adapter.claim_import_analysis_jobs(text,integer,integer)','execute')
-  and not has_function_privilege('anon','analysis_worker_adapter.complete_import_analysis_job(text,text,uuid,text)','execute'),
+  and not has_function_privilege('anon','analysis_worker_adapter.complete_verified_import_analysis_job(text,text,uuid,text,text)','execute'),
   'browser roles cannot execute analysis worker functions'
 );
 select ok(
@@ -175,6 +177,17 @@ insert into private.import_file_receipts(
   'a4200000-0000-4420-8420-000000000201','SKILL.md','text/markdown',3,
   'sha256:'||repeat('9',64),0
 );
+insert into private.import_file_policy_receipts(
+  id,account_id,device_id,session_id,file_id,managed_skill_id,version_id,policy_digest
+) values (
+  'a4200000-0000-4420-8420-000000000407','a4200000-0000-4420-8420-000000000001',
+  'a4200000-0000-4420-8420-000000000102','a4200000-0000-4420-8420-000000000401',
+  'a4200000-0000-4420-8420-000000000202','a4200000-0000-4420-8420-000000000101',
+  'a4200000-0000-4420-8420-000000000201',
+  private.compute_hosted_import_policy_digest(
+    'SKILL.md','text/markdown',3,'sha256:'||repeat('9',64)
+  )
+);
 insert into storage.objects(id,bucket_id,name,owner,owner_id,metadata,user_metadata) values (
   'a4200000-0000-4420-8420-000000000404','skill-vault-private',
   'v1/msv_'||repeat('b',32)||'/msf_'||repeat('e',32),
@@ -190,6 +203,10 @@ insert into private.import_finalization_receipts(
   '{"state":"verified"}'
 );
 
+create temporary table m4_analysis_one(response jsonb not null) on commit drop;
+create temporary table m4_analysis_two(response jsonb not null) on commit drop;
+grant select,insert on m4_analysis_one,m4_analysis_two to service_role;
+
 set local role service_role;
 select lives_ok($$insert into m4_claim_one
   select * from analysis_worker_adapter.claim_import_analysis_jobs('worker-a',1,60)$$,
@@ -203,8 +220,23 @@ select ok(
    from m4_claim_one),
   'claim projection binds the exact public skill and version without account IDs'
 );
-select throws_ok($$select analysis_worker_adapter.complete_import_analysis_job(
+select lives_ok($$insert into m4_analysis_one(response)
+  select analysis_worker_adapter.inspect_import_analysis_job(
+    (select job_public_id from m4_claim_one),'worker-a',(select lease_token from m4_claim_one)
+  )$$,
+  'worker inspects the exact accepted file and hosted policy receipt set'
+);
+select ok(
+  (select response @> pg_catalog.jsonb_build_object(
+    'job_public_id',(select job_public_id from m4_claim_one),
+    'version_public_id','msv_'||repeat('b',32),
+    'file_count',1
+  ) and (response->>'analysis_digest') ~ '^sha256:[0-9a-f]{64}$' from m4_analysis_one),
+  'analysis inspection returns one bounded digest without raw bytes'
+);
+select throws_ok($$select analysis_worker_adapter.complete_verified_import_analysis_job(
     (select job_public_id from m4_claim_one),'worker-b',(select lease_token from m4_claim_one),
+    (select response->>'analysis_digest' from m4_analysis_one),
     'skillmap-import-analysis/0.1.0'
   )$$, '42501', 'import analysis lease unavailable', 'different worker cannot complete the lease');
 select ok(
@@ -213,10 +245,10 @@ select ok(
   ) > (select lease_expires_at from m4_claim_one),
   'lease owner can renew the exact live lease'
 );
-select throws_ok($$select analysis_worker_adapter.complete_import_analysis_job(
+select throws_ok($$select analysis_worker_adapter.complete_verified_import_analysis_job(
     (select job_public_id from m4_claim_one),'worker-a',(select lease_token from m4_claim_one),
-    'caller-supplied-digest'
-  )$$, '22023', 'invalid import analysis result',
+    'sha256:'||repeat('0',64),'skillmap-import-analysis/0.1.0'
+  )$$, '22023', 'invalid import analysis digest',
   'worker cannot substitute a caller-derived digest for database-owned analysis');
 select is(
   analysis_worker_adapter.fail_import_analysis_job(
@@ -230,9 +262,14 @@ select lives_ok($$insert into m4_claim_two
   select * from analysis_worker_adapter.claim_import_analysis_jobs('worker-b',1,60)$$,
   'second worker can claim the requeued job');
 select is((select attempt_count from m4_claim_two),2,'reclaim advances the bounded attempt count');
+insert into m4_analysis_two(response)
+select analysis_worker_adapter.inspect_import_analysis_job(
+  (select job_public_id from m4_claim_two),'worker-b',(select lease_token from m4_claim_two)
+);
 select is(
-  analysis_worker_adapter.complete_import_analysis_job(
+  analysis_worker_adapter.complete_verified_import_analysis_job(
     (select job_public_id from m4_claim_two),'worker-b',(select lease_token from m4_claim_two),
+    (select response->>'analysis_digest' from m4_analysis_two),
     'skillmap-import-analysis/0.1.0'
   )->>'state',
   'completed',

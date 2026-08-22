@@ -75,7 +75,15 @@ grant execute on function pg_temp.m4_prepare_target(text,text,text,text,text,tex
 
 create temporary table m4_dashboard_target(response jsonb not null) on commit drop;
 create temporary table m4_dashboard_session(response jsonb not null) on commit drop;
+create temporary table m4_dashboard_policy(policy_digest text not null) on commit drop;
+insert into m4_dashboard_policy(policy_digest)
+values (
+  private.compute_hosted_import_policy_digest(
+    'SKILL.md','text/markdown',3,'sha256:'||repeat('6',64)
+  )
+);
 grant select, insert on m4_dashboard_target, m4_dashboard_session to service_role;
+grant select on m4_dashboard_policy to service_role;
 grant select on m4_dashboard_target, m4_dashboard_session to authenticated;
 
 set local role service_role;
@@ -130,11 +138,12 @@ insert into storage.objects(id,bucket_id,name,owner,owner_id,metadata,user_metad
   '{"mimetype":"text/markdown","size":3}','{}'
 );
 set local role service_role;
-select device_adapter.adapter_accept_import_file_v2(
+select device_adapter.adapter_accept_scanned_import_file_v2(
   'acct_a4000000000044008400000000000011','dev_'||repeat('d',32),
   (select response->>'session_id' from m4_dashboard_session),1,
   (select response->'files'->0->>'file_public_id' from m4_dashboard_target),
-  'sha256:'||repeat('6',64),3
+  'sha256:'||repeat('6',64),3,
+  (select policy_digest from m4_dashboard_policy)
 );
 reset role;
 

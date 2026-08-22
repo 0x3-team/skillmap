@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { inspectImportFileForSecrets } from "../../../../src/core/import-secret-blocker.ts";
 import { ImportRouteError } from "./import-errors.server.ts";
 import type { ImportAuthContext } from "./import-auth.server.ts";
 import { SupabaseImportRepository } from "./import-repository.server.ts";
@@ -334,23 +335,58 @@ export async function executeImportOperation(input: {
     }
     const bucketId = text(prepared.bucket_id);
     const objectName = text(prepared.object_name, /^v1\/msv_[0-9a-f]{32}\/msf_[0-9a-f]{32}$/);
+    const relativePath = text(prepared.relative_path);
+    const contentType = text(prepared.content_type);
+    if (prepared.executable !== false) throw new ImportRouteError("invalid_request");
     const storedBytes = await repository.readStoredObject(bucketId, objectName);
     if (storedBytes.byteLength > MAX_IMPORT_FILE_BYTES
       || storedBytes.byteLength !== prepared.declared_size
       || `sha256:${createHash("sha256").update(storedBytes).digest("hex")}` !== prepared.file_digest) {
-      await repository.enqueueUploadCleanup({
-        ...base,
-        p_file_public_id: fileId,
-        p_cleanup_reason: "stored_object_digest_conflict"
-      });
+      try {
+        await repository.enqueueUploadCleanup({
+          ...base,
+          p_file_public_id: fileId,
+          p_cleanup_reason: "stored_object_digest_conflict"
+        });
+      } catch {
+        // Preserve the deterministic conflict. The durable cleanup queue can
+        // be repaired independently without turning bad bytes into a retry.
+      }
       throw new ImportRouteError("stored_object_conflict");
     }
+    const policy = inspectImportFileForSecrets({
+      relativePath,
+      content: storedBytes,
+      mediaType: contentType
+    });
+    if (policy.decision !== "allowed") {
+      try {
+        await repository.enqueueUploadCleanup({
+          ...base,
+          p_file_public_id: fileId,
+          p_cleanup_reason: "stored_object_policy_conflict"
+        });
+      } catch {
+        // Do not expose cleanup availability or policy details to the client.
+      }
+      throw new ImportRouteError("invalid_request");
+    }
+    const policyDigest = `sha256:${createHash("sha256").update([
+      "SKILLMAP-HOSTED-IMPORT-POLICY-V1",
+      relativePath,
+      contentType,
+      String(storedBytes.byteLength),
+      prepared.file_digest,
+      "allowed",
+      ""
+    ].join("\n"), "utf8").digest("hex")}`;
     return mapSession(await repository.acceptFile({
       ...base,
       p_expected_session_revision: revision,
       p_file_public_id: fileId,
       p_verified_file_digest: prepared.file_digest,
-      p_verified_byte_size: storedBytes.byteLength
+      p_verified_byte_size: storedBytes.byteLength,
+      p_policy_digest: policyDigest
     }));
   }
 

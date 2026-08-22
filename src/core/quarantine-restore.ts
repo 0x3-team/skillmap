@@ -21,6 +21,11 @@ import type {
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_RECORD_BYTES = 128 * 1024;
+const CONVERGENCE_ATTEMPTS = 10;
+
+function convergenceDelay(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.min(500, 5 * (2 ** attempt))));
+}
 const HOSTED_AUTHORITY_KEYS = [
   'kind',
   'schemaVersion',
@@ -394,14 +399,14 @@ async function writeExclusiveRecord(file: string, value: unknown): Promise<void>
 
 async function readRecordAfterExclusiveConflict(file: string): Promise<Record<string, unknown>> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < CONVERGENCE_ATTEMPTS; attempt += 1) {
     try {
       const record = await safeReadRecord(file);
       if (record) return record;
     } catch (error) {
       lastError = error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (attempt < CONVERGENCE_ATTEMPTS - 1) await convergenceDelay(attempt);
   }
   throw new Error('Exclusive restore record winner could not be read safely.', { cause: lastError });
 }
@@ -535,7 +540,7 @@ export async function executeRestore(input: {
   }
 
   const recoverCompletedRestore = async (): Promise<RestoreMutationReceipt | undefined> => {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    for (let attempt = 0; attempt < CONVERGENCE_ATTEMPTS; attempt += 1) {
       const [currentQuarantineEntry, currentOriginalEntry] = await Promise.all([
         observeSafeEntry(input.quarantineRoot, quarantineRelativePath),
         observeSafeEntry(input.originalRoot, originalRelativePath)
@@ -551,7 +556,7 @@ export async function executeRestore(input: {
           receiptFile
         });
       }
-      if (attempt < 19) await new Promise((resolve) => setTimeout(resolve, 5));
+      if (attempt < CONVERGENCE_ATTEMPTS - 1) await convergenceDelay(attempt);
     }
     return undefined;
   };
@@ -605,6 +610,10 @@ export async function executeRestore(input: {
   if (moveExpiryFailure) return moveExpiryFailure;
   assertHostedRestoreAuthority(hostedAuthority, input.authorization, moveNow);
   try {
+    await Promise.all([
+      assertCapabilityCurrent(input.originalRoot),
+      assertCapabilityCurrent(input.quarantineRoot)
+    ]);
     await assertQuarantineTreeIntegrity(quarantineEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
     await input.mover.move(quarantineEntry.absolutePath, originalPath, {
       sourceRootPath: input.quarantineRoot.canonicalRootPath,

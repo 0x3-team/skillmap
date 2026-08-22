@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(34);
+select plan(37);
 
 select ok(
   (select relrowsecurity and relforcerowsecurity from pg_catalog.pg_class where oid='private.import_finalization_receipts'::regclass),
@@ -13,7 +13,8 @@ select ok(
   has_function_privilege('service_role','device_adapter.adapter_begin_import_session_v2(text,text,text,text,text,text,text,integer,bigint,uuid,timestamptz)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_prepare_import_upload(text,text,text,bigint,text,timestamptz)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_list_import_file_receipts(text,text,text)','execute')
-  and has_function_privilege('service_role','device_adapter.adapter_accept_import_file_v2(text,text,text,bigint,text,text,bigint)','execute')
+  and not has_function_privilege('service_role','device_adapter.adapter_accept_import_file_v2(text,text,text,bigint,text,text,bigint)','execute')
+  and has_function_privilege('service_role','device_adapter.adapter_accept_scanned_import_file_v2(text,text,text,bigint,text,text,bigint,text)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_expire_import_session(text,text,text,bigint)','execute')
   and has_function_privilege('service_role','device_adapter.adapter_finalize_import_session_v2(text,text,text,bigint,uuid)','execute'),
   'service role has the exact M4 upload and finalization adapter grants'
@@ -115,7 +116,15 @@ grant execute on function pg_temp.m4_prepare_target(
 create temporary table m4_upload_target(response jsonb not null) on commit drop;
 create temporary table m4_upload_session(public_id text not null) on commit drop;
 create temporary table m4_upload_final(response jsonb not null) on commit drop;
+create temporary table m4_upload_policy(policy_digest text not null) on commit drop;
+insert into m4_upload_policy(policy_digest)
+values (
+  private.compute_hosted_import_policy_digest(
+    'SKILL.md','text/markdown',3,'sha256:'||repeat('9',64)
+  )
+);
 grant select, insert on m4_upload_target, m4_upload_session, m4_upload_final to service_role;
+grant select on m4_upload_policy to service_role;
 grant select on m4_upload_target, m4_upload_session to authenticated;
 
 set local role service_role;
@@ -182,11 +191,12 @@ select throws_ok($$select device_adapter.adapter_prepare_import_upload(
     now()+interval '2 minutes'
   )$$, '40001', 'import session revision conflict',
   'stale upload preparation maps to a session revision conflict');
-select throws_ok($$select device_adapter.adapter_accept_import_file_v2(
+select throws_ok($$select device_adapter.adapter_accept_scanned_import_file_v2(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
     (select public_id from m4_upload_session),2,
     (select response->'files'->0->>'file_public_id' from m4_upload_target),
-    'sha256:'||repeat('9',64),3
+    'sha256:'||repeat('9',64),3,
+    (select policy_digest from m4_upload_policy)
   )$$, '40001', 'import session revision conflict',
   'stale file acceptance maps to a session revision conflict');
 
@@ -228,39 +238,57 @@ select ok(
   ),
   'exact incomplete upload cleanup target is queued idempotently'
 );
-
-select throws_ok($$select device_adapter.adapter_accept_import_file_v2(
+select throws_ok($$select device_adapter.adapter_prepare_import_upload(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
     (select public_id from m4_upload_session),1,
     (select response->'files'->0->>'file_public_id' from m4_upload_target),
-    'sha256:'||repeat('9',64),3
+    pg_catalog.statement_timestamp()+interval '5 minutes'
+  )$$, 40001, 'import upload cleanup conflict',
+  'active cleanup prevents a new signed upload from racing destructive deletion');
+
+select throws_ok($$select device_adapter.adapter_accept_scanned_import_file_v2(
+    'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
+    (select public_id from m4_upload_session),1,
+    (select response->'files'->0->>'file_public_id' from m4_upload_target),
+    'sha256:'||repeat('9',64),3,
+    (select policy_digest from m4_upload_policy)
   )$$, 22023, 'uploaded object does not match the immutable file binding',
   'file cannot be accepted before an exact storage object exists');
 reset role;
+delete from private.skill_vault_incomplete_upload_cleanup;
 
 select lives_ok($$insert into storage.objects(
     id,bucket_id,name,owner,owner_id,metadata,user_metadata
   ) values (
     'a4100000-0000-4410-8410-000000000401','skill-vault-private',
     (select response->'files'->0->>'storage_key' from m4_upload_target),
-    'a4100000-0000-4410-8410-000000000001','a4100000-0000-4410-8410-000000000001',
+    null,null,
     '{"mimetype":"text/markdown","size":3}','{}'
-  )$$, 'exact bound storage object is accepted by persistence guard');
+  )$$, 'service-role signed upload shape is accepted only for one prepared import target');
+
+select ok(
+  (select owner is null and owner_id is null
+   from storage.objects
+   where id='a4100000-0000-4410-8410-000000000401'),
+  'prepared import upload remains unowned and cannot satisfy browser owner policies'
+);
 
 set local role service_role;
-select throws_ok($$select device_adapter.adapter_accept_import_file_v2(
+select throws_ok($$select device_adapter.adapter_accept_scanned_import_file_v2(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
     (select public_id from m4_upload_session),1,
     (select response->'files'->0->>'file_public_id' from m4_upload_target),
-    'sha256:'||repeat('8',64),3
-  )$$, 22023, 'uploaded object checksum does not match the immutable file binding',
-  'file acceptance rejects a server-verified digest that differs from the immutable file');
+    'sha256:'||repeat('8',64),3,
+    (select policy_digest from m4_upload_policy)
+  )$$, 22023, 'invalid hosted import policy receipt',
+  'scanned acceptance rejects a server-verified digest that differs from the immutable file');
 select ok(
-  device_adapter.adapter_accept_import_file_v2(
+  device_adapter.adapter_accept_scanned_import_file_v2(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),
     (select public_id from m4_upload_session),1,
     (select response->'files'->0->>'file_public_id' from m4_upload_target),
-    'sha256:'||repeat('9',64),3
+    'sha256:'||repeat('9',64),3,
+    (select policy_digest from m4_upload_policy)
   ) @> pg_catalog.jsonb_build_object(
     'session_id',(select public_id from m4_upload_session),
     'state','in_progress',
@@ -270,6 +298,13 @@ select ok(
   ),
   'exact storage-bound file acceptance returns a public projection and advances the session revision'
 );
+reset role;
+select is(
+  (select count(*) from private.import_file_policy_receipts),
+  1::bigint,
+  'scanned acceptance records one digest-bound hosted policy receipt'
+);
+set local role service_role;
 select ok(
   device_adapter.adapter_list_import_file_receipts(
     'acct_a4100000000044108410000000000001','dev_'||repeat('7',32),

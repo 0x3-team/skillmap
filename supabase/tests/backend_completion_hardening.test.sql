@@ -92,6 +92,9 @@ as $$
   );
 $$;
 
+grant execute on function pg_temp.audit_payload(text,text,text,text,text) to service_role;
+grant execute on function pg_temp.grade_payload(text,text,text,text,text) to service_role;
+
 select plan(125);
 
 select has_table('private', 'submission_collision_reviews', 'immutable collision review receipt table exists');

@@ -12,6 +12,7 @@ const VERSION_ID = `msv_${'a'.repeat(32)}`;
 const FILE_ID = `msf_${'b'.repeat(32)}`;
 const OBJECT_NAME = `v1/${VERSION_ID}/${FILE_ID}`;
 const SECRET = `service-role-${'x'.repeat(48)}`;
+const LEASE_TOKEN = '12345678-1234-4234-8234-123456789abc';
 
 test('M4.17 deletes one exact claimed object and completes its job', async () => {
   const calls = [];
@@ -24,7 +25,9 @@ test('M4.17 deletes one exact claimed object and completes its job', async () =>
         object_name: OBJECT_NAME,
         cleanup_reason: 'stored_object_digest_conflict',
         attempt_count: 1,
-        claimed_at: '2026-08-21T12:00:00Z'
+        claimed_at: '2026-08-21T12:00:00Z',
+        lease_token: LEASE_TOKEN,
+        lease_expires_at: '2026-08-21T12:01:00Z'
       }];
       if (name === 'complete_import_upload_cleanup') return {
         job_id: JOB_ID,
@@ -46,7 +49,7 @@ test('M4.17 deletes one exact claimed object and completes its job', async () =>
     'claim_import_upload_cleanup',
     'complete_import_upload_cleanup'
   ]);
-  assert.deepEqual(calls[1].params, { p_job_id: JOB_ID });
+  assert.deepEqual(calls[1].params, { p_job_id: JOB_ID, p_lease_token: LEASE_TOKEN });
   assert.deepEqual(result, { result: 'completed', mutation: true, jobId: JOB_ID });
 });
 
@@ -61,7 +64,9 @@ test('M4.17 requeues the exact claim when object deletion fails', async () => {
         object_name: OBJECT_NAME,
         cleanup_reason: 'stored_object_digest_conflict',
         attempt_count: 2,
-        claimed_at: '2026-08-21T12:00:00Z'
+        claimed_at: '2026-08-21T12:00:00Z',
+        lease_token: LEASE_TOKEN,
+        lease_expires_at: '2026-08-21T12:01:00Z'
       }];
       if (name === 'fail_import_upload_cleanup') return {
         job_id: JOB_ID,
@@ -83,7 +88,11 @@ test('M4.17 requeues the exact claim when object deletion fails', async () => {
     'claim_import_upload_cleanup',
     'fail_import_upload_cleanup'
   ]);
-  assert.deepEqual(calls[1].params, { p_job_id: JOB_ID, p_retry_delay_seconds: 30 });
+  assert.deepEqual(calls[1].params, {
+    p_job_id: JOB_ID,
+    p_lease_token: LEASE_TOKEN,
+    p_retry_delay_seconds: 30
+  });
 });
 
 test('M4.17 Storage deletion is exact, bounded, and does not reflect provider data', async () => {

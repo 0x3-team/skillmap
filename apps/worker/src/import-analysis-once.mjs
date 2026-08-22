@@ -52,10 +52,24 @@ export async function processImportAnalysisOnce({
   if (claimed.length === 0) return { result: 'idle', mutation: false };
   const claim = validateClaim(claimed[0]);
   try {
-    const completion = await rpc.call('complete_import_analysis_job', {
+    const analysis = await rpc.call('inspect_import_analysis_job', {
+      p_job_public_id: claim.job_public_id,
+      p_worker_id: workerId,
+      p_lease_token: claim.lease_token
+    });
+    if (!analysis || analysis.job_public_id !== claim.job_public_id
+      || analysis.version_public_id !== claim.version_public_id
+      || !Number.isSafeInteger(analysis.file_count)
+      || analysis.file_count < 1
+      || typeof analysis.analysis_digest !== 'string'
+      || !/^sha256:[0-9a-f]{64}$/.test(analysis.analysis_digest)) {
+      throw new Error('Import analysis inspection RPC returned an invalid result.');
+    }
+    const completion = await rpc.call('complete_verified_import_analysis_job', {
       p_job_public_id: claim.job_public_id,
       p_worker_id: workerId,
       p_lease_token: claim.lease_token,
+      p_analysis_digest: analysis.analysis_digest,
       p_worker_version: IMPORT_ANALYSIS_WORKER_VERSION
     });
     if (!completion || completion.job_public_id !== claim.job_public_id

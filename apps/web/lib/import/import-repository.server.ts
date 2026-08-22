@@ -110,7 +110,7 @@ export class SupabaseImportRepository {
   }
 
   async acceptFile(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return this.call("adapter_accept_import_file_v2", params);
+    return this.call("adapter_accept_scanned_import_file_v2", params);
   }
 
   async enqueueUploadCleanup(params: Record<string, unknown>): Promise<void> {

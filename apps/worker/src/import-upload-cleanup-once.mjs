@@ -151,7 +151,10 @@ function validateClaim(value) {
     || !Number.isSafeInteger(value.attempt_count)
     || value.attempt_count < 1
     || typeof value.claimed_at !== 'string'
-    || Number.isNaN(Date.parse(value.claimed_at))) {
+    || Number.isNaN(Date.parse(value.claimed_at))
+    || !JOB_ID.test(value.lease_token ?? '')
+    || typeof value.lease_expires_at !== 'string'
+    || Number.isNaN(Date.parse(value.lease_expires_at))) {
     throw new Error('Import upload cleanup claim is invalid.');
   }
   return value;
@@ -160,13 +163,16 @@ function validateClaim(value) {
 export async function processImportUploadCleanupOnce({ rpc, deleteObject }) {
   if (!rpc || typeof rpc.call !== 'function') throw new Error('An RPC client is required.');
   if (typeof deleteObject !== 'function') throw new Error('An exact object deleter is required.');
-  const claimed = await rpc.call('claim_import_upload_cleanup', { p_limit: 1 });
+  const claimed = await rpc.call('claim_import_upload_cleanup', { p_limit: 1, p_lease_seconds: 60 });
   if (!Array.isArray(claimed) || claimed.length > 1) throw new Error('Import upload cleanup claim RPC returned an invalid bounded result.');
   if (claimed.length === 0) return { result: 'idle', mutation: false };
   const claim = validateClaim(claimed[0]);
   try {
     await deleteObject(claim.bucket_id, claim.object_name);
-    const completion = await rpc.call('complete_import_upload_cleanup', { p_job_id: claim.job_id });
+    const completion = await rpc.call('complete_import_upload_cleanup', {
+      p_job_id: claim.job_id,
+      p_lease_token: claim.lease_token
+    });
     if (!completion || completion.job_id !== claim.job_id || completion.state !== 'completed') {
       throw new Error('Import upload cleanup completion RPC returned an invalid result.');
     }
@@ -175,6 +181,7 @@ export async function processImportUploadCleanupOnce({ rpc, deleteObject }) {
     try {
       await rpc.call('fail_import_upload_cleanup', {
         p_job_id: claim.job_id,
+        p_lease_token: claim.lease_token,
         p_retry_delay_seconds: 30
       });
     } catch {

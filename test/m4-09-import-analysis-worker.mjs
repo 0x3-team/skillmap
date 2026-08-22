@@ -8,6 +8,7 @@ const JOB_ID = `iaj_${'a'.repeat(32)}`;
 const SKILL_ID = `msk_${'b'.repeat(32)}`;
 const VERSION_ID = `msv_${'c'.repeat(32)}`;
 const LEASE = '12345678-1234-4234-8234-123456789abc';
+const ANALYSIS_DIGEST = `sha256:${'6'.repeat(64)}`;
 
 test('M4.09 processes one bounded analysis claim and completes its exact lease', async () => {
   const calls = [];
@@ -25,7 +26,13 @@ test('M4.09 processes one bounded analysis claim and completes its exact lease',
         lease_token: LEASE,
         lease_expires_at: '2026-08-20T12:00:00Z'
       }];
-      if (name === 'complete_import_analysis_job') return {
+      if (name === 'inspect_import_analysis_job') return {
+        job_public_id: JOB_ID,
+        version_public_id: VERSION_ID,
+        file_count: 1,
+        analysis_digest: ANALYSIS_DIGEST
+      };
+      if (name === 'complete_verified_import_analysis_job') return {
         job_public_id: JOB_ID,
         state: 'completed',
         analysis_state: 'passed',
@@ -39,10 +46,15 @@ test('M4.09 processes one bounded analysis claim and completes its exact lease',
   assert.equal(result.result, 'completed');
   assert.equal(result.analysisState, 'passed');
   assert.match(result.resultDigest, /^sha256:[0-9a-f]{64}$/);
-  assert.deepEqual(calls.map((call) => call.name), ['claim_import_analysis_jobs', 'complete_import_analysis_job']);
+  assert.deepEqual(calls.map((call) => call.name), [
+    'claim_import_analysis_jobs',
+    'inspect_import_analysis_job',
+    'complete_verified_import_analysis_job'
+  ]);
   assert.equal(calls[1].params.p_lease_token, LEASE);
-  assert.equal(calls[1].params.p_worker_version, 'skillmap-import-analysis/0.1.0');
-  assert.equal('p_result_digest' in calls[1].params, false);
+  assert.equal(calls[2].params.p_analysis_digest, ANALYSIS_DIGEST);
+  assert.equal(calls[2].params.p_worker_version, 'skillmap-import-analysis/0.1.0');
+  assert.equal('p_result_digest' in calls[2].params, false);
 });
 
 test('M4.09 returns idle without a mutation when no job is available', async () => {
@@ -69,7 +81,13 @@ test('M4.09 rejects a completed job with rejected analysis and fails the exact l
         lease_token: LEASE,
         lease_expires_at: '2026-08-20T12:00:00Z'
       }];
-      if (name === 'complete_import_analysis_job') return {
+      if (name === 'inspect_import_analysis_job') return {
+        job_public_id: JOB_ID,
+        version_public_id: VERSION_ID,
+        file_count: 1,
+        analysis_digest: ANALYSIS_DIGEST
+      };
+      if (name === 'complete_verified_import_analysis_job') return {
         job_public_id: JOB_ID,
         state: 'completed',
         analysis_state: 'rejected',
@@ -87,12 +105,13 @@ test('M4.09 rejects a completed job with rejected analysis and fails the exact l
   );
   assert.deepEqual(calls.map((call) => call.name), [
     'claim_import_analysis_jobs',
-    'complete_import_analysis_job',
+    'inspect_import_analysis_job',
+    'complete_verified_import_analysis_job',
     'fail_import_analysis_job'
   ]);
-  assert.equal(calls[2].params.p_job_public_id, JOB_ID);
-  assert.equal(calls[2].params.p_worker_id, 'm4-test-worker');
-  assert.equal(calls[2].params.p_lease_token, LEASE);
+  assert.equal(calls[3].params.p_job_public_id, JOB_ID);
+  assert.equal(calls[3].params.p_worker_id, 'm4-test-worker');
+  assert.equal(calls[3].params.p_lease_token, LEASE);
 });
 
 test('M4.09 analysis RPC calls use the exact PostgREST schema profile', async () => {

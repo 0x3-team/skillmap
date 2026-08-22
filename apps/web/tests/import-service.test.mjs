@@ -220,6 +220,7 @@ test("M4 accept rejects a changed digest before the accept RPC", async () => {
 
 test("M4 accept hashes the stored object bytes before the accept RPC", async () => {
   let accepted = false;
+  let acceptParams;
   const cleanupCalls = [];
   const expectedBytes = new TextEncoder().encode("test");
   const digest = `sha256:${createHash("sha256").update(expectedBytes).digest("hex")}`;
@@ -228,6 +229,9 @@ test("M4 accept hashes the stored object bytes before the accept RPC", async () 
       return {
         bucket_id: "skill-vault-private",
         object_name: `v1/${VERSION_ID}/${FILE_ID}`,
+        relative_path: "SKILL.md",
+        content_type: "text/markdown; charset=utf-8",
+        executable: false,
         file_digest: digest,
         declared_size: expectedBytes.byteLength
       };
@@ -238,8 +242,9 @@ test("M4 accept hashes the stored object bytes before the accept RPC", async () 
     async enqueueUploadCleanup(params) {
       cleanupCalls.push(params);
     },
-    async acceptFile() {
+    async acceptFile(params) {
       accepted = true;
+      acceptParams = params;
       return sessionRow();
     }
   };
@@ -273,6 +278,91 @@ test("M4 accept hashes the stored object bytes before the accept RPC", async () 
   });
   assert.equal(result.session_public_id, SESSION_ID);
   assert.equal(accepted, true);
+  const expectedPolicyDigest = `sha256:${createHash("sha256").update([
+    "SKILLMAP-HOSTED-IMPORT-POLICY-V1",
+    "SKILL.md",
+    "text/markdown; charset=utf-8",
+    String(expectedBytes.byteLength),
+    digest,
+    "allowed",
+    ""
+  ].join("\n"), "utf8").digest("hex")}`;
+  assert.equal(acceptParams.p_policy_digest, expectedPolicyDigest);
+});
+
+test("M4 accept preserves stored_object_conflict when cleanup enqueue fails", async () => {
+  const repository = {
+    async prepareUpload() {
+      return {
+        bucket_id: "skill-vault-private",
+        object_name: `v1/${VERSION_ID}/${FILE_ID}`,
+        relative_path: "SKILL.md",
+        content_type: "text/markdown; charset=utf-8",
+        executable: false,
+        file_digest: DIGEST,
+        declared_size: 4
+      };
+    },
+    async readStoredObject() {
+      return new TextEncoder().encode("wrong");
+    },
+    async enqueueUploadCleanup() {
+      throw new Error("cleanup transport failed");
+    },
+    async acceptFile() {
+      assert.fail("acceptFile must not run for conflicting bytes");
+    }
+  };
+
+  await assert.rejects(
+    executeImportOperation({
+      operation: "accept",
+      body: { expected_revision: 1, file_digest: DIGEST, byte_size: 4 },
+      params: { sessionId: SESSION_ID, fileId: FILE_ID },
+      context, idempotencyKey: IDEMPOTENCY_KEY, repository,
+      now: () => new Date("2026-08-20T11:55:00Z")
+    }),
+    (error) => error?.code === "stored_object_conflict"
+  );
+});
+
+test("M4 accept applies the hosted content policy before recording a receipt", async () => {
+  let accepted = false;
+  const secretBytes = new TextEncoder().encode("-----BEGIN PRIVATE KEY-----\nnot-safe\n");
+  const secretDigest = `sha256:${createHash("sha256").update(secretBytes).digest("hex")}`;
+  const repository = {
+    async prepareUpload() {
+      return {
+        bucket_id: "skill-vault-private",
+        object_name: `v1/${VERSION_ID}/${FILE_ID}`,
+        relative_path: "SKILL.md",
+        content_type: "text/markdown; charset=utf-8",
+        executable: false,
+        file_digest: secretDigest,
+        declared_size: secretBytes.byteLength
+      };
+    },
+    async readStoredObject() {
+      return secretBytes;
+    },
+    async enqueueUploadCleanup() {},
+    async acceptFile() {
+      accepted = true;
+      return sessionRow();
+    }
+  };
+
+  await assert.rejects(
+    executeImportOperation({
+      operation: "accept",
+      body: { expected_revision: 1, file_digest: secretDigest, byte_size: secretBytes.byteLength },
+      params: { sessionId: SESSION_ID, fileId: FILE_ID },
+      context, idempotencyKey: IDEMPOTENCY_KEY, repository,
+      now: () => new Date("2026-08-20T11:55:00Z")
+    }),
+    (error) => error?.code === "invalid_request"
+  );
+  assert.equal(accepted, false);
 });
 
 test("M4 expire forwards the exact expected revision to the adapter", async () => {

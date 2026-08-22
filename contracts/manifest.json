@@ -3,6 +3,7 @@
   "canonicalization": "canonicalization-v1.md",
   "schemas": [
     { "name": "common-v1", "path": "common/v1.schema.json", "id": "https://skillmap.dev/contracts/common/v1.schema.json" },
+    { "name": "managed-manifest-v1", "path": "managed-manifest/v1.schema.json", "id": "https://skillmap.dev/contracts/managed-manifest/v1.schema.json" },
     { "name": "workspace-revision-v1", "path": "workspace-revision/v1.schema.json", "id": "https://skillmap.dev/contracts/workspace-revision/v1.schema.json" },
     { "name": "skill-identity-v1", "path": "skill-identity/v1.schema.json", "id": "https://skillmap.dev/contracts/skill-identity/v1.schema.json" },
     { "name": "route-result-v2", "path": "route-result/v2.schema.json", "id": "https://skillmap.dev/contracts/route-result/v2.schema.json" },

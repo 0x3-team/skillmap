@@ -171,6 +171,8 @@ test("Next 16 hosted request boundary has one Edge middleware surface and preser
 test("hosted runtime disables the unused Next image optimizer", async () => {
   const config = await readFile(new URL("../next.config.mjs", import.meta.url), "utf8");
   assert.match(config, /images:\s*\{\s*[\s\S]*?unoptimized:\s*true\s*[\s\S]*?\}/);
+  assert.match(config, /const repoDir = resolve\(appDir, ["']\.\.\/\.\.["']\)/);
+  assert.match(config, /turbopack:\s*\{\s*[\s\S]*?root:\s*repoDir\s*[\s\S]*?\}/);
 
   const sourceUrls = [
     ...await collectTsxFiles(new URL("../app/", import.meta.url)),
