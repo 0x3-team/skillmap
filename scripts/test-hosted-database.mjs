@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const REPO = process.cwd();
 const TEST_ROOT = join(REPO, 'supabase', 'tests');
 const LEGACY_FLOOR = '20260727061300';
 const PRE_CUTOVER_FLOOR = '20260810070000';
-const POST_CUTOVER_HEAD = '20260813035308';
+const POST_CUTOVER_HEAD = '20260822112946';
+const POST_CUTOVER_API_DEFINER_COUNT = '44';
 
 // This suite asserts the exact M2.11 policy and error surface. M3's additive
 // owner-device migration intentionally changes both before the cutover.
@@ -88,6 +89,12 @@ function parseDbUrlFromEnv(status) {
   return rawValue;
 }
 
+function parseProjectId(config) {
+  const match = /^project_id\s*=\s*"([a-zA-Z0-9_-]+)"\s*$/m.exec(config);
+  if (!match) throw new Error('Supabase config did not expose a bounded project_id');
+  return match[1];
+}
+
 function dbUrl() {
   try {
     return parseDbUrlFromJson(capture('supabase', ['status', '-o', 'json']));
@@ -101,9 +108,21 @@ function dbUrl() {
 }
 
 function query(sql) {
-  return capture('psql', [
+  const psqlArgs = [
     '--no-psqlrc', '--tuples-only', '--no-align', '--quiet',
     '--dbname', dbUrl(), '--command', sql,
+  ];
+  try {
+    return capture('psql', psqlArgs);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+
+  const project = parseProjectId(readFileSync(join(REPO, 'supabase', 'config.toml'), 'utf8'));
+  return capture('docker', [
+    'exec', `supabase_db_${project}`, 'psql',
+    '--no-psqlrc', '--tuples-only', '--no-align', '--quiet',
+    '--username', 'postgres', '--dbname', 'postgres', '--command', sql,
   ]);
 }
 
@@ -116,6 +135,7 @@ function assertDbUrlParserFixtures() {
   assertEqual(parseDbUrlFromJson(JSON.stringify({ DB_URL: expected })), expected, 'JSON DB_URL parser');
   assertEqual(parseDbUrlFromEnv(`API_URL="http://127.0.0.1:54321"\nDB_URL="${expected}"`), expected, 'quoted env DB_URL parser');
   assertEqual(parseDbUrlFromEnv(`DB_URL=${expected}`), expected, 'unquoted env DB_URL parser');
+  assertEqual(parseProjectId('project_id = "skillmap"'), 'skillmap', 'Supabase project ID parser');
 }
 
 function createPhaseTracker() {
@@ -186,7 +206,7 @@ function assertPostCutoverState() {
   const version = query("select version from supabase_migrations.schema_migrations order by version desc limit 1");
   assertEqual(version, POST_CUTOVER_HEAD, 'post-cutover migration head');
   assertEqual(query("select legacy_device_authority_enabled::text || ':' || revision::text from private.device_auth_authority_control where control_key = 'legacy_device_authority'"), 'false:2', 'post-cutover authority state');
-  assertEqual(query("select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef"), '43', 'post-cutover API definer allowlist count');
+  assertEqual(query("select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'api' and p.prosecdef"), POST_CUTOVER_API_DEFINER_COUNT, 'post-cutover API definer allowlist count');
 }
 
 function runTests(label, paths) {

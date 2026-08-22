@@ -1,0 +1,213 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  inspectImportFileForSecrets,
+  IMPORT_SECRET_SCAN_MAX_BYTES
+} from '../dist/core/import-secret-blocker.js';
+
+function inspect(relativePath, content, mediaType = 'text/plain') {
+  return inspectImportFileForSecrets({
+    relativePath,
+    content: Buffer.from(content),
+    mediaType
+  });
+}
+
+test('M4.03 blocks forbidden credential and private-key filenames without reading or echoing bytes', () => {
+  const content = 'synthetic-value-that-must-never-appear';
+  for (const relativePath of [
+    '.env',
+    '.env.local',
+    '.envrc',
+    '.npmrc',
+    '.pypirc',
+    '.netrc',
+    'id_ed25519',
+    'config/private.key',
+    'config/client.p12',
+    'config/service-account-production.json',
+    '.aws/credentials',
+    '.config/gcloud/application_default_credentials.json'
+  ]) {
+    const result = inspect(relativePath, content);
+    assert.deepEqual(result, {
+      decision: 'blocked',
+      code: 'IMPORT_SECRET_BLOCKED',
+      reason: 'forbidden_filename'
+    });
+    assert.equal(JSON.stringify(result).includes(content), false);
+    assert.equal(JSON.stringify(result).includes(relativePath), false);
+  }
+});
+
+test('M4.03 blocks high-confidence synthetic credential formats and private-key blocks', () => {
+  const fixtures = [
+    ['docs/github.txt', `ghp_${'A'.repeat(36)}`, 'credential_pattern'],
+    ['docs/aws.txt', `AKIA${'A1'.repeat(8)}`, 'credential_pattern'],
+    ['docs/google.txt', `AIza${'A'.repeat(35)}`, 'credential_pattern'],
+    ['docs/slack.txt', `xoxb-${'1'.repeat(12)}-${'2'.repeat(12)}-${'a'.repeat(24)}`, 'credential_pattern'],
+    ['docs/npm.txt', `npm_${'a'.repeat(36)}`, 'credential_pattern'],
+    ['docs/openai.txt', `sk-proj-${'a'.repeat(32)}`, 'credential_pattern'],
+    ['docs/anthropic.txt', `sk-ant-api03-${'a'.repeat(32)}`, 'credential_pattern'],
+    ['docs/gitlab.txt', `glpat-${'a'.repeat(24)}`, 'credential_pattern'],
+    ['docs/huggingface.txt', `hf_${'a'.repeat(32)}`, 'credential_pattern'],
+    ['docs/supabase.txt', `sbp_${'a'.repeat(40)}`, 'credential_pattern'],
+    ['docs/stripe.txt', `sk_live_${'a'.repeat(24)}`, 'credential_pattern'],
+    ['docs/private.txt', '-----BEGIN PRIVATE KEY-----\nsynthetic\n-----END PRIVATE KEY-----', 'private_key'],
+    ['docs/rsa.txt', '-----BEGIN RSA PRIVATE KEY-----\nsynthetic\n-----END RSA PRIVATE KEY-----', 'private_key'],
+    ['docs/openssh.txt', '-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic\n-----END OPENSSH PRIVATE KEY-----', 'private_key'],
+    ['docs/pgp.txt', '-----BEGIN PGP PRIVATE KEY BLOCK-----\nsynthetic', 'private_key'],
+    ['docs/assignment.txt', `api_key=${'s3cr3t'.repeat(6)}`, 'credential_assignment']
+  ];
+
+  for (const [relativePath, content, reason] of fixtures) {
+    const result = inspect(relativePath, content);
+    assert.deepEqual(result, {
+      decision: 'blocked',
+      code: 'IMPORT_SECRET_BLOCKED',
+      reason
+    });
+    assert.equal(JSON.stringify(result).includes(content), false);
+  }
+});
+
+test('M4.03 keeps common documentation placeholders and inert text importable', () => {
+  for (const content of [
+    'Set API_KEY=YOUR_API_KEY in your own environment.',
+    'token: <replace-me>',
+    'password = "example"',
+    'aws_secret_access_key=${AWS_SECRET_ACCESS_KEY}',
+    'database_password="example"',
+    `my_secretary=${'a'.repeat(32)}`,
+    'Authorization: Bearer ${TOKEN}',
+    'The word secret is documentation, not a credential.',
+    '# Skill\nUse this skill to review authentication code.'
+  ]) {
+    assert.deepEqual(inspect('references/guide.md', content, 'text/markdown'), {
+      decision: 'allowed'
+    });
+  }
+});
+
+test('M4.03 blocks prefixed and compound secret assignment keys', () => {
+  for (const [relativePath, content] of [
+    ['references/aws.env.example', `aws_secret_access_key=${'A'.repeat(32)}`],
+    ['references/openai.env.example', `openai_api_key=${'B'.repeat(32)}`],
+    ['references/database.env.example', `database_password=${'C'.repeat(32)}`],
+    ['references/quoted.yaml', `openai_api_key: "${'D'.repeat(32)}"`],
+    ['references/quoted.json', `{"openai_api_key":"${'D'.repeat(32)}"}`],
+    ['references/secret-key.env.example', `secret_key=${'E'.repeat(32)}`]
+  ]) {
+    assert.deepEqual(inspect(relativePath, content), {
+      decision: 'blocked',
+      code: 'IMPORT_SECRET_BLOCKED',
+      reason: 'credential_assignment'
+    });
+  }
+});
+
+test('M4.03 scans JSON, YAML, and TOML charset media types for secrets', () => {
+  for (const [extension, mediaType, allowedContent, credentialContent] of [
+    ['json', 'application/json; charset=utf-8', '{"name":"example"}', `{"token":"ghp_${'A'.repeat(36)}"}`],
+    ['yaml', 'application/yaml; charset=UTF-8', 'name: example', `token: ghp_${'A'.repeat(36)}`],
+    ['toml', 'application/toml; charset=utf-8', 'name = "example"', `token = "ghp_${'A'.repeat(36)}"`]
+  ]) {
+    assert.deepEqual(inspect(`references/example.${extension}`, allowedContent, mediaType), {
+      decision: 'allowed'
+    });
+    assert.deepEqual(inspect(
+      `references/credential.${extension}`,
+      credentialContent,
+      mediaType
+    ), {
+      decision: 'blocked',
+      code: 'IMPORT_SECRET_BLOCKED',
+      reason: 'credential_pattern'
+    });
+  }
+});
+
+test('M4.03 rejects oversized scan input before pattern matching and returns bounded metadata only', () => {
+  const content = Buffer.alloc(IMPORT_SECRET_SCAN_MAX_BYTES + 1, 0x61);
+  const result = inspectImportFileForSecrets({
+    relativePath: 'references/large.txt',
+    content,
+    mediaType: 'text/plain'
+  });
+  assert.deepEqual(result, {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_LIMIT',
+    reason: 'scan_limit'
+  });
+  assert.ok(JSON.stringify(result).length < 160);
+});
+
+test('M4.03 accepts a complete inert image and rejects image polyglots containing credentials', () => {
+  const validPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64'
+  );
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/example.png',
+    content: validPng,
+    mediaType: 'image/png'
+  }), {
+    decision: 'allowed'
+  });
+
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/polyglot.png',
+    content: Buffer.concat([validPng, Buffer.from(`ghp_${'A'.repeat(36)}`)]),
+    mediaType: 'image/png'
+  }), {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_UNSAFE',
+    reason: 'invalid_image'
+  });
+
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/truncated.png',
+    content: validPng.subarray(0, 16),
+    mediaType: 'image/png'
+  }), {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_UNSAFE',
+    reason: 'invalid_image'
+  });
+});
+
+test('M4.03 accepts a structurally valid animated WebP', () => {
+  const animatedWebp = Buffer.from(
+    'UklGRsAAAABXRUJQVlA4WAoAAAACAAAAAAAAAAAAQU5JTQYAAAD/////AABBTk1GSAAAAAAAAAAAAAAAAAAAAGQAAAJWUDggMAAAANABAJ0BKgEAAQACADQloAJ0ugH4AAOwAP7wxAv/ILlhdcjX/yA/5Af8gP/48gAAAEFOTUZEAAAAAAAAAAAAAAAAAAAAZAAAAFZQOCAsAAAAlAEAnQEqAQABAAAANCWgAnS6AAOYAP75k2//kB//kB//kB//ID/iF3sgMAA=',
+    'base64'
+  );
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'assets/animated.webp',
+    content: animatedWebp,
+    mediaType: 'image/webp'
+  }), {
+    decision: 'allowed'
+  });
+});
+
+test('M4.03 fails closed on invalid UTF-8 and unscannable binary classes', () => {
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'references/invalid.txt',
+    content: Buffer.from([0xc3, 0x28]),
+    mediaType: 'text/plain'
+  }), {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_UNSAFE',
+    reason: 'invalid_utf8'
+  });
+
+  assert.deepEqual(inspectImportFileForSecrets({
+    relativePath: 'references/blob.bin',
+    content: Buffer.from([0x00, 0xff, 0x01, 0xfe]),
+    mediaType: 'application/octet-stream'
+  }), {
+    decision: 'blocked',
+    code: 'IMPORT_SECRET_SCAN_UNSAFE',
+    reason: 'unscannable_binary'
+  });
+});

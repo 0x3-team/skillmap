@@ -78,9 +78,11 @@ test('hosted browser CI runs the composed API, auth, submission, report, and evi
   const databaseHarness = readFileSync(path.join(repo, 'scripts', 'test-hosted-database.mjs'), 'utf8');
   assert.match(databaseHarness, /run\('supabase', \['db', 'reset', '--local'/, 'hosted database harness does not rebuild from migrations and seed');
   assert.match(databaseHarness, /run\('supabase', \['test', 'db', '--local'/, 'hosted database harness omits database authority tests');
-  for (const floor of ['20260727061300', '20260810070000', '20260813035308']) {
+  for (const floor of ['20260727061300', '20260810070000', '20260822112946']) {
     assert.match(databaseHarness, new RegExp(floor), `hosted database harness omits required migration floor ${floor}`);
   }
+  assert.match(databaseHarness, /const POST_CUTOVER_API_DEFINER_COUNT = '44';/,
+    'hosted database harness is not bound to the reviewed forty-four-function API definer boundary');
   assert.match(source, /command -v psql/, 'hosted browser CI does not install its PostgreSQL client dependency when absent');
   assert.match(source, /psql --version/, 'hosted browser CI does not verify the PostgreSQL client before running fixtures');
   assert.match(source, /npm --prefix apps\/web run build/, 'hosted browser CI does not build the exact web source');

@@ -219,14 +219,18 @@ select is((select count(*) from private.skill_vault_incomplete_upload_cleanup),
 select throws_ok($$select * from private.enqueue_skill_vault_incomplete_upload_cleanup('skill-vault-private', 'v1/not-a-key', 'upload.incomplete')$$,
   '23514', 'invalid exact Skill Vault cleanup target', 'cleanup cannot enqueue a prefix or malformed key');
 
-select throws_ok($$select * from private.claim_skill_vault_incomplete_upload_cleanup(65)$$,
+select throws_ok($$select * from private.claim_skill_vault_incomplete_upload_cleanup(65,60)$$,
   '22023', 'cleanup claim limit must be between 1 and 64', 'cleanup claims have a bounded batch size');
 
-select is((select attempt_count from private.claim_skill_vault_incomplete_upload_cleanup(1) limit 1),
+create temporary table m4_storage_cleanup_claim on commit drop as
+select * from private.claim_skill_vault_incomplete_upload_cleanup(1,60);
+
+select is((select attempt_count from m4_storage_cleanup_claim limit 1),
   1, 'cleanup claim transitions one queued exact-object job with its first attempt');
 
 select is((select state from private.complete_skill_vault_incomplete_upload_cleanup(
-  (select id from private.skill_vault_incomplete_upload_cleanup limit 1)) limit 1),
+  (select job_id from m4_storage_cleanup_claim limit 1),
+  (select lease_token from m4_storage_cleanup_claim limit 1)) limit 1),
   'completed', 'cleanup completion records a terminal relational receipt only');
 
 set local role anon;

@@ -118,14 +118,27 @@ test('repository secret canary scan catches credentials and limits the fixture e
   assert.deepEqual(scanRepositorySecretCanaries([{ path: 'src/runtime.ts', bytes: Buffer.from(credential) }]), [
     { path: 'src/runtime.ts', label: 'GitHub credential' }
   ]);
+  const reviewedFixtures = [
+    ['test/package-candidate-verifier.mjs', new URL('./package-candidate-verifier.mjs', import.meta.url)],
+    ['test/fixtures/m3-03-apple-signing-readiness/cases.json', new URL('./fixtures/m3-03-apple-signing-readiness/cases.json', import.meta.url)],
+    ['apps/web/tests/import-contracts.test.mjs', new URL('../apps/web/tests/import-contracts.test.mjs', import.meta.url)],
+    ['test/m4-03-secret-blocking.mjs', new URL('./m4-03-secret-blocking.mjs', import.meta.url)]
+  ];
+  for (const [fixturePath, fixtureUrl] of reviewedFixtures) {
+    const reviewedBytes = readFileSync(fixtureUrl);
+    assert.deepEqual(scanRepositorySecretCanaries([{ path: fixturePath, bytes: reviewedBytes }]), []);
+    assert.deepEqual(scanRepositorySecretCanaries([{
+      path: fixturePath,
+      bytes: Buffer.concat([reviewedBytes, Buffer.from(`\n${credential}\n`)]),
+    }]), [
+      { path: fixturePath, label: 'PEM private key' },
+      { path: fixturePath, label: 'GitHub credential' }
+    ]);
+  }
   assert.deepEqual(scanRepositorySecretCanaries([{
-    path: 'test/package-candidate-verifier.mjs',
-    bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
-  }]), []);
-  assert.deepEqual(scanRepositorySecretCanaries([{
-    path: 'test/fixtures/m3-03-apple-signing-readiness/cases.json',
-    bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))
-  }]), []);
+    path: 'test/m4-03-secret-blocking.mjs',
+    bytes: Buffer.from(`ghp_${'A'.repeat(36)}`)
+  }]), [{ path: 'test/m4-03-secret-blocking.mjs', label: 'GitHub credential' }]);
   assert.deepEqual(scanRepositorySecretCanaries([{
     path: 'test/another-test.mjs',
     bytes: Buffer.from(['-----BEGIN', 'PRIVATE KEY-----'].join(' '))

@@ -153,8 +153,15 @@ export function assertNoQuery(url: URL): void {
  * Strictly parse and fully validate UTF-8 JSON text. Returns the decoded plain
  * value. Throws StrictDeviceAuthJsonError on any violation.
  */
-export function parseStrictDeviceAuthJson<T>(text: string): T {
-  const parser = new StrictJsonScanner(text);
+export interface StrictJsonLimits {
+  /** Total object members across the document. Defaults to the DeviceAuth bound. */
+  maxObjectMembers?: number;
+  /** Maximum items in one array. Defaults to the DeviceAuth bound. */
+  maxArrayItems?: number;
+}
+
+export function parseStrictDeviceAuthJson<T>(text: string, limits: StrictJsonLimits = {}): T {
+  const parser = new StrictJsonScanner(text, limits);
   const root = parser.parseRoot();
   parser.finish();
   return root as T;
@@ -184,9 +191,18 @@ class StrictJsonScanner {
   /** Total control/structural budget across the whole document. */
   private objectCount = 0;
 
-  constructor(text: string) {
+  private readonly maxObjectMembers: number;
+  private readonly maxArrayItems: number;
+
+  constructor(text: string, limits: StrictJsonLimits = {}) {
     if (text.charCodeAt(0) === 0xfeff) throw new StrictDeviceAuthJsonError("UTF-8 BOM is not allowed.");
     this.text = text;
+    this.maxObjectMembers = limits.maxObjectMembers ?? MAX_OBJECT_MEMBERS;
+    this.maxArrayItems = limits.maxArrayItems ?? MAX_ARRAY_ITEMS;
+    if (!Number.isSafeInteger(this.maxObjectMembers) || this.maxObjectMembers < 1
+      || !Number.isSafeInteger(this.maxArrayItems) || this.maxArrayItems < 1) {
+      throw new StrictDeviceAuthJsonError("invalid parser limits.");
+    }
   }
 
   parseRoot(): unknown {
@@ -242,7 +258,7 @@ class StrictJsonScanner {
     }
     for (;;) {
       this.objectCount++;
-      if (this.objectCount > MAX_OBJECT_MEMBERS) throw new StrictDeviceAuthJsonError("too many object members.");
+      if (this.objectCount > this.maxObjectMembers) throw new StrictDeviceAuthJsonError("too many object members.");
       this.skipWs();
       if (this.pos >= this.text.length || this.text.charCodeAt(this.pos) !== 0x22) {
         throw new StrictDeviceAuthJsonError("object key must be a string.");
@@ -278,7 +294,7 @@ class StrictJsonScanner {
       return out;
     }
     for (;;) {
-      if (out.length >= MAX_ARRAY_ITEMS) throw new StrictDeviceAuthJsonError("array too large.");
+      if (out.length >= this.maxArrayItems) throw new StrictDeviceAuthJsonError("array too large.");
       out.push(this.parseValue(depth + 1));
       this.skipWs();
       if (this.pos < this.text.length && this.text.charCodeAt(this.pos) === 0x2c) {

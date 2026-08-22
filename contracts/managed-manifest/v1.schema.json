@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillmap.dev/contracts/managed-manifest/v1.schema.json",
+  "title": "SkillMap Managed Skill Manifest v1",
+  "description": "Closed, versioned cloud-managed skill manifest. Identity and file list are authoritative; display metadata is presentation-only.",
+  "$ref": "#/$defs/ManagedSkillManifest",
+  "$defs": {
+    "ManagedSkillManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "identity", "display", "source", "files", "provenance", "compatibility"],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^1\\.[0-9]+$"
+        },
+        "manifest_digest": {
+          "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest"
+        },
+        "identity": {
+          "$ref": "#/$defs/Identity"
+        },
+        "display": {
+          "$ref": "#/$defs/Display"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2048,
+          "items": { "$ref": "#/$defs/ManagedSkillFile" }
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "compatibility": {
+          "$ref": "#/$defs/Compatibility"
+        }
+      }
+    },
+    "Identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logical_id", "public_id"],
+      "properties": {
+        "logical_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "public_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        }
+      }
+    },
+    "Display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/BoundedLabel"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 2048
+        }
+      }
+    },
+    "Source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "kind", "namespace", "source_id", "revision"],
+      "properties": {
+        "authority": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "ManagedSkillFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "media_type", "utf8_bytes", "digest", "executable"],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/ManagedSkillFilePath"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "utf8_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16777216
+        },
+        "digest": {
+          "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/Sha256Digest"
+        },
+        "executable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ManagedSkillFilePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*(?:^|/)\\.)(?!.*//)(?!.*\\\\)[^\\x00-\\x1F\\x7F][^\\x00-\\x1F\\x7F\\\\]*$"
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisher_id", "ingest_id", "created_at"],
+      "properties": {
+        "publisher_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "ingest_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "created_at": {
+          "$ref": "https://skillmap.dev/contracts/common/v1.schema.json#/$defs/IsoTimestamp"
+        }
+      }
+    },
+    "Compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_major", "minimum_consumer_major"],
+      "properties": {
+        "manifest_major": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "minimum_consumer_major": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      }
+    }
+  }
+}

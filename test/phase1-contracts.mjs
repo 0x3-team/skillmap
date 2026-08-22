@@ -867,6 +867,7 @@ const validVectors = new Map([
 ]);
 
 const dedicatedContractSchemas = new Set([
+  IDS['managed-manifest-v1'],
   IDS['device-auth-common-v1'],
   IDS['hosted-grade-summary-v1'],
   IDS['hosted-skill-v1'],
@@ -1093,10 +1094,10 @@ test('canonicalization vectors remain stable', async () => {
 });
 
 test('every canonical product contract accepts its valid bounded vector', () => {
-  assert.equal(manifest.schemas.length, 41, 'canonical contract manifest count is frozen');
+  assert.equal(manifest.schemas.length, 42, 'canonical contract manifest count is frozen');
   assert.equal(validVectors.size, 30, 'generic valid-vector count is frozen');
-  assert.equal(dedicatedContractSchemas.size, 10, 'dedicated definitions/hosted contract count is frozen');
-  assert.equal(validVectors.size + dedicatedContractSchemas.size, 40,
+  assert.equal(dedicatedContractSchemas.size, 11, 'dedicated definitions/hosted contract count is frozen');
+  assert.equal(validVectors.size + dedicatedContractSchemas.size, 41,
     'all product schemas except the canonical common definitions need a generic or dedicated valid vector');
   for (const [schemaId, vector] of validVectors) assertValid(schemaId, vector);
 });

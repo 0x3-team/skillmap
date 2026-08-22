@@ -67,6 +67,9 @@ as $$
   );
 $$;
 
+grant execute on function pg_temp.operator_audit_payload() to service_role;
+grant execute on function pg_temp.operator_grade_payload() to service_role;
+
 select plan(17);
 
 insert into api.skill_submissions (
