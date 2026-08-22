@@ -95,7 +95,7 @@ export interface QuarantineAuthorization {
   replayNonce: string;
 }
 
-export interface QuarantineMutationReceipt {
+export interface QuarantineMutationReceiptV1 {
   kind: 'skillmap.local-quarantine-receipt';
   schemaVersion: 1;
   status: 'MOVE_OBSERVED';
@@ -112,6 +112,13 @@ export interface QuarantineMutationReceipt {
   restoreExpiresAt: string;
   receiptDigest: string;
 }
+
+export interface QuarantineMutationReceiptV2 extends Omit<QuarantineMutationReceiptV1, 'schemaVersion'> {
+  schemaVersion: 2;
+  treeDigest: string;
+}
+
+export type QuarantineMutationReceipt = QuarantineMutationReceiptV1 | QuarantineMutationReceiptV2;
 
 export interface AtomicMoveBinding {
   sourceRootPath: string;

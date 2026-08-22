@@ -19,7 +19,7 @@ import type {
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const MAX_RECORD_BYTES = 128 * 1024;
-const QUARANTINE_RECEIPT_KEYS = [
+const QUARANTINE_RECEIPT_V1_KEYS = [
   'kind',
   'schemaVersion',
   'status',
@@ -35,6 +35,22 @@ const QUARANTINE_RECEIPT_KEYS = [
   'quarantinedAt',
   'restoreExpiresAt',
   'receiptDigest'
+] as const;
+const QUARANTINE_RECEIPT_V2_KEYS = [
+  ...QUARANTINE_RECEIPT_V1_KEYS,
+  'treeDigest'
+] as const;
+const QUARANTINE_INTENT_KEYS = [
+  'kind',
+  'schemaVersion',
+  'action',
+  'operationId',
+  'authorizationDigest',
+  'preflightDigest',
+  'candidateSnapshotDigest',
+  'destinationIdentityDigest',
+  'createdAt',
+  'intentDigest'
 ] as const;
 
 function digest(value: unknown): string {
@@ -65,8 +81,14 @@ export function validateQuarantineMutationReceipt(value: unknown): QuarantineMut
   }
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record).sort();
-  if (keys.length !== QUARANTINE_RECEIPT_KEYS.length
-    || !QUARANTINE_RECEIPT_KEYS.every((key) => keys.includes(key))) {
+  const expectedKeys = record.schemaVersion === 1
+    ? QUARANTINE_RECEIPT_V1_KEYS
+    : record.schemaVersion === 2
+      ? QUARANTINE_RECEIPT_V2_KEYS
+      : undefined;
+  if (!expectedKeys
+    || keys.length !== expectedKeys.length
+    || !expectedKeys.every((key) => keys.includes(key))) {
     throw new Error('Quarantine receipt is malformed.');
   }
   const digestFields = [
@@ -78,8 +100,9 @@ export function validateQuarantineMutationReceipt(value: unknown): QuarantineMut
     record.destinationIdentityDigest,
     record.receiptDigest
   ];
+  if (record.schemaVersion === 2) digestFields.push(record.treeDigest);
   if (record.kind !== 'skillmap.local-quarantine-receipt'
-    || record.schemaVersion !== 1
+    || (record.schemaVersion !== 1 && record.schemaVersion !== 2)
     || record.status !== 'MOVE_OBSERVED'
     || typeof record.operationId !== 'string'
     || !SAFE_ID.test(record.operationId)
@@ -91,7 +114,9 @@ export function validateQuarantineMutationReceipt(value: unknown): QuarantineMut
   const quarantinedAt = assertTimestamp(String(record.quarantinedAt), 'quarantinedAt');
   const restoreExpiresAt = assertTimestamp(String(record.restoreExpiresAt), 'restoreExpiresAt');
   const expectedReceiptId = digest({
-    kind: 'skillmap.local-quarantine-receipt-id.v1',
+    kind: record.schemaVersion === 1
+      ? 'skillmap.local-quarantine-receipt-id.v1'
+      : 'skillmap.local-quarantine-receipt-id.v2',
     operationId: record.operationId
   });
   const { receiptDigest, ...base } = record;
@@ -101,6 +126,37 @@ export function validateQuarantineMutationReceipt(value: unknown): QuarantineMut
     throw new Error('Quarantine receipt digest is invalid.');
   }
   return record as unknown as QuarantineMutationReceipt;
+}
+
+function validateQuarantineIntent(
+  value: Record<string, unknown>,
+  expected: {
+    operationId: string;
+    authorizationDigest: string;
+    preflightDigest: string;
+    candidateSnapshotDigest: string;
+    destinationIdentityDigest: string;
+  }
+): string {
+  const keys = Object.keys(value).sort();
+  const { intentDigest, ...base } = value;
+  if (keys.length !== QUARANTINE_INTENT_KEYS.length
+    || !QUARANTINE_INTENT_KEYS.every((key) => keys.includes(key))
+    || value.kind !== 'skillmap.local-quarantine-intent'
+    || value.schemaVersion !== 1
+    || value.action !== 'quarantine'
+    || value.operationId !== expected.operationId
+    || value.authorizationDigest !== expected.authorizationDigest
+    || value.preflightDigest !== expected.preflightDigest
+    || value.candidateSnapshotDigest !== expected.candidateSnapshotDigest
+    || value.destinationIdentityDigest !== expected.destinationIdentityDigest
+    || typeof value.createdAt !== 'string'
+    || typeof intentDigest !== 'string'
+    || intentDigest !== digest(base)) {
+    throw new Error('IDEMPOTENCY_CONFLICT');
+  }
+  assertTimestamp(value.createdAt, 'createdAt');
+  return value.createdAt;
 }
 
 function assertAuthorization(
@@ -355,14 +411,81 @@ export async function executeQuarantine(input: {
     return receipt;
   }
 
+  const intentFile = path.join(input.receiptDirectory, `${input.authorization.operationId}.quarantine-intent.json`);
+  const existingIntent = await safeReadRecord(intentFile);
+  const intentBinding = {
+    operationId: input.authorization.operationId,
+    authorizationDigest,
+    preflightDigest: input.preflight.preflightDigest,
+    candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
+    destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest
+  };
+  let intentCreatedAt = now.toISOString();
+  if (existingIntent) intentCreatedAt = validateQuarantineIntent(existingIntent, intentBinding);
+
   await assertRootCapabilitiesCurrent(input.preflight);
-  const sourceBefore = await lstat(input.preflight.sourcePath);
-  if (!sameSnapshot(input.preflight, sourceBefore)) throw new Error('CANDIDATE_STALE');
   await ensureDestinationParent(input.preflight);
+  const sourceBefore = await lstat(input.preflight.sourcePath).catch((error: unknown) => {
+    if (errno(error, 'ENOENT')) return undefined;
+    throw error;
+  });
   const destinationBefore = await lstat(input.preflight.destinationPath).catch((error: unknown) => {
     if (errno(error, 'ENOENT')) return undefined;
     throw error;
   });
+
+  if (!sourceBefore) {
+    if (!existingIntent || !destinationBefore) throw new Error('REPLAY_STATE_INCONSISTENT');
+    if (destinationBefore.dev !== input.preflight.snapshot.sourceVolumeId
+      || destinationBefore.ino !== input.preflight.snapshot.sourceFileId) {
+      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+    }
+    const recoveredTreeDigest = await computeQuarantineTreeDigest(input.preflight.destinationPath)
+      .catch((error: unknown) => { throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error }); });
+    if (recoveredTreeDigest !== input.preflight.snapshot.treeDigest) {
+      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+    }
+    const destinationAfterRecoveryDigest = await lstat(input.preflight.destinationPath).catch((error: unknown) => {
+      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+    });
+    if (destinationAfterRecoveryDigest.dev !== destinationBefore.dev
+      || destinationAfterRecoveryDigest.ino !== destinationBefore.ino) {
+      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+    }
+    const recoveredBase = {
+      kind: 'skillmap.local-quarantine-receipt' as const,
+      schemaVersion: 2 as const,
+      status: 'MOVE_OBSERVED' as const,
+      receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v2', operationId: input.authorization.operationId }),
+      operationId: input.authorization.operationId,
+      authorizationDigest,
+      preflightDigest: input.preflight.preflightDigest,
+      candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
+      treeDigest: input.preflight.snapshot.treeDigest,
+      contentDigest: input.authorization.contentDigest,
+      sourceObjectId: input.authorization.sourceObjectId,
+      quarantineObjectIdentityDigest: digest({
+        kind: 'skillmap.quarantine-object-identity.v1',
+        sourceObjectId: input.authorization.sourceObjectId,
+        device: destinationBefore.dev,
+        inode: destinationBefore.ino,
+        destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest
+      }),
+      destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest,
+      quarantinedAt: intentCreatedAt,
+      restoreExpiresAt: computeRestoreExpiryUtc(intentCreatedAt)
+    };
+    const recoveredReceipt: QuarantineMutationReceipt = {
+      ...recoveredBase,
+      receiptDigest: digest(recoveredBase)
+    };
+    await writeExclusiveRecord(receiptFile, recoveredReceipt).catch((error: unknown) => {
+      throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+    });
+    return recoveredReceipt;
+  }
+
+  if (!sameSnapshot(input.preflight, sourceBefore)) throw new Error('CANDIDATE_STALE');
   if (destinationBefore) return LOCAL_QUARANTINE_OUTCOMES.OWNER_PILOT_DESTINATION_COLLISION_EXHAUSTED;
 
   const intent = {
@@ -374,11 +497,8 @@ export async function executeQuarantine(input: {
     preflightDigest: input.preflight.preflightDigest,
     candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
     destinationIdentityDigest: input.preflight.reservation.destinationIdentityDigest,
-    createdAt: now.toISOString()
+    createdAt: intentCreatedAt
   } as const;
-  const intentFile = path.join(input.receiptDirectory, `${input.authorization.operationId}.quarantine-intent.json`);
-  const existingIntent = await safeReadRecord(intentFile);
-  if (existingIntent && existingIntent.authorizationDigest !== authorizationDigest) throw new Error('IDEMPOTENCY_CONFLICT');
   if (!existingIntent) await writeExclusiveRecord(intentFile, { ...intent, intentDigest: digest(intent) });
 
   try {
@@ -437,17 +557,25 @@ export async function executeQuarantine(input: {
   if (destinationTreeDigest !== input.preflight.snapshot.treeDigest) {
     throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
   }
+  const destinationAfterDigest = await lstat(input.preflight.destinationPath).catch((error: unknown) => {
+    throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+  });
+  if (destinationAfterDigest.dev !== destinationAfter.dev
+    || destinationAfterDigest.ino !== destinationAfter.ino) {
+    throw new Error('MOVE_OUTCOME_NEEDS_RECONCILIATION');
+  }
 
-  const quarantinedAt = now.toISOString();
+  const quarantinedAt = intentCreatedAt;
   const base = {
     kind: 'skillmap.local-quarantine-receipt' as const,
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     status: 'MOVE_OBSERVED' as const,
-    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v1', operationId: input.authorization.operationId }),
+    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v2', operationId: input.authorization.operationId }),
     operationId: input.authorization.operationId,
     authorizationDigest,
     preflightDigest: input.preflight.preflightDigest,
     candidateSnapshotDigest: input.preflight.snapshot.snapshotDigest,
+    treeDigest: input.preflight.snapshot.treeDigest,
     contentDigest: input.authorization.contentDigest,
     sourceObjectId: input.authorization.sourceObjectId,
     quarantineObjectIdentityDigest: digest({

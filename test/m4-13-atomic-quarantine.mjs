@@ -71,13 +71,14 @@ test('native mover preserves unsafe-path and durability helper failures', { skip
 test('quarantine receipt validation rejects modified authority fields', () => {
   const base = {
     kind: 'skillmap.local-quarantine-receipt',
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: 'MOVE_OBSERVED',
-    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v1', operationId: 'op-1' }),
+    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v2', operationId: 'op-1' }),
     operationId: 'op-1',
     authorizationDigest: `sha256:${'1'.repeat(64)}`,
     preflightDigest: `sha256:${'2'.repeat(64)}`,
     candidateSnapshotDigest: `sha256:${'3'.repeat(64)}`,
+    treeDigest: `sha256:${'8'.repeat(64)}`,
     contentDigest: `sha256:${'4'.repeat(64)}`,
     sourceObjectId: 'source-1',
     quarantineObjectIdentityDigest: `sha256:${'5'.repeat(64)}`,
@@ -91,6 +92,15 @@ test('quarantine receipt validation rejects modified authority fields', () => {
     () => validateQuarantineMutationReceipt({ ...receipt, contentDigest: `sha256:${'7'.repeat(64)}` }),
     /Quarantine receipt/
   );
+
+  const { treeDigest: _treeDigest, receiptDigest: _receiptDigest, ...legacyBase } = receipt;
+  const legacyReceipt = {
+    ...legacyBase,
+    schemaVersion: 1,
+    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v1', operationId: 'op-1' })
+  };
+  const signedLegacyReceipt = { ...legacyReceipt, receiptDigest: digest(legacyReceipt) };
+  assert.deepEqual(validateQuarantineMutationReceipt(signedLegacyReceipt), signedLegacyReceipt);
 });
 
 async function run(command, args) {
@@ -191,6 +201,7 @@ test('quarantine uses native no-replace rename and writes path-free durable rece
   const persisted = await readFile(path.join(state.receipts, `${state.authorization.operationId}.quarantine-receipt.json`), 'utf8');
   assert.equal(persisted.includes(state.root), false);
   assert.equal(persisted.includes('/private/'), false);
+  assert.equal(receipt.treeDigest, state.preflight.snapshot.treeDigest);
 
   const replay = await executeQuarantine({
     preflight: state.preflight,
@@ -201,6 +212,39 @@ test('quarantine uses native no-replace rename and writes path-free durable rece
     now: () => new Date('2026-08-20T12:01:00.000Z')
   });
   assert.deepEqual(replay, receipt);
+});
+
+test('quarantine retry reconciles a completed move from its durable intent', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const realMover = createMacOSAtomicNoReplaceMover(state.helper);
+  await assert.rejects(executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: {
+      async move(sourcePath, destinationPath, binding) {
+        await realMover.move(sourcePath, destinationPath, binding);
+        throw new Error('simulated interruption after durable move');
+      }
+    },
+    now: () => new Date('2026-08-20T12:00:00.000Z')
+  }), /simulated interruption/);
+
+  let retryMoveCalls = 0;
+  const receipt = await executeQuarantine({
+    preflight: state.preflight,
+    parityReceipt: state.parityReceipt,
+    authorization: state.authorization,
+    receiptDirectory: state.receipts,
+    mover: { async move() { retryMoveCalls += 1; } },
+    now: () => new Date('2026-08-20T12:01:00.000Z')
+  });
+  assert.equal(receipt.status, 'MOVE_OBSERVED');
+  assert.equal(receipt.treeDigest, state.preflight.snapshot.treeDigest);
+  assert.equal(retryMoveCalls, 0);
+  await assert.rejects(access(path.join(state.source, 'skill-a')));
+  assert.equal(await readFile(path.join(state.preflight.destinationPath, 'SKILL.md'), 'utf8'), SKILL_CONTENT);
 });
 
 test('destination race never overwrites the occupying entry', { skip: process.platform !== 'darwin' }, async (t) => {

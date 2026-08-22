@@ -54,7 +54,8 @@ const HIGH_CONFIDENCE_CREDENTIAL_PATTERNS = [
   /\bsbp_[A-Za-z0-9]{40,255}\b/u
 ] as const;
 
-const CREDENTIAL_ASSIGNMENT_PATTERN = /\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|private[_-]?key|secret|token)\b\s*[:=]\s*["']?([^\s"'`]{20,512})/giu;
+const CREDENTIAL_ASSIGNMENT_PATTERN = /(?:^|[^A-Za-z0-9_-])["']?([A-Za-z][A-Za-z0-9_-]{0,127})["']?\s*[:=]\s*["']?([^\s"'`]{1,512})/gimu;
+const SENSITIVE_ASSIGNMENT_KEY_PATTERN = /(?:^|[_-])(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|private[_-]?key|secret(?:[_-]?access)?[_-]?key|secret|token)$/iu;
 const PLACEHOLDER_PATTERN = /^(?:\$\{[^}]+\}|<[^>]+>|\[?redacted\]?|changeme|dummy|example|placeholder|replace[-_ ]?me|test|todo|your[-_ ]?[a-z0-9_-]+)$/iu;
 
 export type ImportSecretBlockReason =
@@ -417,7 +418,9 @@ function crc32(content: Uint8Array): number {
 function containsCredentialAssignment(content: string): boolean {
   CREDENTIAL_ASSIGNMENT_PATTERN.lastIndex = 0;
   for (const match of content.matchAll(CREDENTIAL_ASSIGNMENT_PATTERN)) {
-    const candidate = match[1].replace(/[),.;]+$/u, '');
+    const assignmentKey = match[1];
+    if (!SENSITIVE_ASSIGNMENT_KEY_PATTERN.test(assignmentKey)) continue;
+    const candidate = match[2].replace(/[),.;]+$/u, '');
     if (PLACEHOLDER_PATTERN.test(candidate)) continue;
     if (candidate.length >= 20) return true;
   }

@@ -162,6 +162,54 @@ test('restore returns the exact quarantined object to its original destination',
   assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
 });
 
+test('restore preserves backward compatibility for a valid persisted v1 quarantine receipt', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const { treeDigest: _treeDigest, receiptDigest: _receiptDigest, ...legacyBase } = state.quarantineReceipt;
+  const unsignedLegacyReceipt = {
+    ...legacyBase,
+    schemaVersion: 1,
+    receiptId: digest({ kind: 'skillmap.local-quarantine-receipt-id.v1', operationId: state.quarantineReceipt.operationId })
+  };
+  const legacyReceipt = { ...unsignedLegacyReceipt, receiptDigest: digest(unsignedLegacyReceipt) };
+  const legacyAuthorization = {
+    ...state.restoreAuthorization,
+    quarantineReceiptId: legacyReceipt.receiptId
+  };
+  const receipt = await executeRestore({
+    quarantineReceipt: legacyReceipt,
+    authorization: legacyAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: state.mover,
+    authorityProvider: authorityProviderFor(legacyAuthorization),
+    now: () => new Date('2026-08-21T12:00:00.000Z')
+  });
+  assert.equal(receipt.status, 'RESTORE_OBSERVED');
+  assert.equal(await readFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'utf8'), SKILL_CONTENT);
+});
+
+test('restore rejects descendant changes made while the object is quarantined', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  await writeFile(path.join(state.preflight.destinationPath, 'SKILL.md'), 'changed while quarantined', 'utf8');
+  let moveCalls = 0;
+  await assert.rejects(executeRestore({
+    quarantineReceipt: state.quarantineReceipt,
+    authorization: state.restoreAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: { async move() { moveCalls += 1; } },
+    authorityProvider: state.authorityProvider,
+    now: () => new Date('2026-08-21T12:00:00.000Z')
+  }), /QUARANTINE_TREE_MISMATCH/);
+  assert.equal(moveCalls, 0);
+});
+
 test('occupied exact original destination preserves both objects', { skip: process.platform !== 'darwin' }, async (t) => {
   const state = await setup(t);
   await mkdir(path.join(state.source, 'skill-a'));
@@ -212,6 +260,59 @@ test('completed restore replay returns the prior receipt without a second move',
   });
   assert.deepEqual(replay, receipt);
   assert.equal(replayMoveCalls, 0);
+});
+
+test('completed restore replay rejects descendant changes at the original path', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  const input = {
+    quarantineReceipt: state.quarantineReceipt,
+    authorization: state.restoreAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: state.mover,
+    authorityProvider: state.authorityProvider,
+    now: () => new Date('2026-08-21T12:00:00.000Z')
+  };
+  await executeRestore(input);
+  await writeFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'changed after restore', 'utf8');
+  await assert.rejects(executeRestore(input), /QUARANTINE_TREE_MISMATCH/);
+});
+
+test('interrupted restore recovery rejects a changed descendant tree', { skip: process.platform !== 'darwin' }, async (t) => {
+  const state = await setup(t);
+  await assert.rejects(executeRestore({
+    quarantineReceipt: state.quarantineReceipt,
+    authorization: state.restoreAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: {
+      async move(sourcePath, destinationPath, binding) {
+        await state.mover.move(sourcePath, destinationPath, binding);
+        throw new Error('simulated interruption after restore move');
+      }
+    },
+    authorityProvider: state.authorityProvider,
+    now: () => new Date('2026-08-21T12:00:00.000Z')
+  }), /simulated interruption/);
+  await writeFile(path.join(state.source, 'skill-a', 'SKILL.md'), 'changed before recovery', 'utf8');
+  await assert.rejects(executeRestore({
+    quarantineReceipt: state.quarantineReceipt,
+    authorization: state.restoreAuthorization,
+    quarantineRoot: state.quarantineRoot,
+    quarantinePath: state.preflight.destinationPath,
+    originalRoot: state.sourceRoot,
+    originalCandidates: ['skill-a'],
+    receiptDirectory: state.receipts,
+    mover: state.mover,
+    authorityProvider: state.authorityProvider,
+    now: () => new Date('2026-08-21T12:01:00.000Z')
+  }), /QUARANTINE_TREE_MISMATCH/);
 });
 
 test('same idempotency key with changed restore authorization is rejected', { skip: process.platform !== 'darwin' }, async (t) => {

@@ -36,7 +36,7 @@ const REVIEWED_FIXTURE_EXEMPTIONS = new Map([
     labels: new Set(['PEM private key', 'GitHub credential'])
   }],
   ['test/m4-03-secret-blocking.mjs', {
-    sha256: '02ad59b0d692486c4c1152f6b466cc0a4272fdcb3b1ac3121e968142fd10d49e',
+    sha256: 'ec77d866bc693449592fb696b2cca69fb584840d5093ccfa1e4a5a5e035cb1c5',
     labels: new Set(['PEM private key'])
   }]
 ]);

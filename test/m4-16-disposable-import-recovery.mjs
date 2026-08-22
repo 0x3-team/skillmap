@@ -109,12 +109,14 @@ function createDisposableCloud() {
         expiresAt: input.expiresAt
       };
     },
-    async listReceipts() {
+    async listReceipts({ expectedRevision } = {}) {
       operations.push('receipts');
+      if (expectedRevision !== revision) throw new ImportClientError(409, 'session_conflict');
       return { sessionPublicId: SESSION_ID, revision, receipts: structuredClone(receipts) };
     },
-    async finalizeImportSession() {
+    async finalizeImportSession({ expectedRevision } = {}) {
       operations.push('finalize');
+      if (expectedRevision !== revision) throw new ImportClientError(409, 'session_conflict');
       if (!consented) throw new ImportClientError(409, 'owner_consent_required');
       revision += 1;
       return {
@@ -134,13 +136,19 @@ function createDisposableCloud() {
   const uploader = {
     async uploadFiles({ session, files }) {
       operations.push('upload');
-      receipts = files.map((file, ordinal) => ({
-        filePublicId: file.filePublicId,
-        relativePath: file.relativePath,
-        acceptedByteSize: file.byteSize,
-        fileDigest: file.digest,
-        ordinal
-      }));
+      const receiptByFileId = new Map(receipts.map((receipt) => [receipt.filePublicId, receipt]));
+      for (const file of files) {
+        const prepared = preparedFiles.find((candidate) => candidate.filePublicId === file.filePublicId);
+        assert.ok(prepared, `missing prepared fixture file ${file.filePublicId}`);
+        receiptByFileId.set(file.filePublicId, {
+          filePublicId: file.filePublicId,
+          relativePath: file.relativePath,
+          acceptedByteSize: file.byteSize,
+          fileDigest: file.digest,
+          ordinal: prepared.ordinal
+        });
+      }
+      receipts = [...receiptByFileId.values()].sort((left, right) => left.ordinal - right.ordinal);
       revision += 1;
       const acceptedByteTotal = receipts.reduce((sum, receipt) => sum + receipt.acceptedByteSize, 0);
       return {
@@ -157,9 +165,11 @@ function createDisposableCloud() {
         progress: {
           acceptedFileCount: receipts.length,
           acceptedByteTotal,
-          expectedFileCount: files.length,
-          expectedByteTotal: acceptedByteTotal,
-          percentComplete: 100
+          expectedFileCount: session.expectedFileCount,
+          expectedByteTotal: session.expectedByteTotal,
+          percentComplete: session.expectedByteTotal === 0
+            ? 100
+            : Math.floor((acceptedByteTotal / session.expectedByteTotal) * 100)
         }
       };
     }
@@ -169,10 +179,65 @@ function createDisposableCloud() {
     uploader,
     operations,
     consent() { consented = true; },
-    reset() { preparedFiles = []; receipts = []; operations.length = 0; revision = 1; },
+    reset() { consented = false; preparedFiles = []; receipts = []; operations.length = 0; revision = 1; },
     get retainedObjectCount() { return preparedFiles.length + receipts.length; }
   };
 }
+
+test('M4.16 disposable cloud preserves partial receipts, revision conflicts, and consent isolation', async () => {
+  const cloud = createDisposableCloud();
+  const sourceFiles = [
+    { relativePath: 'SKILL.md', mediaType: 'text/markdown', byteSize: 11, fileDigest: `sha256:${'1'.repeat(64)}`, executable: false },
+    { relativePath: 'references.txt', mediaType: 'text/plain', byteSize: 17, fileDigest: `sha256:${'2'.repeat(64)}`, executable: false }
+  ];
+  const target = await cloud.client.prepareImportTarget({
+    files: sourceFiles,
+    manifestDigest: `sha256:${'3'.repeat(64)}`,
+    contentDigest: `sha256:${'4'.repeat(64)}`
+  });
+  const session = await cloud.client.beginImportSession({
+    expectedFileCount: 2,
+    expectedByteTotal: 28,
+    manifestDigest: `sha256:${'3'.repeat(64)}`,
+    contentDigest: `sha256:${'4'.repeat(64)}`,
+    expiresAt: '2026-08-20T12:10:00.000Z'
+  });
+  const uploadFiles = target.files.map((file) => ({
+    filePublicId: file.filePublicId,
+    relativePath: file.relativePath,
+    mediaType: file.mediaType,
+    byteSize: file.byteSize,
+    digest: file.fileDigest,
+    bytes: Buffer.alloc(file.byteSize)
+  }));
+
+  const first = await cloud.uploader.uploadFiles({ session, files: uploadFiles.slice(0, 1) });
+  assert.equal(first.progress.acceptedFileCount, 1);
+  assert.equal(first.progress.expectedFileCount, 2);
+  assert.ok(first.progress.percentComplete < 100);
+  const second = await cloud.uploader.uploadFiles({ session: first.session, files: uploadFiles.slice(1) });
+  const listed = await cloud.client.listReceipts({ expectedRevision: second.session.revision });
+  assert.deepEqual(listed.receipts.map((receipt) => receipt.ordinal), [0, 1]);
+  assert.equal(second.progress.acceptedFileCount, 2);
+  assert.equal(second.progress.expectedByteTotal, 28);
+  assert.equal(second.progress.percentComplete, 100);
+
+  await assert.rejects(
+    cloud.client.listReceipts({ expectedRevision: second.session.revision - 1 }),
+    (error) => error instanceof ImportClientError && error.code === 'session_conflict'
+  );
+  cloud.consent();
+  await assert.rejects(
+    cloud.client.finalizeImportSession({ expectedRevision: second.session.revision - 1 }),
+    (error) => error instanceof ImportClientError && error.code === 'session_conflict'
+  );
+
+  cloud.reset();
+  await assert.rejects(
+    cloud.client.finalizeImportSession({ expectedRevision: 1 }),
+    (error) => error instanceof ImportClientError && error.code === 'owner_consent_required'
+  );
+});
 
 function hostedRestoreAuthority(authorization, overrides = {}) {
   const base = {

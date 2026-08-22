@@ -7,6 +7,7 @@ import { LOCAL_QUARANTINE_OUTCOMES, type LocalQuarantineOutcomeV1 } from '../con
 import { validateQuarantineMutationReceipt } from './quarantine-execution.js';
 import { assertSameVolume } from './quarantine-preflight.js';
 import { assertRestoreWindowOpen } from './quarantine-retention.js';
+import { computeQuarantineTreeDigest } from './quarantine-tree-digest.js';
 import type {
   AtomicNoReplaceMover,
   HostedRestoreAuthorityProvider,
@@ -281,6 +282,23 @@ function assertQuarantineObjectIdentity(
   if (observed !== receipt.quarantineObjectIdentityDigest) throw new Error('QUARANTINE_IDENTITY_MISMATCH');
 }
 
+async function assertQuarantineTreeIntegrity(
+  candidatePath: string,
+  receipt: QuarantineMutationReceipt,
+  failureCode: 'QUARANTINE_TREE_MISMATCH' | 'RESTORE_OUTCOME_NEEDS_RECONCILIATION'
+): Promise<void> {
+  // V1 receipts predate descendant-tree binding. Preserve their established
+  // restore behavior; only V2 receipts may claim tree-integrity enforcement.
+  if (receipt.schemaVersion === 1) return;
+  let observed: string;
+  try {
+    observed = await computeQuarantineTreeDigest(candidatePath);
+  } catch (error) {
+    throw new Error(failureCode, { cause: error });
+  }
+  if (observed !== receipt.treeDigest) throw new Error(failureCode);
+}
+
 const RESTORE_RECEIPT_KEYS = [
   'kind',
   'schemaVersion',
@@ -408,6 +426,7 @@ export async function executeRestore(input: {
     ]);
     if (!originalEntry || quarantineEntry) throw new Error('REPLAY_STATE_INCONSISTENT');
     assertQuarantineObjectIdentity(originalEntry.stats, input.quarantineReceipt);
+    await assertQuarantineTreeIntegrity(originalEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
     return receipt;
   }
 
@@ -425,6 +444,7 @@ export async function executeRestore(input: {
   if (originalEntry) {
     if (!existingIntent || quarantineEntry) return LOCAL_QUARANTINE_OUTCOMES.RESTORE_DESTINATION_OCCUPIED;
     assertQuarantineObjectIdentity(originalEntry.stats, input.quarantineReceipt);
+    await assertQuarantineTreeIntegrity(originalEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
     return createRestoreReceipt({
       authorization: input.authorization,
       authorizationDigest,
@@ -435,6 +455,7 @@ export async function executeRestore(input: {
   }
   if (!quarantineEntry) throw new Error('REPLAY_STATE_INCONSISTENT');
   assertQuarantineObjectIdentity(quarantineEntry.stats, input.quarantineReceipt);
+  await assertQuarantineTreeIntegrity(quarantineEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
 
   const destinationBefore = await lstat(originalPath).catch((error: unknown) => {
     if (errno(error, 'ENOENT')) return undefined;
@@ -466,6 +487,7 @@ export async function executeRestore(input: {
   const moveExpiryFailure = assertRestoreWindowOpen(input.quarantineReceipt, moveNow);
   if (moveExpiryFailure) return moveExpiryFailure;
   assertHostedRestoreAuthority(hostedAuthority, input.authorization, moveNow);
+  await assertQuarantineTreeIntegrity(quarantineEntry.absolutePath, input.quarantineReceipt, 'QUARANTINE_TREE_MISMATCH');
   try {
     await input.mover.move(quarantineEntry.absolutePath, originalPath, {
       sourceRootPath: input.quarantineRoot.canonicalRootPath,
@@ -493,6 +515,11 @@ export async function executeRestore(input: {
     throw error;
   });
   if (quarantineAfter) throw new Error('RESTORE_OUTCOME_NEEDS_RECONCILIATION');
+  await assertQuarantineTreeIntegrity(originalPath, input.quarantineReceipt, 'RESTORE_OUTCOME_NEEDS_RECONCILIATION');
+  const originalAfterDigest = await lstat(originalPath).catch((error: unknown) => {
+    throw new Error('RESTORE_OUTCOME_NEEDS_RECONCILIATION', { cause: error });
+  });
+  assertQuarantineObjectIdentity(originalAfterDigest, input.quarantineReceipt);
   return createRestoreReceipt({
     authorization: input.authorization,
     authorizationDigest,

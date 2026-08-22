@@ -490,7 +490,6 @@ test('M4.07 enforces the uploader origin guard for a structural client double', 
 
 test('M4.07 gives each queued acceptance a fresh deadline after lock acquisition', async () => {
   const files = [makeFile(0), makeFile(1)];
-  let firstAccept = true;
   let revision = 1;
   let acceptedFileCount = 0;
   const client = {
@@ -513,12 +512,8 @@ test('M4.07 gives each queued acceptance a fresh deadline after lock acquisition
       };
     },
     async acceptFile(_params, { signal }) {
-      const isFirstAccept = firstAccept;
-      if (isFirstAccept) {
-        firstAccept = false;
-        await new Promise((resolve) => setTimeout(resolve, 30));
-      }
-      if (!isFirstAccept && signal.aborted) {
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      if (signal.aborted) {
         throw new DOMException('The operation was aborted.', 'AbortError');
       }
       revision += 1;
@@ -537,7 +532,7 @@ test('M4.07 gives each queued acceptance a fresh deadline after lock acquisition
   const result = await new ImportUploader({
     client,
     concurrency: 2,
-    fileTimeoutMs: 10,
+    fileTimeoutMs: 50,
     fileMaxRetries: 0,
     storageTransport: makeStorageRouter()
   }).uploadFiles({ session: baseSession(), files, accessToken: ACCESS_TOKEN });

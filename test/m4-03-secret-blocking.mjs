@@ -76,12 +76,32 @@ test('M4.03 keeps common documentation placeholders and inert text importable', 
     'Set API_KEY=YOUR_API_KEY in your own environment.',
     'token: <replace-me>',
     'password = "example"',
+    'aws_secret_access_key=${AWS_SECRET_ACCESS_KEY}',
+    'database_password="example"',
+    `my_secretary=${'a'.repeat(32)}`,
     'Authorization: Bearer ${TOKEN}',
     'The word secret is documentation, not a credential.',
     '# Skill\nUse this skill to review authentication code.'
   ]) {
     assert.deepEqual(inspect('references/guide.md', content, 'text/markdown'), {
       decision: 'allowed'
+    });
+  }
+});
+
+test('M4.03 blocks prefixed and compound secret assignment keys', () => {
+  for (const [relativePath, content] of [
+    ['references/aws.env.example', `aws_secret_access_key=${'A'.repeat(32)}`],
+    ['references/openai.env.example', `openai_api_key=${'B'.repeat(32)}`],
+    ['references/database.env.example', `database_password=${'C'.repeat(32)}`],
+    ['references/quoted.yaml', `openai_api_key: "${'D'.repeat(32)}"`],
+    ['references/quoted.json', `{"openai_api_key":"${'D'.repeat(32)}"}`],
+    ['references/secret-key.env.example', `secret_key=${'E'.repeat(32)}`]
+  ]) {
+    assert.deepEqual(inspect(relativePath, content), {
+      decision: 'blocked',
+      code: 'IMPORT_SECRET_BLOCKED',
+      reason: 'credential_assignment'
     });
   }
 });

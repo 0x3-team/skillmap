@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, api, private;
 
-select plan(34);
+select plan(35);
 
 select is(
   private.compute_import_content_digest(
@@ -292,6 +292,16 @@ where skills.account_id = 'a4000000-0000-4400-8400-000000000001'
   and versions.account_id = skills.account_id
   and versions.managed_skill_id = skills.id
   and versions.public_id = boundary.response ->> 'version_public_id';
+
+select ok(
+  (select pg_catalog.count(*) = 2
+   from pg_catalog.pg_constraint as constraints
+   where (constraints.conrelid, constraints.conname) in (
+     ('private.managed_skills'::regclass, 'managed_skills_display_name_length_check'),
+     ('private.managed_skill_versions'::regclass, 'managed_skill_versions_canonical_metadata_check')
+   )),
+  'both managed import metadata constraints exist at the migration head'
+);
 
 select ok(
   (select pg_catalog.bool_and(constraints.convalidated)

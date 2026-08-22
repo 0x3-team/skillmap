@@ -2,13 +2,6 @@ begin;
 
 set local search_path = '';
 
--- Validate the bounded metadata constraints after their creation transaction
--- has committed, so the NOT VALID rollout avoids one long lock window.
-alter table private.managed_skills
-  validate constraint managed_skills_display_name_length_check;
-alter table private.managed_skill_versions
-  validate constraint managed_skill_versions_canonical_metadata_check;
-
 -- Consent state and workflow priority must be resolved before the bounded
 -- dashboard set is selected. Otherwise 20 newer preview sessions can hide an
 -- older session that requires owner action.

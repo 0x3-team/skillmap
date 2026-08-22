@@ -76,7 +76,7 @@
     "preflight:public-alpha": "node scripts/free-public-alpha-preflight.mjs --profile candidate --require-clean",
     "preflight:public-alpha:static": "node scripts/free-public-alpha-preflight.mjs --profile static",
     "preflight:public-alpha:recovery": "node scripts/hosted-database-recovery.mjs",
-    "check:web": "npm --prefix apps/web run test:fixtures && npm --prefix apps/web run typecheck && npm --prefix apps/web run lint && npm --prefix apps/web run build",
+    "check:web": "npm --prefix apps/web run test:fixtures && npm --prefix apps/web run test:import && npm --prefix apps/web run typecheck && npm --prefix apps/web run lint && npm --prefix apps/web run build",
     "check:all": "npm run typecheck && npm run test:contracts && npm run test:integration && npm run test:privacy && npm run test:migrations && npm run test:failure && npm run test:connector && npm run check:web && npm run test:browser-fixture && npm run test:cross-browser && npm run test:a11y && npm run test:visual && npm run test:perf && npm run test:consumer-install && npm run test:release-path",
     "lint": "npm run typecheck"
   },
